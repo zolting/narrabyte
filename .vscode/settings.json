@@ -1,0 +1,8 @@
+{
+    "biome.lsp.bin": "./frontend/node_modules/.bin/biome",
+    "biome.configurationPath": "",
+    "editor.codeActionsOnSave": {
+        "source.organizeImports.biome": "explicit",
+        "source.fixAll.biome": "explicit"
+    }
+}
