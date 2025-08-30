@@ -15,22 +15,22 @@ function App() {
 	}
 
 	return (
-		<div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-8">
-			<img src={logo} alt="logo" className="w-32 h-32 mb-8" />
-			<div className="text-xl text-gray-800 mb-8 text-center">{resultText}</div>
+		<div className="flex min-h-screen flex-col items-center justify-center bg-gray-100 p-8">
+			<img alt="logo" className="mb-8 h-32 w-32" src={logo} />
+			<div className="mb-8 text-center text-gray-800 text-xl">{resultText}</div>
 			<div className="flex gap-4">
 				<input
-					className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-					onChange={updateName}
 					autoComplete="off"
+					className="rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
 					name="input"
-					type="text"
+					onChange={updateName}
 					placeholder="Enter your name"
+					type="text"
 				/>
 				<button
-					type="button"
-					className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+					className="rounded-lg bg-blue-500 px-6 py-2 text-white transition-colors hover:bg-blue-600"
 					onClick={greet}
+					type="button"
 				>
 					Greet
 				</button>
