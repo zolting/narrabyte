@@ -43,6 +43,14 @@ func Init(cfg Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
+	// Configure connection pool for SQLite to prevent "database is locked" errors
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("get sql db: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+
 	if err := migrate(db); err != nil {
 		return nil, err
 	}
