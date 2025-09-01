@@ -2,9 +2,9 @@ import { useState } from "react";
 import { SelectDirectory } from "../../wailsjs/go/main/App";
 import { Button } from "./ui/button";
 
-interface DirectoryPickerProps {
+type DirectoryPickerProps = {
 	onDirectorySelected?: (path: string) => void;
-}
+};
 
 export default function DirectoryPicker({
 	onDirectorySelected,
@@ -29,12 +29,12 @@ export default function DirectoryPicker({
 
 	return (
 		<div className="flex flex-col gap-4">
-			<div className="flex gap-4 items-center">
-				<Button onClick={handleSelectDirectory} disabled={isLoading} size="lg">
+			<div className="flex items-center gap-4">
+				<Button disabled={isLoading} onClick={handleSelectDirectory} size="lg">
 					{isLoading ? "Selecting..." : "Select Directory"}
 				</Button>
 				{selectedPath && (
-					<div className="text-sm text-gray-600 truncate max-w-xs">
+					<div className="max-w-xs truncate text-gray-600 text-sm">
 						Selected: {selectedPath}
 					</div>
 				)}
