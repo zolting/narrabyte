@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { SelectDirectory } from "../wailsjs/go/main/App";
-import { Button } from "./components/ui/button";
+import { SelectDirectory } from "../../wailsjs/go/main/App";
+import { Button } from "./ui/button";
 
 interface DirectoryPickerProps {
 	onDirectorySelected?: (path: string) => void;

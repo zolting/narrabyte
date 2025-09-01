@@ -2,10 +2,10 @@ import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Greet } from "../wailsjs/go/main/App";
 import logo from "./assets/images/logo-universal.png";
+import DirectoryPicker from "./components/DirectoryPicker";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Input } from "./components/ui/input";
-import DirectoryPicker from "./DirectoryPicker";
 
 function App() {
 	const [resultText, setResultText] = useState(
@@ -37,7 +37,7 @@ function App() {
 	}
 
 	return (
-		<div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-8">
+		<div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-8 font-mono">
 			{/* Theme Toggle Button */}
 			<Button
 				variant="outline"
@@ -46,9 +46,9 @@ function App() {
 				className="absolute top-4 right-4"
 			>
 				{theme === "light" ? (
-					<Moon className="h-4 w-4" />
+					<Moon className="h-4 w-4 text-foreground" />
 				) : (
-					<Sun className="h-4 w-4" />
+					<Sun className="h-4 w-4 text-foreground" />
 				)}
 				<span className="sr-only">Toggle theme</span>
 			</Button>
@@ -67,7 +67,7 @@ function App() {
 							placeholder="Enter your name"
 							type="text"
 							value={name}
-							className="flex-1"
+							className="flex-1 font-mono"
 						/>
 						<Button onClick={greet} size="lg">
 							Greet
