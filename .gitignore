@@ -1,12 +1,20 @@
 build/bin
 node_modules
 frontend/dist
+frontend/package.json.md5
 
-.idea/
-.vscode/
+
+# JetBrains
+.idea/*
+!.idea/biome.xml
+!.idea/vcs.xml
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+!.idea/runConfigurations/
 
 *.db
 *.db-journal
 *.db-shm
 *.db-wal
 *.sqlite
+
