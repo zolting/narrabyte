@@ -32,7 +32,7 @@ func Init(cfg Config) (*gorm.DB, error) {
 			SlowThreshold:             200 * time.Millisecond,
 			LogLevel:                  cfg.LogLevel,
 			IgnoreRecordNotFoundError: true,
-			Colorful:                  false,
+			Colorful:                  true,
 		},
 	)
 
