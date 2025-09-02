@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"narrabyte/internal/database"
+	"narrabyte/internal/demo"
 	"narrabyte/internal/repository"
 	"narrabyte/internal/service"
 	"sync"
@@ -70,13 +71,6 @@ func (a *App) SelectDirectory() (string, error) {
     return dir, nil
 }
 
-// DemoEvent is a simple struct representing a backend event payload
-type DemoEvent struct {
-    ID        int       `json:"id"`
-    Type      string    `json:"type"`
-    Message   string    `json:"message"`
-    Timestamp time.Time `json:"timestamp"`
-}
 
 // StartDemoEvents starts emitting demo events periodically to the frontend via Wails events
 // It will no-op if a demo stream is already running
@@ -101,7 +95,7 @@ func (a *App) StartDemoEvents() {
 
         eventTypes := []string{"info", "debug", "warn", "error"}
         for i := 1; i <= 15; i++ {
-            evt := DemoEvent{
+            evt := demo.DemoEvent{
                 ID:        i,
                 Type:      eventTypes[(i-1)%len(eventTypes)],
                 Message:   fmt.Sprintf("Demo event #%d", i),
