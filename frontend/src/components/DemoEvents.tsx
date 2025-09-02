@@ -2,28 +2,37 @@ import { useDemoEventsStore } from "../stores/demoEvents";
 import { Button } from "./ui/button";
 
 export function DemoEvents() {
-	const events = useDemoEventsStore((s) => s.events);
-	const isListening = useDemoEventsStore((s) => s.isListening);
-	const startDemo = useDemoEventsStore((s) => s.start);
-	const clearEvents = useDemoEventsStore((s) => s.clear);
+    const events = useDemoEventsStore((s) => s.events);
+    const isListening = useDemoEventsStore((s) => s.isListening);
+    const startDemo = useDemoEventsStore((s) => s.start);
+    const stopDemo = useDemoEventsStore((s) => s.stop);
+    const clearEvents = useDemoEventsStore((s) => s.clear);
 
 	return (
 		<div className="mt-6 space-y-3 border-t pt-4">
 			<div className="flex items-center justify-between">
 				<div className="font-semibold">Demo Events</div>
-				<div className="flex gap-2">
-					<Button
-						disabled={isListening}
-						onClick={startDemo}
-						size="sm"
-						variant="outline"
-					>
-						{isListening ? "Streaming..." : "Start Demo"}
-					</Button>
-					<Button onClick={clearEvents} size="sm" variant="outline">
-						Clear
-					</Button>
-				</div>
+                <div className="flex gap-2">
+                    <Button
+                        disabled={isListening}
+                        onClick={startDemo}
+                        size="sm"
+                        variant="outline"
+                    >
+                        {isListening ? "Streaming..." : "Start Demo"}
+                    </Button>
+                    <Button
+                        disabled={!isListening}
+                        onClick={stopDemo}
+                        size="sm"
+                        variant="outline"
+                    >
+                        Stop
+                    </Button>
+                    <Button onClick={clearEvents} size="sm" variant="outline">
+                        Clear
+                    </Button>
+                </div>
 			</div>
 			<div className="max-h-56 overflow-auto rounded-md border bg-muted/30 p-3 text-sm">
 				{events.length === 0 ? (

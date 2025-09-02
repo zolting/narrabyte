@@ -23,6 +23,7 @@ type App struct {
     UserSvc service.UserService
     demoMu      sync.Mutex
     demoRunning bool
+    demoCancel  context.CancelFunc
 }
 
 // NewApp creates a new App application struct
@@ -82,27 +83,52 @@ func (a *App) StartDemoEvents() {
         return
     }
     a.demoRunning = true
+    ctx, cancel := context.WithCancel(a.ctx)
+    a.demoCancel = cancel
     a.demoMu.Unlock()
 
     go func() {
         defer func() {
             a.demoMu.Lock()
             a.demoRunning = false
+            a.demoCancel = nil
             a.demoMu.Unlock()
             // Notify frontend that the demo stream has finished
             runtime.EventsEmit(a.ctx, "demo:events:done")
         }()
 
         eventTypes := []string{"info", "debug", "warn", "error"}
-        for i := 1; i <= 15; i++ {
-            evt := demo.DemoEvent{
-                ID:        i,
-                Type:      eventTypes[(i-1)%len(eventTypes)],
-                Message:   fmt.Sprintf("Demo event #%d", i),
-                Timestamp: time.Now(),
+        ticker := time.NewTicker(1 * time.Second)
+        defer ticker.Stop()
+        i := 0
+        for {
+            select {
+            case t := <-ticker.C:
+                i++
+                if i > 15 {
+                    return
+                }
+                evt := demo.DemoEvent{
+                    ID:        i,
+                    Type:      eventTypes[(i-1)%len(eventTypes)],
+                    Message:   fmt.Sprintf("Demo event #%d", i),
+                    Timestamp: t,
+                }
+                runtime.EventsEmit(a.ctx, "demo:events", evt)
+            case <-ctx.Done():
+                return
             }
-            runtime.EventsEmit(a.ctx, "demo:events", evt)
-            time.Sleep(1 * time.Second)
         }
     }()
+}
+
+// StopDemoEvents cancels the running demo event stream, if any
+func (a *App) StopDemoEvents() {
+    a.demoMu.Lock()
+    cancel := a.demoCancel
+    running := a.demoRunning
+    a.demoMu.Unlock()
+    if running && cancel != nil {
+        cancel()
+    }
 }

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { StartDemoEvents } from "../../wailsjs/go/main/App";
+import { StartDemoEvents, StopDemoEvents } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 
 export type DemoEvent = {
@@ -13,6 +13,7 @@ type State = {
 	events: DemoEvent[];
 	isListening: boolean;
 	start: () => Promise<void>;
+	stop: () => Promise<void>;
 	clear: () => void;
 };
 
@@ -59,6 +60,14 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 		} catch (e) {
 			console.error("Failed to start demo events", e);
 			set({ isListening: false });
+		}
+	},
+
+	stop: async () => {
+		try {
+			await StopDemoEvents();
+		} catch (e) {
+			console.error("Failed to stop demo events", e);
 		}
 	},
 }));

@@ -13,3 +13,7 @@ export function SelectDirectory() {
 export function StartDemoEvents() {
   return window['go']['main']['App']['StartDemoEvents']();
 }
+
+export function StopDemoEvents() {
+  return window['go']['main']['App']['StopDemoEvents']();
+}
