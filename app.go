@@ -6,6 +6,8 @@ import (
 	"narrabyte/internal/database"
 	"narrabyte/internal/repository"
 	"narrabyte/internal/service"
+	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm/logger"
@@ -15,9 +17,11 @@ import (
 
 // App struct
 type App struct {
-	ctx     context.Context
-	DB      *gorm.DB
-	UserSvc service.UserService
+    ctx     context.Context
+    DB      *gorm.DB
+    UserSvc service.UserService
+    demoMu      sync.Mutex
+    demoRunning bool
 }
 
 // NewApp creates a new App application struct
@@ -63,5 +67,48 @@ func (a *App) SelectDirectory() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return dir, nil
+    return dir, nil
+}
+
+// DemoEvent is a simple struct representing a backend event payload
+type DemoEvent struct {
+    ID        int       `json:"id"`
+    Type      string    `json:"type"`
+    Message   string    `json:"message"`
+    Timestamp time.Time `json:"timestamp"`
+}
+
+// StartDemoEvents starts emitting demo events periodically to the frontend via Wails events
+// It will no-op if a demo stream is already running
+func (a *App) StartDemoEvents() {
+    a.demoMu.Lock()
+    if a.demoRunning {
+        // already running; ignore duplicate starts
+        a.demoMu.Unlock()
+        return
+    }
+    a.demoRunning = true
+    a.demoMu.Unlock()
+
+    go func() {
+        defer func() {
+            a.demoMu.Lock()
+            a.demoRunning = false
+            a.demoMu.Unlock()
+            // Notify frontend that the demo stream has finished
+            runtime.EventsEmit(a.ctx, "demo:events:done")
+        }()
+
+        eventTypes := []string{"info", "debug", "warn", "error"}
+        for i := 1; i <= 15; i++ {
+            evt := DemoEvent{
+                ID:        i,
+                Type:      eventTypes[(i-1)%len(eventTypes)],
+                Message:   fmt.Sprintf("Demo event #%d", i),
+                Timestamp: time.Now(),
+            }
+            runtime.EventsEmit(a.ctx, "demo:events", evt)
+            time.Sleep(1 * time.Second)
+        }
+    }()
 }

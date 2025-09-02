@@ -4,3 +4,5 @@
 export function Greet(arg1:string):Promise<string>;
 
 export function SelectDirectory():Promise<string>;
+
+export function StartDemoEvents():Promise<void>;

@@ -9,3 +9,7 @@ export function Greet(arg1) {
 export function SelectDirectory() {
   return window['go']['main']['App']['SelectDirectory']();
 }
+
+export function StartDemoEvents() {
+  return window['go']['main']['App']['StartDemoEvents']();
+}
