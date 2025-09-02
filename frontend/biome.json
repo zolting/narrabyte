@@ -8,11 +8,7 @@
 
 	"files": {
 		"ignoreUnknown": false,
-		"experimentalScannerIgnores": [
-			"node_modules",
-			"src/components/ui",
-			"src/routeTree.gen.ts"
-		]
+		"experimentalScannerIgnores": ["node_modules", "src/components/ui"]
 	},
 	"formatter": {
 		"enabled": true,

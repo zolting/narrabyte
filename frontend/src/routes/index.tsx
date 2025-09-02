@@ -19,7 +19,7 @@ export const Route = createFileRoute("/")({
 
 function Home() {
 	const [resultText, setResultText] = useState(
-		"Please enter your name below 👇"
+		"Please enter your name below 👇",
 	);
 	const [name, setName] = useState("");
 	const [selectedDirectory, setSelectedDirectory] = useState<string>("");

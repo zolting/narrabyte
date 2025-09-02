@@ -22,7 +22,7 @@ function Settings() {
 					<div className="space-y-4">
 						<div className="text-center text-muted-foreground">
 							<p>This is the settings page!</p>
-							<p className="mt-2 text-sm">TanStack Router is now working 🎉</p>
+							<p className="mt-2 text-sm">TanStack Router is now working</p>
 						</div>
 						<div className="space-y-2">
 							<h3 className="font-semibold text-lg">Available Settings:</h3>
