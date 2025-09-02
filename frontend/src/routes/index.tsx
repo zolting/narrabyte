@@ -1,15 +1,25 @@
-import { Moon, Sun } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Moon, Settings, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Greet } from "../wailsjs/go/main/App";
-import logo from "./assets/images/logo-universal.png";
-import DirectoryPicker from "./components/DirectoryPicker";
-import { Button } from "./components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
-import { Input } from "./components/ui/input";
+import { Greet } from "../../wailsjs/go/main/App";
+import logo from "../assets/images/logo-universal.png";
+import DirectoryPicker from "../components/DirectoryPicker";
+import { Button } from "../components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "../components/ui/card";
+import { Input } from "../components/ui/input";
 
-function App() {
+export const Route = createFileRoute("/")({
+	component: Home,
+});
+
+function Home() {
 	const [resultText, setResultText] = useState(
-		"Please enter your name below 👇"
+		"Please enter your name below 👇",
 	);
 	const [name, setName] = useState("");
 	const [selectedDirectory, setSelectedDirectory] = useState<string>("");
@@ -38,20 +48,23 @@ function App() {
 
 	return (
 		<div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-8 font-mono">
-			{/* Theme Toggle Button */}
-			<Button
-				className="absolute top-4 right-4"
-				onClick={toggleTheme}
-				size="icon"
-				variant="outline"
-			>
-				{theme === "light" ? (
-					<Moon className="h-4 w-4 text-foreground" />
-				) : (
-					<Sun className="h-4 w-4 text-foreground" />
-				)}
-				<span className="sr-only">Toggle theme</span>
-			</Button>
+			{/* Navigation Buttons */}
+			<div className="absolute top-4 right-4 flex gap-2">
+				<Button asChild size="icon" variant="outline">
+					<Link to="/settings">
+						<Settings className="h-4 w-4 text-foreground" />
+						<span className="sr-only">Settings</span>
+					</Link>
+				</Button>
+				<Button onClick={toggleTheme} size="icon" variant="outline">
+					{theme === "light" ? (
+						<Moon className="h-4 w-4 text-foreground" />
+					) : (
+						<Sun className="h-4 w-4 text-foreground" />
+					)}
+					<span className="sr-only">Toggle theme</span>
+				</Button>
+			</div>
 
 			<Card className="w-full max-w-md">
 				<CardHeader className="text-center">
@@ -87,5 +100,3 @@ function App() {
 		</div>
 	);
 }
-
-export default App;
