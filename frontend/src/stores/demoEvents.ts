@@ -35,7 +35,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 		unsubscribeEvents?.();
 		unsubscribeDone?.();
 
-		unsubscribeEvents = EventsOn("demo:events", (payload) => {
+		unsubscribeEvents = EventsOn("events:demo", (payload) => {
 			// Payload comes from Go struct; convert to our TS shape
 			const evt: DemoEvent = {
 				id: payload?.id ?? 0,
@@ -46,7 +46,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 			set((s) => ({ events: [...s.events, evt] }));
 		});
 
-		unsubscribeDone = EventsOn("demo:events:done", () => {
+		unsubscribeDone = EventsOn("events:demo:done", () => {
 			set({ isListening: false });
 			unsubscribeEvents?.();
 			unsubscribeEvents = null;
@@ -58,7 +58,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 		try {
 			await StartDemoEvents();
 		} catch (e) {
-			console.error("Failed to start demo events", e);
+			console.error("Failed to start demo event", e);
 			set({ isListening: false });
 		}
 	},
@@ -67,7 +67,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 		try {
 			await StopDemoEvents();
 		} catch (e) {
-			console.error("Failed to stop demo events", e);
+			console.error("Failed to stop dem event", e);
 		}
 	},
 }));

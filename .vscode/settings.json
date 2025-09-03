@@ -1,11 +1,13 @@
 {
 	"biome.lsp.bin": "./frontend/node_modules/.bin/biome",
 	"biome.configurationPath": "",
-	"editor.defaultFormatter": "biomejs.biome",
 	"editor.codeActionsOnSave": {
 		"source.organizeImports.biome": "explicit",
 		"source.fixAll.biome": "explicit"
 	},
+	"editor.insertSpaces": false,
+	"editor.detectIndentation": false,
+	"editor.tabSize": 4,
 	"emmet.showExpandedAbbreviation": "never",
 	"[typescript]": {
 		"editor.defaultFormatter": "biomejs.biome"
@@ -30,5 +32,11 @@
 	},
 	"search.exclude": {
 		"**/routeTree.gen.ts": true
-	}
+	},
+	"[go]": {
+		"editor.defaultFormatter": "golang.go"
+	},
+	"go.formatTool": "goimports",
+	"go.useLanguageServer": true,
+	"editor.formatOnSave": true
 }

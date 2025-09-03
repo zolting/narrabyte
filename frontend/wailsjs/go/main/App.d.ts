@@ -3,6 +3,8 @@
 
 export function Greet(arg1:string):Promise<string>;
 
+export function LinkRepositories(arg1:string,arg2:string):Promise<void>;
+
 export function SelectDirectory():Promise<string>;
 
 export function StartDemoEvents():Promise<void>;

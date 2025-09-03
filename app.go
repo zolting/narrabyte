@@ -4,26 +4,22 @@ import (
 	"context"
 	"fmt"
 	"narrabyte/internal/database"
-	"narrabyte/internal/demo"
-	"narrabyte/internal/repository"
-	"narrabyte/internal/service"
+	"narrabyte/internal/events"
+	"narrabyte/internal/services"
 	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm/logger"
-
-	"gorm.io/gorm"
 )
 
 // App struct
 type App struct {
-    ctx     context.Context
-    DB      *gorm.DB
-    UserSvc service.UserService
-    demoMu      sync.Mutex
-    demoRunning bool
-    demoCancel  context.CancelFunc
+	ctx         context.Context
+	DbSvc       *services.DbSvc
+	demoMu      sync.Mutex
+	demoRunning bool
+	demoCancel  context.CancelFunc
 }
 
 // NewApp creates a new App application struct
@@ -44,16 +40,14 @@ func (a *App) startup(ctx context.Context) {
 		runtime.LogError(a.ctx, fmt.Sprintf("failed to open database: %v", err))
 		return
 	}
-	a.DB = db
 
-	userRepo := repository.NewUserRepository(a.DB)
-	a.UserSvc = service.NewUserService(userRepo)
+	a.DbSvc = services.NewDbSvc(db)
 }
 
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
-	if a.UserSvc != nil && name != "" {
-		if _, err := a.UserSvc.Register(a.ctx, name); err != nil {
+	if a.DbSvc.User != nil && name != "" {
+		if _, err := a.DbSvc.User.Register(a.ctx, name); err != nil {
 			runtime.LogError(a.ctx, fmt.Sprintf("failed to create user: %v", err))
 		}
 	}
@@ -69,66 +63,81 @@ func (a *App) SelectDirectory() (string, error) {
 	if err != nil {
 		return "", err
 	}
-    return dir, nil
+	return dir, nil
 }
 
-
 // StartDemoEvents starts emitting demo events periodically to the frontend via Wails events
-// It will no-op if a demo stream is already running
+// It will no-op if a demo events stream is already running
 func (a *App) StartDemoEvents() {
-    a.demoMu.Lock()
-    if a.demoRunning {
-        // already running; ignore duplicate starts
-        a.demoMu.Unlock()
-        return
-    }
-    a.demoRunning = true
-    ctx, cancel := context.WithCancel(a.ctx)
-    a.demoCancel = cancel
-    a.demoMu.Unlock()
+	a.demoMu.Lock()
+	if a.demoRunning {
+		// already running; ignore duplicate starts
+		a.demoMu.Unlock()
+		return
+	}
+	a.demoRunning = true
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.demoCancel = cancel
+	a.demoMu.Unlock()
 
-    go func() {
-        defer func() {
-            a.demoMu.Lock()
-            a.demoRunning = false
-            a.demoCancel = nil
-            a.demoMu.Unlock()
-            // Notify frontend that the demo stream has finished
-            runtime.EventsEmit(a.ctx, "demo:events:done")
-        }()
+	go func() {
+		defer func() {
+			a.demoMu.Lock()
+			a.demoRunning = false
+			a.demoCancel = nil
+			a.demoMu.Unlock()
+			// Notify frontend that the demo events stream has finished
+			runtime.EventsEmit(a.ctx, "events:demo:done")
+		}()
 
-        eventTypes := []string{"info", "debug", "warn", "error"}
-        ticker := time.NewTicker(1 * time.Second)
-        defer ticker.Stop()
-        i := 0
-        for {
-            select {
-            case t := <-ticker.C:
-                i++
-                if i > 15 {
-                    return
-                }
-                evt := demo.DemoEvent{
-                    ID:        i,
-                    Type:      eventTypes[(i-1)%len(eventTypes)],
-                    Message:   fmt.Sprintf("Demo event #%d", i),
-                    Timestamp: t,
-                }
-                runtime.EventsEmit(a.ctx, "demo:events", evt)
-            case <-ctx.Done():
-                return
-            }
-        }
-    }()
+		eventTypes := []string{"info", "debug", "warn", "error"}
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		i := 0
+		for {
+			select {
+			case t := <-ticker.C:
+				i++
+				if i > 15 {
+					return
+				}
+				evt := events.DemoEvent{
+					ID:        i,
+					Type:      eventTypes[(i-1)%len(eventTypes)],
+					Message:   fmt.Sprintf("Demo event #%d", i),
+					Timestamp: t,
+				}
+				runtime.EventsEmit(a.ctx, "events:demo", evt)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 // StopDemoEvents cancels the running demo event stream, if any
 func (a *App) StopDemoEvents() {
-    a.demoMu.Lock()
-    cancel := a.demoCancel
-    running := a.demoRunning
-    a.demoMu.Unlock()
-    if running && cancel != nil {
-        cancel()
-    }
+	a.demoMu.Lock()
+	cancel := a.demoCancel
+	running := a.demoRunning
+	a.demoMu.Unlock()
+	if running && cancel != nil {
+		cancel()
+	}
+}
+
+// LinkRepositories links the given repositories
+func (a *App) LinkRepositories(docRepo, codebaseRepo string) error {
+	if a.DbSvc.RepoLink == nil {
+		return fmt.Errorf("repo link service not available")
+	}
+
+	_, err := a.DbSvc.RepoLink.Register(a.ctx, docRepo, codebaseRepo)
+	if err != nil {
+		runtime.LogError(a.ctx, fmt.Sprintf("failed to link repositories: %v", err))
+		return err
+	}
+
+	runtime.LogInfo(a.ctx, fmt.Sprintf("Successfully linked doc: %s with codebase: %s", docRepo, codebaseRepo))
+	return nil
 }

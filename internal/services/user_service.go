@@ -1,9 +1,9 @@
-package service
+package services
 
 import (
 	"context"
 	"narrabyte/internal/models"
-	"narrabyte/internal/repository"
+	"narrabyte/internal/repositories"
 )
 
 type UserService interface {
@@ -13,10 +13,10 @@ type UserService interface {
 }
 
 type userService struct {
-	users repository.UserRepository
+	users repositories.UserRepository
 }
 
-func NewUserService(users repository.UserRepository) UserService {
+func NewUserService(users repositories.UserRepository) UserService {
 	return &userService{users: users}
 }
 
