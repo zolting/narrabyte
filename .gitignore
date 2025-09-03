@@ -1,4 +1,6 @@
 build/bin
+build/gocache
+build/gomodcache
 node_modules
 frontend/dist
 frontend/package.json.md5
