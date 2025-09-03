@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"narrabyte/internal/models"
 	"narrabyte/internal/repositories"
 )
@@ -21,6 +22,10 @@ func NewUserService(users repositories.UserRepository) UserService {
 }
 
 func (s *userService) Register(ctx context.Context, name string) (*models.User, error) {
+	if name == "" {
+		return nil, errors.New("name is required")
+	}
+
 	u := &models.User{
 		Name: name,
 	}
