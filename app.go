@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"narrabyte/internal/database"
+	"narrabyte/internal/demo"
 	"narrabyte/internal/repository"
 	"narrabyte/internal/service"
+	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm/logger"
@@ -13,8 +16,11 @@ import (
 
 // App struct
 type App struct {
-	ctx   context.Context
+    ctx     context.Context
 	DbSvc *service.DbSvc
+    demoMu      sync.Mutex
+    demoRunning bool
+    demoCancel  context.CancelFunc
 }
 
 // NewApp creates a new App application struct
@@ -60,5 +66,66 @@ func (a *App) SelectDirectory() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return dir, nil
+    return dir, nil
+}
+
+
+// StartDemoEvents starts emitting demo events periodically to the frontend via Wails events
+// It will no-op if a demo stream is already running
+func (a *App) StartDemoEvents() {
+    a.demoMu.Lock()
+    if a.demoRunning {
+        // already running; ignore duplicate starts
+        a.demoMu.Unlock()
+        return
+    }
+    a.demoRunning = true
+    ctx, cancel := context.WithCancel(a.ctx)
+    a.demoCancel = cancel
+    a.demoMu.Unlock()
+
+    go func() {
+        defer func() {
+            a.demoMu.Lock()
+            a.demoRunning = false
+            a.demoCancel = nil
+            a.demoMu.Unlock()
+            // Notify frontend that the demo stream has finished
+            runtime.EventsEmit(a.ctx, "demo:events:done")
+        }()
+
+        eventTypes := []string{"info", "debug", "warn", "error"}
+        ticker := time.NewTicker(1 * time.Second)
+        defer ticker.Stop()
+        i := 0
+        for {
+            select {
+            case t := <-ticker.C:
+                i++
+                if i > 15 {
+                    return
+                }
+                evt := demo.DemoEvent{
+                    ID:        i,
+                    Type:      eventTypes[(i-1)%len(eventTypes)],
+                    Message:   fmt.Sprintf("Demo event #%d", i),
+                    Timestamp: t,
+                }
+                runtime.EventsEmit(a.ctx, "demo:events", evt)
+            case <-ctx.Done():
+                return
+            }
+        }
+    }()
+}
+
+// StopDemoEvents cancels the running demo event stream, if any
+func (a *App) StopDemoEvents() {
+    a.demoMu.Lock()
+    cancel := a.demoCancel
+    running := a.demoRunning
+    a.demoMu.Unlock()
+    if running && cancel != nil {
+        cancel()
+    }
 }
