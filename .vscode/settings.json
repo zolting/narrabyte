@@ -6,6 +6,9 @@
 		"source.organizeImports.biome": "explicit",
 		"source.fixAll.biome": "explicit"
 	},
+	"editor.insertSpaces": false,
+	"editor.detectIndentation": false,
+	"editor.tabSize": 4,
 	"emmet.showExpandedAbbreviation": "never",
 	"[typescript]": {
 		"editor.defaultFormatter": "biomejs.biome"

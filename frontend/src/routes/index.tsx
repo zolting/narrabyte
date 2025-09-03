@@ -1,18 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Moon, Settings, Sun } from "lucide-react";
+import type React from "react";
 import { useEffect, useState } from "react";
-import { Greet } from "../../wailsjs/go/main/App";
-import logo from "../assets/images/logo-universal.png";
-import { DemoEvents } from "../components/DemoEvents";
-import DirectoryPicker from "../components/DirectoryPicker";
-import { Button } from "../components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "../components/ui/card";
-import { Input } from "../components/ui/input";
+import logo from "@/assets/images/logo-universal.png";
+import DirectoryPicker from "@/components/DirectoryPicker";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Greet, LinkRepositories } from "../../wailsjs/go/main/App";
+import DemoEvents from "../components/DemoEvents";
 
 export const Route = createFileRoute("/")({
 	component: Home,
@@ -20,32 +16,42 @@ export const Route = createFileRoute("/")({
 
 function Home() {
 	const [resultText, setResultText] = useState(
-		"Please enter your name below 👇",
+		"Please enter your name below 👇"
 	);
 	const [name, setName] = useState("");
-	const [selectedDirectory, setSelectedDirectory] = useState<string>("");
+	const [docDirectory, setDocDirectory] = useState<string>("");
+	const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
 	const [theme, setTheme] = useState<"light" | "dark">("light");
 
 	const updateName = (e: React.ChangeEvent<HTMLInputElement>) =>
 		setName(e.target.value);
 	const updateResultText = (result: string) => setResultText(result);
-	const handleDirectorySelected = (path: string) => setSelectedDirectory(path);
 
-	// Toggle theme
 	const toggleTheme = () => {
 		setTheme(theme === "light" ? "dark" : "light");
 	};
 
-	// Apply theme to document
 	useEffect(() => {
 		const root = window.document.documentElement;
 		root.classList.remove("light", "dark");
 		root.classList.add(theme);
 	}, [theme]);
 
-	function greet() {
+	const greet = () => {
 		Greet(name).then(updateResultText);
-	}
+	};
+
+	const linkRepositories = async () => {
+		try {
+			await LinkRepositories(docDirectory, codebaseDirectory);
+			alert("Repositories linked successfully!");
+		} catch (error) {
+			console.error("Error linking repositories:", error);
+			alert("Failed to link repositories");
+		}
+	};
+
+	const isLinkDisabled = !(docDirectory && codebaseDirectory);
 
 	return (
 		<div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-8 font-mono">
@@ -87,15 +93,31 @@ function Home() {
 							Greet
 						</Button>
 					</div>
-					<DirectoryPicker onDirectorySelected={handleDirectorySelected} />
-					{selectedDirectory && (
-						<div className="text-center text-muted-foreground text-sm">
-							Selected directory:{" "}
-							<code className="rounded bg-muted px-2 py-1 text-xs">
-								{selectedDirectory}
-							</code>
+
+					<div className="space-y-4">
+						<div>
+							<div className="mb-2 block font-medium text-sm">
+								Documentation Directory
+							</div>
+							<DirectoryPicker onDirectorySelected={setDocDirectory} />
 						</div>
-					)}
+
+						<div>
+							<div className="mb-2 block font-medium text-sm">
+								Codebase Directory
+							</div>
+							<DirectoryPicker onDirectorySelected={setCodebaseDirectory} />
+						</div>
+
+						<Button
+							className="w-full"
+							disabled={isLinkDisabled}
+							onClick={linkRepositories}
+							size="lg"
+						>
+							Link Repositories
+						</Button>
+					</div>
 
 					<DemoEvents />
 				</CardContent>

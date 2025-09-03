@@ -1,9 +1,9 @@
-package service
+package services
 
 import (
 	"context"
 	"narrabyte/internal/models"
-	"narrabyte/internal/repository"
+	"narrabyte/internal/repositories"
 )
 
 type RepoLinkService interface {
@@ -13,10 +13,10 @@ type RepoLinkService interface {
 }
 
 type repoLinkService struct {
-	repoLinks repository.RepoLinkRepository
+	repoLinks repositories.RepoLinkRepository
 }
 
-func NewRepoLinkService(repoLinks repository.RepoLinkRepository) RepoLinkService {
+func NewRepoLinkService(repoLinks repositories.RepoLinkRepository) RepoLinkService {
 	return &repoLinkService{repoLinks: repoLinks}
 }
 

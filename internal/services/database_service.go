@@ -1,7 +1,9 @@
-package service
+package services
 
 import (
-	"narrabyte/internal/repository"
+	"narrabyte/internal/repositories"
+
+	"gorm.io/gorm"
 )
 
 type DbSvc struct {
@@ -9,7 +11,10 @@ type DbSvc struct {
 	RepoLink RepoLinkService
 }
 
-func NewDbSvc(userRepo repository.UserRepository, repoLinkRepo repository.RepoLinkRepository) *DbSvc {
+func NewDbSvc(db *gorm.DB) *DbSvc {
+	userRepo := repositories.NewUserRepository(db)
+	repoLinkRepo := repositories.NewRepoLinkRepository(db)
+
 	return &DbSvc{
 		User:     NewUserService(userRepo),
 		RepoLink: NewRepoLinkService(repoLinkRepo),
