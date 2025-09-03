@@ -1,24 +1,25 @@
 package services
 
 import (
-	"gorm.io/gorm"
 	"narrabyte/internal/repositories"
+
+	"gorm.io/gorm"
 )
 
-// Services aggregates all domain services backed by the database.
+// DbServices aggregates all domain services backed by the database.
 // Fields use plural names (e.g., Users) to align with Go conventions
 // seen in service/store containers.
-type Services struct {
+type DbServices struct {
 	Users     UserService
 	RepoLinks RepoLinkService
 }
 
-// NewServices constructs the service container using repositories backed by db.
-func NewServices(db *gorm.DB) *Services {
+// NewDbServices constructs the service container using repositories backed by db.
+func NewDbServices(db *gorm.DB) *DbServices {
 	userRepo := repositories.NewUserRepository(db)
 	repoLinkRepo := repositories.NewRepoLinkRepository(db)
 
-	return &Services{
+	return &DbServices{
 		Users:     NewUserService(userRepo),
 		RepoLinks: NewRepoLinkService(repoLinkRepo),
 	}

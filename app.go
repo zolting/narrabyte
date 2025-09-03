@@ -44,7 +44,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	// Wire services and inject only needed interfaces into App
-	svc := services.NewServices(db)
+	svc := services.NewDbServices(db)
 	a.Users = svc.Users
 	a.RepoLinks = svc.RepoLinks
 
