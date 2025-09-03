@@ -22,7 +22,6 @@ func NewRepoLinkService(repoLinks repositories.RepoLinkRepository) RepoLinkServi
 }
 
 func (s *repoLinkService) Register(ctx context.Context, documentationRepo, codebaseRepo string) (*models.RepoLink, error) {
-
 	if documentationRepo == "" {
 		return nil, errors.New("documentation repo is required")
 	}
