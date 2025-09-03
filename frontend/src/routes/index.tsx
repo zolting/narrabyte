@@ -3,6 +3,7 @@ import { Moon, Settings, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Greet } from "../../wailsjs/go/main/App";
 import logo from "../assets/images/logo-universal.png";
+import { DemoEvents } from "../components/DemoEvents";
 import DirectoryPicker from "../components/DirectoryPicker";
 import { Button } from "../components/ui/button";
 import {
@@ -95,6 +96,8 @@ function Home() {
 							</code>
 						</div>
 					)}
+
+					<DemoEvents />
 				</CardContent>
 			</Card>
 		</div>

@@ -3,6 +3,7 @@ node_modules
 frontend/dist
 frontend/package.json.md5
 frontend/src/routeTree.gen.ts
+frontend/.tanstack/tmp
 
 
 # JetBrains
