@@ -1,6 +1,6 @@
-import {useTranslation} from "react-i18next";
-import {useDemoEventsStore} from "@/stores/demoEvents";
-import {Button} from "./ui/button";
+import { useTranslation } from "react-i18next";
+import { useDemoEventsStore } from "@/stores/demoEvents";
+import { Button } from "./ui/button";
 
 export default function DemoEvents() {
 	const { t } = useTranslation();

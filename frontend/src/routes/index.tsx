@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Moon, Settings, Sun } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import {useTranslation} from "react-i18next";
+import { useTranslation } from "react-i18next";
 import logo from "@/assets/images/logo-universal.png";
 import DirectoryPicker from "@/components/DirectoryPicker";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/")({
 
 function Home() {
 	const { t, i18n } = useTranslation();
-	const [resultText, setResultText] = useState(t("home.greeting"));
+	const [resultText, setResultText] = useState("");
 	const [name, setName] = useState("");
 	const [docDirectory, setDocDirectory] = useState<string>("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
@@ -61,22 +61,41 @@ function Home() {
 		}
 	};
 
+	useEffect(() => {
+		setResultText(t("home.greeting"));
+	}, [t]);
+
 	const isLinkDisabled = !(docDirectory && codebaseDirectory);
 
 	return (
 		<div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-8 font-mono">
 			{/* Navigation Buttons */}
 			<div className="absolute top-4 right-4 flex gap-2">
-				<Button asChild size="icon" variant="outline">
+				<Button
+					asChild
+					className="text-foreground"
+					size="icon"
+					variant="outline"
+				>
 					<Link to="/settings">
 						<Settings className="h-4 w-4 text-foreground" />
 						<span className="sr-only">{t("common.settings")}</span>
 					</Link>
 				</Button>
-				<Button onClick={toggleLanguage} size="icon" variant="outline">
+				<Button
+					className="text-foreground"
+					onClick={toggleLanguage}
+					size="icon"
+					variant="outline"
+				>
 					{i18n.language.toUpperCase()}
 				</Button>
-				<Button onClick={toggleTheme} size="icon" variant="outline">
+				<Button
+					className="text-foreground"
+					onClick={toggleTheme}
+					size="icon"
+					variant="outline"
+				>
 					{theme === "light" ? (
 						<Moon className="h-4 w-4 text-foreground" />
 					) : (
