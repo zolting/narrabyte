@@ -1,9 +1,3 @@
----
-description: Ultracite Rules - AI-Ready Formatter and Linter
-globs: "**/*.{ts,tsx,js,jsx}"
-alwaysApply: true
----
-
 # Project Context
 Ultracite enforces strict type safety, accessibility standards, and consistent code quality for JavaScript/TypeScript projects using Biome's lightning-fast formatter and linter.
 
@@ -312,6 +306,37 @@ Ultracite enforces strict type safety, accessibility standards, and consistent c
 - `npx ultracite init` - Initialize Ultracite in your project
 - `npx ultracite format` - Format and fix code automatically
 - `npx ultracite lint` - Check for issues without fixing
+
+## Internationalization (i18n)
+All text content in the app must be displayed using the translation system. Never hardcode text strings directly in components.
+
+### How to Use Translations
+1. **Import the hook**: `import { useTranslation } from "react-i18next";`
+2. **Use in component**: `const { t } = useTranslation();`
+3. **Translate text**: `{t("section.key")}` instead of hardcoded strings
+4. **Add new translations**: Update `/frontend/src/assets/locales/en.json` and `/frontend/src/assets/locales/fr.json`
+
+### Translation Structure
+- `common.*` - Shared UI elements (buttons, labels, etc.)
+- `home.*` - Home page content
+- `settings.*` - Settings page content
+- `demoEvents.*` - Demo events component
+
+### Examples
+```tsx
+// ✅ Good: Using translations
+const { t } = useTranslation();
+return <Button>{t("common.greet")}</Button>;
+
+// ❌ Bad: Hardcoded text
+return <Button>Greet</Button>;
+```
+
+### Adding New Translations
+1. Add the key-value pair to both `en.json` (English) and `fr.json` (French)
+2. Use the translation key in your component
+3. TypeScript will validate the key exists
+4. Ensure translations are contextually appropriate for both languages
 
 ## Example: Error Handling
 ```typescript

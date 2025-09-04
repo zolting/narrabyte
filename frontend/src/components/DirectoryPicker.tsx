@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { SelectDirectory } from "../../wailsjs/go/main/App";
-import { Button } from "./ui/button";
+import {useState} from "react";
+import {useTranslation} from "react-i18next";
+import {SelectDirectory} from "../../wailsjs/go/main/App";
+import {Button} from "./ui/button";
 
 type DirectoryPickerProps = {
 	onDirectorySelected?: (path: string) => void;
@@ -9,6 +10,7 @@ type DirectoryPickerProps = {
 export default function DirectoryPicker({
 	onDirectorySelected,
 }: DirectoryPickerProps) {
+	const { t } = useTranslation();
 	const [selectedPath, setSelectedPath] = useState<string>("");
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -31,11 +33,11 @@ export default function DirectoryPicker({
 		<div className="flex flex-col gap-4">
 			<div className="flex items-center gap-4">
 				<Button disabled={isLoading} onClick={handleSelectDirectory} size="lg">
-					{isLoading ? "Selecting..." : "Select Directory"}
+					{isLoading ? t("common.selecting") : t("common.selectDirectory")}
 				</Button>
 				{selectedPath && (
 					<div className="max-w-xs truncate text-gray-600 text-sm">
-						Selected: {selectedPath}
+						{t("common.selected")}: {selectedPath}
 					</div>
 				)}
 			</div>
