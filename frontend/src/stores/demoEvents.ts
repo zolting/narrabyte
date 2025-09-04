@@ -31,13 +31,10 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 
 		unsubscribeEvents = EventsOn("events:demo", (payload) => {
 			try {
-				// Validate and parse the incoming payload with Zod
 				const evt = demoEventSchema.parse(payload);
 				set((s) => ({ events: [...s.events, evt] }));
 			} catch (error) {
-				// Handle validation errors gracefully
 				console.error("Invalid demo event payload:", error, payload);
-				// Optionally emit an error event or show user notification
 			}
 		});
 
