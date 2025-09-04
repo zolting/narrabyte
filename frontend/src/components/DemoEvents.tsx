@@ -1,7 +1,9 @@
-import { useDemoEventsStore } from "@/stores/demoEvents";
-import { Button } from "./ui/button";
+import {useTranslation} from "react-i18next";
+import {useDemoEventsStore} from "@/stores/demoEvents";
+import {Button} from "./ui/button";
 
 export default function DemoEvents() {
+	const { t } = useTranslation();
 	const events = useDemoEventsStore((s) => s.events);
 	const isListening = useDemoEventsStore((s) => s.isListening);
 	const startDemo = useDemoEventsStore((s) => s.start);
@@ -11,7 +13,7 @@ export default function DemoEvents() {
 	return (
 		<div className="mt-6 space-y-3 border-t pt-4">
 			<div className="flex items-center justify-between">
-				<div className="font-semibold">Demo Events</div>
+				<div className="font-semibold">{t("demoEvents.title")}</div>
 				<div className="flex gap-2">
 					<Button
 						disabled={isListening}
@@ -19,7 +21,9 @@ export default function DemoEvents() {
 						size="sm"
 						variant="outline"
 					>
-						{isListening ? "Streaming..." : "Start Demo"}
+						{isListening
+							? t("demoEvents.streaming")
+							: t("demoEvents.startDemo")}
 					</Button>
 					<Button
 						disabled={!isListening}
@@ -27,17 +31,17 @@ export default function DemoEvents() {
 						size="sm"
 						variant="outline"
 					>
-						Stop
+						{t("demoEvents.stop")}
 					</Button>
 					<Button onClick={clearEvents} size="sm" variant="outline">
-						Clear
+						{t("demoEvents.clear")}
 					</Button>
 				</div>
 			</div>
 			<div className="max-h-56 overflow-auto rounded-md border bg-muted/30 p-3 text-sm">
 				{events.length === 0 ? (
 					<div className="text-muted-foreground">
-						No events yet. Click Start Demo.
+						{t("demoEvents.noEvents")}
 					</div>
 				) : (
 					<ul className="space-y-1">

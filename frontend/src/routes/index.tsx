@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Moon, Settings, Sun } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
+import {useTranslation} from "react-i18next";
 import logo from "@/assets/images/logo-universal.png";
 import DirectoryPicker from "@/components/DirectoryPicker";
 import { Button } from "@/components/ui/button";
@@ -15,9 +16,8 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-	const [resultText, setResultText] = useState(
-		"Please enter your name below 👇"
-	);
+	const { t, i18n } = useTranslation();
+	const [resultText, setResultText] = useState(t("home.greeting"));
 	const [name, setName] = useState("");
 	const [docDirectory, setDocDirectory] = useState<string>("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
@@ -31,6 +31,11 @@ function Home() {
 		setTheme(theme === "light" ? "dark" : "light");
 	};
 
+	const toggleLanguage = () => {
+		const newLang = i18n.language === "en" ? "fr" : "en";
+		i18n.changeLanguage(newLang);
+	};
+
 	useEffect(() => {
 		const root = window.document.documentElement;
 		root.classList.remove("light", "dark");
@@ -42,12 +47,17 @@ function Home() {
 	};
 
 	const linkRepositories = async () => {
+		if (!(docDirectory && codebaseDirectory)) {
+			alert(t("home.selectBothDirectories"));
+			return;
+		}
+
 		try {
 			await LinkRepositories(docDirectory, codebaseDirectory);
-			alert("Repositories linked successfully!");
+			alert(t("home.linkSuccess"));
 		} catch (error) {
 			console.error("Error linking repositories:", error);
-			alert("Failed to link repositories");
+			alert(t("home.linkError"));
 		}
 	};
 
@@ -60,8 +70,11 @@ function Home() {
 				<Button asChild size="icon" variant="outline">
 					<Link to="/settings">
 						<Settings className="h-4 w-4 text-foreground" />
-						<span className="sr-only">Settings</span>
+						<span className="sr-only">{t("common.settings")}</span>
 					</Link>
+				</Button>
+				<Button onClick={toggleLanguage} size="icon" variant="outline">
+					{i18n.language.toUpperCase()}
 				</Button>
 				<Button onClick={toggleTheme} size="icon" variant="outline">
 					{theme === "light" ? (
@@ -85,26 +98,26 @@ function Home() {
 							className="flex-1"
 							name="input"
 							onChange={updateName}
-							placeholder="Enter your name"
+							placeholder={t("home.namePlaceholder")}
 							type="text"
 							value={name}
 						/>
 						<Button onClick={greet} size="lg">
-							Greet
+							{t("common.greet")}
 						</Button>
 					</div>
 
 					<div className="space-y-4">
 						<div>
 							<div className="mb-2 block font-medium text-sm">
-								Documentation Directory
+								{t("home.docDirectory")}
 							</div>
 							<DirectoryPicker onDirectorySelected={setDocDirectory} />
 						</div>
 
 						<div>
 							<div className="mb-2 block font-medium text-sm">
-								Codebase Directory
+								{t("home.codebaseDirectory")}
 							</div>
 							<DirectoryPicker onDirectorySelected={setCodebaseDirectory} />
 						</div>
@@ -115,7 +128,7 @@ function Home() {
 							onClick={linkRepositories}
 							size="lg"
 						>
-							Link Repositories
+							{t("home.linkRepositories")}
 						</Button>
 					</div>
 
