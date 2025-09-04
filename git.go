@@ -3,16 +3,13 @@ package main
 import (
 	"fmt"
 
+	"bytes"
+
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
 type GitService struct{}
-
-//Logic of this whole service will need to be verified. Unsure of how to use a repo once it's been open
-//Right now, git.PlainOpen(path) is being called everytime. Would be better to open it once and then use
-//the right instance, but unsure of how to proceed
-//Using go-git, which implements most of the git commands.
 
 // Open an existing repo
 func (g *GitService) Open(path string) (*git.Repository, error) {
@@ -27,20 +24,24 @@ func (g *GitService) Open(path string) (*git.Repository, error) {
 }
 
 // Push local commits to remote
-func (g *GitService) Push(repoPath string) error {
-	repo, err := g.Open(repoPath)
+func (g *GitService) Push(repo *git.Repository) error {
+	return repo.Push(&git.PushOptions{RemoteName: "origin"}) //Other options can be added
+}
+
+// Pull changes from remote
+func (g *GitService) Pull(repo *git.Repository) error {
+	w, err := repo.Worktree()
+
 	if err != nil {
 		return err
 	}
-	return repo.Push(&git.PushOptions{RemoteName: "origin"})
+
+	return w.Pull(&git.PullOptions{RemoteName: "origin"}) //Other options can be added
 }
 
 // Checkout
-func (g *GitService) Checkout(repoPath, branch string) error {
-	repo, err := g.Open(repoPath)
-	if err != nil {
-		return err
-	}
+func (g *GitService) Checkout(repo *git.Repository, branch string) error {
+
 	w, err := repo.Worktree()
 	if err != nil {
 		return err
@@ -51,7 +52,41 @@ func (g *GitService) Checkout(repoPath, branch string) error {
 	})
 }
 
-// Fonction exemple pour go-git. Ouvre le repo et retourne le hash du current head
+// DiffBetweenCommits returns the patch (diff) between two commits by their hashes.
+func (g *GitService) DiffBetweenCommits(repo *git.Repository, hash1, hash2 string) (string, error) {
+	commit1, err := repo.CommitObject(plumbing.NewHash(hash1))
+	if err != nil {
+		return "", fmt.Errorf("failed to get commit1: %w", err)
+	}
+	commit2, err := repo.CommitObject(plumbing.NewHash(hash2))
+	if err != nil {
+		return "", fmt.Errorf("failed to get commit2: %w", err)
+	}
+
+	tree1, err := commit1.Tree()
+	if err != nil {
+		return "", fmt.Errorf("failed to get tree1: %w", err)
+	}
+	tree2, err := commit2.Tree()
+	if err != nil {
+		return "", fmt.Errorf("failed to get tree2: %w", err)
+	}
+
+	patch, err := tree1.Patch(tree2)
+	if err != nil {
+		return "", fmt.Errorf("failed to get patch: %w", err)
+	}
+
+	var buf bytes.Buffer
+	err = patch.Encode(&buf)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to encode patch: %w", err)
+	}
+	return buf.String(), nil
+}
+
+// Return latest commit hash
 func (g *GitService) LatestCommit() (string, error) {
 	// Ouvre notre repo
 	repo, err := git.PlainOpen(".")

@@ -22,6 +22,7 @@ type App struct {
 	demoMu      sync.Mutex
 	demoRunning bool
 	demoCancel  context.CancelFunc
+	GitSvc      GitService
 }
 
 // NewApp creates a new App application struct
