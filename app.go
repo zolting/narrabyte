@@ -123,7 +123,7 @@ func (a *App) StartDemoEvents() {
 			runtime.EventsEmit(a.ctx, "events:demo:done")
 		}()
 
-		eventTypes := []string{"info", "debug", "warn", "error"}
+		eventTypes := []events.EventType{events.EventInfo, events.EventDebug, events.EventWarn, events.EventError}
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 		i := 0
