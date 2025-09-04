@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 // Zod schema for DemoEvent - matches backend EventType restrictions
 export const demoEventSchema = z.object({
