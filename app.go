@@ -16,7 +16,9 @@ import (
 // App struct
 type App struct {
 	ctx         context.Context
-	DbSvc       *services.DbSvc
+	Users       services.UserService
+	RepoLinks   services.RepoLinkService
+	dbClose     func() error
 	demoMu      sync.Mutex
 	demoRunning bool
 	demoCancel  context.CancelFunc
@@ -41,13 +43,44 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 
-	a.DbSvc = services.NewDbSvc(db)
+	// Wire services and inject only needed interfaces into App
+	svc := services.NewDbServices(db)
+	a.Users = svc.Users
+	a.RepoLinks = svc.RepoLinks
+
+	// Capture DB close for graceful shutdown
+	if sqlDB, err := db.DB(); err != nil {
+		runtime.LogError(a.ctx, fmt.Sprintf("failed to get sql.DB: %v", err))
+	} else {
+		a.dbClose = sqlDB.Close
+	}
+}
+
+// shutdown is called when the app is closing. Clean up resources here.
+func (a *App) shutdown(ctx context.Context) {
+	// Stop any running demo event stream
+	a.demoMu.Lock()
+	cancel := a.demoCancel
+	a.demoMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+
+	// Close database connection pool
+	if a.dbClose != nil {
+		if err := a.dbClose(); err != nil {
+			runtime.LogError(ctx, fmt.Sprintf("failed to close database: %v", err))
+		} else {
+			runtime.LogInfo(ctx, "database closed")
+		}
+		a.dbClose = nil
+	}
 }
 
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
-	if a.DbSvc.User != nil && name != "" {
-		if _, err := a.DbSvc.User.Register(a.ctx, name); err != nil {
+	if a.Users != nil && name != "" {
+		if _, err := a.Users.Register(a.ctx, name); err != nil {
 			runtime.LogError(a.ctx, fmt.Sprintf("failed to create user: %v", err))
 		}
 	}
@@ -128,11 +161,11 @@ func (a *App) StopDemoEvents() {
 
 // LinkRepositories links the given repositories
 func (a *App) LinkRepositories(docRepo, codebaseRepo string) error {
-	if a.DbSvc.RepoLink == nil {
+	if a.RepoLinks == nil {
 		return fmt.Errorf("repo link service not available")
 	}
 
-	_, err := a.DbSvc.RepoLink.Register(a.ctx, docRepo, codebaseRepo)
+	_, err := a.RepoLinks.Register(a.ctx, docRepo, codebaseRepo)
 	if err != nil {
 		runtime.LogError(a.ctx, fmt.Sprintf("failed to link repositories: %v", err))
 		return err
