@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Moon, Settings, Sun } from "lucide-react";
+import { Settings } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,48 +10,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Greet, LinkRepositories } from "../../wailsjs/go/main/App";
 import DemoEvents from "../components/DemoEvents";
-import { useAppSettingsStore } from "../stores/appSettings";
 
 export const Route = createFileRoute("/")({
 	component: Home,
 });
 
 function Home() {
-  const { t, i18n } = useTranslation();
-  const [resultText, setResultText] = useState("");
-  const [name, setName] = useState("");
-  const [docDirectory, setDocDirectory] = useState<string>("");
-  const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
-  const { settings, setTheme } = useAppSettingsStore();
-  const appTheme = (settings?.Theme ?? "system") as "light" | "dark" | "system";
-  const [systemDark, setSystemDark] = useState<boolean>(() =>
-    window.matchMedia("(prefers-color-scheme: dark)").matches,
-  );
+	const { t } = useTranslation();
+	const [resultText, setResultText] = useState("");
+	const [name, setName] = useState("");
+	const [docDirectory, setDocDirectory] = useState<string>("");
+	const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
 
 	const updateName = (e: React.ChangeEvent<HTMLInputElement>) =>
 		setName(e.target.value);
 	const updateResultText = (result: string) => setResultText(result);
-
-  const effectiveTheme: "light" | "dark" =
-    appTheme === "system" ? (systemDark ? "dark" : "light") : appTheme;
-
-  const toggleTheme = () => {
-    setTheme(effectiveTheme === "light" ? "dark" : "light");
-  };
-
-	const toggleLanguage = () => {
-		const newLang = i18n.language === "en" ? "fr" : "en";
-		i18n.changeLanguage(newLang);
-	};
-
-  useEffect(() => {
-    const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => setSystemDark(mql.matches);
-    mql.addEventListener("change", onChange);
-    return () => {
-      mql.removeEventListener("change", onChange);
-    };
-  }, []);
 
 	const greet = () => {
 		Greet(name).then(updateResultText);
@@ -92,27 +65,6 @@ function Home() {
 						<Settings className="h-4 w-4 text-foreground" />
 						<span className="sr-only">{t("common.settings")}</span>
 					</Link>
-				</Button>
-				<Button
-					className="text-foreground"
-					onClick={toggleLanguage}
-					size="icon"
-					variant="outline"
-				>
-					{i18n.language.toUpperCase()}
-				</Button>
-				<Button
-					className="text-foreground"
-					onClick={toggleTheme}
-					size="icon"
-					variant="outline"
-				>
-          {effectiveTheme === "light" ? (
-            <Moon className="h-4 w-4 text-foreground" />
-          ) : (
-            <Sun className="h-4 w-4 text-foreground" />
-          )}
-					<span className="sr-only">Toggle theme</span>
 				</Button>
 			</div>
 
