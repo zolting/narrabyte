@@ -95,19 +95,46 @@ func (g *GitService) DiffBetweenCommits(repo *git.Repository, hash1, hash2 strin
 	return buf.String(), nil
 }
 
-// Return latest commit hash
-func (g *GitService) LatestCommit() (string, error) {
-	// Ouvre notre repo
-	repo, err := git.PlainOpen(".")
-	if err != nil {
-		return "", fmt.Errorf("failed to open repo: %w", err)
+// LatestCommit returns the latest commit hash for the given repository path
+func (g *GitService) LatestCommit(repoPath string) (string, error) {
+	if repoPath == "" {
+		return "", fmt.Errorf("repository path cannot be empty")
 	}
 
-	// Va chercher le head
+	// Validate that the path is a git repository
+	if err := g.ValidateRepository(repoPath); err != nil {
+		return "", fmt.Errorf("invalid repository: %w", err)
+	}
+
+	repo, err := git.PlainOpen(repoPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open repository at %s: %w", repoPath, err)
+	}
+
 	ref, err := repo.Head()
 	if err != nil {
-		return "", fmt.Errorf("failed to get HEAD: %w", err)
+		return "", fmt.Errorf("failed to get HEAD reference: %w", err)
 	}
 
 	return ref.Hash().String(), nil
+}
+
+// ValidateRepository checks if the given path is a valid git repository
+func (g *GitService) ValidateRepository(repoPath string) error {
+	if repoPath == "" {
+		return fmt.Errorf("repository path cannot be empty")
+	}
+
+	repo, err := git.PlainOpen(repoPath)
+	if err != nil {
+		return fmt.Errorf("not a valid git repository: %w", err)
+	}
+
+	// Try to get HEAD to ensure repository is in a valid state
+	_, err = repo.Head()
+	if err != nil {
+		return fmt.Errorf("repository is in an invalid state: %w", err)
+	}
+
+	return nil
 }

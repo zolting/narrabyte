@@ -237,11 +237,6 @@ func TestLatestCommit(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	// Change to temp directory for LatestCommit test
-	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
-	os.Chdir(dir)
-
 	gs := &services.GitService{}
 	repo, err := gs.Init(dir)
 	assert.NoError(t, err)
@@ -265,8 +260,53 @@ func TestLatestCommit(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	// Test LatestCommit
-	hash, err := gs.LatestCommit()
+	// Test LatestCommit with the repository path
+	hash, err := gs.LatestCommit(dir)
 	assert.NoError(t, err)
 	assert.Equal(t, commit.String(), hash)
+}
+
+// Test ValidateRepository method
+func TestValidateRepository(t *testing.T) {
+	// Test with empty path
+	gs := &services.GitService{}
+	err := gs.ValidateRepository("")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot be empty")
+
+	// Test with non-existent directory
+	err = gs.ValidateRepository("/non/existent/path")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not a valid git repository")
+
+	// Test with valid repository (with initial commit)
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+	assert.NotNil(t, repo)
+
+	// Create initial commit so repository has a HEAD
+	w, err := repo.Worktree()
+	assert.NoError(t, err)
+
+	file1 := dir + "/test.txt"
+	err = os.WriteFile(file1, []byte("initial content"), 0644)
+	assert.NoError(t, err)
+
+	_, err = w.Add("test.txt")
+	assert.NoError(t, err)
+
+	_, err = w.Commit("initial commit", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test",
+			Email: "test@example.com",
+		},
+	})
+	assert.NoError(t, err)
+
+	err = gs.ValidateRepository(dir)
+	assert.NoError(t, err)
 }
