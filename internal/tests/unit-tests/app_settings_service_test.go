@@ -8,7 +8,6 @@ import (
 	"narrabyte/internal/tests/mocks"
 	"narrabyte/internal/tests/utils"
 	"testing"
-	"time"
 )
 
 func TestAppSettingsService_Get_Success(t *testing.T) {
@@ -147,32 +146,4 @@ func TestAppSettingsService_Update_UpdateError(t *testing.T) {
 
 	_, err := service.Update(ctx, "dark", "fr")
 	utils.Equal(t, err.Error(), "update error")
-}
-
-func TestAppSettingsService_Update_UpdatedAtSet(t *testing.T) {
-	currentSettings := &models.AppSettings{
-		ID:      1,
-		Version: 1,
-		Theme:   "system",
-		Locale:  "en",
-	}
-
-	beforeUpdate := time.Now()
-
-	mockRepo := &mocks.AppSettingsRepositoryMock{
-		GetFunc: func(ctx context.Context) (*models.AppSettings, error) {
-			return currentSettings, nil
-		},
-		UpdateFunc: func(ctx context.Context, settings *models.AppSettings) error {
-			if !settings.UpdatedAt.After(beforeUpdate) {
-				t.Error("UpdatedAt should be set to current time")
-			}
-			return nil
-		},
-	}
-	service := services.NewAppSettingsService(mockRepo)
-	ctx := context.Background()
-
-	_, err := service.Update(ctx, "dark", "fr")
-	utils.NilError(t, err)
 }

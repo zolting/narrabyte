@@ -1,13 +1,14 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"narrabyte/internal/database"
-	"narrabyte/internal/events"
-	"narrabyte/internal/services"
-	"sync"
-	"time"
+    "context"
+    "fmt"
+    "narrabyte/internal/database"
+    "narrabyte/internal/events"
+    "narrabyte/internal/models"
+    "narrabyte/internal/services"
+    "sync"
+    "time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm/logger"
@@ -15,13 +16,14 @@ import (
 
 // App struct
 type App struct {
-	ctx         context.Context
-	Users       services.UserService
-	RepoLinks   services.RepoLinkService
-	dbClose     func() error
-	demoMu      sync.Mutex
-	demoRunning bool
-	demoCancel  context.CancelFunc
+    ctx         context.Context
+    Users       services.UserService
+    RepoLinks   services.RepoLinkService
+    AppSettings services.AppSettingsService
+    dbClose     func() error
+    demoMu      sync.Mutex
+    demoRunning bool
+    demoCancel  context.CancelFunc
 }
 
 // NewApp creates a new App application struct
@@ -43,10 +45,11 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 
-	// Wire services and inject only needed interfaces into App
-	svc := services.NewDbServices(db)
-	a.Users = svc.Users
-	a.RepoLinks = svc.RepoLinks
+    // Wire services and inject only needed interfaces into App
+    svc := services.NewDbServices(db)
+    a.Users = svc.Users
+    a.RepoLinks = svc.RepoLinks
+    a.AppSettings = svc.AppSettings
 
 	// Capture DB close for graceful shutdown
 	if sqlDB, err := db.DB(); err != nil {
@@ -161,9 +164,9 @@ func (a *App) StopDemoEvents() {
 
 // LinkRepositories links the given repositories
 func (a *App) LinkRepositories(docRepo, codebaseRepo string) error {
-	if a.RepoLinks == nil {
-		return fmt.Errorf("repo link service not available")
-	}
+    if a.RepoLinks == nil {
+        return fmt.Errorf("repo link service not available")
+    }
 
 	_, err := a.RepoLinks.Register(a.ctx, docRepo, codebaseRepo)
 	if err != nil {
@@ -171,6 +174,22 @@ func (a *App) LinkRepositories(docRepo, codebaseRepo string) error {
 		return err
 	}
 
-	runtime.LogInfo(a.ctx, fmt.Sprintf("Successfully linked doc: %s with codebase: %s", docRepo, codebaseRepo))
-	return nil
+    runtime.LogInfo(a.ctx, fmt.Sprintf("Successfully linked doc: %s with codebase: %s", docRepo, codebaseRepo))
+    return nil
+}
+
+// GetAppSettings returns the current application settings
+func (a *App) GetAppSettings() (*models.AppSettings, error) {
+    if a.AppSettings == nil {
+        return nil, fmt.Errorf("app settings service not available")
+    }
+    return a.AppSettings.Get(a.ctx)
+}
+
+// UpdateAppSettings updates theme and locale and returns the updated settings
+func (a *App) UpdateAppSettings(theme, locale string) (*models.AppSettings, error) {
+    if a.AppSettings == nil {
+        return nil, fmt.Errorf("app settings service not available")
+    }
+    return a.AppSettings.Update(a.ctx, theme, locale)
 }

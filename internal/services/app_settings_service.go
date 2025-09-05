@@ -48,7 +48,7 @@ func (s *appSettingsService) Update(ctx context.Context, theme, locale string) (
 	// Update fields
 	current.Theme = theme
 	current.Locale = locale
-	current.UpdatedAt = time.Now()
+	current.UpdatedAt = time.Now().Format(time.RFC3339)
 
 	if err := s.appSettings.Update(ctx, current); err != nil {
 		return nil, err

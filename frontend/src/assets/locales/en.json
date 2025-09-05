@@ -24,7 +24,15 @@
     "availableSettings": "Available Settings:",
     "themePreferences": "Theme preferences",
     "directoryConfigs": "Directory configurations",
-    "userPreferences": "User preferences"
+    "userPreferences": "User preferences",
+    "loading": "Loading settings...",
+    "theme": "Theme",
+    "language": "Language",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "english": "English",
+    "french": "French"
   },
   "demoEvents": {
     "title": "Demo Events",

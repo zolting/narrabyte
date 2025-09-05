@@ -10,37 +10,48 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Greet, LinkRepositories } from "../../wailsjs/go/main/App";
 import DemoEvents from "../components/DemoEvents";
+import { useAppSettingsStore } from "../stores/appSettings";
 
 export const Route = createFileRoute("/")({
 	component: Home,
 });
 
 function Home() {
-	const { t, i18n } = useTranslation();
-	const [resultText, setResultText] = useState("");
-	const [name, setName] = useState("");
-	const [docDirectory, setDocDirectory] = useState<string>("");
-	const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
-	const [theme, setTheme] = useState<"light" | "dark">("light");
+  const { t, i18n } = useTranslation();
+  const [resultText, setResultText] = useState("");
+  const [name, setName] = useState("");
+  const [docDirectory, setDocDirectory] = useState<string>("");
+  const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
+  const { settings, setTheme } = useAppSettingsStore();
+  const appTheme = (settings?.Theme ?? "system") as "light" | "dark" | "system";
+  const [systemDark, setSystemDark] = useState<boolean>(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
 
 	const updateName = (e: React.ChangeEvent<HTMLInputElement>) =>
 		setName(e.target.value);
 	const updateResultText = (result: string) => setResultText(result);
 
-	const toggleTheme = () => {
-		setTheme(theme === "light" ? "dark" : "light");
-	};
+  const effectiveTheme: "light" | "dark" =
+    appTheme === "system" ? (systemDark ? "dark" : "light") : appTheme;
+
+  const toggleTheme = () => {
+    setTheme(effectiveTheme === "light" ? "dark" : "light");
+  };
 
 	const toggleLanguage = () => {
 		const newLang = i18n.language === "en" ? "fr" : "en";
 		i18n.changeLanguage(newLang);
 	};
 
-	useEffect(() => {
-		const root = window.document.documentElement;
-		root.classList.remove("light", "dark");
-		root.classList.add(theme);
-	}, [theme]);
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => setSystemDark(mql.matches);
+    mql.addEventListener("change", onChange);
+    return () => {
+      mql.removeEventListener("change", onChange);
+    };
+  }, []);
 
 	const greet = () => {
 		Greet(name).then(updateResultText);
@@ -96,11 +107,11 @@ function Home() {
 					size="icon"
 					variant="outline"
 				>
-					{theme === "light" ? (
-						<Moon className="h-4 w-4 text-foreground" />
-					) : (
-						<Sun className="h-4 w-4 text-foreground" />
-					)}
+          {effectiveTheme === "light" ? (
+            <Moon className="h-4 w-4 text-foreground" />
+          ) : (
+            <Sun className="h-4 w-4 text-foreground" />
+          )}
 					<span className="sr-only">Toggle theme</span>
 				</Button>
 			</div>
