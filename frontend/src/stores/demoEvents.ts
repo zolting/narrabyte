@@ -1,13 +1,7 @@
 import { create } from "zustand";
 import { StartDemoEvents, StopDemoEvents } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-
-export type DemoEvent = {
-	id: number;
-	type: "info" | "debug" | "warn" | "error" | string;
-	message: string;
-	timestamp: string;
-};
+import { type DemoEvent, demoEventSchema } from "../types/events";
 
 type State = {
 	events: DemoEvent[];
@@ -36,14 +30,12 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 		unsubscribeDone?.();
 
 		unsubscribeEvents = EventsOn("events:demo", (payload) => {
-			// Payload comes from Go struct; convert to our TS shape
-			const evt: DemoEvent = {
-				id: payload?.id ?? 0,
-				type: payload?.type ?? "info",
-				message: payload?.message ?? "",
-				timestamp: payload?.timestamp ?? new Date().toISOString(),
-			};
-			set((s) => ({ events: [...s.events, evt] }));
+			try {
+				const evt = demoEventSchema.parse(payload);
+				set((s) => ({ events: [...s.events, evt] }));
+			} catch (error) {
+				console.error("Invalid demo event payload:", error, payload);
+			}
 		});
 
 		unsubscribeDone = EventsOn("events:demo:done", () => {

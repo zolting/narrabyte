@@ -61,7 +61,7 @@ export default function DemoEvents() {
 								</span>
 								<span className="text-foreground/90">{e.message}</span>
 								<span className="ml-auto text-muted-foreground text-xs">
-									{new Date(e.timestamp).toLocaleTimeString()}
+									{e.timestamp.toLocaleTimeString()}
 								</span>
 							</li>
 						))}
