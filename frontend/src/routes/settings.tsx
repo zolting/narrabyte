@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {useTranslation} from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAppSettingsStore } from "../stores/appSettings";
 
 export const Route = createFileRoute("/settings")({
 	component: Settings,
@@ -9,6 +10,11 @@ export const Route = createFileRoute("/settings")({
 
 function Settings() {
 	const { t } = useTranslation();
+	const { settings, initialized, loading, setTheme, setLocale } =
+		useAppSettingsStore();
+
+	const theme = settings?.Theme ?? "system";
+	const locale = settings?.Locale ?? "en";
 
 	return (
 		<div className="flex min-h-screen flex-col items-center justify-center bg-background p-8 font-mono">
@@ -17,22 +23,58 @@ function Settings() {
 					<CardTitle className="text-2xl">{t("settings.title")}</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-6">
-					<div className="space-y-4">
-						<div className="text-center text-muted-foreground">
-							<p>{t("settings.description")}</p>
-							<p className="mt-2 text-sm">{t("settings.routerWorking")}</p>
+					{!initialized || loading ? (
+						<div className="text-center text-muted-foreground text-sm">
+							{t("settings.loading")}
 						</div>
-						<div className="space-y-2">
-							<h3 className="font-semibold text-lg">
-								{t("settings.availableSettings")}
-							</h3>
-							<ul className="space-y-1 text-muted-foreground text-sm">
-								<li>• {t("settings.themePreferences")}</li>
-								<li>• {t("settings.directoryConfigs")}</li>
-								<li>• {t("settings.userPreferences")}</li>
-							</ul>
+					) : (
+						<div className="space-y-6">
+							<section className="space-y-2">
+								<h3 className="font-semibold text-lg">{t("settings.theme")}</h3>
+								<div className="flex gap-2">
+									<Button
+										variant={theme === "light" ? "default" : "outline"}
+										onClick={() => setTheme("light")}
+									>
+										{t("settings.light")}
+									</Button>
+									<Button
+										variant={theme === "dark" ? "default" : "outline"}
+										onClick={() => setTheme("dark")}
+									>
+										{t("settings.dark")}
+									</Button>
+									<Button
+										variant={theme === "system" ? "default" : "outline"}
+										onClick={() => setTheme("system")}
+									>
+										{t("settings.system")}
+									</Button>
+								</div>
+							</section>
+
+							<section className="space-y-2">
+								<h3 className="font-semibold text-lg">
+									{t("settings.language")}
+								</h3>
+								<div className="flex gap-2">
+									<Button
+										variant={locale.startsWith("en") ? "default" : "outline"}
+										onClick={() => setLocale("en")}
+									>
+										{t("settings.english")}
+									</Button>
+									<Button
+										variant={locale.startsWith("fr") ? "default" : "outline"}
+										onClick={() => setLocale("fr")}
+									>
+										{t("settings.french")}
+									</Button>
+								</div>
+							</section>
 						</div>
-					</div>
+					)}
+
 					<Button
 						className="w-full"
 						onClick={() => window.history.back()}

@@ -24,7 +24,15 @@
     "availableSettings": "Paramètres disponibles:",
     "themePreferences": "Préférences de thème",
     "directoryConfigs": "Configurations de répertoire",
-    "userPreferences": "Préférences utilisateur"
+    "userPreferences": "Préférences utilisateur",
+    "loading": "Chargement des paramètres...",
+    "theme": "Thème",
+    "language": "Langue",
+    "light": "Clair",
+    "dark": "Sombre",
+    "system": "Système",
+    "english": "Anglais",
+    "french": "Français"
   },
   "demoEvents": {
     "title": "Événements de démonstration",

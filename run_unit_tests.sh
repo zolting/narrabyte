@@ -1,1 +1,1 @@
-go test ./internal/tests/unit-tests
+go test ./internal/tests/unit-tests -v

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Moon, Settings, Sun } from "lucide-react";
+import { Settings } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,31 +16,15 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-	const { t, i18n } = useTranslation();
+	const { t } = useTranslation();
 	const [resultText, setResultText] = useState("");
 	const [name, setName] = useState("");
 	const [docDirectory, setDocDirectory] = useState<string>("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
-	const [theme, setTheme] = useState<"light" | "dark">("light");
 
 	const updateName = (e: React.ChangeEvent<HTMLInputElement>) =>
 		setName(e.target.value);
 	const updateResultText = (result: string) => setResultText(result);
-
-	const toggleTheme = () => {
-		setTheme(theme === "light" ? "dark" : "light");
-	};
-
-	const toggleLanguage = () => {
-		const newLang = i18n.language === "en" ? "fr" : "en";
-		i18n.changeLanguage(newLang);
-	};
-
-	useEffect(() => {
-		const root = window.document.documentElement;
-		root.classList.remove("light", "dark");
-		root.classList.add(theme);
-	}, [theme]);
 
 	const greet = () => {
 		Greet(name).then(updateResultText);
@@ -81,27 +65,6 @@ function Home() {
 						<Settings className="h-4 w-4 text-foreground" />
 						<span className="sr-only">{t("common.settings")}</span>
 					</Link>
-				</Button>
-				<Button
-					className="text-foreground"
-					onClick={toggleLanguage}
-					size="icon"
-					variant="outline"
-				>
-					{i18n.language.toUpperCase()}
-				</Button>
-				<Button
-					className="text-foreground"
-					onClick={toggleTheme}
-					size="icon"
-					variant="outline"
-				>
-					{theme === "light" ? (
-						<Moon className="h-4 w-4 text-foreground" />
-					) : (
-						<Sun className="h-4 w-4 text-foreground" />
-					)}
-					<span className="sr-only">Toggle theme</span>
 				</Button>
 			</div>
 
