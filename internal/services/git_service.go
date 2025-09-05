@@ -109,11 +109,5 @@ func (g *GitService) LatestCommit() (string, error) {
 		return "", fmt.Errorf("failed to get HEAD: %w", err)
 	}
 
-	// Va chercher le hash du head
-	commit, err := repo.CommitObject(ref.Hash())
-	if err != nil {
-		return "", fmt.Errorf("failed to get commit: %w", err)
-	}
-
-	return commit.String(), nil
+	return ref.Hash().String(), nil
 }
