@@ -1,4 +1,4 @@
-package main
+package services
 
 import (
 	"fmt"
@@ -10,6 +10,15 @@ import (
 )
 
 type GitService struct{}
+
+// PlainInit initializes a new git repo at given path
+func (g *GitService) Init(path string) (*git.Repository, error) {
+	repo, err := git.PlainInit(path, false)
+	if err != nil {
+		return nil, err
+	}
+	return repo, nil
+}
 
 // Open an existing repo
 func (g *GitService) Open(path string) (*git.Repository, error) {
