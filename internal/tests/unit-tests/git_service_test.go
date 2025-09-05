@@ -159,3 +159,114 @@ func TestDiffBetweenBranches(t *testing.T) {
 	assert.Contains(t, diff, "+feature change")
 	assert.Contains(t, diff, "-main change")
 }
+
+// Test that Init properly creates a git repository
+func TestInitRepo(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	gs := &services.GitService{}
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+	assert.NotNil(t, repo)
+
+	// Verify .git directory was created
+	gitDir := dir + "/.git"
+	_, err = os.Stat(gitDir)
+	assert.NoError(t, err)
+
+	// Verify HEAD file exists
+	headFile := gitDir + "/HEAD"
+	_, err = os.Stat(headFile)
+	assert.NoError(t, err)
+}
+
+// Test the Checkout method
+func TestCheckoutBranch(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	gs := &services.GitService{}
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+
+	// Create initial commit
+	w, err := repo.Worktree()
+	assert.NoError(t, err)
+
+	file1 := dir + "/test.txt"
+	err = os.WriteFile(file1, []byte("content"), 0644)
+	assert.NoError(t, err)
+
+	_, err = w.Add("test.txt")
+	assert.NoError(t, err)
+
+	_, err = w.Commit("initial commit", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test",
+			Email: "test@example.com",
+		},
+	})
+	assert.NoError(t, err)
+
+	// Create and checkout new branch
+	branchName := "test-branch"
+
+	// Create the branch first
+	err = w.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.NewBranchReferenceName(branchName),
+		Create: true,
+	})
+	assert.NoError(t, err)
+
+	// Then use our service method to checkout
+	err = gs.Checkout(repo, branchName)
+	assert.NoError(t, err)
+
+	// Verify we're on the new branch
+	head, err := repo.Head()
+	assert.NoError(t, err)
+	assert.Equal(t, "refs/heads/"+branchName, head.Name().String())
+}
+
+// Test LatestCommit method
+func TestLatestCommit(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	// Change to temp directory for LatestCommit test
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(dir)
+
+	gs := &services.GitService{}
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+
+	// Create a commit
+	w, err := repo.Worktree()
+	assert.NoError(t, err)
+
+	file1 := dir + "/test.txt"
+	err = os.WriteFile(file1, []byte("content"), 0644)
+	assert.NoError(t, err)
+
+	_, err = w.Add("test.txt")
+	assert.NoError(t, err)
+
+	commit, err := w.Commit("test commit", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test",
+			Email: "test@example.com",
+		},
+	})
+	assert.NoError(t, err)
+
+	// Test LatestCommit
+	hash, err := gs.LatestCommit()
+	assert.NoError(t, err)
+	assert.Equal(t, commit.String(), hash)
+}
