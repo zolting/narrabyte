@@ -1,0 +1,73 @@
+/* React Diff View Theme Overrides */
+:root {
+	--diff-background-color: var(--background);
+	--diff-text-color: var(--foreground);
+	--diff-font-family: var(--font-mono);
+	--diff-selection-background-color: oklch(0.8 0.1 84.4286);
+	--diff-selection-text-color: var(--foreground);
+	--diff-gutter-insert-background-color: oklch(0.9 0.05 142);
+	--diff-gutter-insert-text-color: var(--foreground);
+	--diff-gutter-delete-background-color: oklch(0.95 0.03 25);
+	--diff-gutter-delete-text-color: var(--foreground);
+	--diff-gutter-selected-background-color: oklch(0.8 0.1 84.4286);
+	--diff-gutter-selected-text-color: var(--foreground);
+	--diff-code-insert-background-color: oklch(0.95 0.02 142);
+	--diff-code-insert-text-color: var(--foreground);
+	--diff-code-delete-background-color: oklch(0.97 0.01 25);
+	--diff-code-delete-text-color: var(--foreground);
+	--diff-code-insert-edit-background-color: oklch(0.85 0.08 142);
+	--diff-code-insert-edit-text-color: var(--foreground);
+	--diff-code-delete-edit-background-color: oklch(0.9 0.05 25);
+	--diff-code-delete-edit-text-color: var(--foreground);
+	--diff-code-selected-background-color: oklch(0.8 0.1 84.4286);
+	--diff-code-selected-text-color: var(--foreground);
+	--diff-omit-gutter-line-color: oklch(0.7 0.15 25.3313);
+}
+
+.dark {
+	--diff-background-color: var(--background);
+	--diff-text-color: var(--foreground);
+	--diff-font-family: var(--font-mono);
+	--diff-selection-background-color: oklch(0.4 0.15 86.047);
+	--diff-selection-text-color: var(--foreground);
+	--diff-gutter-insert-background-color: oklch(0.25 0.08 142);
+	--diff-gutter-insert-text-color: var(--foreground);
+	--diff-gutter-delete-background-color: oklch(0.25 0.12 25);
+	--diff-gutter-delete-text-color: var(--foreground);
+	--diff-gutter-selected-background-color: oklch(0.4 0.15 86.047);
+	--diff-gutter-selected-text-color: var(--foreground);
+	--diff-code-insert-background-color: oklch(0.2 0.06 142);
+	--diff-code-insert-text-color: var(--foreground);
+	--diff-code-delete-background-color: oklch(0.2 0.1 25);
+	--diff-code-delete-text-color: var(--foreground);
+	--diff-code-insert-edit-background-color: oklch(0.3 0.1 142);
+	--diff-code-insert-edit-text-color: var(--foreground);
+	--diff-code-delete-edit-background-color: oklch(0.3 0.13 25);
+	--diff-code-delete-edit-text-color: var(--foreground);
+	--diff-code-selected-background-color: oklch(0.4 0.15 86.047);
+	--diff-code-selected-text-color: var(--foreground);
+	--diff-omit-gutter-line-color: oklch(0.5 0.2 25.723);
+}
+
+/* Make diff table take full width */
+.diff-container .diff-view {
+	width: 100%;
+	min-width: 100%;
+}
+
+.diff-container .diff-view table {
+	width: 100%;
+	table-layout: fixed;
+}
+
+.diff-container .diff-view .diff-gutter {
+	width: 80px;
+	min-width: 80px;
+	max-width: 80px;
+}
+
+.diff-container .diff-view .diff-code {
+	width: auto;
+	word-break: break-all;
+	overflow-wrap: break-word;
+}
