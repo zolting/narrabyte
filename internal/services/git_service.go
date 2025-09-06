@@ -32,6 +32,24 @@ func (g *GitService) Open(path string) (*git.Repository, error) {
 	return repo, nil
 }
 
+// Clone clones a repository from a remote URL into the given local path
+func (g *GitService) Clone(url, path string) (*git.Repository, error) {
+	if url == "" {
+		return nil, fmt.Errorf("clone url cannot be empty")
+	}
+	if path == "" {
+		return nil, fmt.Errorf("clone path cannot be empty")
+	}
+
+	repo, err := git.PlainClone(path, false, &git.CloneOptions{
+		URL: url,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return repo, nil
+}
+
 // Push local commits to remote
 func (g *GitService) Push(repo *git.Repository) error {
 	return repo.Push(&git.PushOptions{RemoteName: "origin"}) //Other options can be added
