@@ -7,10 +7,12 @@ import logo from "@/assets/images/logo-universal.png";
 import DirectoryPicker from "@/components/DirectoryPicker";
 import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
+import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Greet, LinkRepositories } from "../../wailsjs/go/main/App";
 import DemoEvents from "../components/DemoEvents";
+import { set } from "zod/v4";
 
 export const Route = createFileRoute("/")({
 	component: Home,
@@ -22,6 +24,8 @@ function Home() {
 	const [name, setName] = useState("");
 	const [docDirectory, setDocDirectory] = useState<string>("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
+	const [projectName, setProjectName] = useState<string>("");
+	const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
 
 	const updateName = (e: React.ChangeEvent<HTMLInputElement>) =>
 		setName(e.target.value);
@@ -30,6 +34,12 @@ function Home() {
 	const greet = () => {
 		Greet(name).then(updateResultText);
 	};
+
+	const handleAddProject = (data: {name: string; docDirectory: string, codebaseDirectory: string}) =>{
+		setProjectName(data.name);
+		LinkRepositories(data.docDirectory, data.codebaseDirectory);
+		setIsAddProjectOpen(false);
+	}
 
 	const linkRepositories = async () => {
 		if (!(docDirectory && codebaseDirectory)) {
@@ -96,28 +106,18 @@ function Home() {
 					</div>
 
 					<div className="space-y-4">
-						<div>
-							<div className="mb-2 block font-medium text-sm">
-								{t("home.docDirectory")}
-							</div>
-							<DirectoryPicker onDirectorySelected={setDocDirectory} />
-						</div>
-
-						<div>
-							<div className="mb-2 block font-medium text-sm">
-								{t("home.codebaseDirectory")}
-							</div>
-							<DirectoryPicker onDirectorySelected={setCodebaseDirectory} />
-						</div>
-
 						<Button
+							onClick={() => setIsAddProjectOpen(true)}
 							className="w-full"
-							disabled={isLinkDisabled}
-							onClick={linkRepositories}
-							size="lg"
-						>
-							{t("home.linkRepositories")}
+							>
+								{t("home.addProject")}
 						</Button>
+						<AddProjectDialog
+							open={isAddProjectOpen}
+							onClose={() => setIsAddProjectOpen(false)}
+							onSubmit={handleAddProject}
+						/>
+						{projectName && <p className="mt-2">{t("common.projectAdded")}</p>}
 					</div>
 
 					<DemoEvents />
