@@ -177,7 +177,11 @@ func (a *App) LinkRepositories(docRepo, codebaseRepo string) error {
 		return err
 	}
 
-	x, _ := a.fumadocs.CreateFumadocsProject(docRepo)
+	x, err := a.fumadocs.CreateFumadocsProject(docRepo)
+	if err != nil {
+		runtime.LogError(a.ctx, fmt.Sprintf("failed to create fumadocs project: %v", err))
+		return fmt.Errorf("failed to create fumadocs project: %w", err)
+	}
 	runtime.LogInfo(a.ctx, x)
 
 	runtime.LogInfo(a.ctx, fmt.Sprintf("Successfully linked doc: %s with codebase: %s", docRepo, codebaseRepo))
