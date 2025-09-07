@@ -54,7 +54,7 @@ func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 //outMsg est de type *[]schema.Message (pointeur vers slice) — on ne peut pas faire outMsg[len(outMsg)-1]. Il faut d'abord vérifier outMsg != nil, puis faire msgs := *outMsg et indexer msgs[len(msgs)-1].
 //Il manque des contrôles d'erreur supplémentaires (vérifier la compilation, la réussite de la liaison des outils, et la longueur du slice avant d'indexer).
 
-// Merci chat pour le resume
+// Merci chat pour le resume :)
 
 // Etant donne que c'est une demo simple, le context est Background() mais il faudrait peut-etre mettre un timeout
 func (o *OpenAIClient) InvokeAdditionDemo(ctx context.Context, a, b int) (string, error) {
