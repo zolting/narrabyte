@@ -1,0 +1,1 @@
+go test ../internal/tests/intergration-tests -v
