@@ -2,9 +2,8 @@ package repositories
 
 import (
 	"context"
-	"narrabyte/internal/models"
-
 	"gorm.io/gorm"
+	"narrabyte/internal/models"
 )
 
 type RepoLinkRepository interface {
