@@ -22,9 +22,7 @@ function Home() {
 	const { t } = useTranslation();
 	const [resultText, setResultText] = useState("");
 	const [name, setName] = useState("");
-	const [docDirectory, setDocDirectory] = useState<string>("");
-	const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
-	const [projectName, setProjectName] = useState<string>("");
+	const [lastProject, setLastProject] = useState<{name: string; docDirectory: string; codebaseDirectory: string } | null>(null);
 	const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
 
 	const updateName = (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -36,31 +34,33 @@ function Home() {
 	};
 
 	const handleAddProject = (data: {name: string; docDirectory: string, codebaseDirectory: string}) =>{
-		setProjectName(data.name);
-		LinkRepositories(data.docDirectory, data.codebaseDirectory);
-		setIsAddProjectOpen(false);
-	}
-
-	const linkRepositories = async () => {
-		if (!(docDirectory && codebaseDirectory)) {
+		if (!(data.docDirectory && data.codebaseDirectory)) {
 			alert(t("home.selectBothDirectories"));
 			return;
 		}
+		if (!data.name){
+			alert(t("home.projectNameRequired"));
+			return;
+		}
 
-		try {
-			await LinkRepositories(docDirectory, codebaseDirectory);
+		try{
+			LinkRepositories(data.name, data.docDirectory, data.codebaseDirectory);
 			alert(t("home.linkSuccess"));
-		} catch (error) {
+			setIsAddProjectOpen(false);
+			setLastProject(data);
+		}
+		catch (error) {
 			console.error("Error linking repositories:", error);
 			alert(t("home.linkError"));
+			return;
 		}
-	};
+		
+	}
+
 
 	useEffect(() => {
 		setResultText(t("home.greeting"));
 	}, [t]);
-
-	const isLinkDisabled = !(docDirectory && codebaseDirectory);
 
 	return (
 		<div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-8 font-mono">
@@ -117,8 +117,16 @@ function Home() {
 							onClose={() => setIsAddProjectOpen(false)}
 							onSubmit={handleAddProject}
 						/>
-						{projectName && <p className="mt-2">{t("common.projectAdded")}</p>}
+						{/*lastProject only used to visualize the changes on screen*/}
+						{lastProject && (
+  						<div className="mt-4 p-2 border rounded">
+    						<div><b>Nom du projet:</b> {lastProject.name}</div>
+    						<div><b>Location du projet:</b> {lastProject.codebaseDirectory}</div>
+    						<div><b>Location de la documentation:</b> {lastProject.docDirectory}</div>
+  						</div>
+)}
 					</div>
+
 
 					<DemoEvents />
 				</CardContent>

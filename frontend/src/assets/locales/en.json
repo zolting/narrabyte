@@ -25,6 +25,7 @@
     "namePlaceholder": "Enter your name",
     "docDirectory": "Documentation Directory",
     "codebaseDirectory": "Codebase Directory",
+	"projectNameRequired": "Please enter a project name",
 	"addProject": "Add Project",
     "linkRepositories": "Link Repositories",
     "linkSuccess": "Repositories linked successfully!",

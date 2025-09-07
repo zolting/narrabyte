@@ -8,7 +8,7 @@ import (
 )
 
 type RepoLinkService interface {
-	Register(ctx context.Context, documentationRepo, codebaseRepo string) (*models.RepoLink, error)
+	Register(ctx context.Context, projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error)
 	Get(ctx context.Context, id uint) (*models.RepoLink, error)
 	List(ctx context.Context, limit, offset int) ([]models.RepoLink, error)
 }
@@ -21,7 +21,11 @@ func NewRepoLinkService(repoLinks repositories.RepoLinkRepository) RepoLinkServi
 	return &repoLinkService{repoLinks: repoLinks}
 }
 
-func (s *repoLinkService) Register(ctx context.Context, documentationRepo, codebaseRepo string) (*models.RepoLink, error) {
+func (s *repoLinkService) Register(ctx context.Context, projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error) {
+	if projectName == "" {
+		return nil, errors.New("project name is required")
+	}
+
 	if documentationRepo == "" {
 		return nil, errors.New("documentation repo is required")
 	}
@@ -31,6 +35,7 @@ func (s *repoLinkService) Register(ctx context.Context, documentationRepo, codeb
 	}
 
 	link := &models.RepoLink{
+		ProjectName:       projectName,
 		DocumentationRepo: documentationRepo,
 		CodebaseRepo:      codebaseRepo,
 	}

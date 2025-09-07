@@ -26,6 +26,7 @@
     "docDirectory": "Répertoire de documentation",
     "codebaseDirectory": "Répertoire de code",
     "linkRepositories": "Lier les répertoires",
+	"projectNameRequired": "Veuillez entrer un nom de projet",
 	"addProject": "Ajouter un projet",
     "linkSuccess": "Répertoires liés avec succès!",
     "linkError": "Échec de la liaison des répertoires",

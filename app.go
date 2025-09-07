@@ -166,12 +166,12 @@ func (a *App) StopDemoEvents() {
 }
 
 // LinkRepositories links the given repositories
-func (a *App) LinkRepositories(docRepo, codebaseRepo string) error {
+func (a *App) LinkRepositories(projectName, docRepo, codebaseRepo string) error {
 	if a.RepoLinks == nil {
 		return fmt.Errorf("repo link service not available")
 	}
 
-	_, err := a.RepoLinks.Register(a.ctx, docRepo, codebaseRepo)
+	_, err := a.RepoLinks.Register(a.ctx, projectName, docRepo, codebaseRepo)
 	if err != nil {
 		runtime.LogError(a.ctx, fmt.Sprintf("failed to link repositories: %v", err))
 		return err
@@ -184,7 +184,7 @@ func (a *App) LinkRepositories(docRepo, codebaseRepo string) error {
 	}
 	runtime.LogInfo(a.ctx, x)
 
-	runtime.LogInfo(a.ctx, fmt.Sprintf("Successfully linked doc: %s with codebase: %s", docRepo, codebaseRepo))
+	runtime.LogInfo(a.ctx, fmt.Sprintf("Successfully linked project: %s, doc: %s with codebase: %s", projectName, docRepo, codebaseRepo))
 	return nil
 }
 
