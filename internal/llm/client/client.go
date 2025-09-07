@@ -69,7 +69,12 @@ func (o *OpenAIClient) InvokeAdditionDemo(ctx context.Context, a, b int) (string
 		schema.UserMessage("What is the sum of" + strconv.Itoa(a) + "and" + strconv.Itoa(b) + "?"),
 	}
 
-	info, _ := addTool.Info(ctx)
+	info, err := addTool.Info(ctx)
+	if err != nil {
+		log.Printf("Error getting tool info: %v", err)
+		return "", err
+	}
+
 	if err := o.ChatModel.BindForcedTools([]*schema.ToolInfo{info}); err != nil {
 		log.Printf("Error binding tools: %v", err)
 		return "", err
