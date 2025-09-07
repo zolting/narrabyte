@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
+import { GitBranch, Settings } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import logo from "@/assets/images/logo-universal.png";
 import DirectoryPicker from "@/components/DirectoryPicker";
+import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,12 @@ function Home() {
 		<div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-8 font-mono">
 			{/* Navigation Buttons */}
 			<div className="absolute top-4 right-4 flex gap-2">
+				<GitDiffDialog>
+					<Button className="text-foreground" size="icon" variant="outline">
+						<GitBranch className="h-4 w-4 text-foreground" />
+						<span className="sr-only">{t("common.viewDiff")}</span>
+					</Button>
+				</GitDiffDialog>
 				<Button
 					asChild
 					className="text-foreground"
@@ -70,7 +77,6 @@ function Home() {
 
 			<Card className="w-full max-w-md">
 				<CardHeader className="text-center">
-					<img alt="logo" className="mx-auto mb-4 h-20 w-20" src={logo} />
 					<CardTitle className="text-xl">{resultText}</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-6">

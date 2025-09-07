@@ -1,45 +1,49 @@
 {
-  "common": {
-    "settings": "Settings",
-    "greet": "Greet",
-    "selectDirectory": "Select Directory",
-    "selecting": "Selecting...",
-    "selected": "Selected",
-    "goBack": "Go Back"
-  },
-  "home": {
-    "greeting": "Please enter your name below 👇",
-    "namePlaceholder": "Enter your name",
-    "docDirectory": "Documentation Directory",
-    "codebaseDirectory": "Codebase Directory",
-    "linkRepositories": "Link Repositories",
-    "linkSuccess": "Repositories linked successfully!",
-    "linkError": "Failed to link repositories",
-    "selectBothDirectories": "Please select both directories first"
-  },
-  "settings": {
-    "title": "Settings",
-    "description": "This is the settings page!",
-    "routerWorking": "TanStack Router is now working",
-    "availableSettings": "Available Settings:",
-    "themePreferences": "Theme preferences",
-    "directoryConfigs": "Directory configurations",
-    "userPreferences": "User preferences",
-    "loading": "Loading settings...",
-    "theme": "Theme",
-    "language": "Language",
-    "light": "Light",
-    "dark": "Dark",
-    "system": "System",
-    "english": "English",
-    "french": "French"
-  },
-  "demoEvents": {
-    "title": "Demo Events",
-    "startDemo": "Start Demo",
-    "streaming": "Streaming...",
-    "stop": "Stop",
-    "clear": "Clear",
-    "noEvents": "No events yet. Click Start Demo."
-  }
+	"common": {
+		"settings": "Settings",
+		"greet": "Greet",
+		"selectDirectory": "Select Directory",
+		"selecting": "Selecting...",
+		"selected": "Selected",
+		"goBack": "Go Back",
+		"gitDiff": "Git Diff",
+		"viewDiff": "View Diff",
+		"inlineView": "Inline View",
+		"splitView": "Split View"
+	},
+	"home": {
+		"greeting": "Please enter your name below 👇",
+		"namePlaceholder": "Enter your name",
+		"docDirectory": "Documentation Directory",
+		"codebaseDirectory": "Codebase Directory",
+		"linkRepositories": "Link Repositories",
+		"linkSuccess": "Repositories linked successfully!",
+		"linkError": "Failed to link repositories",
+		"selectBothDirectories": "Please select both directories first"
+	},
+	"settings": {
+		"title": "Settings",
+		"description": "This is the settings page!",
+		"routerWorking": "TanStack Router is now working",
+		"availableSettings": "Available Settings:",
+		"themePreferences": "Theme preferences",
+		"directoryConfigs": "Directory configurations",
+		"userPreferences": "User preferences",
+		"loading": "Loading settings...",
+		"theme": "Theme",
+		"language": "Language",
+		"light": "Light",
+		"dark": "Dark",
+		"system": "System",
+		"english": "English",
+		"french": "French"
+	},
+	"demoEvents": {
+		"title": "Demo Events",
+		"startDemo": "Start Demo",
+		"streaming": "Streaming...",
+		"stop": "Stop",
+		"clear": "Clear",
+		"noEvents": "No events yet. Click Start Demo."
+	}
 }
