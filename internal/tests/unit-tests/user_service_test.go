@@ -5,7 +5,7 @@ import (
 	"narrabyte/internal/models"
 	"narrabyte/internal/services"
 	"narrabyte/internal/tests/mocks"
-	"narrabyte/internal/tests/utils"
+	"narrabyte/internal/utils"
 	"testing"
 )
 

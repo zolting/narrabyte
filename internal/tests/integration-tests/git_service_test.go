@@ -1,4 +1,4 @@
-package Intergration_tests
+package integration_tests
 
 import (
 	"narrabyte/internal/services"

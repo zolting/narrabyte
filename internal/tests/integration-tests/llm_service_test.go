@@ -1,19 +1,24 @@
-package Intergration_tests
+package integration_tests
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"narrabyte/internal/llm/client"
-	"narrabyte/internal/tests/utils"
+	"narrabyte/internal/utils"
+	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // Ceci est une demo simple, le context est Background() mais il faudrait peut-etre mettre un timeout plus tard pour les vraies applications
 // Faudra mettre la cle a qq part aussi et pas l'exposer dans le code
 func TestAddTwoNumbersTool(t *testing.T) {
+	err := utils.LoadEnv()
+	if err != nil {
+		t.Fatalf("Error loading .env: %v", err)
+	}
 	testCtx := context.Background()
-	apiKey := "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"
-
+	apiKey := os.Getenv("OPENAI_API_KEY")
 	llmClient, err := client.NewOpenAIClient(testCtx, apiKey)
 	if err != nil {
 		t.Fatalf("Failed to create OpenAIClient: %v", err)

@@ -8,7 +8,7 @@ import (
 	"github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"log"
 	"narrabyte/internal/llm/tools"
 	"strconv"
 )
@@ -26,7 +26,7 @@ func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 	})
 
 	if err != nil {
-		runtime.LogError(ctx, err.Error())
+		log.Printf("Error creating OpenAI client: %v", err)
 		return nil, err
 	}
 
@@ -60,7 +60,7 @@ func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 func (o *OpenAIClient) InvokeAdditionDemo(ctx context.Context, a, b int) (string, error) {
 	addTool, err := utils.InferTool("add_tool", "adds two integers and gives the result", tools.Add)
 	if err != nil {
-		runtime.LogError(ctx, err.Error())
+		log.Printf("Error inferring tool: %v", err)
 		return "", err
 	}
 
@@ -71,7 +71,7 @@ func (o *OpenAIClient) InvokeAdditionDemo(ctx context.Context, a, b int) (string
 
 	info, _ := addTool.Info(ctx)
 	if err := o.ChatModel.BindForcedTools([]*schema.ToolInfo{info}); err != nil {
-		runtime.LogError(ctx, err.Error())
+		log.Printf("Error binding tools: %v", err)
 		return "", err
 	}
 
@@ -79,7 +79,7 @@ func (o *OpenAIClient) InvokeAdditionDemo(ctx context.Context, a, b int) (string
 		Tools: []tool.BaseTool{addTool},
 	})
 	if err != nil {
-		runtime.LogError(ctx, err.Error())
+		log.Printf("Error creating tools node: %v", err)
 		return "", err
 	}
 
@@ -89,13 +89,13 @@ func (o *OpenAIClient) InvokeAdditionDemo(ctx context.Context, a, b int) (string
 
 	agent, err := chain.Compile(ctx)
 	if err != nil {
-		runtime.LogError(ctx, err.Error())
+		log.Printf("Error compiling chain: %v", err)
 		return "", err
 	}
 
 	outMsg, err := agent.Invoke(ctx, messages)
 	if err != nil {
-		runtime.LogError(ctx, err.Error())
+		log.Printf("Error invoking agent: %v", err)
 		return "", err
 	}
 	if outMsg == nil {

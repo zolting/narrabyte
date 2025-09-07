@@ -3,7 +3,10 @@ module narrabyte
 go 1.25.0
 
 require (
+	github.com/cloudwego/eino v0.4.8
+	github.com/cloudwego/eino-ext/components/model/openai v0.0.0-20250905035413-86dbae6351d5
 	github.com/go-git/go-git/v5 v5.13.2
+	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0
 	github.com/wailsapp/wails/v2 v2.10.2
 	gorm.io/driver/sqlite v1.6.0
@@ -27,9 +30,6 @@ require (
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
-	github.com/cloudwego/eino v0.4.8 // indirect
-	github.com/cloudwego/eino-ext v0.0.1-alpha // indirect
-	github.com/cloudwego/eino-ext/components/model/openai v0.0.0-20250905035413-86dbae6351d5 // indirect
 	github.com/cloudwego/eino-ext/libs/acl/openai v0.0.0-20250826113018-8c6f6358d4bb // indirect
 	github.com/cyphar/filepath-securejoin v0.3.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
