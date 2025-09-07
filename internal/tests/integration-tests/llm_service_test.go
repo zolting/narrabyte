@@ -11,7 +11,6 @@ import (
 )
 
 // Ceci est une demo simple, le context est Background() mais il faudrait peut-etre mettre un timeout plus tard pour les vraies applications
-// Faudra mettre la cle a qq part aussi et pas l'exposer dans le code
 func TestAddTwoNumbersTool(t *testing.T) {
 	err := utils.LoadEnv()
 	if err != nil {
