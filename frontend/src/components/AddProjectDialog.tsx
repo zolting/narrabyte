@@ -53,7 +53,6 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
 							{t("projectManager.projectName")}
 						</label>
 						<Input
-							id="project-name"
 							onChange={(e) => setName(e.target.value)}
 							placeholder="Nom du projet"
 							required
@@ -64,10 +63,7 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
 						<label className="mb-1 block font-medium" htmlFor="doc-directory">
 							{t("projectManager.docDirectory")}
 						</label>
-						<DirectoryPicker
-							id="doc-directory"
-							onDirectorySelected={setDocDirectory}
-						/>
+						<DirectoryPicker onDirectorySelected={setDocDirectory} />
 						{docDirectory && <div className="mt-1 text-xs">{docDirectory}</div>}
 					</div>
 					<div>
@@ -77,10 +73,7 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
 						>
 							{t("projectManager.codebaseDirectory")}
 						</label>
-						<DirectoryPicker
-							id="codebase-directory"
-							onDirectorySelected={setCodebaseDirectory}
-						/>
+						<DirectoryPicker onDirectorySelected={setCodebaseDirectory} />
 						{codebaseDirectory && (
 							<div className="mt-1 text-xs">{codebaseDirectory}</div>
 						)}
