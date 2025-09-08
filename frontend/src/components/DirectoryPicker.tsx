@@ -1,7 +1,7 @@
-import {useState} from "react";
-import {useTranslation} from "react-i18next";
-import {SelectDirectory} from "../../wailsjs/go/main/App";
-import {Button} from "./ui/button";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { SelectDirectory } from "../../wailsjs/go/main/App";
+import { Button } from "./ui/button";
 
 type DirectoryPickerProps = {
 	onDirectorySelected?: (path: string) => void;

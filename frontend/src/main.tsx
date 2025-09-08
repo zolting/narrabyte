@@ -1,10 +1,10 @@
-import {createRouter, RouterProvider} from "@tanstack/react-router";
+import { createRouter, RouterProvider } from "@tanstack/react-router";
 import React from "react";
-import {createRoot} from "react-dom/client";
+import { createRoot } from "react-dom/client";
 import "./style.css";
-import './i18n';
+import "./i18n";
+import { routeTree } from "./routeTree.gen";
 import { useAppSettingsStore } from "./stores/appSettings";
-import {routeTree} from "./routeTree.gen";
 
 const router = createRouter({ routeTree });
 
@@ -19,7 +19,7 @@ const container = document.getElementById("root") as HTMLElement;
 const root = createRoot(container);
 
 // Kick off AppSettings initialisation (non-blocking)
-void useAppSettingsStore.getState().init();
+useAppSettingsStore.getState().init();
 
 root.render(
 	<React.StrictMode>
