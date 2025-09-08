@@ -14,11 +14,11 @@ type AddProjectDialogProps = {
 	}) => void;
 };
 
-export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
+export default function AddProjectDialog({
 	open,
 	onClose,
 	onSubmit,
-}) => {
+}: AddProjectDialogProps) {
 	const { t } = useTranslation();
 	const [name, setName] = useState("");
 	const [docDirectory, setDocDirectory] = useState("");
@@ -93,4 +93,4 @@ export const AddProjectDialog: React.FC<AddProjectDialogProps> = ({
 			</div>
 		</div>
 	);
-};
+}
