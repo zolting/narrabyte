@@ -34,7 +34,7 @@ function Home() {
 		Greet(name).then(updateResultText);
 	};
 
-	const handleAddProject = (data: {
+	const handleAddProject = async (data: {
 		name: string;
 		docDirectory: string;
 		codebaseDirectory: string;
@@ -49,7 +49,11 @@ function Home() {
 		}
 
 		try {
-			LinkRepositories(data.name, data.docDirectory, data.codebaseDirectory);
+			await LinkRepositories(
+				data.name,
+				data.docDirectory,
+				data.codebaseDirectory,
+			);
 			alert(t("home.linkSuccess"));
 			setIsAddProjectOpen(false);
 			setLastProject(data);
