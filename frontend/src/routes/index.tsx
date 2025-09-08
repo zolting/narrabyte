@@ -3,7 +3,7 @@ import { GitBranch, Settings } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AddProjectDialog } from "@/components/AddProjectDialog";
+import AddProjectDialog from "@/components/AddProjectDialog";
 import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
