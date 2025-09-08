@@ -3,14 +3,15 @@ package client
 import (
 	"context"
 	"fmt"
+	"log"
+	"narrabyte/internal/llm/tools"
+	"strconv"
+
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
-	"log"
-	"narrabyte/internal/llm/tools"
-	"strconv"
 )
 
 type OpenAIClient struct {
@@ -108,4 +109,67 @@ func (o *OpenAIClient) InvokeAdditionDemo(ctx context.Context, a, b int) (string
 	}
 
 	return outMsg[len(outMsg)-1].Content, nil
+}
+
+func (o *OpenAIClient) InvokeListDirectoryDemo(ctx context.Context, repoPath string, opts tools.TreeOptions) (string, error) {
+	listDirectoryTool, err := utils.InferTool("list_directory_tool", "lists the contents of a directory", tools.ListDirectoryJSON)
+	if err != nil {
+		log.Printf("Error inferring tool: %v", err)
+		return "", err
+	}
+
+	messages := []*schema.Message{
+		schema.SystemMessage("You are a helpful assistant that can list the contents of a directory using the provided tool."),
+		schema.UserMessage("What is the contents of the directory" + repoPath + "?"),
+	}
+
+	info, err := listDirectoryTool.Info(ctx)
+	if err != nil {
+		log.Printf("Error getting tool info: %v", err)
+		return "", err
+	}
+
+	if err := o.ChatModel.BindTools([]*schema.ToolInfo{info}); err != nil {
+		log.Printf("Error binding tools: %v", err)
+		return "", err
+	}
+
+	toolsNode, err := compose.NewToolNode(ctx, &compose.ToolsNodeConfig{
+		Tools: []tool.BaseTool{listDirectoryTool},
+	})
+	if err != nil {
+		log.Printf("Error creating tools node: %v", err)
+		return "", err
+	}
+
+	chain := compose.NewChain[[]*schema.Message, []*schema.Message]()
+	chain.AppendChatModel(&o.ChatModel, compose.WithNodeName("llm-plan"))
+	chain.AppendToolsNode(toolsNode, compose.WithNodeName("tools"))
+
+	agent, err := chain.Compile(ctx)
+	if err != nil {
+		log.Printf("Error compiling chain: %v", err)
+		return "", err
+	}
+
+	outMsg, err := agent.Invoke(ctx, messages)
+	if err != nil {
+		log.Printf("Error invoking agent: %v", err)
+		return "", err
+	}
+	if outMsg == nil {
+		return "", fmt.Errorf("agent returned no message")
+	}
+
+	newMsg := outMsg[len(outMsg)-1]
+
+	if len(newMsg.ToolCalls) == 0 {
+		return "", fmt.Errorf("agent returned no tool calls")
+	} else {
+		for _, toolCall := range newMsg.ToolCalls {
+			println("tool call", toolCall.ID, toolCall.Function.Name, toolCall.Function.Arguments)
+		}
+		return "", fmt.Errorf("agent returned no tool calls")
+	}
+
 }

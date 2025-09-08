@@ -1,8 +1,7 @@
-// services/tree_json.go
-package services
+package tools
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -11,9 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"narrabyte/internal/utils"
+
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
-	"narrabyte/internal/utils"
 )
 
 // ---------- Public API ----------
@@ -23,6 +23,10 @@ type TreeOptions struct {
 	MaxEntries         int      // default 800 (hard cap on total nodes)
 	ExtraExcludeGlobs  []string // appended to .gitignore patterns
 	CollapseDirEntries int      // default 100; mark dirs "collapsed" if >= this many children
+}
+
+type ListDirectoryInput struct {
+	RepoPath string `json:"repo_path"`
 }
 
 type TreeNode struct {
@@ -71,18 +75,23 @@ type TreeResponse struct {
 	Nodes []TreeNode `json:"nodes"`
 }
 
-// ListTreeJSON returns the flat, ID-indexed JSON as bytes.
-func (g *GitService) ListTreeJSON(repoPath string, opts TreeOptions) ([]byte, error) {
-	resp, err := g.buildTree(repoPath, opts)
+// ListDirectoryJSON returns the flat, ID-indexed JSON as a formatted string.
+func ListDirectoryJSON(_ context.Context, input *ListDirectoryInput) (*TreeResponse, error) {
+	resp, err := buildTree(input.RepoPath, TreeOptions{
+		MaxDepth:           2,
+		MaxEntries:         800,
+		CollapseDirEntries: 100,
+		ExtraExcludeGlobs:  []string{},
+	})
 	if err != nil {
 		return nil, err
 	}
-	return json.MarshalIndent(resp, "", "  ")
+	return &resp, nil
 }
 
 // ---------- Implementation ----------
 
-func (g *GitService) buildTree(repoPath string, opts TreeOptions) (TreeResponse, error) {
+func buildTree(repoPath string, opts TreeOptions) (TreeResponse, error) {
 	var out TreeResponse
 
 	if repoPath == "" {

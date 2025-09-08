@@ -19,7 +19,7 @@ func TestTreeJSON_ProjectRoot(t *testing.T) {
 
 	// Use generous limits so the structure is useful while avoiding huge outputs.
 	opts := services.TreeOptions{
-		MaxDepth:           5,    // increase from default to capture more structure
+		MaxDepth:           2,    // increase from default to capture more structure
 		MaxEntries:         5000, // allow more nodes if needed
 		ExtraExcludeGlobs:  nil,  // rely on defaults (.git, node_modules, etc.)
 		CollapseDirEntries: 200,  // collapse very large directories
