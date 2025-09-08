@@ -45,7 +45,6 @@
       }
     }
   },
-  "overrides": [{ "includes": ["src/routeTree.gen.ts"] }],
   "javascript": {
     "formatter": {
       "quoteStyle": "double"
