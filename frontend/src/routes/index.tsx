@@ -3,7 +3,6 @@ import { GitBranch, Settings } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import logo from "@/assets/images/logo-universal.png";
 import DirectoryPicker from "@/components/DirectoryPicker";
 import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";

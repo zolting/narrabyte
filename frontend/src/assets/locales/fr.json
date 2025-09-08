@@ -1,63 +1,63 @@
 {
-	"common": {
-		"settings": "Paramètres",
-		"greet": "Saluer",
-		"selectDirectory": "Sélectionner un répertoire",
-		"selecting": "Sélection...",
-		"selected": "Sélectionné",
-		"goBack": "Retour",
-		"gitDiff": "Diff Git",
-		"cancel": "Annuler",
-		"viewDiff": "Voir Diff",
-		"inlineView": "Vue en ligne",
-		"splitView": "Vue divisée"
-	},
-	"projectManager": {
-		"addProject": "Ajouter un projet",
-		"projectName": "Nom du projet",
-		"docDirectory": "Répertoire de documentation",
-		"codebaseDirectory": "Répertoire du code source",
-		"submit": "Soumettre",
-		"cancel": "Annuler",
-		"enterProjectName": "Entrer le nom du projet",
-		"selectDocDirectory": "Selectionner le répertoire de documentation",
-		"selectCodebaseDirectory": "Selectionner le répertoire du code source"
-	},
-	"home": {
-		"greeting": "Veuillez entrer votre nom ci-dessous 👇",
-		"namePlaceholder": "Entrez votre nom",
-		"docDirectory": "Répertoire de documentation",
-		"codebaseDirectory": "Répertoire de code",
-		"linkRepositories": "Lier les répertoires",
-		"projectNameRequired": "Veuillez entrer un nom de projet",
-		"addProject": "Ajouter un projet",
-		"linkSuccess": "Répertoires liés avec succès!",
-		"linkError": "Échec de la liaison des répertoires",
-		"selectBothDirectories": "Veuillez d'abord sélectionner les deux répertoires"
-	},
-	"settings": {
-		"title": "Paramètres",
-		"description": "Ceci est la page des paramètres!",
-		"routerWorking": "TanStack Router fonctionne maintenant",
-		"availableSettings": "Paramètres disponibles:",
-		"themePreferences": "Préférences de thème",
-		"directoryConfigs": "Configurations de répertoire",
-		"userPreferences": "Préférences utilisateur",
-		"loading": "Chargement des paramètres...",
-		"theme": "Thème",
-		"language": "Langue",
-		"light": "Clair",
-		"dark": "Sombre",
-		"system": "Système",
-		"english": "Anglais",
-		"french": "Français"
-	},
-	"demoEvents": {
-		"title": "Événements de démonstration",
-		"startDemo": "Démarrer la démo",
-		"streaming": "Diffusion...",
-		"stop": "Arrêter",
-		"clear": "Effacer",
-		"noEvents": "Aucun événement pour le moment. Cliquez sur Démarrer la démo."
-	}
+  "common": {
+    "settings": "Paramètres",
+    "greet": "Saluer",
+    "selectDirectory": "Sélectionner un répertoire",
+    "selecting": "Sélection...",
+    "selected": "Sélectionné",
+    "goBack": "Retour",
+    "gitDiff": "Diff Git",
+    "cancel": "Annuler",
+    "viewDiff": "Voir Diff",
+    "inlineView": "Vue en ligne",
+    "splitView": "Vue divisée"
+  },
+  "projectManager": {
+    "addProject": "Ajouter un projet",
+    "projectName": "Nom du projet",
+    "docDirectory": "Répertoire de documentation",
+    "codebaseDirectory": "Répertoire du code source",
+    "submit": "Soumettre",
+    "cancel": "Annuler",
+    "enterProjectName": "Entrer le nom du projet",
+    "selectDocDirectory": "Selectionner le répertoire de documentation",
+    "selectCodebaseDirectory": "Selectionner le répertoire du code source"
+  },
+  "home": {
+    "greeting": "Veuillez entrer votre nom ci-dessous 👇",
+    "namePlaceholder": "Entrez votre nom",
+    "docDirectory": "Répertoire de documentation",
+    "codebaseDirectory": "Répertoire de code",
+    "linkRepositories": "Lier les répertoires",
+    "projectNameRequired": "Veuillez entrer un nom de projet",
+    "addProject": "Ajouter un projet",
+    "linkSuccess": "Répertoires liés avec succès!",
+    "linkError": "Échec de la liaison des répertoires",
+    "selectBothDirectories": "Veuillez d'abord sélectionner les deux répertoires"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "description": "Ceci est la page des paramètres!",
+    "routerWorking": "TanStack Router fonctionne maintenant",
+    "availableSettings": "Paramètres disponibles:",
+    "themePreferences": "Préférences de thème",
+    "directoryConfigs": "Configurations de répertoire",
+    "userPreferences": "Préférences utilisateur",
+    "loading": "Chargement des paramètres...",
+    "theme": "Thème",
+    "language": "Langue",
+    "light": "Clair",
+    "dark": "Sombre",
+    "system": "Système",
+    "english": "Anglais",
+    "french": "Français"
+  },
+  "demoEvents": {
+    "title": "Événements de démonstration",
+    "startDemo": "Démarrer la démo",
+    "streaming": "Diffusion...",
+    "stop": "Arrêter",
+    "clear": "Effacer",
+    "noEvents": "Aucun événement pour le moment. Cliquez sur Démarrer la démo."
+  }
 }

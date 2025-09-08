@@ -46,7 +46,7 @@ function GitDiffDialog({ children }: GitDiffDialogProps) {
 
 	const toggleViewType = () => {
 		setViewType((prevViewType) =>
-			prevViewType === "split" ? "unified" : "split",
+			prevViewType === "split" ? "unified" : "split"
 		);
 	};
 

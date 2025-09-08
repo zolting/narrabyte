@@ -33,20 +33,20 @@ function Settings() {
 								<h3 className="font-semibold text-lg">{t("settings.theme")}</h3>
 								<div className="flex gap-2">
 									<Button
-										variant={theme === "light" ? "default" : "outline"}
 										onClick={() => setTheme("light")}
+										variant={theme === "light" ? "default" : "outline"}
 									>
 										{t("settings.light")}
 									</Button>
 									<Button
-										variant={theme === "dark" ? "default" : "outline"}
 										onClick={() => setTheme("dark")}
+										variant={theme === "dark" ? "default" : "outline"}
 									>
 										{t("settings.dark")}
 									</Button>
 									<Button
-										variant={theme === "system" ? "default" : "outline"}
 										onClick={() => setTheme("system")}
+										variant={theme === "system" ? "default" : "outline"}
 									>
 										{t("settings.system")}
 									</Button>
@@ -59,14 +59,14 @@ function Settings() {
 								</h3>
 								<div className="flex gap-2">
 									<Button
-										variant={locale.startsWith("en") ? "default" : "outline"}
 										onClick={() => setLocale("en")}
+										variant={locale.startsWith("en") ? "default" : "outline"}
 									>
 										{t("settings.english")}
 									</Button>
 									<Button
-										variant={locale.startsWith("fr") ? "default" : "outline"}
 										onClick={() => setLocale("fr")}
+										variant={locale.startsWith("fr") ? "default" : "outline"}
 									>
 										{t("settings.french")}
 									</Button>
