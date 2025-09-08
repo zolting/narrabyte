@@ -1,63 +1,63 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.2.2/schema.json",
-	"vcs": {
-		"enabled": false,
-		"clientKind": "git",
-		"useIgnoreFile": true
-	},
+  "$schema": "https://biomejs.dev/schemas/2.2.2/schema.json",
+  "vcs": {
+    "enabled": false,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
 
-	"files": {
-		"ignoreUnknown": false,
-		"includes": [
-			"src/**/*.ts",
-			"!src/**/*.gen.ts",
-			"!src/components/ui",
-			"src/**/*.tsx",
-			"src/**/*.json",
-			"src/**/*.css",
-			"src/**/*.md"
-		],
-		"experimentalScannerIgnores": ["node_modules", "src/routeTree.gen.ts"]
-	},
-	"formatter": {
-		"enabled": true,
-		"indentStyle": "tab",
-		"indentWidth": 2,
-		"bracketSpacing": true
-	},
-	"linter": {
-		"enabled": true,
-		"includes": ["src/**/*.ts", "src/**/*.tsx"],
-		"rules": {
-			"recommended": true,
-			"performance": {
-				"noImgElement": "off"
-			},
-			"suspicious": {
-				"noConsole": "warn"
-			},
-			"nursery": {
-				"useImageSize": "off",
-				"useConsistentTypeDefinitions": "off"
-			},
-			"style": {
-				"useFilenamingConvention": "off"
-			}
-		}
-	},
-	"overrides": [{ "includes": ["src/routeTree.gen.ts"] }],
-	"javascript": {
-		"formatter": {
-			"quoteStyle": "double"
-		}
-	},
-	"assist": {
-		"enabled": true,
-		"actions": {
-			"source": {
-				"organizeImports": "on"
-			}
-		}
-	},
-	"extends": ["ultracite"]
+  "files": {
+    "ignoreUnknown": false,
+    "includes": [
+      "src/**/*.ts",
+      "!src/**/*.gen.ts",
+      "!src/components/ui",
+      "src/**/*.tsx",
+      "src/**/*.json",
+      "src/**/*.css",
+      "src/**/*.md"
+    ],
+    "experimentalScannerIgnores": ["node_modules", "src/routeTree.gen.ts"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "tab",
+    "indentWidth": 2,
+    "bracketSpacing": true
+  },
+  "linter": {
+    "enabled": true,
+    "includes": ["src/**/*.ts", "src/**/*.tsx"],
+    "rules": {
+      "recommended": true,
+      "performance": {
+        "noImgElement": "off"
+      },
+      "suspicious": {
+        "noConsole": "warn"
+      },
+      "nursery": {
+        "useImageSize": "off",
+        "useConsistentTypeDefinitions": "off"
+      },
+      "style": {
+        "useFilenamingConvention": "off"
+      }
+    }
+  },
+  "overrides": [{ "includes": ["src/routeTree.gen.ts"] }],
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "extends": ["ultracite"]
 }

@@ -6,7 +6,8 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "tsr generate && tsc && vite build",
-		"preview": "vite preview"
+		"preview": "vite preview",
+		"format": "biome check --write"
 	},
 	"dependencies": {
 		"@radix-ui/react-dialog": "^1.1.15",
