@@ -3,15 +3,13 @@ import { GitBranch, Settings } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import DirectoryPicker from "@/components/DirectoryPicker";
+import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
-import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Greet, LinkRepositories } from "../../wailsjs/go/main/App";
 import DemoEvents from "../components/DemoEvents";
-import { set } from "zod/v4";
 
 export const Route = createFileRoute("/")({
 	component: Home,
@@ -21,7 +19,11 @@ function Home() {
 	const { t } = useTranslation();
 	const [resultText, setResultText] = useState("");
 	const [name, setName] = useState("");
-	const [lastProject, setLastProject] = useState<{name: string; docDirectory: string; codebaseDirectory: string } | null>(null);
+	const [lastProject, setLastProject] = useState<{
+		name: string;
+		docDirectory: string;
+		codebaseDirectory: string;
+	} | null>(null);
 	const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
 
 	const updateName = (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -32,30 +34,31 @@ function Home() {
 		Greet(name).then(updateResultText);
 	};
 
-	const handleAddProject = (data: {name: string; docDirectory: string, codebaseDirectory: string}) =>{
+	const handleAddProject = (data: {
+		name: string;
+		docDirectory: string;
+		codebaseDirectory: string;
+	}) => {
 		if (!(data.docDirectory && data.codebaseDirectory)) {
 			alert(t("home.selectBothDirectories"));
 			return;
 		}
-		if (!data.name){
+		if (!data.name) {
 			alert(t("home.projectNameRequired"));
 			return;
 		}
 
-		try{
+		try {
 			LinkRepositories(data.name, data.docDirectory, data.codebaseDirectory);
 			alert(t("home.linkSuccess"));
 			setIsAddProjectOpen(false);
 			setLastProject(data);
-		}
-		catch (error) {
+		} catch (error) {
 			console.error("Error linking repositories:", error);
 			alert(t("home.linkError"));
 			return;
 		}
-		
-	}
-
+	};
 
 	useEffect(() => {
 		setResultText(t("home.greeting"));
@@ -106,26 +109,32 @@ function Home() {
 
 					<div className="space-y-4">
 						<Button
-							onClick={() => setIsAddProjectOpen(true)}
 							className="w-full"
-							>
-								{t("home.addProject")}
+							onClick={() => setIsAddProjectOpen(true)}
+						>
+							{t("home.addProject")}
 						</Button>
 						<AddProjectDialog
-							open={isAddProjectOpen}
 							onClose={() => setIsAddProjectOpen(false)}
 							onSubmit={handleAddProject}
+							open={isAddProjectOpen}
 						/>
 						{/*lastProject only used to visualize the changes on screen*/}
 						{lastProject && (
-  						<div className="mt-4 p-2 border rounded">
-    						<div><b>Nom du projet:</b> {lastProject.name}</div>
-    						<div><b>Location du projet:</b> {lastProject.codebaseDirectory}</div>
-    						<div><b>Location de la documentation:</b> {lastProject.docDirectory}</div>
-  						</div>
-)}
+							<div className="mt-4 rounded border p-2">
+								<div>
+									<b>Nom du projet:</b> {lastProject.name}
+								</div>
+								<div>
+									<b>Location du projet:</b> {lastProject.codebaseDirectory}
+								</div>
+								<div>
+									<b>Location de la documentation:</b>{" "}
+									{lastProject.docDirectory}
+								</div>
+							</div>
+						)}
 					</div>
-
 
 					<DemoEvents />
 				</CardContent>

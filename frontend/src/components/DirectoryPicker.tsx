@@ -5,10 +5,12 @@ import { Button } from "./ui/button";
 
 type DirectoryPickerProps = {
 	onDirectorySelected?: (path: string) => void;
+	id?: string;
 };
 
 export default function DirectoryPicker({
 	onDirectorySelected,
+	id,
 }: DirectoryPickerProps) {
 	const { t } = useTranslation();
 	const [selectedPath, setSelectedPath] = useState<string>("");
@@ -22,8 +24,8 @@ export default function DirectoryPicker({
 				setSelectedPath(path);
 				onDirectorySelected?.(path);
 			}
-		} catch (error) {
-			console.error("Error selecting directory:", error);
+		} catch {
+			// Error handled silently - directory selection failed
 		} finally {
 			setIsLoading(false);
 		}
@@ -32,7 +34,12 @@ export default function DirectoryPicker({
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex items-center gap-4">
-				<Button disabled={isLoading} onClick={handleSelectDirectory} size="lg">
+				<Button
+					disabled={isLoading}
+					id={id}
+					onClick={handleSelectDirectory}
+					size="lg"
+				>
 					{isLoading ? t("common.selecting") : t("common.selectDirectory")}
 				</Button>
 				{selectedPath && (
