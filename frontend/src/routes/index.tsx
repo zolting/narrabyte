@@ -3,7 +3,7 @@ import { GitBranch, Settings } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import DirectoryPicker from "@/components/DirectoryPicker";
+import AddProjectDialog from "@/components/AddProjectDialog";
 import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,8 +19,12 @@ function Home() {
 	const { t } = useTranslation();
 	const [resultText, setResultText] = useState("");
 	const [name, setName] = useState("");
-	const [docDirectory, setDocDirectory] = useState<string>("");
-	const [codebaseDirectory, setCodebaseDirectory] = useState<string>("");
+	const [lastProject, setLastProject] = useState<{
+		name: string;
+		docDirectory: string;
+		codebaseDirectory: string;
+	} | null>(null);
+	const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
 
 	const updateName = (e: React.ChangeEvent<HTMLInputElement>) =>
 		setName(e.target.value);
@@ -30,26 +34,39 @@ function Home() {
 		Greet(name).then(updateResultText);
 	};
 
-	const linkRepositories = async () => {
-		if (!(docDirectory && codebaseDirectory)) {
+	const handleAddProject = async (data: {
+		name: string;
+		docDirectory: string;
+		codebaseDirectory: string;
+	}) => {
+		if (!(data.docDirectory && data.codebaseDirectory)) {
 			alert(t("home.selectBothDirectories"));
+			return;
+		}
+		if (!data.name) {
+			alert(t("home.projectNameRequired"));
 			return;
 		}
 
 		try {
-			await LinkRepositories(docDirectory, codebaseDirectory);
+			await LinkRepositories(
+				data.name,
+				data.docDirectory,
+				data.codebaseDirectory,
+			);
 			alert(t("home.linkSuccess"));
+			setIsAddProjectOpen(false);
+			setLastProject(data);
 		} catch (error) {
 			console.error("Error linking repositories:", error);
 			alert(t("home.linkError"));
+			return;
 		}
 	};
 
 	useEffect(() => {
 		setResultText(t("home.greeting"));
 	}, [t]);
-
-	const isLinkDisabled = !(docDirectory && codebaseDirectory);
 
 	return (
 		<div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-8 font-mono">
@@ -95,28 +112,32 @@ function Home() {
 					</div>
 
 					<div className="space-y-4">
-						<div>
-							<div className="mb-2 block font-medium text-sm">
-								{t("home.docDirectory")}
-							</div>
-							<DirectoryPicker onDirectorySelected={setDocDirectory} />
-						</div>
-
-						<div>
-							<div className="mb-2 block font-medium text-sm">
-								{t("home.codebaseDirectory")}
-							</div>
-							<DirectoryPicker onDirectorySelected={setCodebaseDirectory} />
-						</div>
-
 						<Button
 							className="w-full"
-							disabled={isLinkDisabled}
-							onClick={linkRepositories}
-							size="lg"
+							onClick={() => setIsAddProjectOpen(true)}
 						>
-							{t("home.linkRepositories")}
+							{t("home.addProject")}
 						</Button>
+						<AddProjectDialog
+							onClose={() => setIsAddProjectOpen(false)}
+							onSubmit={handleAddProject}
+							open={isAddProjectOpen}
+						/>
+						{/*lastProject only used to visualize the changes on screen*/}
+						{lastProject && (
+							<div className="mt-4 rounded border p-2">
+								<div>
+									<b>Nom du projet:</b> {lastProject.name}
+								</div>
+								<div>
+									<b>Location du projet:</b> {lastProject.codebaseDirectory}
+								</div>
+								<div>
+									<b>Location de la documentation:</b>{" "}
+									{lastProject.docDirectory}
+								</div>
+							</div>
+						)}
 					</div>
 
 					<DemoEvents />
