@@ -2,15 +2,19 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"narrabyte/internal/llm/tools"
 	"strconv"
 
+	appUtils "narrabyte/internal/utils"
+
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
+	"github.com/cloudwego/eino/flow/agent/react"
 	"github.com/cloudwego/eino/schema"
 )
 
@@ -32,6 +36,13 @@ func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 	}
 
 	return &OpenAIClient{*model, key}, err
+}
+
+// SetListDirectoryBaseRoot binds the list-directory tools to a specific base directory.
+// Example: SetListDirectoryBaseRoot("/path/to/project") then tool input "frontend"
+// resolves to "/path/to/project/frontend".
+func (o *OpenAIClient) SetListDirectoryBaseRoot(root string) {
+	tools.SetListDirectoryBaseRoot(root)
 }
 
 //La fonction essaie d'appeler un modèle de chat avec un outil d'addition, d'exécuter le flux "LLM -> Tools" puis de retourner le dernier message produit. Elle prépare les messages, attache l'outil au modèle, construit une chaîne composée d'un nœud LLM puis d'un nœud Tools, compile et invoque l'agent.
@@ -112,64 +123,75 @@ func (o *OpenAIClient) InvokeAdditionDemo(ctx context.Context, a, b int) (string
 }
 
 func (o *OpenAIClient) InvokeListDirectoryDemo(ctx context.Context, repoPath string, opts tools.TreeOptions) (string, error) {
+	// Build the list-directory tool
 	listDirectoryTool, err := utils.InferTool("list_directory_tool", "lists the contents of a directory", tools.ListDirectoryJSON)
 	if err != nil {
 		log.Printf("Error inferring tool: %v", err)
 		return "", err
 	}
 
-	messages := []*schema.Message{
-		schema.SystemMessage("You are a helpful assistant that can list the contents of a directory using the provided tool."),
-		schema.UserMessage("What is the contents of the directory" + repoPath + "?"),
-	}
-
-	info, err := listDirectoryTool.Info(ctx)
+	// Configure the tool's base root (project root)
+	root, err := appUtils.FindProjectRoot()
 	if err != nil {
-		log.Printf("Error getting tool info: %v", err)
+		log.Printf("Error finding project root: %v", err)
 		return "", err
 	}
+	tools.SetListDirectoryBaseRoot(root)
 
-	if err := o.ChatModel.BindTools([]*schema.ToolInfo{info}); err != nil {
-		log.Printf("Error binding tools: %v", err)
-		return "", err
-	}
-
-	toolsNode, err := compose.NewToolNode(ctx, &compose.ToolsNodeConfig{
-		Tools: []tool.BaseTool{listDirectoryTool},
+	// Create an initial preview of the repo tree for context
+	preview, err := tools.ListDirectoryJSON(ctx, &tools.ListDirectoryInput{
+		DirectoryRelativePath: repoPath,
 	})
 	if err != nil {
-		log.Printf("Error creating tools node: %v", err)
+		log.Printf("Error listing tree JSON: %v", err)
 		return "", err
 	}
-
-	chain := compose.NewChain[[]*schema.Message, []*schema.Message]()
-	chain.AppendChatModel(&o.ChatModel, compose.WithNodeName("llm-plan"))
-	chain.AppendToolsNode(toolsNode, compose.WithNodeName("tools"))
-
-	agent, err := chain.Compile(ctx)
+	previewBytes, err := json.MarshalIndent(preview, "", "  ")
 	if err != nil {
-		log.Printf("Error compiling chain: %v", err)
+		log.Printf("Error marshalling tree JSON: %v", err)
 		return "", err
 	}
 
-	outMsg, err := agent.Invoke(ctx, messages)
+	// Messages to drive the agent
+	messages := []*schema.Message{
+		schema.UserMessage(
+			"Here is an initial preview of the project's directory (depth 2):\n\n" +
+				string(previewBytes) +
+				"\n\nWhat files in the project take care of synchronizing the app settings, both backend and frontend?"),
+	}
+
+	// Build a ReAct agent with the tool-callable model and tools config
+	agent, err := react.NewAgent(ctx, &react.AgentConfig{
+		ToolCallingModel: &o.ChatModel,
+		ToolsConfig: compose.ToolsNodeConfig{
+			Tools: []tool.BaseTool{listDirectoryTool},
+		},
+		MessageModifier: func(ctx context.Context, input []*schema.Message) []*schema.Message {
+			// Add a concise system persona before user / history
+			res := make([]*schema.Message, 0, len(input)+1)
+			res = append(res, schema.SystemMessage(
+				"You are a helpful codebase assistant. "+
+					"You can call list_directory_tool to inspect the repository when needed."))
+			res = append(res, input...)
+			return res
+		},
+		MaxStep: 20,
+	})
 	if err != nil {
-		log.Printf("Error invoking agent: %v", err)
+		log.Printf("Error creating react agent: %v", err)
 		return "", err
 	}
-	if outMsg == nil {
+
+	// Run the agent to completion and return its final message
+	out, err := agent.Generate(ctx, messages)
+	if err != nil {
+		log.Printf("Error running react agent: %v", err)
+		return "", err
+	}
+	if out == nil {
 		return "", fmt.Errorf("agent returned no message")
 	}
 
-	newMsg := outMsg[len(outMsg)-1]
-
-	if len(newMsg.ToolCalls) == 0 {
-		return "", fmt.Errorf("agent returned no tool calls")
-	} else {
-		for _, toolCall := range newMsg.ToolCalls {
-			println("tool call", toolCall.ID, toolCall.Function.Name, toolCall.Function.Arguments)
-		}
-		return "", fmt.Errorf("agent returned no tool calls")
-	}
-
+	println("OUT MESSAGE CONTENT : \n\n", out.Content)
+	return out.Content, nil
 }

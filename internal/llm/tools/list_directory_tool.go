@@ -26,7 +26,7 @@ type TreeOptions struct {
 }
 
 type ListDirectoryInput struct {
-	RepoPath string `json:"repo_path"`
+	DirectoryRelativePath string `json:"directory_relative_path" jsonschema:"description=The directory path relative to the project root"`
 }
 
 type TreeNode struct {
@@ -75,9 +75,35 @@ type TreeResponse struct {
 	Nodes []TreeNode `json:"nodes"`
 }
 
-// ListDirectoryJSON returns the flat, ID-indexed JSON as a formatted string.
+// ListDirectoryJSON returns the tree response
 func ListDirectoryJSON(_ context.Context, input *ListDirectoryInput) (*TreeResponse, error) {
-	resp, err := buildTree(input.RepoPath, TreeOptions{
+	// Resolve the input path relative to the configured base root.
+	base := getListDirectoryBaseRoot()
+	rel := "."
+	if input != nil {
+		rel = strings.TrimSpace(input.DirectoryRelativePath)
+		if rel == "" {
+			rel = "."
+		}
+	}
+
+	var target string
+	if rel == "." {
+		// Use base directly
+		absBase, err := filepath.Abs(base)
+		if err != nil {
+			return nil, err
+		}
+		target = absBase
+	} else {
+		abs, ok := safeJoinUnderBase(base, rel)
+		if !ok {
+			return nil, fmt.Errorf("path escapes the configured base root")
+		}
+		target = abs
+	}
+
+	resp, err := buildTree(target, TreeOptions{
 		MaxDepth:           2,
 		MaxEntries:         800,
 		CollapseDirEntries: 100,
