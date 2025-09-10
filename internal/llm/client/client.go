@@ -113,7 +113,7 @@ func (o *OpenAIClient) InvokeListDirectoryDemo(ctx context.Context, codebasePath
 	defer reader.Close()
 
 	var finalContent string
-	var lastMessage *schema.Message = nil
+
 	for {
 		msg, recvErr := reader.Recv()
 		if recvErr != nil {
@@ -134,12 +134,7 @@ func (o *OpenAIClient) InvokeListDirectoryDemo(ctx context.Context, codebasePath
 		if msg != nil && msg.Role == schema.Assistant && len(msg.Content) > 0 {
 			finalContent += msg.Content
 		}
-		lastMessage = msg
 	}
-
-	println("COMPLETION TOKENS: ", lastMessage.ResponseMeta.Usage.CompletionTokens)
-	println("PROMPT TOKENS: ", lastMessage.ResponseMeta.Usage.PromptTokens)
-	println("TOTAL TOKENS: ", lastMessage.ResponseMeta.Usage.TotalTokens)
 
 	if finalContent == "" {
 		return "", fmt.Errorf("no assistant content produced during streaming")
