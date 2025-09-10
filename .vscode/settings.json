@@ -9,6 +9,7 @@
 	"editor.detectIndentation": false,
 	"editor.tabSize": 4,
 	"emmet.showExpandedAbbreviation": "never",
+	"go.testFlags": ["-timeout=5m"],
 	"[typescript]": {
 		"editor.defaultFormatter": "biomejs.biome"
 	},

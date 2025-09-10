@@ -4,370 +4,282 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
-
-	"narrabyte/internal/utils"
-
-	"github.com/go-git/go-billy/v5/osfs"
-	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 )
 
-// ---------- Public API ----------
+// ---------- LS-style listing tool ----------
 
-type TreeOptions struct {
-	MaxDepth           int      // default 2; 1 = items directly under root
-	MaxEntries         int      // default 800 (hard cap on total nodes)
-	ExtraExcludeGlobs  []string // appended to .gitignore patterns
-	CollapseDirEntries int      // default 100; mark dirs "collapsed" if >= this many children
+// Default ignore patterns similar to the TS tool.
+var DefaultIgnorePatterns = []string{
+	"node_modules/",
+	"__pycache__/",
+	".git/",
+	"dist/",
+	"build/",
+	"target/",
+	"vendor/",
+	"bin/",
+	"obj/",
+	".idea/",
+	".vscode/",
+	".zig-cache/",
+	"zig-out",
+	".coverage",
+	"coverage/",
+	"vendor/",
+	"tmp/",
+	"temp/",
+	".cache/",
+	"cache/",
+	"logs/",
+	".venv/",
+	"venv/",
+	"env/",
 }
 
-type ListDirectoryInput struct {
-	DirectoryRelativePath string `json:"directory_relative_path" jsonschema:"description=The directory path relative to the project root"`
+const listLimit = 100
+
+type ListLSInput struct {
+	// Absolute or relative to project root; relative is resolved under the configured base root.
+	Path   string   `json:"path,omitempty" jsonschema:"description=The absolute path to the directory to list (or relative to project root)"`
+	Ignore []string `json:"ignore,omitempty" jsonschema:"description=List of glob-like patterns to ignore"`
 }
 
-type TreeNode struct {
-	ID            int       `json:"id"`
-	Path          string    `json:"path"`                     // repo-relative (unix-style)
-	Type          string    `json:"type"`                     // "dir" | "file" | "symlink"
-	Depth         int       `json:"depth"`                    // 1 = entries under repo root
-	ChildrenCount int       `json:"children_count,omitempty"` // for directories
-	Collapsed     bool      `json:"collapsed,omitempty"`      // depth limit / too many children
-	Ext           string    `json:"ext,omitempty"`            // lowercase (files)
-	Size          int64     `json:"size,omitempty"`           // bytes (files)
-	MTime         time.Time `json:"mtime,omitempty"`          // (files)
-}
-
-type TreeLangCount struct {
-	Lang  string `json:"lang"`
-	Files int    `json:"files"`
-}
-
-type TreeDirCount struct {
-	Path  string `json:"path"`
-	Files int    `json:"files"`
-}
-
-type TreeResponse struct {
-	Version string `json:"version"`
-	Root    string `json:"root"`
-	Limits  struct {
-		MaxDepth   int `json:"max_depth"`
-		MaxEntries int `json:"max_entries"`
-	} `json:"limits"`
-	Truncated struct {
-		ByEntries bool `json:"by_entries"`
-		ByDepth   bool `json:"by_depth"`
-	} `json:"truncated"`
-	Ignore struct {
-		Gitignore    bool     `json:"gitignore"`
-		ExcludeGlobs []string `json:"exclude_globs"`
-	} `json:"ignore"`
-	Summary struct {
-		Dirs        int             `json:"dirs"`
-		Files       int             `json:"files"`
-		ByLang      []TreeLangCount `json:"by_lang"`
-		LargestDirs []TreeDirCount  `json:"largest_dirs"`
-	} `json:"summary"`
-	Nodes []TreeNode `json:"nodes"`
-}
-
-// ListDirectoryJSON returns the tree response
-func ListDirectoryJSON(_ context.Context, input *ListDirectoryInput) (*TreeResponse, error) {
-	// Resolve the input path relative to the configured base root.
+// ListDirectory produces a simple textual tree listing similar to the TS tool.
+func ListDirectory(_ context.Context, in *ListLSInput) (string, error) {
 	base := getListDirectoryBaseRoot()
-	rel := "."
-	if input != nil {
-		rel = strings.TrimSpace(input.DirectoryRelativePath)
-		if rel == "" {
-			rel = "."
-		}
+	req := "."
+	if in != nil && strings.TrimSpace(in.Path) != "" {
+		req = strings.TrimSpace(in.Path)
 	}
 
-	var target string
-	if rel == "." {
-		// Use base directly
+	// Resolve search path under base (absolute allowed if it resides under base)
+	var searchPath string
+	if filepath.IsAbs(req) {
 		absBase, err := filepath.Abs(base)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		target = absBase
-	} else {
-		abs, ok := safeJoinUnderBase(base, rel)
-		if !ok {
-			return nil, fmt.Errorf("path escapes the configured base root")
-		}
-		target = abs
-	}
-
-	resp, err := buildTree(target, TreeOptions{
-		MaxDepth:           2,
-		MaxEntries:         800,
-		CollapseDirEntries: 100,
-		ExtraExcludeGlobs:  []string{},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
-// ---------- Implementation ----------
-
-func buildTree(repoPath string, opts TreeOptions) (TreeResponse, error) {
-	var out TreeResponse
-
-	if repoPath == "" {
-		return out, errors.New("repoPath is required")
-	}
-	absRoot, err := filepath.Abs(repoPath)
-	if err != nil {
-		return out, err
-	}
-	if fi, err := os.Stat(absRoot); err != nil || !fi.IsDir() {
-		return out, fmt.Errorf("invalid repoPath: %s", repoPath)
-	}
-
-	// Defaults
-	if opts.MaxDepth <= 0 {
-		opts.MaxDepth = 2
-	}
-	if opts.MaxEntries <= 0 {
-		opts.MaxEntries = 800
-	}
-	if opts.CollapseDirEntries <= 0 {
-		opts.CollapseDirEntries = 100
-	}
-
-	// Build a gitignore matcher from the repo, plus extra excludes.
-	fs := osfs.New(absRoot)
-	patterns, _ := gitignore.ReadPatterns(fs, nil) // reads .gitignore recursively, ordered by priority. :contentReference[oaicite:1]{index=1}
-
-	// Load default excludes from assets file
-	defaultExcludes := []string{}
-	if root, err := utils.FindProjectRoot(); err == nil {
-		ignorePath := filepath.Join(root, "internal", "assets", "treeJsonIgnore.txt")
-		if lines, err := utils.ReadNonEmptyLines(ignorePath); err == nil {
-			defaultExcludes = lines
-		}
-	}
-	// Fallback to a sensible default if file missing/unreadable
-	if len(defaultExcludes) == 0 {
-		defaultExcludes = []string{
-			"**/.git/**", "**/node_modules/**", "**/dist/**", "**/build/**",
-			"**/.next/**", "**/.turbo/**", "**/coverage/**", "**/vendor/**",
-		}
-	}
-	for _, gl := range append(defaultExcludes, opts.ExtraExcludeGlobs...) {
-		patterns = append(patterns, gitignore.ParsePattern(gl, nil))
-	}
-	matcher := gitignore.NewMatcher(patterns)
-
-	// Helper: should we ignore this path?
-	ignored := func(rel string, isDir bool) bool {
-		rel = filepath.ToSlash(rel)
-		segs := strings.Split(rel, "/")
-		return matcher.Match(segs, isDir)
-	}
-
-	// Wire up response header
-	out.Version = "1"
-	out.Root = "."
-	out.Limits.MaxDepth = opts.MaxDepth
-	out.Limits.MaxEntries = opts.MaxEntries
-	out.Ignore.Gitignore = true
-	out.Ignore.ExcludeGlobs = append([]string(nil), append(defaultExcludes, opts.ExtraExcludeGlobs...)...)
-
-	type counters struct{ dirs, files int }
-	var c counters
-
-	id := 0
-	truncByEntries := false
-	truncByDepth := false
-
-	langMap := map[string]int{}
-	dirFileCounts := map[string]int{}
-
-	addFileRollup := func(rel string) {
-		parts := strings.Split(rel, "/")
-		for i := 0; i < len(parts)-1; i++ {
-			d := strings.Join(parts[:i+1], "/")
-			if d != "" {
-				dirFileCounts[d]++
-			}
-		}
-	}
-
-	// Walk root (depth=1 for entries under repo root)
-	var nodes []TreeNode
-
-	var walk func(dir string, depth int) error
-	walk = func(dir string, depth int) error {
-		entries, err := os.ReadDir(dir)
+		absReq, err := filepath.Abs(req)
 		if err != nil {
-			return nil // unreadable -> skip
+			return "", err
+		}
+		relToBase, err := filepath.Rel(absBase, absReq)
+		if err != nil {
+			return "", err
+		}
+		if strings.HasPrefix(relToBase, "..") {
+			return "", fmt.Errorf("path escapes the configured base root")
+		}
+		searchPath = absReq
+	} else {
+		abs, ok := safeJoinUnderBase(base, req)
+		if !ok {
+			return "", fmt.Errorf("path escapes the configured base root")
+		}
+		searchPath = abs
+	}
+
+	// Ensure directory exists
+	info, err := os.Stat(searchPath)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("not a directory: %s", searchPath)
+	}
+
+	// Compose ignore patterns
+	patterns := append([]string{}, DefaultIgnorePatterns...)
+	if in != nil && len(in.Ignore) > 0 {
+		patterns = append(patterns, in.Ignore...)
+	}
+
+	// Collect files up to limit, honoring ignore patterns
+	var files []string // slash-separated paths relative to searchPath
+	err = filepath.WalkDir(searchPath, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			// skip unreadable entries
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if p == searchPath {
+			return nil
+		}
+		rel, _ := filepath.Rel(searchPath, p)
+		rel = filepath.ToSlash(rel)
+
+		// If directory and ignored, skip subtree
+		if d.IsDir() {
+			if matchIgnoredDir(rel, patterns) {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		// If file is ignored, skip
+		if matchIgnoredFile(rel, patterns) {
+			return nil
 		}
 
-		// Filter and sort: dirs first, then alpha
-		type entry struct {
-			os.DirEntry
-			abs string
-			rel string
-		}
-		var list []entry
-		for _, e := range entries {
-			abs := filepath.Join(dir, e.Name())
-			rel, _ := filepath.Rel(absRoot, abs)
-			rel = filepath.ToSlash(rel)
-
-			// We must pass correct isDir to matcher
-			isDir := e.IsDir()
-			if ignored(rel, isDir) {
-				// if ignored by patterns, skip entirely
-				if isDir {
-					// do not descend
-				}
-				continue
-			}
-			list = append(list, entry{DirEntry: e, abs: abs, rel: rel})
-		}
-
-		sort.SliceStable(list, func(i, j int) bool {
-			di, dj := list[i].IsDir(), list[j].IsDir()
-			if di != dj {
-				return di
-			}
-			return strings.ToLower(list[i].Name()) < strings.ToLower(list[j].Name())
-		})
-
-		for _, e := range list {
-			if id >= opts.MaxEntries {
-				truncByEntries = true
-				return nil
-			}
-
-			mode := e.Type()
-			isLink := (mode & os.ModeSymlink) != 0
-			isDir := e.IsDir()
-
-			id++
-			n := TreeNode{
-				ID:    id,
-				Path:  e.rel,
-				Depth: depth,
-			}
-
-			if isDir {
-				n.Type = "dir"
-
-				// Count visible children (post-filter) for this dir
-				childEntries, _ := os.ReadDir(e.abs)
-				visible := 0
-				for _, ce := range childEntries {
-					abs := filepath.Join(e.abs, ce.Name())
-					rel, _ := filepath.Rel(absRoot, abs)
-					if ignored(filepath.ToSlash(rel), ce.IsDir()) {
-						continue
-					}
-					visible++
-				}
-				n.ChildrenCount = visible
-
-				// Collapsed if depth limit or too many children
-				if depth >= opts.MaxDepth {
-					n.Collapsed = true
-					if visible > 0 {
-						truncByDepth = true
-					}
-				} else if visible >= opts.CollapseDirEntries {
-					n.Collapsed = true
-				}
-
-				nodes = append(nodes, n)
-				c.dirs++
-
-				// Recurse if allowed
-				if depth < opts.MaxDepth {
-					if err := walk(e.abs, depth+1); err != nil {
-						return err
-					}
-					if truncByEntries {
-						return nil
-					}
-				}
-			} else {
-				if isLink {
-					n.Type = "symlink"
-				} else {
-					n.Type = "file"
-				}
-				if info, err := e.Info(); err == nil && !info.IsDir() {
-					n.Size = info.Size()
-					n.MTime = info.ModTime()
-				}
-				ext := strings.TrimPrefix(filepath.Ext(e.Name()), ".")
-				if ext != "" {
-					n.Ext = strings.ToLower(ext)
-					langMap[n.Ext]++
-				}
-				nodes = append(nodes, n)
-				c.files++
-				addFileRollup(e.rel)
-			}
+		files = append(files, rel)
+		if len(files) >= listLimit {
+			// Stop traversal once we've reached the limit
+			return errors.New("__LIST_LIMIT_REACHED__")
 		}
 		return nil
-	}
-
-	if err := walk(absRoot, 1); err != nil {
-		return out, err
-	}
-
-	// Summaries
-	out.Summary.Dirs = c.dirs
-	out.Summary.Files = c.files
-
-	// By language (sorted desc by count, then name)
-	type kv struct {
-		k string
-		v int
-	}
-	var langs []kv
-	for k, v := range langMap {
-		langs = append(langs, kv{k, v})
-	}
-	sort.Slice(langs, func(i, j int) bool {
-		if langs[i].v != langs[j].v {
-			return langs[i].v > langs[j].v
-		}
-		return langs[i].k < langs[j].k
 	})
-	for _, p := range langs {
-		out.Summary.ByLang = append(out.Summary.ByLang, TreeLangCount{Lang: p.k, Files: p.v})
-	}
-
-	// Largest dirs (top 8 by recursive file count)
-	const topN = 8
-	var dirs []kv
-	for k, v := range dirFileCounts {
-		if k != "" && k != "." {
-			dirs = append(dirs, kv{k, v})
+	if err != nil {
+		if err.Error() != "__LIST_LIMIT_REACHED__" {
+			return "", err
 		}
 	}
-	sort.Slice(dirs, func(i, j int) bool {
-		if dirs[i].v != dirs[j].v {
-			return dirs[i].v > dirs[j].v
+
+	// Build directory structure
+	dirs := map[string]struct{}{}
+	filesByDir := map[string][]string{}
+
+	for _, f := range files {
+		dir := path.Dir(f)
+		if dir == "." {
+			// no additional parents
 		}
-		return dirs[i].k < dirs[j].k
-	})
-	for i := 0; i < len(dirs) && i < topN; i++ {
-		out.Summary.LargestDirs = append(out.Summary.LargestDirs, TreeDirCount{Path: dirs[i].k, Files: dirs[i].v})
+		parts := []string{}
+		if dir != "." {
+			parts = strings.Split(dir, "/")
+		}
+		// add all parent directories, including "."
+		dirs["."] = struct{}{}
+		for i := 0; i <= len(parts); i++ {
+			if i == 0 {
+				continue // already added "."
+			}
+			dp := strings.Join(parts[:i], "/")
+			if dp != "" {
+				dirs[dp] = struct{}{}
+			}
+		}
+
+		base := path.Base(f)
+		if _, ok := filesByDir[dir]; !ok {
+			filesByDir[dir] = []string{}
+		}
+		filesByDir[dir] = append(filesByDir[dir], base)
 	}
 
-	out.Truncated.ByEntries = truncByEntries
-	out.Truncated.ByDepth = truncByDepth
-	out.Nodes = nodes
-	return out, nil
+	// Renderer
+	// Collect all dirs into slice for iteration
+	allDirs := make([]string, 0, len(dirs))
+	for d := range dirs {
+		allDirs = append(allDirs, d)
+	}
+
+	// Helper to compute children of a directory
+	childrenOf := func(parent string) []string {
+		var children []string
+		for _, d := range allDirs {
+			if d == parent {
+				continue
+			}
+			if path.Dir(d) == parent {
+				children = append(children, d)
+			}
+		}
+		sort.Strings(children)
+		return children
+	}
+
+	var renderDir func(dirPath string, depth int) string
+	renderDir = func(dirPath string, depth int) string {
+		indent := strings.Repeat("  ", depth)
+		var out strings.Builder
+		if depth > 0 {
+			out.WriteString(indent)
+			out.WriteString(path.Base(dirPath))
+			out.WriteString("/\n")
+		}
+
+		childIndent := strings.Repeat("  ", depth+1)
+		for _, child := range childrenOf(dirPath) {
+			out.WriteString(renderDir(child, depth+1))
+		}
+		// files for this dir
+		fs := filesByDir[dirPath]
+		sort.Strings(fs)
+		for _, f := range fs {
+			out.WriteString(childIndent)
+			out.WriteString(f)
+			out.WriteByte('\n')
+		}
+		return out.String()
+	}
+
+	// Top header and tree
+	absHeader := filepath.Clean(searchPath) + string(os.PathSeparator)
+	var b strings.Builder
+	b.WriteString(absHeader)
+	b.WriteByte('\n')
+	b.WriteString(renderDir(".", 0))
+	println("ListDirectory result: ", b.String())
+	return b.String(), nil
+}
+
+// matchIgnoredDir returns true if the directory (relative, slash-separated) should be ignored.
+func matchIgnoredDir(relDir string, patterns []string) bool {
+	segs := strings.Split(relDir, "/")
+	for _, p := range patterns {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		// Treat entries ending with '/' (or '/**') as dir names to skip anywhere in the path
+		dirPat := strings.TrimSuffix(p, "/**")
+		dirPat = strings.TrimSuffix(dirPat, "/")
+		if dirPat != p { // indicates it was a dir-style pattern
+			for _, s := range segs {
+				if s == dirPat {
+					return true
+				}
+			}
+			continue
+		}
+		// Also handle bare names like ".coverage" as a directory match
+		if !strings.ContainsAny(p, "*?[") {
+			for _, s := range segs {
+				if s == p {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// matchIgnoredFile returns true if the file path (relative, slash-separated) matches a simple ignore.
+func matchIgnoredFile(relFile string, patterns []string) bool {
+	// For simplicity, reuse directory logic for parent components and add basename checks
+	dir := path.Dir(relFile)
+	if dir != "." && matchIgnoredDir(dir, patterns) {
+		return true
+	}
+	base := path.Base(relFile)
+	for _, p := range patterns {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		// Exact basename match when pattern has no wildcard and no trailing '/'
+		if !strings.ContainsAny(p, "*?[") && !strings.HasSuffix(p, "/") {
+			if base == p {
+				return true
+			}
+		}
+	}
+	return false
 }
