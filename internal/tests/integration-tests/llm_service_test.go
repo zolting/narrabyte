@@ -22,7 +22,12 @@ func TestExploreCodebase(t *testing.T) {
 		t.Fatalf("Failed to create OpenAIClient: %v", err)
 	}
 
-	result, err := llmClient.InvokeListDirectoryDemo(testCtx, ".")
+	root, err := utils.FindProjectRoot()
+	if err != nil {
+		t.Fatalf("Error finding project root: %v", err)
+	}
+
+	result, err := llmClient.InvokeListDirectoryDemo(testCtx, root)
 	utils.NilError(t, err)
 	assert.Contains(t, result, " ")
 }

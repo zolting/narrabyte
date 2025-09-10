@@ -52,7 +52,10 @@ type ListLSInput struct {
 
 // ListDirectory produces a simple textual tree listing similar to the TS tool.
 func ListDirectory(_ context.Context, in *ListLSInput) (string, error) {
-	base := getListDirectoryBaseRoot()
+	base, err := getListDirectoryBaseRoot()
+	if err != nil {
+		return "", err
+	}
 	req := "."
 	if in != nil && strings.TrimSpace(in.Path) != "" {
 		req = strings.TrimSpace(in.Path)

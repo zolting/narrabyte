@@ -1,8 +1,7 @@
 package tools
 
 import (
-	"narrabyte/internal/utils"
-	"os"
+	"errors"
 	"path/filepath"
 )
 
@@ -22,19 +21,12 @@ func SetListDirectoryBaseRoot(root string) {
 // 1) value set via SetListDirectoryBaseRoot
 // 2) env var NARRABYTE_PROJECT_ROOT (absolute or relative to current working dir)
 // 3) current working directory
-func getListDirectoryBaseRoot() string {
+func getListDirectoryBaseRoot() (string, error) {
 	if listDirBaseRoot != "" {
-		return listDirBaseRoot
+		return listDirBaseRoot, nil
 	}
-	if v := os.Getenv("NARRABYTE_PROJECT_ROOT"); v != "" {
-		return v
-	}
-	// Default to CWD to keep prior behavior predictable
-	cwd, err := utils.FindProjectRoot()
-	if err != nil {
-		return "."
-	}
-	return cwd
+
+	return "", errors.New("list directory base root not set")
 }
 
 // safeJoinUnderBase resolves relPath under base, returning an absolute path that

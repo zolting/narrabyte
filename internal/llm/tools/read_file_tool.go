@@ -41,13 +41,14 @@ func ReadFile(_ context.Context, in *ReadFileInput) (*ReadFileOutput, error) {
 		return nil, errors.New("input is required")
 	}
 
-	base := getListDirectoryBaseRoot()
+	base, err := getListDirectoryBaseRoot()
+	if err != nil {
+		return nil, err
+	}
 	pathArg := strings.TrimSpace(in.FileRelativePath)
 	if pathArg == "" {
 		return nil, fmt.Errorf("file path is required")
 	}
-
-	println("ReadFile for file: ", pathArg)
 
 	// Resolve target path under base, ensuring it cannot escape.
 	var absPath string
@@ -200,6 +201,8 @@ func ReadFile(_ context.Context, in *ReadFileInput) (*ReadFileOutput, error) {
 		rel = absPath // fallback
 	}
 	rel = filepath.ToSlash(rel)
+
+	println(b.String())
 
 	return &ReadFileOutput{
 		Title:  rel,

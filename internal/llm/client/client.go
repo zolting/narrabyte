@@ -8,8 +8,6 @@ import (
 	"log"
 	"narrabyte/internal/llm/tools"
 
-	appUtils "narrabyte/internal/utils"
-
 	"github.com/cloudwego/eino-ext/components/model/openai"
 
 	"github.com/cloudwego/eino/components/tool"
@@ -46,7 +44,7 @@ func (o *OpenAIClient) SetListDirectoryBaseRoot(root string) {
 	tools.SetListDirectoryBaseRoot(root)
 }
 
-func (o *OpenAIClient) InvokeListDirectoryDemo(ctx context.Context, repoPath string) (string, error) {
+func (o *OpenAIClient) InvokeListDirectoryDemo(ctx context.Context, codebasePath string) (string, error) {
 	// Build the list-directory tool (ls-style output)
 	listDirectoryTool, err := utils.InferTool("list_directory_tool", "lists the contents of a directory", tools.ListDirectory)
 
@@ -62,17 +60,11 @@ func (o *OpenAIClient) InvokeListDirectoryDemo(ctx context.Context, repoPath str
 		return "", err
 	}
 
-	// Configure the tool's base root (project root)
-	root, err := appUtils.FindProjectRoot()
-	if err != nil {
-		log.Printf("Error finding project root: %v", err)
-		return "", err
-	}
-	tools.SetListDirectoryBaseRoot(root)
+	tools.SetListDirectoryBaseRoot(codebasePath)
 
 	// Create an initial preview of the repo tree for context (textual)
 	preview, err := tools.ListDirectory(ctx, &tools.ListLSInput{
-		Path: repoPath,
+		Path: codebasePath,
 	})
 	if err != nil {
 		log.Printf("Error listing tree JSON: %v", err)
