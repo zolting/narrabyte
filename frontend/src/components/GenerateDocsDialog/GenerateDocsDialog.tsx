@@ -193,7 +193,7 @@ function GenerateDocsDialog({
 										<Button
 											aria-controls="source-branch-list"
 											aria-expanded={sourceOpen}
-											className={cn("w-full justify-between", twTrigger)}
+											className={cn("w-full justify-between hover:text-foreground", twTrigger)}
 											id="source-branch-combobox"
 											role="combobox"
 											type="button"
@@ -217,7 +217,9 @@ function GenerateDocsDialog({
 											>
 												<CommandEmpty>No branch found.</CommandEmpty>
 												<CommandGroup>
-													{branches.map((b) => (
+													{branches
+														.filter((b) => b.name !== targetBranch)
+														.map((b) => (
 														<CommandItem
 															key={b.name}
 															onSelect={(currentValue) => {
@@ -260,7 +262,7 @@ function GenerateDocsDialog({
 										<Button
 											aria-controls="target-branch-list"
 											aria-expanded={targetOpen}
-											className={cn("w-full justify-between", twTrigger)}
+											className={cn("w-full justify-between hover:text-foreground", twTrigger)}
 											id="target-branch-combobox"
 											role="combobox"
 											type="button"
@@ -284,7 +286,9 @@ function GenerateDocsDialog({
 											>
 												<CommandEmpty>No branch found.</CommandEmpty>
 												<CommandGroup>
-													{branches.map((b) => (
+													{branches
+														.filter((b) => b.name !== sourceBranch)
+														.map((b) => (
 														<CommandItem
 															key={b.name}
 															onSelect={(currentValue) => {
