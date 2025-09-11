@@ -18,8 +18,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type { RepoLink } from "@/types/repoLinks";
 import { GetRepoLinks, ListRepoBranches } from "../../../wailsjs/go/main/App";
+import type { models } from "../../../wailsjs/go/models";
 
 const twTrigger =
 	"h-10 w-full bg-card text-card-foreground border border-border " +
@@ -40,9 +40,9 @@ function GenerateDocsDialog({
 }) {
 	const { t } = useTranslation();
 
-	const [projects, setProjects] = useState<RepoLink[]>([]);
+	const [projects, setProjects] = useState<models.RepoLink[]>([]);
 	const [selectedProject, setSelectedProject] = useState<
-		RepoLink | undefined
+		models.RepoLink | undefined
 	>();
 
 	const [branches, setBranches] = useState<string[]>([]);
