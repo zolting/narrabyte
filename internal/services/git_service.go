@@ -4,12 +4,17 @@ import (
 	"fmt"
 
 	"bytes"
+	"sort"
 
-	git "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
 type GitService struct{}
+
+func NewGitService() *GitService {
+	return &GitService{}
+}
 
 // PlainInit initializes a new git repo at given path
 func (g *GitService) Init(path string) (*git.Repository, error) {
@@ -155,4 +160,40 @@ func (g *GitService) ValidateRepository(repoPath string) error {
 	}
 
 	return nil
+}
+
+// ListBranches returns all local branches (short names) for an opened repository.
+func (g *GitService) ListBranches(repo *git.Repository) ([]string, error) {
+	if repo == nil {
+		return nil, fmt.Errorf("repo cannot be nil")
+	}
+
+	iter, err := repo.Branches()
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	var branches []string
+	if err := iter.ForEach(func(ref *plumbing.Reference) error {
+		branches = append(branches, ref.Name().Short())
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	sort.Strings(branches)
+	return branches, nil
+}
+
+// ListBranchesByPath opens the repo at repoPath and returns all local branches.
+func (g *GitService) ListBranchesByPath(repoPath string) ([]string, error) {
+	if repoPath == "" {
+		return nil, fmt.Errorf("repository path cannot be empty")
+	}
+	repo, err := git.PlainOpen(repoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open repository at %s: %w", repoPath, err)
+	}
+	return g.ListBranches(repo)
 }

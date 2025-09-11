@@ -25,6 +25,7 @@ type App struct {
 	demoRunning bool
 	demoCancel  context.CancelFunc
 	fumadocs    *services.FumadocsService
+	git         *services.GitService
 }
 
 // NewApp creates a new App application struct
@@ -53,6 +54,7 @@ func (a *App) startup(ctx context.Context) {
 	a.AppSettings = svc.AppSettings
 
 	a.fumadocs = services.NewFumadocsService()
+	a.git = services.NewGitService()
 
 	// Capture DB close for graceful shutdown
 	if sqlDB, err := db.DB(); err != nil {
@@ -202,4 +204,20 @@ func (a *App) UpdateAppSettings(theme, locale string) (*models.AppSettings, erro
 		return nil, fmt.Errorf("app settings service not available")
 	}
 	return a.AppSettings.Update(a.ctx, theme, locale)
+}
+
+// GetRepoLinks returns all repo links
+func (a *App) GetRepoLinks() ([]models.RepoLink, error) {
+	if a.RepoLinks == nil {
+		return nil, fmt.Errorf("repo link service not available")
+	}
+	return a.RepoLinks.List(a.ctx, 100, 0)
+}
+
+// ListRepoBranches returns all branches of a repo
+func (a *App) ListRepoBranches(repoPath string) ([]string, error) {
+	if a.git == nil {
+		return nil, fmt.Errorf("git service not available")
+	}
+	return a.git.ListBranchesByPath(repoPath)
 }
