@@ -19,8 +19,8 @@ func (f *FilePermissionsUtil) CheckReadPermissions(context context.Context, repo
 		return false, err
 	}
 
-	inDocumentationRepo := strings.Contains(filePath, repoLinks.DocumentationRepo)
-	inCodebaseRepo := strings.Contains(filePath, repoLinks.CodebaseRepo)
+	inDocumentationRepo := strings.HasPrefix(filePath, repoLinks.DocumentationRepo)
+	inCodebaseRepo := strings.HasPrefix(filePath, repoLinks.CodebaseRepo)
 
 	return inDocumentationRepo || inCodebaseRepo, nil
 }
@@ -33,7 +33,7 @@ func (f *FilePermissionsUtil) CheckWritePermissions(context context.Context, rep
 		return false, err
 	}
 
-	inDocumentationRepo := strings.Contains(filePath, repoLinks.DocumentationRepo)
+	inDocumentationRepo := strings.HasPrefix(filePath, repoLinks.DocumentationRepo)
 
 	return inDocumentationRepo, nil
 }
