@@ -37,7 +37,7 @@ type ReadFileOutput struct {
 
 // ReadFile reads a text file within the project root with paging and safety checks.
 func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) {
-	if in == nil {
+	if input == nil {
 		return nil, errors.New("input is required")
 	}
 
@@ -45,7 +45,7 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 	if err != nil {
 		return nil, err
 	}
-	pathArg := strings.TrimSpace(in.FileRelativePath)
+	pathArg := strings.TrimSpace(input.FileRelativePath)
 	if pathArg == "" {
 		return nil, fmt.Errorf("file path is required")
 	}
@@ -110,7 +110,7 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 		}
 		return nil, err
 	}
-	if fi.IsDir() {
+	if file.IsDir() {
 		return nil, fmt.Errorf("path is a directory: %s", absPath)
 	}
 
@@ -138,11 +138,11 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 	lines := strings.Split(text, "\n")
 
 	// Bounds and defaults
-	limit := in.Limit
+	limit := input.Limit
 	if limit <= 0 {
 		limit = defaultReadLimit
 	}
-	offset := in.Offset
+	offset := input.Offset
 	if offset < 0 {
 		offset = 0
 	}
@@ -248,11 +248,11 @@ func isBinaryFile(p string) (bool, error) {
 	defer f.Close()
 
 	// Stat to determine size and clamp buffer
-	fi, err := f.Stat()
+	file, err := f.Stat()
 	if err != nil {
 		return false, err
 	}
-	if fi.Size() == 0 {
+	if file.Size() == 0 {
 		return false, nil
 	}
 
