@@ -215,7 +215,7 @@ func (a *App) GetRepoLinks() ([]models.RepoLink, error) {
 }
 
 // ListRepoBranches returns all branches of a repo
-func (a *App) ListRepoBranches(repoPath string) ([]string, error) {
+func (a *App) ListRepoBranches(repoPath string) ([]models.BranchInfo, error) {
 	if a.git == nil {
 		return nil, fmt.Errorf("git service not available")
 	}

@@ -45,7 +45,7 @@ function GenerateDocsDialog({
 		models.RepoLink | undefined
 	>();
 
-	const [branches, setBranches] = useState<string[]>([]);
+	const [branches, setBranches] = useState<models.BranchInfo[]>([]);
 	const [sourceBranch, setSourceBranch] = useState<string | undefined>();
 	const [targetBranch, setTargetBranch] = useState<string | undefined>();
 
@@ -60,7 +60,15 @@ function GenerateDocsDialog({
 	useEffect(() => {
 		if (selectedProject) {
 			ListRepoBranches(selectedProject.CodebaseRepo)
-				.then(setBranches)
+				.then((arr) =>
+					setBranches(
+						[...arr].sort(
+							(a, b) =>
+								new Date(b.lastCommitDate as unknown as string).getTime() -
+								new Date(a.lastCommitDate as unknown as string).getTime()
+						)
+					)
+				)
 				.catch((err) => console.error("failed to fetch branches:", err));
 		} else {
 			setBranches([]);
@@ -75,9 +83,9 @@ function GenerateDocsDialog({
 				selectedProject &&
 					sourceBranch &&
 					targetBranch &&
-					sourceBranch !== targetBranch,
+					sourceBranch !== targetBranch
 			),
-		[selectedProject, sourceBranch, targetBranch],
+		[selectedProject, sourceBranch, targetBranch]
 	);
 
 	const swapBranches = () => {
@@ -94,7 +102,7 @@ function GenerateDocsDialog({
 				onClose();
 			}
 		},
-		[onClose],
+		[onClose]
 	);
 
 	return (
@@ -151,6 +159,7 @@ function GenerateDocsDialog({
 										{t("common.sourceBranch")}
 									</Label>
 									<Button
+										className="hover:bg-accent"
 										onClick={swapBranches}
 										size="sm"
 										type="button"
@@ -168,8 +177,12 @@ function GenerateDocsDialog({
 									</SelectTrigger>
 									<SelectContent className={twContent}>
 										{branches.map((b) => (
-											<SelectItem className={twItem} key={b} value={b}>
-												{b}
+											<SelectItem
+												className={twItem}
+												key={b.name}
+												value={b.name}
+											>
+												{b.name}
 											</SelectItem>
 										))}
 									</SelectContent>
@@ -192,8 +205,12 @@ function GenerateDocsDialog({
 									</SelectTrigger>
 									<SelectContent className={twContent}>
 										{branches.map((b) => (
-											<SelectItem className={twItem} key={b} value={b}>
-												{b}
+											<SelectItem
+												className={twItem}
+												key={b.name}
+												value={b.name}
+											>
+												{b.name}
 											</SelectItem>
 										))}
 									</SelectContent>
@@ -205,7 +222,7 @@ function GenerateDocsDialog({
 
 				<DialogFooter className="mt-2">
 					<Button
-						className="border-border text-foreground hover:bg-muted"
+						className="border-border text-foreground hover:bg-accent"
 						onClick={onClose}
 						variant="outline"
 					>

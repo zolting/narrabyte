@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"sort"
 
+	"narrabyte/internal/models"
+
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 )
@@ -162,8 +164,8 @@ func (g *GitService) ValidateRepository(repoPath string) error {
 	return nil
 }
 
-// ListBranches returns all local branches (short names) for an opened repository.
-func (g *GitService) ListBranches(repo *git.Repository) ([]string, error) {
+// ListBranches returns all local branches and their last commit date for an opened repository.
+func (g *GitService) ListBranches(repo *git.Repository) ([]models.BranchInfo, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("repo cannot be nil")
 	}
@@ -174,20 +176,30 @@ func (g *GitService) ListBranches(repo *git.Repository) ([]string, error) {
 	}
 	defer iter.Close()
 
-	var branches []string
+	var branches []models.BranchInfo
 	if err := iter.ForEach(func(ref *plumbing.Reference) error {
-		branches = append(branches, ref.Name().Short())
+		name := ref.Name().Short()
+		// Get the commit at the tip of this branch to extract the commit date
+		commit, cErr := repo.CommitObject(ref.Hash())
+		if cErr != nil {
+			return cErr
+		}
+		branches = append(branches, models.BranchInfo{
+			Name:           name,
+			LastCommitDate: commit.Author.When,
+		})
 		return nil
 	}); err != nil {
 		return nil, err
 	}
 
-	sort.Strings(branches)
+	// Keep alphabetical order by branch name; frontend can sort by recency
+	sort.Slice(branches, func(i, j int) bool { return branches[i].Name < branches[j].Name })
 	return branches, nil
 }
 
 // ListBranchesByPath opens the repo at repoPath and returns all local branches.
-func (g *GitService) ListBranchesByPath(repoPath string) ([]string, error) {
+func (g *GitService) ListBranchesByPath(repoPath string) ([]models.BranchInfo, error) {
 	if repoPath == "" {
 		return nil, fmt.Errorf("repository path cannot be empty")
 	}

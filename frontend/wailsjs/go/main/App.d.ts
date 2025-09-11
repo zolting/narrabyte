@@ -10,7 +10,7 @@ export function Greet(arg1:string):Promise<string>;
 
 export function LinkRepositories(arg1:string,arg2:string,arg3:string):Promise<void>;
 
-export function ListRepoBranches(arg1:string):Promise<Array<string>>;
+export function ListRepoBranches(arg1:string):Promise<Array<models.BranchInfo>>;
 
 export function SelectDirectory():Promise<string>;
 
