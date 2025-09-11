@@ -1,7 +1,15 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
 import {
 	Dialog,
 	DialogContent,
@@ -12,12 +20,18 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
+import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { GetRepoLinks, ListRepoBranches } from "../../../wailsjs/go/main/App";
 import type { models } from "../../../wailsjs/go/models";
 
@@ -48,6 +62,8 @@ function GenerateDocsDialog({
 	const [branches, setBranches] = useState<models.BranchInfo[]>([]);
 	const [sourceBranch, setSourceBranch] = useState<string | undefined>();
 	const [targetBranch, setTargetBranch] = useState<string | undefined>();
+	const [sourceOpen, setSourceOpen] = useState(false);
+	const [targetOpen, setTargetOpen] = useState(false);
 
 	useEffect(() => {
 		if (open) {
@@ -147,14 +163,14 @@ function GenerateDocsDialog({
 						</Select>
 					</div>
 
-					{/* Branch selects */}
+					{/* Branch comboboxes */}
 					{selectedProject && (
 						<>
 							<div className="grid gap-2">
 								<div className="flex items-center justify-between">
 									<Label
 										className="mb-1 text-foreground"
-										htmlFor="source-branch-select"
+										htmlFor="source-branch-combobox"
 									>
 										{t("common.sourceBranch")}
 									</Label>
@@ -168,53 +184,131 @@ function GenerateDocsDialog({
 										{t("common.swapBranches")}
 									</Button>
 								</div>
-								<Select onValueChange={setSourceBranch} value={sourceBranch}>
-									<SelectTrigger
-										className={twTrigger}
-										id="source-branch-select"
+								<Popover
+									modal={true}
+									onOpenChange={setSourceOpen}
+									open={sourceOpen}
+								>
+									<PopoverTrigger asChild>
+										<Button
+											aria-controls="source-branch-list"
+											aria-expanded={sourceOpen}
+											className={cn("w-full justify-between", twTrigger)}
+											id="source-branch-combobox"
+											role="combobox"
+											type="button"
+											variant="outline"
+										>
+											{sourceBranch ?? t("common.sourceBranch")}
+											<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent
+										className={cn(
+											"w-[var(--radix-popover-trigger-width)] p-0",
+											twContent
+										)}
 									>
-										<SelectValue placeholder={t("common.sourceBranch")} />
-									</SelectTrigger>
-									<SelectContent className={twContent}>
-										{branches.map((b) => (
-											<SelectItem
-												className={twItem}
-												key={b.name}
-												value={b.name}
+										<Command>
+											<CommandInput placeholder="Search branch..." />
+											<CommandList
+												className="max-h-[200px]"
+												id="source-branch-list"
 											>
-												{b.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+												<CommandEmpty>No branch found.</CommandEmpty>
+												<CommandGroup>
+													{branches.map((b) => (
+														<CommandItem
+															key={b.name}
+															onSelect={(currentValue) => {
+																setSourceBranch(currentValue);
+																setSourceOpen(false);
+															}}
+															value={b.name}
+														>
+															<CheckIcon
+																className={cn(
+																	"mr-2 h-4 w-4",
+																	sourceBranch === b.name
+																		? "opacity-100"
+																		: "opacity-0"
+																)}
+															/>
+															{b.name}
+														</CommandItem>
+													))}
+												</CommandGroup>
+											</CommandList>
+										</Command>
+									</PopoverContent>
+								</Popover>
 							</div>
 
 							<div className="grid gap-2">
 								<Label
 									className="mb-1 text-foreground"
-									htmlFor="target-branch-select"
+									htmlFor="target-branch-combobox"
 								>
 									{t("common.targetBranch")}
 								</Label>
-								<Select onValueChange={setTargetBranch} value={targetBranch}>
-									<SelectTrigger
-										className={twTrigger}
-										id="target-branch-select"
+								<Popover
+									modal={true}
+									onOpenChange={setTargetOpen}
+									open={targetOpen}
+								>
+									<PopoverTrigger asChild>
+										<Button
+											aria-controls="target-branch-list"
+											aria-expanded={targetOpen}
+											className={cn("w-full justify-between", twTrigger)}
+											id="target-branch-combobox"
+											role="combobox"
+											type="button"
+											variant="outline"
+										>
+											{targetBranch ?? t("common.targetBranch")}
+											<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent
+										className={cn(
+											"w-[var(--radix-popover-trigger-width)] p-0",
+											twContent
+										)}
 									>
-										<SelectValue placeholder={t("common.targetBranch")} />
-									</SelectTrigger>
-									<SelectContent className={twContent}>
-										{branches.map((b) => (
-											<SelectItem
-												className={twItem}
-												key={b.name}
-												value={b.name}
+										<Command>
+											<CommandInput placeholder="Search branch..." />
+											<CommandList
+												className="max-h-[200px]"
+												id="target-branch-list"
 											>
-												{b.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+												<CommandEmpty>No branch found.</CommandEmpty>
+												<CommandGroup>
+													{branches.map((b) => (
+														<CommandItem
+															key={b.name}
+															onSelect={(currentValue) => {
+																setTargetBranch(currentValue);
+																setTargetOpen(false);
+															}}
+															value={b.name}
+														>
+															<CheckIcon
+																className={cn(
+																	"mr-2 h-4 w-4",
+																	targetBranch === b.name
+																		? "opacity-100"
+																		: "opacity-0"
+																)}
+															/>
+															{b.name}
+														</CommandItem>
+													))}
+												</CommandGroup>
+											</CommandList>
+										</Command>
+									</PopoverContent>
+								</Popover>
 							</div>
 						</>
 					)}
