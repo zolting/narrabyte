@@ -79,7 +79,7 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 	}
 
 	// Ensure file exists
-	fi, err := os.Stat(absPath)
+	file, err := os.Stat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Build suggestions from sibling entries
