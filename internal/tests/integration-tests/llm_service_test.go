@@ -10,8 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Ceci est une demo simple, le context est Background() mais il faudrait peut-etre mettre un timeout plus tard pour les vraies applications
-func TestAddTwoNumbersTool(t *testing.T) {
+func TestExploreCodebase(t *testing.T) {
 	err := utils.LoadEnv()
 	if err != nil {
 		t.Fatalf("Error loading .env: %v", err)
@@ -23,7 +22,12 @@ func TestAddTwoNumbersTool(t *testing.T) {
 		t.Fatalf("Failed to create OpenAIClient: %v", err)
 	}
 
-	result, err := llmClient.InvokeAdditionDemo(testCtx, 2, 3)
+	root, err := utils.FindProjectRoot()
+	if err != nil {
+		t.Fatalf("Error finding project root: %v", err)
+	}
+
+	result, err := llmClient.InvokeListDirectoryDemo(testCtx, root)
 	utils.NilError(t, err)
-	assert.Contains(t, result, "5")
+	assert.Contains(t, result, " ")
 }

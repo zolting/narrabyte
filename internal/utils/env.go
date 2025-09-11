@@ -7,7 +7,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func findProjectRoot() (string, error) {
+func FindProjectRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -26,7 +26,7 @@ func findProjectRoot() (string, error) {
 }
 
 func LoadEnv() error {
-	root, err := findProjectRoot()
+	root, err := FindProjectRoot()
 	if err != nil {
 		return err
 	}

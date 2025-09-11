@@ -8,6 +8,15 @@ frontend/src/routeTree.gen.ts
 frontend/.tanstack/tmp
 .env
 
+# Go
+.gocache
+.gomodcache
+.go-pkg-cache
+.go-pkg-cache-v2
+.go-pkg-cache-v3
+.go-pkg-cache-v4
+.go-pkg-cache-v5
+
 
 # JetBrains
 .idea/*
