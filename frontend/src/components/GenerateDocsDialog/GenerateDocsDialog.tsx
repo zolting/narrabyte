@@ -75,9 +75,9 @@ function GenerateDocsDialog({
 				selectedProject &&
 					sourceBranch &&
 					targetBranch &&
-					sourceBranch !== targetBranch
+					sourceBranch !== targetBranch,
 			),
-		[selectedProject, sourceBranch, targetBranch]
+		[selectedProject, sourceBranch, targetBranch],
 	);
 
 	const swapBranches = () => {
@@ -94,7 +94,7 @@ function GenerateDocsDialog({
 				onClose();
 			}
 		},
-		[onClose]
+		[onClose],
 	);
 
 	return (
@@ -112,7 +112,7 @@ function GenerateDocsDialog({
 				<div className="space-y-6">
 					{/* Project select */}
 					<div className="grid gap-2">
-						<Label className="mb-1" htmlFor="project-select">
+						<Label className="mb-1 text-foreground" htmlFor="project-select">
 							{t("common.project")}
 						</Label>
 						<Select
@@ -144,8 +144,11 @@ function GenerateDocsDialog({
 						<>
 							<div className="grid gap-2">
 								<div className="flex items-center justify-between">
-									<Label className="mb-1" htmlFor="source-branch-select">
-										{t("common.branchSource")}
+									<Label
+										className="mb-1 text-foreground"
+										htmlFor="source-branch-select"
+									>
+										{t("common.sourceBranch")}
 									</Label>
 									<Button
 										onClick={swapBranches}
@@ -161,7 +164,7 @@ function GenerateDocsDialog({
 										className={twTrigger}
 										id="source-branch-select"
 									>
-										<SelectValue placeholder={t("common.branchSource")} />
+										<SelectValue placeholder={t("common.sourceBranch")} />
 									</SelectTrigger>
 									<SelectContent className={twContent}>
 										{branches.map((b) => (
@@ -174,15 +177,18 @@ function GenerateDocsDialog({
 							</div>
 
 							<div className="grid gap-2">
-								<Label className="mb-1" htmlFor="target-branch-select">
-									{t("common.branchTarget")}
+								<Label
+									className="mb-1 text-foreground"
+									htmlFor="target-branch-select"
+								>
+									{t("common.targetBranch")}
 								</Label>
 								<Select onValueChange={setTargetBranch} value={targetBranch}>
 									<SelectTrigger
 										className={twTrigger}
 										id="target-branch-select"
 									>
-										<SelectValue placeholder={t("common.branchTarget")} />
+										<SelectValue placeholder={t("common.targetBranch")} />
 									</SelectTrigger>
 									<SelectContent className={twContent}>
 										{branches.map((b) => (
