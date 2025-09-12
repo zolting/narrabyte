@@ -1,7 +1,6 @@
 package unit_tests
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,9 +17,8 @@ func TestNewFumadocsService(t *testing.T) {
 
 func TestCheckGitAvailability(t *testing.T) {
 	service := services.NewFumadocsService()
-	ctx := context.Background()
 
-	err := service.CheckGitAvailability(ctx)
+	err := service.CheckGitAvailability()
 	if err != nil {
 		t.Logf("Git not available: %v", err)
 	}

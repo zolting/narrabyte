@@ -8,7 +8,8 @@ import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Greet, LinkRepositories } from "../../wailsjs/go/main/App";
+import { LinkRepositories } from "../../wailsjs/go/services/repoLinkService";
+import { Greet } from "../../wailsjs/go/services/userService";
 import DemoEvents from "../components/DemoEvents";
 
 export const Route = createFileRoute("/")({
@@ -52,7 +53,7 @@ function Home() {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
-				data.codebaseDirectory,
+				data.codebaseDirectory
 			);
 			alert(t("home.linkSuccess"));
 			setIsAddProjectOpen(false);

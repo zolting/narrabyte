@@ -1,3 +1,4 @@
+// go
 package unit_tests
 
 import (
@@ -17,10 +18,13 @@ func TestRepoLinkService_Register_Success(t *testing.T) {
 			return nil
 		},
 	}
-	service := services.NewRepoLinkService(mockRepo)
-	ctx := context.Background()
+	fumaTest := services.FumadocsService{}
+	service := services.NewRepoLinkService(mockRepo, fumaTest)
 
-	link, err := service.Register(ctx, "name", "docs", "code")
+	ctx := context.Background()
+	service.Startup(ctx)
+
+	link, err := service.Register("name", "docs", "code")
 	assert.NoError(t, err)
 	assert.Equal(t, uint(99), link.ID)
 	assert.Equal(t, "name", link.ProjectName)
@@ -29,11 +33,14 @@ func TestRepoLinkService_Register_Success(t *testing.T) {
 }
 
 func TestRepoLinkService_Register_MissingDocumentationRepo(t *testing.T) {
+	fumaTest := services.FumadocsService{}
 	mockRepo := &mocks.RepoLinkRepositoryMock{}
-	service := services.NewRepoLinkService(mockRepo)
-	ctx := context.Background()
+	service := services.NewRepoLinkService(mockRepo, fumaTest)
 
-	link, err := service.Register(ctx, "name", "", "code")
+	ctx := context.Background()
+	service.Startup(ctx)
+
+	link, err := service.Register("name", "", "code")
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "documentation repo is required", err.Error())
@@ -41,10 +48,13 @@ func TestRepoLinkService_Register_MissingDocumentationRepo(t *testing.T) {
 
 func TestRepoLinkService_Register_MissingCodebaseRepo(t *testing.T) {
 	mockRepo := &mocks.RepoLinkRepositoryMock{}
-	service := services.NewRepoLinkService(mockRepo)
-	ctx := context.Background()
+	fumaTest := services.FumadocsService{}
+	service := services.NewRepoLinkService(mockRepo, fumaTest)
 
-	link, err := service.Register(ctx, "name", "docs", "")
+	ctx := context.Background()
+	service.Startup(ctx)
+
+	link, err := service.Register("name", "docs", "")
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "codebase repo is required", err.Error())
@@ -52,10 +62,13 @@ func TestRepoLinkService_Register_MissingCodebaseRepo(t *testing.T) {
 
 func TestRepoLinkService_Register_MissingProjectName(t *testing.T) {
 	mockRepo := &mocks.RepoLinkRepositoryMock{}
-	service := services.NewRepoLinkService(mockRepo)
-	ctx := context.Background()
+	fumaTest := services.FumadocsService{}
+	service := services.NewRepoLinkService(mockRepo, fumaTest)
 
-	link, err := service.Register(ctx, "", "docs", "code")
+	ctx := context.Background()
+	service.Startup(ctx)
+
+	link, err := service.Register("", "docs", "code")
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "project name is required", err.Error())

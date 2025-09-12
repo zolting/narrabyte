@@ -11,6 +11,7 @@ import (
 )
 
 func TestAppSettingsService_Get_Success(t *testing.T) {
+	ctx := context.Background()
 	expectedSettings := &models.AppSettings{
 		ID:      1,
 		Version: 1,
@@ -18,15 +19,15 @@ func TestAppSettingsService_Get_Success(t *testing.T) {
 		Locale:  "fr",
 	}
 
-	mockRepo := &mocks.AppSettingsRepositoryMock{
-		GetFunc: func(ctx context.Context) (*models.AppSettings, error) {
-			return expectedSettings, nil
-		},
+	mockRepo := &mocks.AppSettingsRepositoryMock{}
+	mockRepo.GetFunc = func(c context.Context) (*models.AppSettings, error) {
+		return expectedSettings, nil
 	}
-	service := services.NewAppSettingsService(mockRepo)
-	ctx := context.Background()
 
-	settings, err := service.Get(ctx)
+	service := services.NewAppSettingsService(mockRepo)
+	service.Startup(ctx)
+
+	settings, err := service.Get()
 	utils.NilError(t, err)
 	utils.Equal(t, settings.ID, expectedSettings.ID)
 	utils.Equal(t, settings.Version, expectedSettings.Version)
@@ -35,19 +36,22 @@ func TestAppSettingsService_Get_Success(t *testing.T) {
 }
 
 func TestAppSettingsService_Get_RepositoryError(t *testing.T) {
-	mockRepo := &mocks.AppSettingsRepositoryMock{
-		GetFunc: func(ctx context.Context) (*models.AppSettings, error) {
-			return nil, errors.New("database error")
-		},
-	}
-	service := services.NewAppSettingsService(mockRepo)
 	ctx := context.Background()
 
-	_, err := service.Get(ctx)
+	mockRepo := &mocks.AppSettingsRepositoryMock{}
+	mockRepo.GetFunc = func(c context.Context) (*models.AppSettings, error) {
+		return nil, errors.New("database error")
+	}
+
+	service := services.NewAppSettingsService(mockRepo)
+	service.Startup(ctx)
+
+	_, err := service.Get()
 	utils.Equal(t, err.Error(), "database error")
 }
 
 func TestAppSettingsService_Update_Success(t *testing.T) {
+	ctx := context.Background()
 	currentSettings := &models.AppSettings{
 		ID:      1,
 		Version: 1,
@@ -55,21 +59,21 @@ func TestAppSettingsService_Update_Success(t *testing.T) {
 		Locale:  "en",
 	}
 
-	mockRepo := &mocks.AppSettingsRepositoryMock{
-		GetFunc: func(ctx context.Context) (*models.AppSettings, error) {
-			return currentSettings, nil
-		},
-		UpdateFunc: func(ctx context.Context, settings *models.AppSettings) error {
-			utils.Equal(t, settings.ID, uint(1))
-			utils.Equal(t, settings.Theme, "dark")
-			utils.Equal(t, settings.Locale, "fr")
-			return nil
-		},
+	mockRepo := &mocks.AppSettingsRepositoryMock{}
+	mockRepo.GetFunc = func(c context.Context) (*models.AppSettings, error) {
+		return currentSettings, nil
 	}
-	service := services.NewAppSettingsService(mockRepo)
-	ctx := context.Background()
+	mockRepo.UpdateFunc = func(c context.Context, settings *models.AppSettings) error {
+		utils.Equal(t, settings.ID, uint(1))
+		utils.Equal(t, settings.Theme, "dark")
+		utils.Equal(t, settings.Locale, "fr")
+		return nil
+	}
 
-	updatedSettings, err := service.Update(ctx, "dark", "fr")
+	service := services.NewAppSettingsService(mockRepo)
+	service.Startup(ctx)
+
+	updatedSettings, err := service.Update("dark", "fr")
 	utils.NilError(t, err)
 	utils.Equal(t, updatedSettings.Theme, "dark")
 	utils.Equal(t, updatedSettings.Locale, "fr")
@@ -77,55 +81,64 @@ func TestAppSettingsService_Update_Success(t *testing.T) {
 }
 
 func TestAppSettingsService_Update_EmptyTheme(t *testing.T) {
-	mockRepo := &mocks.AppSettingsRepositoryMock{}
-	service := services.NewAppSettingsService(mockRepo)
 	ctx := context.Background()
+	mockRepo := &mocks.AppSettingsRepositoryMock{}
 
-	_, err := service.Update(ctx, "", "en")
+	service := services.NewAppSettingsService(mockRepo)
+	service.Startup(ctx)
+
+	_, err := service.Update("", "en")
 	utils.Equal(t, err.Error(), "theme is required")
 }
 
 func TestAppSettingsService_Update_EmptyLocale(t *testing.T) {
-	mockRepo := &mocks.AppSettingsRepositoryMock{}
-	service := services.NewAppSettingsService(mockRepo)
 	ctx := context.Background()
+	mockRepo := &mocks.AppSettingsRepositoryMock{}
 
-	_, err := service.Update(ctx, "dark", "")
+	service := services.NewAppSettingsService(mockRepo)
+	service.Startup(ctx)
+
+	_, err := service.Update("dark", "")
 	utils.Equal(t, err.Error(), "locale is required")
 }
 
 func TestAppSettingsService_Update_InvalidTheme(t *testing.T) {
-	mockRepo := &mocks.AppSettingsRepositoryMock{
-		GetFunc: func(ctx context.Context) (*models.AppSettings, error) {
-			return &models.AppSettings{
-				ID:      1,
-				Version: 1,
-				Theme:   "system",
-				Locale:  "en",
-			}, nil
-		},
-	}
-	service := services.NewAppSettingsService(mockRepo)
 	ctx := context.Background()
 
-	_, err := service.Update(ctx, "invalid", "en")
+	mockRepo := &mocks.AppSettingsRepositoryMock{}
+	mockRepo.GetFunc = func(c context.Context) (*models.AppSettings, error) {
+		return &models.AppSettings{
+			ID:      1,
+			Version: 1,
+			Theme:   "system",
+			Locale:  "en",
+		}, nil
+	}
+
+	service := services.NewAppSettingsService(mockRepo)
+	service.Startup(ctx)
+
+	_, err := service.Update("invalid", "en")
 	utils.Equal(t, err.Error(), "theme must be 'light', 'dark', or 'system'")
 }
 
 func TestAppSettingsService_Update_GetError(t *testing.T) {
-	mockRepo := &mocks.AppSettingsRepositoryMock{
-		GetFunc: func(ctx context.Context) (*models.AppSettings, error) {
-			return nil, errors.New("get error")
-		},
-	}
-	service := services.NewAppSettingsService(mockRepo)
 	ctx := context.Background()
 
-	_, err := service.Update(ctx, "dark", "en")
+	mockRepo := &mocks.AppSettingsRepositoryMock{}
+	mockRepo.GetFunc = func(c context.Context) (*models.AppSettings, error) {
+		return nil, errors.New("get error")
+	}
+
+	service := services.NewAppSettingsService(mockRepo)
+	service.Startup(ctx)
+
+	_, err := service.Update("dark", "en")
 	utils.Equal(t, err.Error(), "get error")
 }
 
 func TestAppSettingsService_Update_UpdateError(t *testing.T) {
+	ctx := context.Background()
 	currentSettings := &models.AppSettings{
 		ID:      1,
 		Version: 1,
@@ -133,17 +146,17 @@ func TestAppSettingsService_Update_UpdateError(t *testing.T) {
 		Locale:  "en",
 	}
 
-	mockRepo := &mocks.AppSettingsRepositoryMock{
-		GetFunc: func(ctx context.Context) (*models.AppSettings, error) {
-			return currentSettings, nil
-		},
-		UpdateFunc: func(ctx context.Context, settings *models.AppSettings) error {
-			return errors.New("update error")
-		},
+	mockRepo := &mocks.AppSettingsRepositoryMock{}
+	mockRepo.GetFunc = func(c context.Context) (*models.AppSettings, error) {
+		return currentSettings, nil
 	}
-	service := services.NewAppSettingsService(mockRepo)
-	ctx := context.Background()
+	mockRepo.UpdateFunc = func(c context.Context, settings *models.AppSettings) error {
+		return errors.New("update error")
+	}
 
-	_, err := service.Update(ctx, "dark", "fr")
+	service := services.NewAppSettingsService(mockRepo)
+	service.Startup(ctx)
+
+	_, err := service.Update("dark", "fr")
 	utils.Equal(t, err.Error(), "update error")
 }

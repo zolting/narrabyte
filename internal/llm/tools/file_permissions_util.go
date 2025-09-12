@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"log"
 	"narrabyte/internal/services"
 	"strings"
@@ -11,9 +10,9 @@ type FilePermissionsUtil struct {
 	RepoLinks services.RepoLinkService
 }
 
-func (f *FilePermissionsUtil) CheckReadPermissions(context context.Context, repoId uint, filePath string) (bool, error) {
+func (f *FilePermissionsUtil) CheckReadPermissions(repoId uint, filePath string) (bool, error) {
 
-	repoLinks, err := f.RepoLinks.Get(context, repoId)
+	repoLinks, err := f.RepoLinks.Get(repoId)
 	if err != nil {
 		log.Println(err)
 		return false, err
@@ -25,9 +24,9 @@ func (f *FilePermissionsUtil) CheckReadPermissions(context context.Context, repo
 	return inDocumentationRepo || inCodebaseRepo, nil
 }
 
-func (f *FilePermissionsUtil) CheckWritePermissions(context context.Context, repoId uint, filePath string) (bool, error) {
+func (f *FilePermissionsUtil) CheckWritePermissions(repoId uint, filePath string) (bool, error) {
 
-	repoLinks, err := f.RepoLinks.Get(context, repoId)
+	repoLinks, err := f.RepoLinks.Get(repoId)
 	if err != nil {
 		log.Println(err)
 		return false, err

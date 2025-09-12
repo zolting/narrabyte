@@ -15,7 +15,8 @@ func newFileServiceWithRepoMock(findFunc func(ctx context.Context, id uint) (*mo
 	repoMock := &mocks.RepoLinkRepositoryMock{
 		FindByIDFunc: findFunc,
 	}
-	service := services.NewRepoLinkService(repoMock)
+	fumaTest := services.FumadocsService{}
+	service := services.NewRepoLinkService(repoMock, fumaTest)
 	return &tools.FilePermissionsUtil{RepoLinks: service}
 }
 
@@ -23,7 +24,7 @@ func TestCheckReadPermissionsWithRepoMock_FilePermitted(t *testing.T) {
 	fs := newFileServiceWithRepoMock(func(ctx context.Context, id uint) (*models.RepoLink, error) {
 		return &models.RepoLink{ID: 1, DocumentationRepo: "docs/", CodebaseRepo: "src/"}, nil
 	})
-	ok, err := fs.CheckReadPermissions(context.Background(), 1, "src/main.go")
+	ok, err := fs.CheckReadPermissions(1, "src/main.go")
 	utils.NilError(t, err)
 	utils.Equal(t, ok, true)
 }
@@ -32,7 +33,7 @@ func TestCheckReadPermissionsWithRepoMock_FileNotPermitted(t *testing.T) {
 	fs := newFileServiceWithRepoMock(func(ctx context.Context, id uint) (*models.RepoLink, error) {
 		return &models.RepoLink{ID: 1, DocumentationRepo: "docs/", CodebaseRepo: "src/"}, nil
 	})
-	ok, err := fs.CheckReadPermissions(context.Background(), 1, "other/file.txt")
+	ok, err := fs.CheckReadPermissions(1, "other/file.txt")
 	utils.NilError(t, err)
 	utils.Equal(t, ok, false)
 }
@@ -41,7 +42,7 @@ func TestCheckReadPermissionsWithRepoMock_FileDoesNotExist(t *testing.T) {
 	fs := newFileServiceWithRepoMock(func(ctx context.Context, id uint) (*models.RepoLink, error) {
 		return nil, errors.New("not found")
 	})
-	ok, err := fs.CheckReadPermissions(context.Background(), 1, "src/main.go")
+	ok, err := fs.CheckReadPermissions(1, "src/main.go")
 	utils.Equal(t, err.Error(), "not found")
 	utils.Equal(t, ok, false)
 }
@@ -50,7 +51,7 @@ func TestCheckWritePermissionsWithRepoMock_FilePermitted(t *testing.T) {
 	fs := newFileServiceWithRepoMock(func(ctx context.Context, id uint) (*models.RepoLink, error) {
 		return &models.RepoLink{ID: 1, DocumentationRepo: "docs/", CodebaseRepo: "src/"}, nil
 	})
-	ok, err := fs.CheckWritePermissions(context.Background(), 1, "docs/readme.md")
+	ok, err := fs.CheckWritePermissions(1, "docs/readme.md")
 	utils.NilError(t, err)
 	utils.Equal(t, ok, true)
 }
@@ -59,7 +60,7 @@ func TestCheckWritePermissionsWithRepoMock_FileNotPermitted(t *testing.T) {
 	fs := newFileServiceWithRepoMock(func(ctx context.Context, id uint) (*models.RepoLink, error) {
 		return &models.RepoLink{ID: 1, DocumentationRepo: "docs/", CodebaseRepo: "src/"}, nil
 	})
-	ok, err := fs.CheckWritePermissions(context.Background(), 1, "src/main.go")
+	ok, err := fs.CheckWritePermissions(1, "src/main.go")
 	utils.NilError(t, err)
 	utils.Equal(t, ok, false)
 }
@@ -68,7 +69,7 @@ func TestCheckWritePermissionsWithRepoMock_FileDoesNotExist(t *testing.T) {
 	fs := newFileServiceWithRepoMock(func(ctx context.Context, id uint) (*models.RepoLink, error) {
 		return nil, errors.New("not found")
 	})
-	ok, err := fs.CheckWritePermissions(context.Background(), 1, "docs/readme.md")
+	ok, err := fs.CheckWritePermissions(1, "docs/readme.md")
 	utils.Equal(t, err.Error(), "not found")
 	utils.Equal(t, ok, false)
 }

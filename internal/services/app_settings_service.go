@@ -10,23 +10,29 @@ import (
 )
 
 type AppSettingsService interface {
-	Get(ctx context.Context) (*models.AppSettings, error)
-	Update(ctx context.Context, theme, locale string) (*models.AppSettings, error)
+	Get() (*models.AppSettings, error)
+	Update(theme, locale string) (*models.AppSettings, error)
+	Startup(ctx context.Context)
 }
 
 type appSettingsService struct {
 	appSettings repositories.AppSettingsRepository
+	context     context.Context
+}
+
+func (s *appSettingsService) Startup(ctx context.Context) {
+	s.context = ctx
 }
 
 func NewAppSettingsService(appSettings repositories.AppSettingsRepository) AppSettingsService {
 	return &appSettingsService{appSettings: appSettings}
 }
 
-func (s *appSettingsService) Get(ctx context.Context) (*models.AppSettings, error) {
-	return s.appSettings.Get(ctx)
+func (s *appSettingsService) Get() (*models.AppSettings, error) {
+	return s.appSettings.Get(context.Background())
 }
 
-func (s *appSettingsService) Update(ctx context.Context, theme, locale string) (*models.AppSettings, error) {
+func (s *appSettingsService) Update(theme, locale string) (*models.AppSettings, error) {
 	if theme == "" {
 		return nil, errors.New("theme is required")
 	}
@@ -40,7 +46,7 @@ func (s *appSettingsService) Update(ctx context.Context, theme, locale string) (
 	}
 
 	// Get current settings
-	current, err := s.appSettings.Get(ctx)
+	current, err := s.appSettings.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +56,7 @@ func (s *appSettingsService) Update(ctx context.Context, theme, locale string) (
 	current.Locale = locale
 	current.UpdatedAt = time.Now().Format(time.RFC3339)
 
-	if err := s.appSettings.Update(ctx, current); err != nil {
+	if err := s.appSettings.Update(context.Background(), current); err != nil {
 		return nil, err
 	}
 
