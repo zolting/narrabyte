@@ -24,12 +24,16 @@ func TestRepoLinkService_Register_Success(t *testing.T) {
 	ctx := context.Background()
 	service.Startup(ctx)
 
-	link, err := service.Register("name", "docs", "code")
+	//Create temporary directories for testing
+	docDir := t.TempDir()
+	codeDir := t.TempDir()
+
+	link, err := service.Register("name", docDir, codeDir)
 	assert.NoError(t, err)
 	assert.Equal(t, uint(99), link.ID)
 	assert.Equal(t, "name", link.ProjectName)
-	assert.Equal(t, "docs", link.DocumentationRepo)
-	assert.Equal(t, "code", link.CodebaseRepo)
+	assert.Equal(t, docDir, link.DocumentationRepo)
+	assert.Equal(t, codeDir, link.CodebaseRepo)
 }
 
 func TestRepoLinkService_Register_MissingDocumentationRepo(t *testing.T) {
