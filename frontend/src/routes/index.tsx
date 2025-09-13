@@ -55,7 +55,7 @@ function Home() {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
-				data.codebaseDirectory,
+				data.codebaseDirectory
 			);
 			alert(t("home.linkSuccess"));
 			setIsAddProjectOpen(false);

@@ -68,8 +68,11 @@ export default function GenerateDocsDialog({
 
 	useEffect(() => {
 		if (open) {
-			ListRepoLinks(0, 100)
-				.then((repos) => setProjects(repos))
+			ListRepoLinks(100, 0)
+				.then((repos) => {
+					console.log("repos", repos);
+					setProjects(repos);
+				})
 				.catch((err) => console.error("failed to fetch repo links:", err));
 		}
 	}, [open]);
