@@ -1,8 +1,6 @@
 import { ArrowRight, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ListBranchesByPath } from "wailsjs/go/services/GitService";
-import { List as ListRepoLinks } from "wailsjs/go/services/repoLinkService";
 import { Button } from "@/components/ui/button";
 import {
 	Command,
@@ -34,7 +32,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { models } from "../../../wailsjs/go/models";
+import type { models } from "../../wailsjs/go/models";
+import { ListBranchesByPath } from "../../wailsjs/go/services/GitService";
+import { List as ListRepoLinks } from "../../wailsjs/go/services/repoLinkService";
 
 const twTrigger =
 	"h-10 w-full bg-card text-card-foreground border border-border " +
@@ -46,7 +46,7 @@ const twItem =
 	"data-[highlighted]:bg-muted data-[highlighted]:text-foreground " +
 	"data-[state=checked]:bg-primary/15 data-[state=checked]:text-foreground";
 
-function GenerateDocsDialog({
+export default function GenerateDocsDialog({
 	open,
 	onClose,
 }: {
@@ -345,5 +345,3 @@ function GenerateDocsDialog({
 		</Dialog>
 	);
 }
-
-export { GenerateDocsDialog };

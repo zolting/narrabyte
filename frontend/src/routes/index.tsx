@@ -4,7 +4,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AddProjectDialog from "@/components/AddProjectDialog";
-import { GenerateDocsDialog } from "@/components/GenerateDocsDialog/GenerateDocsDialog";
+import GenerateDocsDialog from "@/components/GenerateDocsDialog";
 import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,7 +55,7 @@ function Home() {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
-				data.codebaseDirectory
+				data.codebaseDirectory,
 			);
 			alert(t("home.linkSuccess"));
 			setIsAddProjectOpen(false);
