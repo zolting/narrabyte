@@ -4,12 +4,13 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AddProjectDialog from "@/components/AddProjectDialog";
-import { GenerateDocsDialog } from "@/components/GenerateDocsDialog/GenerateDocsDialog";
+import GenerateDocsDialog from "@/components/GenerateDocsDialog";
 import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Greet, LinkRepositories } from "../../wailsjs/go/main/App";
+import { LinkRepositories } from "../../wailsjs/go/services/repoLinkService";
+import { Greet } from "../../wailsjs/go/services/userService";
 import DemoEvents from "../components/DemoEvents";
 
 export const Route = createFileRoute("/")({

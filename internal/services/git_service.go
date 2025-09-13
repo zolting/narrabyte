@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 
 	"bytes"
@@ -12,7 +13,13 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
-type GitService struct{}
+type GitService struct {
+	context context.Context
+}
+
+func (g *GitService) Startup(ctx context.Context) {
+	g.context = ctx
+}
 
 func NewGitService() *GitService {
 	return &GitService{}

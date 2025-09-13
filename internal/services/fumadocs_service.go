@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 )
 
-type FumadocsService struct{}
+type FumadocsService struct {
+	context context.Context
+}
 
 // RepoURL template repo
 const RepoURL = "https://github.com/Philac105/narrabyte-docs-base.git"
@@ -17,6 +19,10 @@ const ProjectName = "narrabyte-docs-base"
 
 func NewFumadocsService() *FumadocsService {
 	return &FumadocsService{}
+}
+
+func (f *FumadocsService) Startup(ctx context.Context) {
+	f.context = ctx
 }
 
 // CreateFumadocsProject clones the fumadocs template into the given folder
@@ -45,4 +51,4 @@ func (f *FumadocsService) CreateFumadocsProject(targetFolder string) (string, er
 }
 
 // CheckGitAvailability checks if git is available on the system
-func (f *FumadocsService) CheckGitAvailability(ctx context.Context) error { return nil }
+func (f *FumadocsService) CheckGitAvailability() error { return nil }

@@ -3,25 +3,35 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"narrabyte/internal/models"
 	"narrabyte/internal/repositories"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type RepoLinkService interface {
-	Register(ctx context.Context, projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error)
-	Get(ctx context.Context, id uint) (*models.RepoLink, error)
-	List(ctx context.Context, limit, offset int) ([]models.RepoLink, error)
+	Register(projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error)
+	Get(id uint) (*models.RepoLink, error)
+	List(limit, offset int) ([]models.RepoLink, error)
+	Startup(ctx context.Context)
 }
 
 type repoLinkService struct {
-	repoLinks repositories.RepoLinkRepository
+	repoLinks       repositories.RepoLinkRepository
+	fumadocsService FumadocsService
+	context         context.Context
 }
 
-func NewRepoLinkService(repoLinks repositories.RepoLinkRepository) RepoLinkService {
-	return &repoLinkService{repoLinks: repoLinks}
+func (s *repoLinkService) Startup(ctx context.Context) {
+	s.context = ctx
 }
 
-func (s *repoLinkService) Register(ctx context.Context, projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error) {
+func NewRepoLinkService(repoLinks repositories.RepoLinkRepository, fumaDocsService FumadocsService) RepoLinkService {
+	return &repoLinkService{repoLinks: repoLinks, fumadocsService: fumaDocsService}
+}
+
+func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error) {
 	if projectName == "" {
 		return nil, errors.New("project name is required")
 	}
@@ -39,16 +49,39 @@ func (s *repoLinkService) Register(ctx context.Context, projectName, documentati
 		DocumentationRepo: documentationRepo,
 		CodebaseRepo:      codebaseRepo,
 	}
-	if err := s.repoLinks.Create(ctx, link); err != nil {
+	if err := s.repoLinks.Create(context.Background(), link); err != nil {
 		return nil, err
 	}
 	return link, nil
 }
 
-func (s *repoLinkService) Get(ctx context.Context, id uint) (*models.RepoLink, error) {
-	return s.repoLinks.FindByID(ctx, id)
+func (s *repoLinkService) Get(id uint) (*models.RepoLink, error) {
+	return s.repoLinks.FindByID(context.Background(), id)
 }
 
-func (s *repoLinkService) List(ctx context.Context, limit, offset int) ([]models.RepoLink, error) {
-	return s.repoLinks.List(ctx, limit, offset)
+func (s *repoLinkService) List(limit, offset int) ([]models.RepoLink, error) {
+	return s.repoLinks.List(context.Background(), limit, offset)
+}
+
+// LinkRepositories links the given repositories
+func (s *repoLinkService) LinkRepositories(projectName, docRepo, codebaseRepo string) error {
+	if s == nil {
+		return fmt.Errorf("repo link service not available")
+	}
+
+	_, err := s.Register(projectName, docRepo, codebaseRepo)
+	if err != nil {
+		runtime.LogError(s.context, fmt.Sprintf("failed to link repositories: %v", err))
+		return err
+	}
+
+	x, err := s.fumadocsService.CreateFumadocsProject(docRepo)
+	if err != nil {
+		runtime.LogError(context.Background(), fmt.Sprintf("failed to create fumadocs project: %v", err))
+		return fmt.Errorf("failed to create fumadocs project: %w", err)
+	}
+	runtime.LogInfo(s.context, x)
+
+	runtime.LogInfo(s.context, fmt.Sprintf("Successfully linked project: %s, doc: %s with codebase: %s", projectName, docRepo, codebaseRepo))
+	return nil
 }

@@ -17,9 +17,8 @@ func TestUserService_Register_Success(t *testing.T) {
 		},
 	}
 	service := services.NewUserService(mockRepo)
-	ctx := context.Background()
 
-	user, err := service.Register(ctx, "Alice")
+	user, err := service.Register("Alice")
 	utils.NilError(t, err)
 	utils.Equal(t, user.ID, uint(42))
 	utils.Equal(t, user.Name, "Alice")
@@ -28,8 +27,7 @@ func TestUserService_Register_Success(t *testing.T) {
 func TestUserService_Register_MissingName(t *testing.T) {
 	mockRepo := &mocks.UserRepositoryMock{}
 	service := services.NewUserService(mockRepo)
-	ctx := context.Background()
 
-	_, err := service.Register(ctx, "")
+	_, err := service.Register("")
 	utils.Equal(t, err.Error(), "name is required")
 }

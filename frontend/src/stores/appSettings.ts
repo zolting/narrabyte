@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import "../i18n";
 import i18n from "i18next";
-import { GetAppSettings, UpdateAppSettings } from "../../wailsjs/go/main/App";
+import { Get, Update } from "../../wailsjs/go/services/appSettingsService";
 
 export type AppTheme = "light" | "dark" | "system";
 
@@ -50,7 +50,7 @@ async function handleFirstRun(
 	const detected = normalizeToSupportedLocale(
 		i18n.language || navigator.language
 	);
-	const updated = await UpdateAppSettings(settings.Theme ?? "system", detected);
+	const updated = await Update(settings.Theme ?? "system", detected);
 	if (i18n.language !== detected) {
 		i18n.changeLanguage(detected);
 	}
@@ -81,7 +81,7 @@ export const useAppSettingsStore = create<State>((set, get) => ({
 		set({ loading: true, error: undefined });
 
 		try {
-			const settings = await GetAppSettings();
+			const settings = await Get();
 
 			if (isZeroTimeISOString(settings.UpdatedAt)) {
 				await handleFirstRun(settings, set);
@@ -100,7 +100,7 @@ export const useAppSettingsStore = create<State>((set, get) => ({
 	setTheme: async (theme: AppTheme) => {
 		const current = get().settings;
 		const locale = normalizeToSupportedLocale(current?.Locale || i18n.language);
-		const updated = await UpdateAppSettings(theme, locale);
+		const updated = await Update(theme, locale);
 		set({ settings: updated });
 	},
 
@@ -108,7 +108,7 @@ export const useAppSettingsStore = create<State>((set, get) => ({
 		const current = get().settings;
 		const theme = (current?.Theme ?? "system") as AppTheme;
 		const normalized = normalizeToSupportedLocale(locale);
-		const updated = await UpdateAppSettings(theme, normalized);
+		const updated = await Update(theme, normalized);
 		set({ settings: updated });
 		if (i18n.language !== normalized) {
 			i18n.changeLanguage(normalized);
@@ -117,7 +117,7 @@ export const useAppSettingsStore = create<State>((set, get) => ({
 
 	update: async (theme, locale) => {
 		const normalized = normalizeToSupportedLocale(locale);
-		const updated = await UpdateAppSettings(theme, normalized);
+		const updated = await Update(theme, normalized);
 		set({ settings: updated });
 		if (i18n.language !== normalized) {
 			i18n.changeLanguage(normalized);
