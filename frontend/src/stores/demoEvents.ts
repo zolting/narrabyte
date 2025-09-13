@@ -1,7 +1,7 @@
 import { create } from "zustand";
+import { type DemoEvent, demoEventSchema } from "@/types/events";
 import { StartDemoEvents, StopDemoEvents } from "../../wailsjs/go/main/App";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { type DemoEvent, demoEventSchema } from "../types/events";
+import { EventsOn } from "../../wailsjs/runtime";
 
 type State = {
 	events: DemoEvent[];

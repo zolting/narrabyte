@@ -4,6 +4,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AddProjectDialog from "@/components/AddProjectDialog";
+import { GenerateDocsDialog } from "@/components/GenerateDocsDialog/GenerateDocsDialog";
 import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ function Home() {
 		codebaseDirectory: string;
 	} | null>(null);
 	const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
+	const [isGenerateDocsOpen, setIsGenerateDocsOpen] = useState(false);
 
 	const updateName = (e: React.ChangeEvent<HTMLInputElement>) =>
 		setName(e.target.value);
@@ -52,7 +54,7 @@ function Home() {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
-				data.codebaseDirectory,
+				data.codebaseDirectory
 			);
 			alert(t("home.linkSuccess"));
 			setIsAddProjectOpen(false);
@@ -139,7 +141,13 @@ function Home() {
 							</div>
 						)}
 					</div>
-
+					<Button onClick={() => setIsGenerateDocsOpen(true)}>
+						{t("common.generateDocs")}
+					</Button>
+					<GenerateDocsDialog
+						onClose={() => setIsGenerateDocsOpen(false)}
+						open={isGenerateDocsOpen}
+					/>
 					<DemoEvents />
 				</CardContent>
 			</Card>

@@ -8,9 +8,18 @@
     "goBack": "Go Back",
     "gitDiff": "Git Diff",
     "cancel": "Cancel",
+    "continue": "Continue",
     "viewDiff": "View Diff",
     "inlineView": "Inline View",
-    "splitView": "Split View"
+    "splitView": "Split View",
+    "generateDocs": "Generate Documentation",
+    "generateDocsDescription": "Generate documentation from source branch to target branch for selected project.",
+    "sourceBranch": "Source Branch",
+    "targetBranch": "Target Branch",
+    "project": "Project",
+    "selectProject": "Select Project",
+    "selectProjectFirst": "Select a project to choose branches",
+    "swapBranches": "Swap Branches"
   },
   "projectManager": {
     "addProject": "Add Project",

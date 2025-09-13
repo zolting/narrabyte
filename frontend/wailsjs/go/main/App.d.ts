@@ -4,9 +4,13 @@ import {models} from '../models';
 
 export function GetAppSettings():Promise<models.AppSettings>;
 
+export function GetRepoLinks():Promise<Array<models.RepoLink>>;
+
 export function Greet(arg1:string):Promise<string>;
 
 export function LinkRepositories(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function ListRepoBranches(arg1:string):Promise<Array<models.BranchInfo>>;
 
 export function SelectDirectory():Promise<string>;
 

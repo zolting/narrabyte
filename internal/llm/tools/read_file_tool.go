@@ -248,11 +248,11 @@ func isBinaryFile(p string) (bool, error) {
 	defer f.Close()
 
 	// Stat to determine size and clamp buffer
-	fi, err := f.Stat()
+	file, err := f.Stat()
 	if err != nil {
 		return false, err
 	}
-	if fi.Size() == 0 {
+	if file.Size() == 0 {
 		return false, nil
 	}
 
