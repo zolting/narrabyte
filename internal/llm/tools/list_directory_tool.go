@@ -46,7 +46,7 @@ const listLimit = 100
 
 type ListLSInput struct {
 	// Absolute or relative to project root; relative is resolved under the configured base root.
-	Path   string   `json:"path,omitempty" jsonschema:"description=The absolute path to the directory to list (or relative to project root)"`
+	Path   string   `json:"path,omitempty" jsonschema:"description=The absolute path to the directory to list"`
 	Ignore []string `json:"ignore,omitempty" jsonschema:"description=List of glob-like patterns to ignore"`
 }
 
@@ -229,7 +229,7 @@ func ListDirectory(_ context.Context, in *ListLSInput) (string, error) {
 	b.WriteString(absHeader)
 	b.WriteByte('\n')
 	b.WriteString(renderDir(".", 0))
-	println("ListDirectory result: ", b.String())
+	//println("ListDirectory result: ", b.String())
 	return b.String(), nil
 }
 
