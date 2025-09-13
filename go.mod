@@ -3,7 +3,7 @@ module narrabyte
 go 1.25.0
 
 require (
-	github.com/cloudwego/eino v0.4.8
+	github.com/cloudwego/eino v0.5.2
 	github.com/cloudwego/eino-ext/components/model/openai v0.0.0-20250905035413-86dbae6351d5
 	github.com/go-git/go-git/v5 v5.13.2
 	github.com/joho/godotenv v1.5.1
