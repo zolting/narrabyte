@@ -4,12 +4,13 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"narrabyte/internal/database"
+	"narrabyte/internal/services"
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"gorm.io/gorm/logger"
-	"narrabyte/internal/database"
-	"narrabyte/internal/services"
 )
 
 //go:embed all:frontend/dist

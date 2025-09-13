@@ -22,6 +22,14 @@ export function LatestCommit(arg1) {
   return window['go']['services']['GitService']['LatestCommit'](arg1);
 }
 
+export function ListBranches(arg1) {
+  return window['go']['services']['GitService']['ListBranches'](arg1);
+}
+
+export function ListBranchesByPath(arg1) {
+  return window['go']['services']['GitService']['ListBranchesByPath'](arg1);
+}
+
 export function Open(arg1) {
   return window['go']['services']['GitService']['Open'](arg1);
 }

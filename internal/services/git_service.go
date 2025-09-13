@@ -25,10 +25,6 @@ func NewGitService() *GitService {
 	return &GitService{}
 }
 
-func NewGitService() *GitService {
-	return &GitService{}
-}
-
 // PlainInit initializes a new git repo at given path
 func (g *GitService) Init(path string) (*git.Repository, error) {
 	repo, err := git.PlainInit(path, false)

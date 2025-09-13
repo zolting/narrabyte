@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"narrabyte/internal/models"
 	"narrabyte/internal/repositories"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type RepoLinkService interface {

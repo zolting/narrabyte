@@ -1,6 +1,8 @@
 import { ArrowRight, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ListBranchesByPath } from "wailsjs/go/services/GitService";
+import { List as ListRepoLinks } from "wailsjs/go/services/repoLinkService";
 import { Button } from "@/components/ui/button";
 import {
 	Command,
@@ -32,7 +34,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { GetRepoLinks, ListRepoBranches } from "../../../wailsjs/go/main/App";
 import type { models } from "../../../wailsjs/go/models";
 
 const twTrigger =
@@ -67,7 +68,7 @@ function GenerateDocsDialog({
 
 	useEffect(() => {
 		if (open) {
-			GetRepoLinks()
+			ListRepoLinks(0, 100)
 				.then((repos) => setProjects(repos))
 				.catch((err) => console.error("failed to fetch repo links:", err));
 		}
@@ -75,15 +76,15 @@ function GenerateDocsDialog({
 
 	useEffect(() => {
 		if (selectedProject) {
-			ListRepoBranches(selectedProject.CodebaseRepo)
+			ListBranchesByPath(selectedProject.CodebaseRepo)
 				.then((arr) =>
 					setBranches(
 						[...arr].sort(
 							(a, b) =>
 								new Date(b.lastCommitDate as unknown as string).getTime() -
-								new Date(a.lastCommitDate as unknown as string).getTime()
-						)
-					)
+								new Date(a.lastCommitDate as unknown as string).getTime(),
+						),
+					),
 				)
 				.catch((err) => console.error("failed to fetch branches:", err));
 		} else {
@@ -99,9 +100,9 @@ function GenerateDocsDialog({
 				selectedProject &&
 					sourceBranch &&
 					targetBranch &&
-					sourceBranch !== targetBranch
+					sourceBranch !== targetBranch,
 			),
-		[selectedProject, sourceBranch, targetBranch]
+		[selectedProject, sourceBranch, targetBranch],
 	);
 
 	const swapBranches = () => {
@@ -118,7 +119,7 @@ function GenerateDocsDialog({
 				onClose();
 			}
 		},
-		[onClose]
+		[onClose],
 	);
 
 	return (
@@ -193,7 +194,10 @@ function GenerateDocsDialog({
 										<Button
 											aria-controls="source-branch-list"
 											aria-expanded={sourceOpen}
-											className={cn("w-full justify-between hover:text-foreground", twTrigger)}
+											className={cn(
+												"w-full justify-between hover:text-foreground",
+												twTrigger,
+											)}
 											id="source-branch-combobox"
 											role="combobox"
 											type="button"
@@ -206,7 +210,7 @@ function GenerateDocsDialog({
 									<PopoverContent
 										className={cn(
 											"w-[var(--radix-popover-trigger-width)] p-0",
-											twContent
+											twContent,
 										)}
 									>
 										<Command>
@@ -220,25 +224,25 @@ function GenerateDocsDialog({
 													{branches
 														.filter((b) => b.name !== targetBranch)
 														.map((b) => (
-														<CommandItem
-															key={b.name}
-															onSelect={(currentValue) => {
-																setSourceBranch(currentValue);
-																setSourceOpen(false);
-															}}
-															value={b.name}
-														>
-															<CheckIcon
-																className={cn(
-																	"mr-2 h-4 w-4",
-																	sourceBranch === b.name
-																		? "opacity-100"
-																		: "opacity-0"
-																)}
-															/>
-															{b.name}
-														</CommandItem>
-													))}
+															<CommandItem
+																key={b.name}
+																onSelect={(currentValue) => {
+																	setSourceBranch(currentValue);
+																	setSourceOpen(false);
+																}}
+																value={b.name}
+															>
+																<CheckIcon
+																	className={cn(
+																		"mr-2 h-4 w-4",
+																		sourceBranch === b.name
+																			? "opacity-100"
+																			: "opacity-0",
+																	)}
+																/>
+																{b.name}
+															</CommandItem>
+														))}
 												</CommandGroup>
 											</CommandList>
 										</Command>
@@ -262,7 +266,10 @@ function GenerateDocsDialog({
 										<Button
 											aria-controls="target-branch-list"
 											aria-expanded={targetOpen}
-											className={cn("w-full justify-between hover:text-foreground", twTrigger)}
+											className={cn(
+												"w-full justify-between hover:text-foreground",
+												twTrigger,
+											)}
 											id="target-branch-combobox"
 											role="combobox"
 											type="button"
@@ -275,7 +282,7 @@ function GenerateDocsDialog({
 									<PopoverContent
 										className={cn(
 											"w-[var(--radix-popover-trigger-width)] p-0",
-											twContent
+											twContent,
 										)}
 									>
 										<Command>
@@ -289,25 +296,25 @@ function GenerateDocsDialog({
 													{branches
 														.filter((b) => b.name !== sourceBranch)
 														.map((b) => (
-														<CommandItem
-															key={b.name}
-															onSelect={(currentValue) => {
-																setTargetBranch(currentValue);
-																setTargetOpen(false);
-															}}
-															value={b.name}
-														>
-															<CheckIcon
-																className={cn(
-																	"mr-2 h-4 w-4",
-																	targetBranch === b.name
-																		? "opacity-100"
-																		: "opacity-0"
-																)}
-															/>
-															{b.name}
-														</CommandItem>
-													))}
+															<CommandItem
+																key={b.name}
+																onSelect={(currentValue) => {
+																	setTargetBranch(currentValue);
+																	setTargetOpen(false);
+																}}
+																value={b.name}
+															>
+																<CheckIcon
+																	className={cn(
+																		"mr-2 h-4 w-4",
+																		targetBranch === b.name
+																			? "opacity-100"
+																			: "opacity-0",
+																	)}
+																/>
+																{b.name}
+															</CommandItem>
+														))}
 												</CommandGroup>
 											</CommandList>
 										</Command>
