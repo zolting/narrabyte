@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.2.2/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.2.3/schema.json",
   "vcs": {
     "enabled": false,
     "clientKind": "git",
@@ -42,6 +42,9 @@
       },
       "style": {
         "useFilenamingConvention": "off"
+      },
+      "correctness": {
+        "useUniqueElementIds": "off"
       }
     }
   },

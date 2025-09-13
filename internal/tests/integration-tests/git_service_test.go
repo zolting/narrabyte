@@ -310,3 +310,106 @@ func TestValidateRepository(t *testing.T) {
 	err = gs.ValidateRepository(dir)
 	assert.NoError(t, err)
 }
+
+func TestListBranches_ReturnsSortedShortNames(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	gs := services.NewGitService()
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+
+	// Initial commit to materialize the default branch `master`
+	w, err := repo.Worktree()
+	assert.NoError(t, err)
+
+	f := dir + "/a.txt"
+	assert.NoError(t, os.WriteFile(f, []byte("a"), 0644))
+	_, err = w.Add("a.txt")
+	assert.NoError(t, err)
+	_, err = w.Commit("init", &git.CommitOptions{
+		Author: &object.Signature{Name: "Test", Email: "test@example.com"},
+	})
+	assert.NoError(t, err)
+
+	// Create branches in unsorted order
+	err = w.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.NewBranchReferenceName("zzz"),
+		Create: true,
+	})
+	assert.NoError(t, err)
+	err = w.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.NewBranchReferenceName("aaa"),
+		Create: true,
+	})
+	assert.NoError(t, err)
+
+	branches, err := gs.ListBranches(repo)
+	assert.NoError(t, err)
+
+	// Compare only names, preserving the expected sorted order
+	var names []string
+	for _, b := range branches {
+		names = append(names, b.Name)
+	}
+	expected := []string{"aaa", "master", "zzz"}
+	assert.Equal(t, expected, names)
+}
+
+func TestListBranchesByPath_ReturnsSortedShortNames(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	gs := services.NewGitService()
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+
+	// Initial commit to materialize the default branch `master`
+	w, err := repo.Worktree()
+	assert.NoError(t, err)
+
+	f := dir + "/b.txt"
+	assert.NoError(t, os.WriteFile(f, []byte("b"), 0644))
+	_, err = w.Add("b.txt")
+	assert.NoError(t, err)
+	_, err = w.Commit("init", &git.CommitOptions{
+		Author: &object.Signature{Name: "Test", Email: "test@example.com"},
+	})
+	assert.NoError(t, err)
+
+	// Create another branch
+	err = w.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.NewBranchReferenceName("feature/x"),
+		Create: true,
+	})
+	assert.NoError(t, err)
+
+	branches, err := gs.ListBranchesByPath(dir)
+	assert.NoError(t, err)
+
+	// Compare only names, preserving the expected sorted order
+	var names []string
+	for _, b := range branches {
+		names = append(names, b.Name)
+	}
+	expected := []string{"feature/x", "master"}
+	assert.Equal(t, expected, names)
+}
+
+func TestListBranchesByPath_EmptyPath_ReturnsError(t *testing.T) {
+	gs := services.NewGitService()
+	branches, err := gs.ListBranchesByPath("")
+	assert.Error(t, err)
+	assert.Nil(t, branches)
+	assert.Contains(t, err.Error(), "cannot be empty")
+}
+
+func TestListBranchesByPath_InvalidPath_ReturnsError(t *testing.T) {
+	gs := services.NewGitService()
+	branches, err := gs.ListBranchesByPath("/non/existent/path")
+	assert.Error(t, err)
+	assert.Nil(t, branches)
+	assert.Contains(t, err.Error(), "failed to open repository")
+}

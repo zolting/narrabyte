@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-// Zod schema for DemoEvent - matches backend EventType restrictions
+// Zod schema for DemoEvent
 export const demoEventSchema = z.object({
 	id: z.number().int().positive(),
 	type: z.enum(["info", "debug", "warn", "error"]),
