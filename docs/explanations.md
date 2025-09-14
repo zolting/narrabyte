@@ -104,50 +104,48 @@ Suggestions / considerations
 - Consider returning the UpdatedAt from the backend and letting the frontend use server time as the source of truth (it already does), but be explicit about timezone format expectations.
 - If more locales will be added, keep normalizeToSupportedLocale in sync with i18n supported languages.
 
-# Git Diff Viewer (Frontend)
+## Git Diff frontend component
 
-This section documents how the frontend renders a Git-style diff in a modal dialog using a lightweight viewer component.
+This project includes a small Git diff viewer used in the UI to show changes in a familiar unified/split view. The implementation is a lightweight dialog wrapper around the react-diff-view library and a small theme override. Key facts below are directly verifiable in the source.
 
-High-level summary
+Summary
 
-- The Git diff UI is implemented as a reusable dialog component that parses unified git-diff text and renders it using react-diff-view (Diff / Hunk components).
-- It currently uses a bundled SAMPLE_DIFF string as a placeholder; in a full implementation the component would accept diff text or file patches from the app state or an API.
-- Users can toggle the view between "unified" and "split" (side-by-side) rendering.
+- The component uses react-diff-view to parse and render git patch text into file/hunk views.
+- It currently contains a SAMPLE_DIFF constant used as placeholder content; the parsed result is memoized with useMemo to avoid repeated parsing.
+- The dialog exposes a view toggle (split vs unified) and renders each hunk with the Hunk component from react-diff-view.
+- Styling is provided by a local CSS theme file which sets react-diff-view CSS variables and layout rules.
 
-Relevant file
+How it works (evidence-backed)
 
-- frontend/src/components/GitDiffDialog/GitDiffDialog.tsx (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L6,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L43-L46,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L77-L90)
+- Parsing and rendering
+  - The component imports parseDiff, Diff and Hunk from react-diff-view and calls parseDiff(SAMPLE_DIFF) inside useMemo to produce a `files` array (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L4, #L43-L46, #L15-L33).
+  - It selects the first parsed file and renders a <Diff> component with diffType and thunks props, then maps each hunk to a <Hunk /> element (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L78-L90).
 
-Behavior and UI
+- View mode toggle
+  - The component keeps local state viewType ("split" | "unified") and toggles it when the user clicks the button; this value is passed to the <Diff> component as `viewType` (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L41-L51, #L84-L85).
 
-- The component is a Dialog wrapper that uses DialogTrigger/DialogContent from the local UI primitives to show a modal diff viewer. (see component render and Dialog usage) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L53-L61,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L76-L85)
-- parseDiff(SAMPLE_DIFF) is called and memoized to produce a files[] structure consumed by the Diff component from react-diff-view. (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L43-L46)
-- The top bar shows the file path and a toggle Button that switches the viewType state between "unified" and "split". (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L62-L71)
-- Diff receives props: diffType (file.type), thunks (file.hunks), viewType and renders Hunk components for each hunk. (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L78-L89)
+- Placeholder content and memoization
+  - A SAMPLE_DIFF constant in the file contains example patch text; because parseDiff can be expensive, the code memoizes parsing with useMemo (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33, #L43-L46).
 
-Data flow and extension points
+- Styling
+  - The component imports a local CSS file diff-view-theme.css which defines CSS variables used by react-diff-view (e.g. --diff-background-color, --diff-text-color) and layout rules to make the diff table full-width (source: frontend/src/components/GitDiffDialog/diff-view-theme.css#L1-L6, #L52-L56).
 
-- Placeholder diff: The current implementation uses a hard-coded SAMPLE_DIFF string (for demo/development). The natural integration points are:
-  - Accepting a `diffText` prop on GitDiffDialog and calling parseDiff(diffText).
-  - Passing the selected file/patch from the parent (for multi-file diffs) rather than always using files[0].
-  - Loading diffs from a backend RPC or Git integration and sanitizing them before rendering.
-  (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L44-L46)
+Dependencies
 
-Accessibility and theming
+- The project depends on react-diff-view (see frontend/package.json dependencies) which provides the parseDiff/Diff/Hunk primitives used by the component (source: frontend/package.json#L29-L29).
 
-- The component imports react-diff-view styles and a local diff-view-theme.css for theming. Ensure the theme CSS provides sufficient contrast for added/removed lines. (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L4-L5)
-- The modal uses existing Dialog primitives which usually handle focus trapping; verify keyboard navigation for the toggle and diff content.
+Inferred / Notes
 
-Limitations and notes
+- Inferred: The current GitDiffDialog is implemented as a self-contained dialog with placeholder diff text (SAMPLE_DIFF). That implies it is intended as a reusable UI building block; to display a real git diff the component would need to accept the patch text as a prop and call parseDiff on that string instead of SAMPLE_DIFF (Inference based on the presence of SAMPLE_DIFF and the lack of a prop for diff content in the current file: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33).
 
-- Currently the component always renders the first file from parseDiff(files)[0]. For multi-file diffs, add file list UI and selection.
-- SAMPLE_DIFF is only for demonstration; production diffs may contain large patches — consider virtualizing hunk rendering or limiting default expansion for performance.
-- The component does not perform any security-sensitive operations, but if diff text is loaded from external sources, avoid rendering any embedded HTML and treat content as plain text.
+- Inferred: The component does not fetch diffs itself (no network/git calls inside the component). Backend or higher-level UI code should supply the raw git patch string when integrating this dialog into a flows that calculate diffs (no code for fetching diffs found in this component; see git service in internal/services/git_service.go for server-side diff generation: internal/services/git_service.go#L96-L96).
 
-Where to look in code
+Where to look in code (sources)
 
-- Component implementation: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx (entry points and render) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L6,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L39-L46,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L77-L90)
-- Styles: frontend/src/components/GitDiffDialog/diff-view-theme.css (imported; review for color tokens) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L4-L5)
+- Component implementation: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx (imports, SAMPLE_DIFF, parseDiff usage, view toggle, rendering) — see lines: #L1-L4, #L15-L33, #L41-L51, #L43-L46, #L78-L90.
+- Theme / style overrides: frontend/src/components/GitDiffDialog/diff-view-theme.css (CSS variables and layout rules) — see lines: #L1-L6, #L52-L56.
+- Dependency: frontend/package.json (react-diff-view entry) — see line: #L29-L29.
+- Server-side diff generation (integration point): internal/services/git_service.go (DiffBetweenCommits) — see line: #L96-L96.
 
 # Repo Linking
 

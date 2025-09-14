@@ -72,7 +72,7 @@ Beautiful Markdown guidelines
 - Use bullet lists for enumerations; numbered steps for procedures; callouts with blockquotes (Note/Warning).
 - Fenced code blocks with language tags; minimal runnable examples; representative JSON with placeholders.
 - Prefer Mermaid diagrams where useful and include a brief text fallback.
-- Cross-link with relative paths and anchors; add “Back to index” on long pages.
+- Cross-link with absolute paths and anchors; add “Back to index” on long pages.
 - Include a Sources section with file/line citations in each major doc.
 
 Output expectations

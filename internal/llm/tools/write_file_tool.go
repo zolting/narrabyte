@@ -9,10 +9,10 @@ import (
 )
 
 type WriteFileInput struct {
-	// FilePath is the path to the file to write. Absolute paths are allowed only if under the configured project root.
-	FilePath string `json:"file_path" jsonschema:"description=The path to the file to write (absolute or relative to project root)"`
-	// Content is the content to write to the file.
-	Content string `json:"content" jsonschema:"description=The content to write to the file"`
+    // FilePath is the absolute path to the file to write.
+    FilePath string `json:"file_path" jsonschema:"description=The absolute path to the file to write"`
+    // Content is the content to write to the file.
+    Content string `json:"content" jsonschema:"description=The content to write to the file"`
 }
 
 type WriteFileOutput struct {
@@ -76,7 +76,7 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 		}
 		if strings.HasPrefix(relToBase, "..") {
 			return &WriteFileOutput{
-				Title:  filepath.ToSlash(p),
+				Title:  filepath.ToSlash(absCandidate),
 				Output: "Format error: file is not in the configured project root",
 				Metadata: map[string]string{
 					"error": "format_error",
@@ -88,7 +88,7 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 		abs, ok := safeJoinUnderBase(base, p)
 		if !ok {
 			return &WriteFileOutput{
-				Title:  filepath.ToSlash(p),
+				Title:  filepath.ToSlash(filepath.Join(base, p)),
 				Output: "Format error: path escapes the configured project root",
 				Metadata: map[string]string{
 					"error": "format_error",
@@ -103,10 +103,8 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 	info, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			rel, _ := filepath.Rel(base, absPath)
-			rel = filepath.ToSlash(rel)
 			return &WriteFileOutput{
-				Title:  rel,
+				Title:  filepath.ToSlash(absPath),
 				Output: fmt.Sprintf("Format error: directory does not exist: %s", dir),
 				Metadata: map[string]string{
 					"error": "format_error",
@@ -116,10 +114,8 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 		return nil, err
 	}
 	if !info.IsDir() {
-		rel, _ := filepath.Rel(base, absPath)
-		rel = filepath.ToSlash(rel)
 		return &WriteFileOutput{
-			Title:  rel,
+			Title:  filepath.ToSlash(absPath),
 			Output: fmt.Sprintf("Format error: not a directory: %s", dir),
 			Metadata: map[string]string{
 				"error": "format_error",
@@ -138,25 +134,18 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 		return nil, err
 	}
 
-	// Build title relative to base
-	rel, err := filepath.Rel(base, absPath)
-	if err != nil {
-		rel = absPath
-	}
-	rel = filepath.ToSlash(rel)
-
 	outputMsg := ""
 	if existed {
-		outputMsg = fmt.Sprintf("Overwrote file: %s", rel)
+		outputMsg = fmt.Sprintf("Overwrote file: %s", filepath.ToSlash(absPath))
 	} else {
-		outputMsg = fmt.Sprintf("Created file: %s", rel)
+		outputMsg = fmt.Sprintf("Created file: %s", filepath.ToSlash(absPath))
 	}
 
 	return &WriteFileOutput{
-		Title:  rel,
+		Title:  filepath.ToSlash(absPath),
 		Output: outputMsg,
 		Metadata: map[string]string{
-			"filepath": rel,
+			"filepath": filepath.ToSlash(absPath),
 			"exists":   fmt.Sprintf("%v", existed),
 		},
 	}, nil

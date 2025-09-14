@@ -17,12 +17,12 @@ import (
 const grepResultLimit = 100
 
 type GrepInput struct {
-	// Pattern is the regex to search for in file contents.
-	Pattern string `json:"pattern" jsonschema:"description=The regex pattern to search for in file contents"`
-	// Path is an optional directory to search in. If omitted, the configured base root is used.
-	Path string `json:"path,omitempty" jsonschema:"description=Optional directory to search. Defaults to the configured project root."`
-	// Include is an optional file glob to include (e.g. "*.js", "*.{ts,tsx}").
-	Include string `json:"include,omitempty" jsonschema:"description=Optional file pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")"`
+    // Pattern is the regex to search for in file contents.
+    Pattern string `json:"pattern" jsonschema:"description=The regex pattern to search for in file contents"`
+    // Path is an absolute directory to search. If omitted, the configured base root is used.
+    Path string `json:"path,omitempty" jsonschema:"description=Absolute directory to search. If omitted, uses the configured project root."`
+    // Include is an optional file glob to include (e.g. "*.js", "*.{ts,tsx}").
+    Include string `json:"include,omitempty" jsonschema:"description=Optional file pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")"`
 }
 
 type GrepOutput struct {
@@ -210,7 +210,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 			return nil
 		}
 
-		// Compute rel path from searchPath using forward slashes
+		// Compute path under searchPath using forward slashes
 		rel, _ := filepath.Rel(searchPath, p)
 		rel = filepath.ToSlash(rel)
 

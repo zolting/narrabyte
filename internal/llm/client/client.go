@@ -45,8 +45,15 @@ func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 // Example: SetListDirectoryBaseRoot("/path/to/project") then tool input "frontend"
 // resolves to "/path/to/project/frontend".
 func (o *OpenAIClient) SetListDirectoryBaseRoot(root string) {
-	o.baseRoot = root
-	tools.SetListDirectoryBaseRoot(root)
+	// Normalize to absolute base root for consistent absolute-path semantics
+	abs := root
+	if r := strings.TrimSpace(root); r != "" {
+		if a, err := filepath.Abs(r); err == nil {
+			abs = a
+		}
+	}
+	o.baseRoot = abs
+	tools.SetListDirectoryBaseRoot(abs)
 }
 
 // loadSystemPrompt loads the system instruction from the demo.txt file
@@ -67,7 +74,7 @@ func (o *OpenAIClient) loadSystemPrompt() (string, error) {
 
 func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath string) (string, error) {
 	// Initialize tools for this session
-	allTools, err := o.InitTools()
+	allTools, err := o.initTools()
 	if err != nil {
 		log.Printf("Error initializing tools: %v", err)
 		return "", err
@@ -112,7 +119,7 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
 	iter := runner.Query(ctx, "Here is an initial listing of the project (capped at 100 files):\n\n"+
 		preview+
-		"\n\nHow does the git diff frontend component work? Add your explanation by editing the file called explanations.md at the project root, between App Settings and Repo Linking. You must use the edit tool to edit the file, not the write tool. Keep the current content.")
+		"\n\nHow does the git diff frontend component work? Add your explanation by editing the explanation.md file, between App Settings and Repo Linking. You must use the edit tool to edit the file, not the write tool. Keep the current content.")
 
 	var lastMessage string
 	for {
@@ -131,7 +138,7 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 	}
 
 	log.Printf("Last event message: %s", lastMessage)
-	return "", nil
+	return lastMessage, nil
 }
 
 // recordOpenedFile appends a file path to the session history if not already present.
@@ -141,10 +148,24 @@ func (o *OpenAIClient) recordOpenedFile(p string) {
 	}
 	o.fileHistoryMu.Lock()
 	defer o.fileHistoryMu.Unlock()
-	norm := filepath.ToSlash(strings.TrimSpace(p))
-	if norm == "" {
+	// Normalize to absolute path; join with baseRoot when needed
+	in := strings.TrimSpace(p)
+	if in == "" {
 		return
 	}
+	var abs string
+	if filepath.IsAbs(in) {
+		abs = in
+	} else if strings.TrimSpace(o.baseRoot) != "" {
+		abs = filepath.Join(o.baseRoot, in)
+	} else {
+		abs = in
+	}
+	// Best-effort Abs cleanup
+	if a, err := filepath.Abs(abs); err == nil {
+		abs = a
+	}
+	norm := filepath.ToSlash(abs)
 	for _, existing := range o.fileOpenHistory {
 		if existing == norm {
 			return
@@ -175,10 +196,10 @@ func (o *OpenAIClient) FileOpenHistory() []string {
 	return out
 }
 
-// InitTools initializes and returns all available tools for the current session.
+// initTools initializes and returns all available tools for the current session.
 // It resets the file-open history and wraps certain tools (e.g., read_file_tool)
 // to record useful session metadata.
-func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
+func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 	// Reset per-session file history when initializing tools
 	o.ResetFileOpenHistory()
 
@@ -281,19 +302,18 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 		}
 		if strings.HasPrefix(relToBase, "..") {
 			return &tools.WriteFileOutput{
-				Title:    filepath.ToSlash(p),
+				Title:    filepath.ToSlash(absCandidate),
 				Output:   "Format error: path escapes the configured project root",
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
 		// If file exists, enforce prior read
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
-			rel := filepath.ToSlash(relToBase)
 			// Check client history
 			o.fileHistoryMu.Lock()
 			seen := false
 			for _, h := range o.fileOpenHistory {
-				if h == rel || h == filepath.ToSlash(absCandidate) {
+				if h == filepath.ToSlash(absCandidate) {
 					seen = true
 					break
 				}
@@ -301,7 +321,7 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 			o.fileHistoryMu.Unlock()
 			if !seen {
 				return &tools.WriteFileOutput{
-					Title:    rel,
+					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Policy error: must read the file before writing",
 					Metadata: map[string]string{"error": "policy_violation"},
 				}, nil
@@ -364,19 +384,18 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 		}
 		if strings.HasPrefix(relToBase, "..") {
 			return &tools.EditOutput{
-				Title:    filepath.ToSlash(p),
+				Title:    filepath.ToSlash(absCandidate),
 				Output:   "Format error: path escapes the configured project root",
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
 		// If file exists, enforce prior read
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
-			rel := filepath.ToSlash(relToBase)
 			// Check client history
 			o.fileHistoryMu.Lock()
 			seen := false
 			for _, h := range o.fileOpenHistory {
-				if h == rel || h == filepath.ToSlash(absCandidate) {
+				if h == filepath.ToSlash(absCandidate) {
 					seen = true
 					break
 				}
@@ -384,7 +403,7 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 			o.fileHistoryMu.Unlock()
 			if !seen {
 				return &tools.EditOutput{
-					Title:    rel,
+					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Policy error: must read the file before editing",
 					Metadata: map[string]string{"error": "policy_violation"},
 				}, nil

@@ -45,7 +45,7 @@ var DefaultIgnorePatterns = []string{
 const listLimit = 100
 
 type ListLSInput struct {
-	// Absolute or relative to project root; relative is resolved under the configured base root.
+	// Absolute path to the directory to list.
 	Path   string   `json:"path,omitempty" jsonschema:"description=The absolute path to the directory to list"`
 	Ignore []string `json:"ignore,omitempty" jsonschema:"description=List of glob-like patterns to ignore"`
 }
@@ -105,7 +105,7 @@ func ListDirectory(_ context.Context, in *ListLSInput) (string, error) {
 	}
 
 	// Collect files up to limit, honoring ignore patterns
-	var files []string // slash-separated paths relative to searchPath
+	var files []string // slash-separated paths under searchPath
 	err = filepath.WalkDir(searchPath, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			// skip unreadable entries
@@ -234,7 +234,7 @@ func ListDirectory(_ context.Context, in *ListLSInput) (string, error) {
 	return b.String(), nil
 }
 
-// matchIgnoredDir returns true if the directory (relative, slash-separated) should be ignored.
+// matchIgnoredDir returns true if the directory (slash-separated under the root) should be ignored.
 func matchIgnoredDir(relDir string, patterns []string) bool {
 	segs := strings.Split(relDir, "/")
 	for _, p := range patterns {
@@ -265,7 +265,7 @@ func matchIgnoredDir(relDir string, patterns []string) bool {
 	return false
 }
 
-// matchIgnoredFile returns true if the file path (relative, slash-separated) matches a simple ignore.
+// matchIgnoredFile returns true if the file path (slash-separated under the root) matches a simple ignore.
 func matchIgnoredFile(relFile string, patterns []string) bool {
 	// For simplicity, reuse directory logic for parent components and add basename checks
 	dir := path.Dir(relFile)

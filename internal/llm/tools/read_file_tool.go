@@ -19,13 +19,12 @@ const (
 
 // ReadFileInput defines the parameters for the read file tool.
 type ReadFileInput struct {
-	// FileRelativePath is the path to the file relative to the project root.
-	// Absolute paths are allowed only if they resolve under the configured base root.
-	FileRelativePath string `json:"file_relative_path" jsonschema:"description=The path to the file to read (relative to project root)"`
-	// Offset is the 0-based line number to start reading from.
-	Offset int `json:"offset,omitempty" jsonschema:"description=The line number to start reading from (0-based)"`
-	// Limit is the number of lines to read.
-	Limit int `json:"limit,omitempty" jsonschema:"description=The number of lines to read (defaults to 2000)"`
+    // FilePath is the absolute path to the file to read.
+    FilePath string `json:"file_path" jsonschema:"description=The absolute path to the file to read"`
+    // Offset is the 0-based line number to start reading from.
+    Offset int `json:"offset,omitempty" jsonschema:"description=The line number to start reading from (0-based)"`
+    // Limit is the number of lines to read.
+    Limit int `json:"limit,omitempty" jsonschema:"description=The number of lines to read (defaults to 2000)"`
 }
 
 // ReadFileOutput mirrors the TS tool return shape for downstream consumers.
@@ -37,16 +36,16 @@ type ReadFileOutput struct {
 
 // ReadFile reads a text file within the project root with paging and safety checks.
 func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) {
-	println("ReadFile input: ", input.FileRelativePath)
-	if input == nil {
-		return nil, errors.New("input is required")
-	}
+    println("ReadFile input: ", input.FilePath)
+    if input == nil {
+        return nil, errors.New("input is required")
+    }
 
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
 		return nil, err
 	}
-	pathArg := strings.TrimSpace(input.FileRelativePath)
+    pathArg := strings.TrimSpace(input.FilePath)
 	if pathArg == "" {
 		return nil, fmt.Errorf("file path is required")
 	}
@@ -88,29 +87,23 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 			baseName := filepath.Base(absPath)
 			suggestions := similarEntries(dir, baseName)
 
-			// Title should be relative to base root
-			rel, relErr := filepath.Rel(base, absPath)
-			if relErr != nil {
-				rel = absPath // fallback
-			}
-			rel = filepath.ToSlash(rel)
+            output := "<file>\nFile not found: " + absPath + "\n"
+            if len(suggestions) > 0 {
+                output += "\nDid you mean one of these?\n" + strings.Join(suggestions, "\n") + "\n"
+            }
+            output += "\n</file>"
 
-			output := "<file>\nFile not found: " + absPath + "\n"
-			if len(suggestions) > 0 {
-				output += "\nDid you mean one of these?\n" + strings.Join(suggestions, "\n") + "\n"
-			}
-			output += "\n</file>"
-
-			return &ReadFileOutput{
-				Title:  rel,
-				Output: output,
-				Metadata: map[string]string{
-					"error": "file_not_found",
-				},
-			}, nil
-		}
-		return nil, err
-	}
+            return &ReadFileOutput{
+                Title:  filepath.ToSlash(absPath),
+                Output: output,
+                Metadata: map[string]string{
+                    "error":    "file_not_found",
+                    "filepath": filepath.ToSlash(absPath),
+                },
+            }, nil
+        }
+        return nil, err
+    }
 	if file.IsDir() {
 		return nil, fmt.Errorf("path is a directory: %s", absPath)
 	}
@@ -196,20 +189,14 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 	}
 	preview := strings.Join(raw[:previewCount], "\n")
 
-	// Title should be relative to base root
-	rel, err := filepath.Rel(base, absPath)
-	if err != nil {
-		rel = absPath // fallback
-	}
-	rel = filepath.ToSlash(rel)
-
-	return &ReadFileOutput{
-		Title:  rel,
-		Output: b.String(),
-		Metadata: map[string]string{
-			"preview": preview,
-		},
-	}, nil
+    return &ReadFileOutput{
+        Title:  filepath.ToSlash(absPath),
+        Output: b.String(),
+        Metadata: map[string]string{
+            "preview":  preview,
+            "filepath": filepath.ToSlash(absPath),
+        },
+    }, nil
 }
 
 // imageTypeByExt returns a human-readable image type for common image extensions, else "".

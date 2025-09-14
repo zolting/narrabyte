@@ -14,10 +14,10 @@ import (
 const globResultLimit = 100
 
 type GlobInput struct {
-	// Pattern is the glob to match files against (supports **).
-	Pattern string `json:"pattern" jsonschema:"description=The glob pattern to match files against"`
-	// Path is an optional directory to search in. If omitted, the configured base root is used.
-	Path string `json:"path,omitempty" jsonschema:"description=Optional directory to search. Omit to use the configured project root."`
+    // Pattern is the glob to match files against (supports **).
+    Pattern string `json:"pattern" jsonschema:"description=The glob pattern to match files against"`
+    // Path is an absolute directory to search. If omitted, the configured base root is used.
+    Path string `json:"path,omitempty" jsonschema:"description=Absolute directory to search. Omit to use the configured project root."`
 }
 
 type GlobOutput struct {
@@ -140,7 +140,7 @@ func Glob(_ context.Context, in *GlobInput) (*GlobOutput, error) {
     info, err := os.Stat(searchPath)
     if err != nil {
         return &GlobOutput{
-            Title:  filepath.ToSlash(strings.TrimPrefix(searchPath, base+string(os.PathSeparator))),
+            Title:  filepath.ToSlash(searchPath),
             Output: "Format error: path does not exist or is not accessible",
             Metadata: map[string]string{
                 "error":     "format_error",
@@ -151,7 +151,7 @@ func Glob(_ context.Context, in *GlobInput) (*GlobOutput, error) {
     }
     if !info.IsDir() {
         return &GlobOutput{
-            Title:  filepath.ToSlash(strings.TrimPrefix(searchPath, base+string(os.PathSeparator))),
+            Title:  filepath.ToSlash(searchPath),
             Output: "Format error: not a directory",
             Metadata: map[string]string{
                 "error":     "format_error",
@@ -219,22 +219,18 @@ func Glob(_ context.Context, in *GlobInput) (*GlobOutput, error) {
 		}
 	}
 
-	// Title: path relative to base root
-	relTitle, err := filepath.Rel(base, searchPath)
-	if err != nil {
-		relTitle = searchPath
-	}
-	relTitle = filepath.ToSlash(relTitle)
+    // Title: absolute search path
+    relTitle := filepath.ToSlash(searchPath)
 
 	println("Glob output: ", strings.Join(lines, "\n"))
 
-	out := &GlobOutput{
-		Title:  relTitle,
-		Output: strings.Join(lines, "\n"),
-		Metadata: map[string]string{
-			"count":     fmt.Sprintf("%d", len(files)),
-			"truncated": fmt.Sprintf("%v", truncated),
-		},
-	}
-	return out, nil
+    out := &GlobOutput{
+        Title:  relTitle,
+        Output: strings.Join(lines, "\n"),
+        Metadata: map[string]string{
+            "count":     fmt.Sprintf("%d", len(files)),
+            "truncated": fmt.Sprintf("%v", truncated),
+        },
+    }
+    return out, nil
 }
