@@ -61,6 +61,22 @@ function Home() {
 			setIsAddProjectOpen(false);
 			setLastProject(data);
 		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			if (errorMsg.startsWith("missing_git_repo")) {
+				const which = errorMsg.endsWith("documentation")
+					? t("projectManager.docDirectory")
+					: t("projectManager.codebaseDirectory");
+				if (
+					window.confirm(
+						`${which} n'est pas un dépôt git. Voulez-vous en créer un ?`,
+					)
+				) {
+					// TODO: Call function to create a git repo in the specified directory
+					return;
+				} else {
+					return;
+				}
+			}
 			console.error("Error linking repositories:", error);
 			alert(t("home.linkError"));
 			return;

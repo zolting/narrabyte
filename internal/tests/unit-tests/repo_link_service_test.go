@@ -6,6 +6,7 @@ import (
 	"narrabyte/internal/models"
 	"narrabyte/internal/services"
 	"narrabyte/internal/tests/mocks"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,12 @@ func TestRepoLinkService_Register_Success(t *testing.T) {
 	//Create temporary directories for testing
 	docDir := t.TempDir()
 	codeDir := t.TempDir()
+
+	// Create a .git directory in each temp directory to simulate a git repo
+	err := os.Mkdir(docDir+string(os.PathSeparator)+".git", 0755)
+	assert.NoError(t, err)
+	err = os.Mkdir(codeDir+string(os.PathSeparator)+".git", 0755)
+	assert.NoError(t, err)
 
 	link, err := service.Register("name", docDir, codeDir)
 	assert.NoError(t, err)

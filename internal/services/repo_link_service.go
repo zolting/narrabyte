@@ -40,6 +40,12 @@ func directoryExists(path string) bool {
 	return true && info.IsDir()
 }
 
+func hasGitRepo(path string) bool {
+	gitPath := path + string(os.PathSeparator) + ".git"
+	info, err := os.Stat(gitPath)
+	return err == nil && info.IsDir()
+}
+
 func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error) {
 	if projectName == "" {
 		return nil, errors.New("project name is required")
@@ -51,6 +57,14 @@ func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo 
 
 	if codebaseRepo == "" {
 		return nil, errors.New("codebase repo is required")
+	}
+
+	if !hasGitRepo(documentationRepo) {
+		return nil, errors.New("missing_git_repo: documentation")
+	}
+
+	if !hasGitRepo(codebaseRepo) {
+		return nil, errors.New("missing_git_repo: codebase")
 	}
 
 	if !directoryExists(documentationRepo) {
