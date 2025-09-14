@@ -17,12 +17,12 @@ import (
 const grepResultLimit = 100
 
 type GrepInput struct {
-    // Pattern is the regex to search for in file contents.
-    Pattern string `json:"pattern" jsonschema:"description=The regex pattern to search for in file contents"`
-    // Path is an absolute directory to search. If omitted, the configured base root is used.
-    Path string `json:"path,omitempty" jsonschema:"description=Absolute directory to search. If omitted, uses the configured project root."`
-    // Include is an optional file glob to include (e.g. "*.js", "*.{ts,tsx}").
-    Include string `json:"include,omitempty" jsonschema:"description=Optional file pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")"`
+	// Pattern is the regex to search for in file contents.
+	Pattern string `json:"pattern" jsonschema:"description=The regex pattern to search for in file contents"`
+	// Path is an absolute directory to search. If omitted, the configured base root is used.
+	Path string `json:"path,omitempty" jsonschema:"description=Absolute directory to search. If omitted, uses the configured project root."`
+	// Include is an optional file glob to include (e.g. "*.js", "*.{ts,tsx}").
+	Include string `json:"include,omitempty" jsonschema:"description=Optional file pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")"`
 }
 
 type GrepOutput struct {
@@ -34,7 +34,6 @@ type GrepOutput struct {
 // Grep scans files under a directory and searches for a regex pattern.
 // It limits results to grepResultLimit, sorted by file mtime desc, and groups by file.
 func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
-	println("Grep input: ", in.Pattern, in.Path, in.Include)
 	if in == nil {
 		return &GrepOutput{
 			Title:  "",
@@ -176,6 +175,15 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 			if err == nil {
 				includeMatchers = append(includeMatchers, rx)
 			}
+		}
+	}
+
+	// Check for context cancellation early
+	if ctx != nil {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
 		}
 	}
 
@@ -333,8 +341,6 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 		outLines = append(outLines, "")
 		outLines = append(outLines, "(Results are truncated. Consider using a more specific path or pattern.)")
 	}
-
-	println("Grep output: ", strings.Join(outLines, "\n"))
 
 	return &GrepOutput{
 		Title:  pattern,
