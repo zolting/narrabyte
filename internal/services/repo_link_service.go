@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"narrabyte/internal/models"
 	"narrabyte/internal/repositories"
-	"os"
+	"narrabyte/internal/utils"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -32,20 +32,6 @@ func NewRepoLinkService(repoLinks repositories.RepoLinkRepository, fumaDocsServi
 	return &repoLinkService{repoLinks: repoLinks, fumadocsService: fumaDocsService}
 }
 
-func directoryExists(path string) bool {
-	info, error := os.Stat(path)
-	if os.IsNotExist(error) {
-		return false
-	}
-	return true && info.IsDir()
-}
-
-func hasGitRepo(path string) bool {
-	gitPath := path + string(os.PathSeparator) + ".git"
-	info, err := os.Stat(gitPath)
-	return err == nil && info.IsDir()
-}
-
 func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error) {
 	if projectName == "" {
 		return nil, errors.New("project name is required")
@@ -59,19 +45,19 @@ func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo 
 		return nil, errors.New("codebase repo is required")
 	}
 
-	if !hasGitRepo(documentationRepo) {
+	if !utils.HasGitRepo(documentationRepo) {
 		return nil, errors.New("missing_git_repo: documentation")
 	}
 
-	if !hasGitRepo(codebaseRepo) {
+	if !utils.HasGitRepo(codebaseRepo) {
 		return nil, errors.New("missing_git_repo: codebase")
 	}
 
-	if !directoryExists(documentationRepo) {
+	if !utils.DirectoryExists(documentationRepo) {
 		return nil, errors.New("documentation repo path does not exist")
 	}
 
-	if !directoryExists(codebaseRepo) {
+	if !utils.DirectoryExists(codebaseRepo) {
 		return nil, errors.New("codebase repo path does not exist")
 	}
 
