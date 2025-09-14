@@ -121,7 +121,7 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
 	iter := runner.Query(ctx, "Here is an initial listing of the project (capped at 100 files):\n\n"+
 		preview+
-		"\n\nHow does the git diff frontend component work? Add your explanation by editing the explanation.md file, between App Settings and Repo Linking. You must use the edit tool to edit the file, not the write tool. Keep the current content.")
+		"\n\nHow does the git diff frontend component work? Add your explanation by editing the explanations.md file, between App Settings and Repo Linking. You must use the edit tool to edit the file, not the write tool. Keep the current content. End by creating a file called haiku.txt in the same directory as the explanations. The haiku should be a short poem about the git diff frontend component.")
 
 	var lastMessage string
 	for {
