@@ -20,9 +20,7 @@ func ToolDescription(toolKey string) string {
 		return ""
 	}
 	// Allow callers to pass either the base key or the filename
-	if strings.HasSuffix(key, ".txt") {
-		key = strings.TrimSuffix(key, ".txt")
-	}
+	key = strings.TrimSuffix(key, ".txt")
 	file := fmt.Sprintf("%s.txt", key)
 	b, err := toolDescFS.ReadFile(file)
 	if err != nil {

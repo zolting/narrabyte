@@ -2,11 +2,13 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"narrabyte/internal/llm/tools"
 	"narrabyte/internal/utils"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -166,12 +168,56 @@ func (o *OpenAIClient) recordOpenedFile(p string) {
 		abs = a
 	}
 	norm := filepath.ToSlash(abs)
-	for _, existing := range o.fileOpenHistory {
-		if existing == norm {
-			return
-		}
+	if slices.Contains(o.fileOpenHistory, norm) {
+		return
 	}
 	o.fileOpenHistory = append(o.fileOpenHistory, norm)
+}
+
+// resolveAbsWithinBase resolves an input path to an absolute path under the configured base root.
+// Returns the absolute candidate even when it escapes base so callers can include it in messages.
+func (o *OpenAIClient) resolveAbsWithinBase(p string) (abs string, err error) {
+	base := strings.TrimSpace(o.baseRoot)
+	if base == "" {
+		return "", fmt.Errorf("project root not set")
+	}
+	in := strings.TrimSpace(p)
+	if in == "" {
+		return "", fmt.Errorf("file_path is required")
+	}
+	// Build candidate absolute path
+	if filepath.IsAbs(in) {
+		abs = in
+	} else {
+		abs = filepath.Join(base, in)
+	}
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return abs, err
+	}
+	absCandidate, err := filepath.Abs(abs)
+	if err != nil {
+		return absCandidate, err
+	}
+	relToBase, err := filepath.Rel(absBase, absCandidate)
+	if err != nil {
+		return absCandidate, err
+	}
+	if strings.HasPrefix(relToBase, "..") {
+		return absCandidate, fmt.Errorf("path escapes the configured project root")
+	}
+	return absCandidate, nil
+}
+
+// hasRead checks if the absolute path has been read in this session.
+func (o *OpenAIClient) hasRead(absPath string) bool {
+	norm := filepath.ToSlash(strings.TrimSpace(absPath))
+	if norm == "" {
+		return false
+	}
+	o.fileHistoryMu.Lock()
+	defer o.fileHistoryMu.Unlock()
+	return slices.Contains(o.fileOpenHistory, norm)
 }
 
 // ResetFileOpenHistory clears the in-memory history for the current client session.
@@ -273,53 +319,28 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
-		base := strings.TrimSpace(o.baseRoot)
-		if base == "" {
-			return &tools.WriteFileOutput{
-				Title:    "",
-				Output:   "Format error: project root not set",
-				Metadata: map[string]string{"error": "format_error"},
-			}, nil
-		}
-		// Resolve to absolute under base
-		var absPath string
-		if filepath.IsAbs(p) {
-			absPath = p
-		} else {
-			absPath = filepath.Join(base, p)
-		}
-		absBase, err := filepath.Abs(base)
-		if err != nil {
-			return nil, err
-		}
-		absCandidate, err := filepath.Abs(absPath)
-		if err != nil {
-			return nil, err
-		}
-		relToBase, err := filepath.Rel(absBase, absCandidate)
-		if err != nil {
-			return nil, err
-		}
-		if strings.HasPrefix(relToBase, "..") {
-			return &tools.WriteFileOutput{
-				Title:    filepath.ToSlash(absCandidate),
-				Output:   "Format error: path escapes the configured project root",
-				Metadata: map[string]string{"error": "format_error"},
-			}, nil
+		// Resolve absolute path and ensure it is under base
+		absCandidate, rerr := o.resolveAbsWithinBase(p)
+		if rerr != nil {
+			if rerr.Error() == "project root not set" {
+				return &tools.WriteFileOutput{
+					Title:    "",
+					Output:   "Format error: project root not set",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			if strings.Contains(rerr.Error(), "escapes") {
+				return &tools.WriteFileOutput{
+					Title:    filepath.ToSlash(absCandidate),
+					Output:   "Format error: path escapes the configured project root",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			return nil, rerr
 		}
 		// If file exists, enforce prior read
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
-			// Check client history
-			o.fileHistoryMu.Lock()
-			seen := false
-			for _, h := range o.fileOpenHistory {
-				if h == filepath.ToSlash(absCandidate) {
-					seen = true
-					break
-				}
-			}
-			o.fileHistoryMu.Unlock()
-			if !seen {
+			if !o.hasRead(absCandidate) {
 				return &tools.WriteFileOutput{
 					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Policy error: must read the file before writing",
@@ -355,53 +376,28 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
-		base := strings.TrimSpace(o.baseRoot)
-		if base == "" {
-			return &tools.EditOutput{
-				Title:    "",
-				Output:   "Format error: project root not set",
-				Metadata: map[string]string{"error": "format_error"},
-			}, nil
-		}
-		// Resolve to absolute under base
-		var absPath string
-		if filepath.IsAbs(p) {
-			absPath = p
-		} else {
-			absPath = filepath.Join(base, p)
-		}
-		absBase, err := filepath.Abs(base)
-		if err != nil {
-			return nil, err
-		}
-		absCandidate, err := filepath.Abs(absPath)
-		if err != nil {
-			return nil, err
-		}
-		relToBase, err := filepath.Rel(absBase, absCandidate)
-		if err != nil {
-			return nil, err
-		}
-		if strings.HasPrefix(relToBase, "..") {
-			return &tools.EditOutput{
-				Title:    filepath.ToSlash(absCandidate),
-				Output:   "Format error: path escapes the configured project root",
-				Metadata: map[string]string{"error": "format_error"},
-			}, nil
+		// Resolve absolute path and ensure it is under base
+		absCandidate, rerr := o.resolveAbsWithinBase(p)
+		if rerr != nil {
+			if rerr.Error() == "project root not set" {
+				return &tools.EditOutput{
+					Title:    "",
+					Output:   "Format error: project root not set",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			if strings.Contains(rerr.Error(), "escapes") {
+				return &tools.EditOutput{
+					Title:    filepath.ToSlash(absCandidate),
+					Output:   "Format error: path escapes the configured project root",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			return nil, rerr
 		}
 		// If file exists, enforce prior read
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
-			// Check client history
-			o.fileHistoryMu.Lock()
-			seen := false
-			for _, h := range o.fileOpenHistory {
-				if h == filepath.ToSlash(absCandidate) {
-					seen = true
-					break
-				}
-			}
-			o.fileHistoryMu.Unlock()
-			if !seen {
+			if !o.hasRead(absCandidate) {
 				return &tools.EditOutput{
 					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Policy error: must read the file before editing",

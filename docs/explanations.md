@@ -104,49 +104,6 @@ Suggestions / considerations
 - Consider returning the UpdatedAt from the backend and letting the frontend use server time as the source of truth (it already does), but be explicit about timezone format expectations.
 - If more locales will be added, keep normalizeToSupportedLocale in sync with i18n supported languages.
 
-## Git Diff frontend component
-
-This project includes a small Git diff viewer used in the UI to show changes in a familiar unified/split view. The implementation is a lightweight dialog wrapper around the react-diff-view library and a small theme override. Key facts below are directly verifiable in the source.
-
-Summary
-
-- The component uses react-diff-view to parse and render git patch text into file/hunk views.
-- It currently contains a SAMPLE_DIFF constant used as placeholder content; the parsed result is memoized with useMemo to avoid repeated parsing.
-- The dialog exposes a view toggle (split vs unified) and renders each hunk with the Hunk component from react-diff-view.
-- Styling is provided by a local CSS theme file which sets react-diff-view CSS variables and layout rules.
-
-How it works (evidence-backed)
-
-- Parsing and rendering
-  - The component imports parseDiff, Diff and Hunk from react-diff-view and calls parseDiff(SAMPLE_DIFF) inside useMemo to produce a `files` array (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L4, #L43-L46, #L15-L33).
-  - It selects the first parsed file and renders a <Diff> component with diffType and thunks props, then maps each hunk to a <Hunk /> element (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L78-L90).
-
-- View mode toggle
-  - The component keeps local state viewType ("split" | "unified") and toggles it when the user clicks the button; this value is passed to the <Diff> component as `viewType` (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L41-L51, #L84-L85).
-
-- Placeholder content and memoization
-  - A SAMPLE_DIFF constant in the file contains example patch text; because parseDiff can be expensive, the code memoizes parsing with useMemo (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33, #L43-L46).
-
-- Styling
-  - The component imports a local CSS file diff-view-theme.css which defines CSS variables used by react-diff-view (e.g. --diff-background-color, --diff-text-color) and layout rules to make the diff table full-width (source: frontend/src/components/GitDiffDialog/diff-view-theme.css#L1-L6, #L52-L56).
-
-Dependencies
-
-- The project depends on react-diff-view (see frontend/package.json dependencies) which provides the parseDiff/Diff/Hunk primitives used by the component (source: frontend/package.json#L29-L29).
-
-Inferred / Notes
-
-- Inferred: The current GitDiffDialog is implemented as a self-contained dialog with placeholder diff text (SAMPLE_DIFF). That implies it is intended as a reusable UI building block; to display a real git diff the component would need to accept the patch text as a prop and call parseDiff on that string instead of SAMPLE_DIFF (Inference based on the presence of SAMPLE_DIFF and the lack of a prop for diff content in the current file: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33).
-
-- Inferred: The component does not fetch diffs itself (no network/git calls inside the component). Backend or higher-level UI code should supply the raw git patch string when integrating this dialog into a flows that calculate diffs (no code for fetching diffs found in this component; see git service in internal/services/git_service.go for server-side diff generation: internal/services/git_service.go#L96-L96).
-
-Where to look in code (sources)
-
-- Component implementation: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx (imports, SAMPLE_DIFF, parseDiff usage, view toggle, rendering) — see lines: #L1-L4, #L15-L33, #L41-L51, #L43-L46, #L78-L90.
-- Theme / style overrides: frontend/src/components/GitDiffDialog/diff-view-theme.css (CSS variables and layout rules) — see lines: #L1-L6, #L52-L56.
-- Dependency: frontend/package.json (react-diff-view entry) — see line: #L29-L29.
-- Server-side diff generation (integration point): internal/services/git_service.go (DiffBetweenCommits) — see line: #L96-L96.
-
 # Repo Linking
 
 This section explains how repository linking works in this project. Repo linking associates a documentation repository (e.g., for Markdown docs) with a codebase repository for a given project, enabling features like automatic documentation setup using Fumadocs.
