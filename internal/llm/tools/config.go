@@ -1,9 +1,9 @@
 package tools
 
 import (
-    "errors"
-    "path/filepath"
-    "strings"
+	"errors"
+	"path/filepath"
+	"strings"
 )
 
 // listDirBaseRoot holds an optional base directory for the list directory tools.
@@ -14,27 +14,27 @@ var listDirBaseRoot string
 // will treat as the root for resolving paths.
 // Example: if set to "/repo", an input of "frontend" resolves to "/repo/frontend".
 func SetListDirectoryBaseRoot(root string) {
-    // Normalize and store an absolute, cleaned base root
-    if strings.TrimSpace(root) == "" {
-        listDirBaseRoot = ""
-        return
-    }
-    if abs, err := filepath.Abs(root); err == nil {
-        listDirBaseRoot = abs
-        return
-    }
-    // Fallback to raw value if Abs fails (should be rare)
-    listDirBaseRoot = root
+	// Normalize and store an absolute, cleaned base root
+	if strings.TrimSpace(root) == "" {
+		listDirBaseRoot = ""
+		return
+	}
+	if abs, err := filepath.Abs(root); err == nil {
+		listDirBaseRoot = abs
+		return
+	}
+	// Fallback to raw value if Abs fails (should be rare)
+	listDirBaseRoot = root
 }
 
 // getListDirectoryBaseRoot returns the configured base directory for list tools.
 // Resolution: value set via SetListDirectoryBaseRoot.
 func getListDirectoryBaseRoot() (string, error) {
-    if listDirBaseRoot != "" {
-        return listDirBaseRoot, nil
-    }
+	if listDirBaseRoot != "" {
+		return listDirBaseRoot, nil
+	}
 
-    return "", errors.New("list directory base root not set")
+	return "", errors.New("list directory base root not set")
 }
 
 // safeJoinUnderBase resolves a path under base, returning an absolute path that
@@ -51,7 +51,7 @@ func safeJoinUnderBase(base, p string) (abs string, ok bool) {
 		return "", false
 	}
 	// Join and clean the target
-    candidate := filepath.Join(absBase, p)
+	candidate := filepath.Join(absBase, p)
 	absCandidate, err := filepath.Abs(candidate)
 	if err != nil {
 		return "", false

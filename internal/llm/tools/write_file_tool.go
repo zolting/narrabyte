@@ -9,10 +9,10 @@ import (
 )
 
 type WriteFileInput struct {
-    // FilePath is the absolute path to the file to write.
-    FilePath string `json:"file_path" jsonschema:"description=The absolute path to the file to write"`
-    // Content is the content to write to the file.
-    Content string `json:"content" jsonschema:"description=The content to write to the file"`
+	// FilePath is the absolute path to the file to write.
+	FilePath string `json:"file_path" jsonschema:"description=The absolute path to the file to write"`
+	// Content is the content to write to the file.
+	Content string `json:"content" jsonschema:"description=The content to write to the file"`
 }
 
 type WriteFileOutput struct {
