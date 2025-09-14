@@ -25,7 +25,6 @@ type WriteFileOutput struct {
 // It does not create parent directories; the target directory must already exist.
 func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) {
 
-	println("WriteFile input: ", in.FilePath)
 	if in == nil {
 		return &WriteFileOutput{
 			Title:  "",
