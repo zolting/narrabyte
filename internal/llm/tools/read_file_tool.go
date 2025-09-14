@@ -37,6 +37,7 @@ type ReadFileOutput struct {
 
 // ReadFile reads a text file within the project root with paging and safety checks.
 func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) {
+	println("ReadFile input: ", input.FileRelativePath)
 	if input == nil {
 		return nil, errors.New("input is required")
 	}

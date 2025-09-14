@@ -76,7 +76,7 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 		schema.UserMessage(
 			"Here is an initial listing of the project (capped at 100 files):\n\n" +
 				preview +
-				"\n\nHow does app settings synchronization work? Put your explanation in a file called explanation.md at the project root."),
+				"\n\nHow does the git diff work? Add your explanation by editing the file called explanations.md at the project root. You MUgpt-5ST use the edit tool to edit the file, not the write tool. Keep the current content."),
 	}
 
 	// Build a ReAct agent with the tool-callable model and tools config
@@ -248,15 +248,27 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 	}
 	writeWithPolicy := func(ctx context.Context, in *tools.WriteFileInput) (*tools.WriteFileOutput, error) {
 		if in == nil {
-			return nil, fmt.Errorf("input is required")
+			return &tools.WriteFileOutput{
+				Title:    "",
+				Output:   "Format error: input is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
 		}
 		p := strings.TrimSpace(in.FilePath)
 		if p == "" {
-			return nil, fmt.Errorf("file_path is required")
+			return &tools.WriteFileOutput{
+				Title:    "",
+				Output:   "Format error: file_path is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
 		}
 		base := strings.TrimSpace(o.baseRoot)
 		if base == "" {
-			return nil, fmt.Errorf("project root not set")
+			return &tools.WriteFileOutput{
+				Title:    "",
+				Output:   "Format error: project root not set",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
 		}
 		// Resolve to absolute under base
 		var absPath string
@@ -278,7 +290,11 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 			return nil, err
 		}
 		if strings.HasPrefix(relToBase, "..") {
-			return nil, fmt.Errorf("path escapes the configured project root")
+			return &tools.WriteFileOutput{
+				Title:    filepath.ToSlash(p),
+				Output:   "Format error: path escapes the configured project root",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
 		}
 		// If file exists, enforce prior read
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
@@ -294,7 +310,11 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 			}
 			o.fileHistoryMu.Unlock()
 			if !seen {
-				return nil, fmt.Errorf("policy violation: must read the file before writing")
+				return &tools.WriteFileOutput{
+					Title:    rel,
+					Output:   "Policy error: must read the file before writing",
+					Metadata: map[string]string{"error": "policy_violation"},
+				}, nil
 			}
 		}
 		return tools.WriteFile(ctx, in)
@@ -304,5 +324,88 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 		return nil, err
 	}
 
-	return []tool.BaseTool{listDirectoryTool, readFileTool, globTool, grepTool, writeTool}, nil
+	// Edit tool with policy checks
+	editDesc := tools.ToolDescription("edit_file_tool")
+	if strings.TrimSpace(editDesc) == "" {
+		editDesc = "edit a file using context-aware string replacement"
+	}
+	editWithPolicy := func(ctx context.Context, in *tools.EditInput) (*tools.EditOutput, error) {
+		if in == nil {
+			return &tools.EditOutput{
+				Title:    "",
+				Output:   "Format error: input is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		p := strings.TrimSpace(in.FilePath)
+		if p == "" {
+			return &tools.EditOutput{
+				Title:    "",
+				Output:   "Format error: file_path is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		base := strings.TrimSpace(o.baseRoot)
+		if base == "" {
+			return &tools.EditOutput{
+				Title:    "",
+				Output:   "Format error: project root not set",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		// Resolve to absolute under base
+		var absPath string
+		if filepath.IsAbs(p) {
+			absPath = p
+		} else {
+			absPath = filepath.Join(base, p)
+		}
+		absBase, err := filepath.Abs(base)
+		if err != nil {
+			return nil, err
+		}
+		absCandidate, err := filepath.Abs(absPath)
+		if err != nil {
+			return nil, err
+		}
+		relToBase, err := filepath.Rel(absBase, absCandidate)
+		if err != nil {
+			return nil, err
+		}
+		if strings.HasPrefix(relToBase, "..") {
+			return &tools.EditOutput{
+				Title:    filepath.ToSlash(p),
+				Output:   "Format error: path escapes the configured project root",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		// If file exists, enforce prior read
+		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
+			rel := filepath.ToSlash(relToBase)
+			// Check client history
+			o.fileHistoryMu.Lock()
+			seen := false
+			for _, h := range o.fileOpenHistory {
+				if h == rel || h == filepath.ToSlash(absCandidate) {
+					seen = true
+					break
+				}
+			}
+			o.fileHistoryMu.Unlock()
+			if !seen {
+				return &tools.EditOutput{
+					Title:    rel,
+					Output:   "Policy error: must read the file before editing",
+					Metadata: map[string]string{"error": "policy_violation"},
+				}, nil
+			}
+		}
+		return tools.Edit(ctx, in)
+	}
+	editTool, err := utils.InferTool("edit_tool", editDesc, editWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	return []tool.BaseTool{listDirectoryTool, readFileTool, globTool, grepTool, writeTool, editTool}, nil
 }
