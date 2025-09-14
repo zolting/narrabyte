@@ -43,6 +43,17 @@ func TestRepoLinkService_Register_Success(t *testing.T) {
 	assert.Equal(t, codeDir, link.CodebaseRepo)
 }
 
+func TestRepoLinkService_Register_MissingGitRepo(t *testing.T) {
+	mockRepo := &mocks.RepoLinkRepositoryMock{}
+	service := services.NewRepoLinkService(mockRepo)
+	ctx := context.Background()
+
+	link, err := service.Register(ctx, "name", "docs", "code")
+	assert.Nil(t, link)
+	assert.Error(t, err)
+	assert.Equal(t, "missing_git_repo: documentation", err.Error())
+}
+
 func TestRepoLinkService_Register_MissingDocumentationRepo(t *testing.T) {
 	fumaTest := services.FumadocsService{}
 	mockRepo := &mocks.RepoLinkRepositoryMock{}

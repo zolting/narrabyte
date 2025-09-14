@@ -55,7 +55,7 @@ function Home() {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
-				data.codebaseDirectory
+				data.codebaseDirectory,
 			);
 			alert(t("home.linkSuccess"));
 			setIsAddProjectOpen(false);
@@ -71,7 +71,26 @@ function Home() {
 						`${which} n'est pas un dépôt git. Voulez-vous en créer un ?`,
 					)
 				) {
-					// TODO: Call function to create a git repo in the specified directory
+					// Determine which directory is missing .git
+					const dir = errorMsg.endsWith("documentation")
+						? data.docDirectory
+						: data.codebaseDirectory;
+
+					try {
+						await InitGitRepo(dir);
+						// After initializing, try linking again
+						await LinkRepositories(
+							data.name,
+							data.docDirectory,
+							data.codebaseDirectory,
+						);
+						alert(t("home.linkSuccess"));
+						setIsAddProjectOpen(false);
+						setLastProject(data);
+					} catch (initError) {
+						console.error("Error initializing git repo:", initError);
+						alert("Erreur lors de l'initialisation du dépôt git.");
+					}
 					return;
 				} else {
 					return;
