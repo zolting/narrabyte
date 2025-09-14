@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"narrabyte/internal/llm/tools"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ type OpenAIClient struct {
 	Key             string
 	fileHistoryMu   sync.Mutex
 	fileOpenHistory []string
+	baseRoot        string
 }
 
 func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
@@ -46,6 +48,7 @@ func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 // Example: SetListDirectoryBaseRoot("/path/to/project") then tool input "frontend"
 // resolves to "/path/to/project/frontend".
 func (o *OpenAIClient) SetListDirectoryBaseRoot(root string) {
+	o.baseRoot = root
 	tools.SetListDirectoryBaseRoot(root)
 }
 
@@ -57,7 +60,7 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 		return "", err
 	}
 
-	tools.SetListDirectoryBaseRoot(codebasePath)
+	o.SetListDirectoryBaseRoot(codebasePath)
 
 	// Create an initial preview of the repo tree for context (textual)
 	preview, err := tools.ListDirectory(ctx, &tools.ListLSInput{
@@ -73,7 +76,7 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 		schema.UserMessage(
 			"Here is an initial listing of the project (capped at 100 files):\n\n" +
 				preview +
-				"\n\nHow does app settings synchronization work?"),
+				"\n\nHow does app settings synchronization work? Put your explanation in a file called explanation.md at the project root."),
 	}
 
 	// Build a ReAct agent with the tool-callable model and tools config
@@ -238,5 +241,68 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 		return nil, err
 	}
 
-	return []tool.BaseTool{listDirectoryTool, readFileTool, globTool, grepTool}, nil
+	// Write file tool with policy checks
+	writeDesc := tools.ToolDescription("write_file_tool")
+	if strings.TrimSpace(writeDesc) == "" {
+		writeDesc = "write or create a file within the project"
+	}
+	writeWithPolicy := func(ctx context.Context, in *tools.WriteFileInput) (*tools.WriteFileOutput, error) {
+		if in == nil {
+			return nil, fmt.Errorf("input is required")
+		}
+		p := strings.TrimSpace(in.FilePath)
+		if p == "" {
+			return nil, fmt.Errorf("file_path is required")
+		}
+		base := strings.TrimSpace(o.baseRoot)
+		if base == "" {
+			return nil, fmt.Errorf("project root not set")
+		}
+		// Resolve to absolute under base
+		var absPath string
+		if filepath.IsAbs(p) {
+			absPath = p
+		} else {
+			absPath = filepath.Join(base, p)
+		}
+		absBase, err := filepath.Abs(base)
+		if err != nil {
+			return nil, err
+		}
+		absCandidate, err := filepath.Abs(absPath)
+		if err != nil {
+			return nil, err
+		}
+		relToBase, err := filepath.Rel(absBase, absCandidate)
+		if err != nil {
+			return nil, err
+		}
+		if strings.HasPrefix(relToBase, "..") {
+			return nil, fmt.Errorf("path escapes the configured project root")
+		}
+		// If file exists, enforce prior read
+		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
+			rel := filepath.ToSlash(relToBase)
+			// Check client history
+			o.fileHistoryMu.Lock()
+			seen := false
+			for _, h := range o.fileOpenHistory {
+				if h == rel || h == filepath.ToSlash(absCandidate) {
+					seen = true
+					break
+				}
+			}
+			o.fileHistoryMu.Unlock()
+			if !seen {
+				return nil, fmt.Errorf("policy violation: must read the file before writing")
+			}
+		}
+		return tools.WriteFile(ctx, in)
+	}
+	writeTool, err := utils.InferTool("write_file_tool", writeDesc, writeWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	return []tool.BaseTool{listDirectoryTool, readFileTool, globTool, grepTool, writeTool}, nil
 }
