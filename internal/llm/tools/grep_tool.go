@@ -265,7 +265,6 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 		if err != nil {
 			return nil
 		}
-		defer f.Close()
 
 		scanner := bufio.NewScanner(f)
 		// Raise the scanner buffer limit for long lines
@@ -292,6 +291,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 				})
 			}
 		}
+		f.Close()
 		// ignore scanner errors for now; continue
 		return nil
 	})
