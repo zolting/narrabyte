@@ -9,6 +9,7 @@ import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Init } from "../../wailsjs/go/services/GitService";
 import { LinkRepositories } from "../../wailsjs/go/services/repoLinkService";
 import { Greet } from "../../wailsjs/go/services/userService";
 import DemoEvents from "../components/DemoEvents";
@@ -77,7 +78,7 @@ function Home() {
 						: data.codebaseDirectory;
 
 					try {
-						await InitGitRepo(dir);
+						await Init(dir);
 						// After initializing, try linking again
 						await LinkRepositories(
 							data.name,

@@ -44,11 +44,14 @@ func TestRepoLinkService_Register_Success(t *testing.T) {
 }
 
 func TestRepoLinkService_Register_MissingGitRepo(t *testing.T) {
+	fumaTest := services.FumadocsService{}
 	mockRepo := &mocks.RepoLinkRepositoryMock{}
-	service := services.NewRepoLinkService(mockRepo)
-	ctx := context.Background()
+	service := services.NewRepoLinkService(mockRepo, fumaTest)
 
-	link, err := service.Register(ctx, "name", "docs", "code")
+	ctx := context.Background()
+	service.Startup(ctx)
+
+	link, err := service.Register("name", "docs", "code")
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "missing_git_repo: documentation", err.Error())
