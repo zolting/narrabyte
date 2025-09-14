@@ -49,14 +49,13 @@ func (o *OpenAIClient) SetListDirectoryBaseRoot(root string) {
 	tools.SetListDirectoryBaseRoot(root)
 }
 
-
 func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath string) (string, error) {
-    // Initialize tools for this session
-    allTools, err := o.InitTools()
-    if err != nil {
-        log.Printf("Error initializing tools: %v", err)
-        return "", err
-    }
+	// Initialize tools for this session
+	allTools, err := o.InitTools()
+	if err != nil {
+		log.Printf("Error initializing tools: %v", err)
+		return "", err
+	}
 
 	tools.SetListDirectoryBaseRoot(codebasePath)
 
@@ -78,12 +77,12 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 	}
 
 	// Build a ReAct agent with the tool-callable model and tools config
-    agent, err := react.NewAgent(ctx, &react.AgentConfig{
-        ToolCallingModel: &o.ChatModel,
-        ToolsConfig: compose.ToolsNodeConfig{
-            Tools: allTools,
-        },
-        MessageModifier: func(ctx context.Context, input []*schema.Message) []*schema.Message {
+	agent, err := react.NewAgent(ctx, &react.AgentConfig{
+		ToolCallingModel: &o.ChatModel,
+		ToolsConfig: compose.ToolsNodeConfig{
+			Tools: allTools,
+		},
+		MessageModifier: func(ctx context.Context, input []*schema.Message) []*schema.Message {
 			// Add a concise system persona before user / history
 			res := make([]*schema.Message, 0, len(input)+1)
 			res = append(res, schema.SystemMessage(
@@ -180,44 +179,64 @@ func (o *OpenAIClient) FileOpenHistory() []string {
 	defer o.fileHistoryMu.Unlock()
 	out := make([]string, len(o.fileOpenHistory))
 	copy(out, o.fileOpenHistory)
-    return out
+	return out
 }
 
 // InitTools initializes and returns all available tools for the current session.
 // It resets the file-open history and wraps certain tools (e.g., read_file_tool)
 // to record useful session metadata.
 func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
-    // Reset per-session file history when initializing tools
-    o.ResetFileOpenHistory()
+	// Reset per-session file history when initializing tools
+	o.ResetFileOpenHistory()
 
-    // List directory tool
-    lsDesc := tools.ToolDescription("list_directory_tool")
-    if strings.TrimSpace(lsDesc) == "" {
-        lsDesc = "lists the contents of a directory"
-    }
-    listDirectoryTool, err := utils.InferTool("list_directory_tool", lsDesc, tools.ListDirectory)
-    if err != nil {
-        return nil, err
-    }
+	// List directory tool
+	lsDesc := tools.ToolDescription("list_directory_tool")
+	if strings.TrimSpace(lsDesc) == "" {
+		lsDesc = "lists the contents of a directory"
+	}
+	listDirectoryTool, err := utils.InferTool("list_directory_tool", lsDesc, tools.ListDirectory)
+	if err != nil {
+		return nil, err
+	}
 
-    // Read file tool with history capture
-    readFileWithHistory := func(ctx context.Context, in *tools.ReadFileInput) (*tools.ReadFileOutput, error) {
-        out, err := tools.ReadFile(ctx, in)
-        if err == nil && out != nil {
-            if out.Metadata == nil || out.Metadata["error"] == "" {
-                o.recordOpenedFile(out.Title)
-            }
-        }
-        return out, err
-    }
-    rfDesc := tools.ToolDescription("read_file_tool")
-    if strings.TrimSpace(rfDesc) == "" {
-        rfDesc = "reads the contents of a file"
-    }
-    readFileTool, err := utils.InferTool("read_file_tool", rfDesc, readFileWithHistory)
-    if err != nil {
-        return nil, err
-    }
+	// Read file tool with history capture
+	readFileWithHistory := func(ctx context.Context, in *tools.ReadFileInput) (*tools.ReadFileOutput, error) {
+		out, err := tools.ReadFile(ctx, in)
+		if err == nil && out != nil {
+			if out.Metadata == nil || out.Metadata["error"] == "" {
+				o.recordOpenedFile(out.Title)
+			}
+		}
+		return out, err
+	}
+	rfDesc := tools.ToolDescription("read_file_tool")
+	if strings.TrimSpace(rfDesc) == "" {
+		rfDesc = "reads the contents of a file"
+	}
+	readFileTool, err := utils.InferTool("read_file_tool", rfDesc, readFileWithHistory)
+	if err != nil {
+		return nil, err
+	}
 
-    return []tool.BaseTool{listDirectoryTool, readFileTool}, nil
+	// Glob tool
+	globDesc := tools.ToolDescription("glob_tool")
+	if strings.TrimSpace(globDesc) == "" {
+		globDesc = "find files by glob pattern"
+	}
+	globTool, err := utils.InferTool("glob_tool", globDesc, tools.Glob)
+	if err != nil {
+		return nil, err
+	}
+
+	// Grep tool
+	grepDesc := tools.ToolDescription("grep_tool")
+	if strings.TrimSpace(grepDesc) == "" {
+		grepDesc = "search file contents by regex"
+	}
+	grepTool, err := utils.InferTool("grep_tool", grepDesc, tools.Grep)
+	if err != nil {
+		return nil, err
+	}
+
+	return []tool.BaseTool{listDirectoryTool, readFileTool, globTool, grepTool}, nil
 }

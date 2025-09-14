@@ -202,8 +202,6 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 	}
 	rel = filepath.ToSlash(rel)
 
-	println(b.String())
-
 	return &ReadFileOutput{
 		Title:  rel,
 		Output: b.String(),
