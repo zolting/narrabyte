@@ -12,8 +12,8 @@ import (
 
 // EditInput defines parameters for the edit tool.
 type EditInput struct {
-    // FilePath is the absolute path to the file to modify.
-    FilePath string `json:"file_path" jsonschema:"description=The absolute path to the file to modify"`
+	// FilePath is the absolute path to the file to modify.
+	FilePath string `json:"file_path" jsonschema:"description=The absolute path to the file to modify"`
 	// OldString is the text to replace. If empty, the entire file content will be replaced with NewString.
 	OldString string `json:"old_string" jsonschema:"description=The text to replace (empty to overwrite entire file)"`
 	// NewString is the replacement text.
@@ -31,7 +31,6 @@ type EditOutput struct {
 
 // Edit applies a context-aware replacement to a single file under the configured project root.
 func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
-	println("EditFile input: ", in.FilePath, in.OldString, in.NewString, in.ReplaceAll)
 	if in == nil {
 		return &EditOutput{
 			Title:  "",
@@ -90,54 +89,65 @@ func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
 		if err != nil {
 			return nil, err
 		}
-    if strings.HasPrefix(relToBase, "..") {
-        return &EditOutput{
-            Title:  filepath.ToSlash(absCandidate),
-            Output: "Format error: file is not in the configured project root",
-            Metadata: map[string]string{
-                "error": "format_error",
-            },
-        }, nil
-    }
+		if strings.HasPrefix(relToBase, "..") {
+			return &EditOutput{
+				Title:  filepath.ToSlash(absCandidate),
+				Output: "Format error: file is not in the configured project root",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
+		}
 		absPath = absCandidate
 	} else {
 		abs, ok := safeJoinUnderBase(base, p)
 		if !ok {
-        return &EditOutput{
-            Title:  filepath.ToSlash(filepath.Join(base, p)),
-            Output: "Format error: path escapes the configured project root",
-            Metadata: map[string]string{
-                "error": "format_error",
-            },
-        }, nil
-    }
+			return &EditOutput{
+				Title:  filepath.ToSlash(filepath.Join(base, p)),
+				Output: "Format error: path escapes the configured project root",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
+		}
 		absPath = abs
 	}
 
 	// Ensure parent directory exists
 	dir := filepath.Dir(absPath)
 	info, err := os.Stat(dir)
-    if err != nil {
-        if os.IsNotExist(err) {
-            return &EditOutput{
-                Title:  filepath.ToSlash(absPath),
-                Output: fmt.Sprintf("Format error: directory does not exist: %s", dir),
-                Metadata: map[string]string{
-                    "error": "format_error",
-                },
-            }, nil
-        }
-        return nil, err
-    }
-    if !info.IsDir() {
-        return &EditOutput{
-            Title:  filepath.ToSlash(absPath),
-            Output: fmt.Sprintf("Format error: not a directory: %s", dir),
-            Metadata: map[string]string{
-                "error": "format_error",
-            },
-        }, nil
-    }
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &EditOutput{
+				Title:  filepath.ToSlash(absPath),
+				Output: fmt.Sprintf("Format error: directory does not exist: %s", dir),
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
+		}
+		return nil, err
+	}
+	if !info.IsDir() {
+		return &EditOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: fmt.Sprintf("Format error: not a directory: %s", dir),
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
+	}
+
+	// Check if target path is a directory
+	if st, err := os.Stat(absPath); err == nil && st.IsDir() {
+		return &EditOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: fmt.Sprintf("Format error: cannot edit directory: %s", absPath),
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
+	}
 
 	// Read old content (if file exists). If not, old content is empty.
 	var existed bool
@@ -145,15 +155,15 @@ func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
 	if st, err := os.Stat(absPath); err == nil && !st.IsDir() {
 		existed = true
 		// Binary check for safety
-        if bin, berr := isBinaryFile(absPath); berr == nil && bin {
-            return &EditOutput{
-                Title:  filepath.ToSlash(absPath),
-                Output: fmt.Sprintf("Format error: cannot edit binary file: %s", absPath),
-                Metadata: map[string]string{
-                    "error": "format_error",
-                },
-            }, nil
-        }
+		if bin, berr := isBinaryFile(absPath); berr == nil && bin {
+			return &EditOutput{
+				Title:  filepath.ToSlash(absPath),
+				Output: fmt.Sprintf("Format error: cannot edit binary file: %s", absPath),
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
+		}
 		data, rerr := os.ReadFile(absPath)
 		if rerr != nil {
 			return nil, rerr
@@ -179,10 +189,10 @@ func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
 		var out string
 		out, replacedCount, err = replace(oldContent, in.OldString, in.NewString, in.ReplaceAll)
 		if err != nil {
-            // Convert search errors into structured tool output
-            msg := err.Error()
-            code := "input_error"
-            switch msg {
+			// Convert search errors into structured tool output
+			msg := err.Error()
+			code := "input_error"
+			switch msg {
 			case "old_string not found in content", "oldString not found in content":
 				code = "search_not_found"
 			case "old_string found multiple times and requires more code context to uniquely identify the intended match",
@@ -191,15 +201,15 @@ func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
 			case "old_string and new_string must be different":
 				code = "format_error"
 			}
-            return &EditOutput{
-                Title:  filepath.ToSlash(absPath),
-                Output: "Edit error: " + msg,
-                Metadata: map[string]string{
-                    "error":    code,
-                    "filepath": filepath.ToSlash(absPath),
-                },
-            }, nil
-        }
+			return &EditOutput{
+				Title:  filepath.ToSlash(absPath),
+				Output: "Edit error: " + msg,
+				Metadata: map[string]string{
+					"error":    code,
+					"filepath": filepath.ToSlash(absPath),
+				},
+			}, nil
+		}
 		newContent = out
 		replaced = replacedCount > 0
 	}
@@ -212,12 +222,12 @@ func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
 	// Build a simple unified diff and trim it for readability
 	diff := trimDiff(createTwoFilesPatch(absPath, absPath, oldContent, newContent))
 
-    // Output message
-    verb := "Edited"
-    if !existed {
-        verb = "Created"
-    }
-    outMsg := fmt.Sprintf("%s file: %s", verb, filepath.ToSlash(absPath))
+	// Output message
+	verb := "Edited"
+	if !existed {
+		verb = "Created"
+	}
+	outMsg := fmt.Sprintf("%s file: %s", verb, filepath.ToSlash(absPath))
 	if replacedCount > 1 {
 		outMsg += fmt.Sprintf(" (replaced %d occurrences)", replacedCount)
 	} else if replacedCount == 1 {
@@ -226,18 +236,18 @@ func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
 		outMsg += " (no changes)"
 	}
 
-    meta := map[string]string{
-        "filepath":    filepath.ToSlash(absPath),
-        "replaced":    fmt.Sprintf("%v", replaced),
-        "occurrences": fmt.Sprintf("%d", replacedCount),
-        "diff":        diff,
-    }
+	meta := map[string]string{
+		"filepath":    filepath.ToSlash(absPath),
+		"replaced":    fmt.Sprintf("%v", replaced),
+		"occurrences": fmt.Sprintf("%d", replacedCount),
+		"diff":        diff,
+	}
 
-    return &EditOutput{
-        Title:    filepath.ToSlash(absPath),
-        Output:   outMsg,
-        Metadata: meta,
-    }, nil
+	return &EditOutput{
+		Title:    filepath.ToSlash(absPath),
+		Output:   outMsg,
+		Metadata: meta,
+	}, nil
 }
 
 // --- Replacement logic (ported and adapted) ---
