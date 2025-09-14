@@ -2,11 +2,9 @@ package client
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"io"
 	"log"
 	"narrabyte/internal/llm/tools"
+	"narrabyte/internal/utils"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,11 +12,10 @@ import (
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
 
+	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/components/tool"
-	"github.com/cloudwego/eino/components/tool/utils"
+	einoUtils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
-	"github.com/cloudwego/eino/flow/agent/react"
-	"github.com/cloudwego/eino/schema"
 )
 
 type OpenAIClient struct {
@@ -52,6 +49,22 @@ func (o *OpenAIClient) SetListDirectoryBaseRoot(root string) {
 	tools.SetListDirectoryBaseRoot(root)
 }
 
+// loadSystemPrompt loads the system instruction from the demo.txt file
+func (o *OpenAIClient) loadSystemPrompt() (string, error) {
+	// Get the project root by finding go.mod
+	projectRoot, err := utils.FindProjectRoot()
+	if err != nil {
+		return "", err
+	}
+
+	promptPath := filepath.Join(projectRoot, "internal", "llm", "client", "prompts", "demo.txt")
+	data, err := os.ReadFile(promptPath)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath string) (string, error) {
 	// Initialize tools for this session
 	allTools, err := o.InitTools()
@@ -62,6 +75,13 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 
 	o.SetListDirectoryBaseRoot(codebasePath)
 
+	// Load system prompt from demo.txt
+	systemPrompt, err := o.loadSystemPrompt()
+	if err != nil {
+		log.Printf("Error loading system prompt: %v", err)
+		return "", err
+	}
+
 	// Create an initial preview of the repo tree for context (textual)
 	preview, err := tools.ListDirectory(ctx, &tools.ListLSInput{
 		Path: codebasePath,
@@ -71,29 +91,17 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 		return "", err
 	}
 
-	// Messages to drive the agent
-	messages := []*schema.Message{
-		schema.UserMessage(
-			"Here is an initial listing of the project (capped at 100 files):\n\n" +
-				preview +
-				"\n\nHow does the git diff work? Add your explanation by editing the file called explanations.md at the project root. You MUgpt-5ST use the edit tool to edit the file, not the write tool. Keep the current content."),
-	}
-
 	// Build a ReAct agent with the tool-callable model and tools config
-	agent, err := react.NewAgent(ctx, &react.AgentConfig{
-		ToolCallingModel: &o.ChatModel,
-		ToolsConfig: compose.ToolsNodeConfig{
-			Tools: allTools,
+	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+		Model: &o.ChatModel,
+		ToolsConfig: adk.ToolsConfig{
+			ToolsNodeConfig: compose.ToolsNodeConfig{
+				Tools: allTools,
+			},
 		},
-		MessageModifier: func(ctx context.Context, input []*schema.Message) []*schema.Message {
-			// Add a concise system persona before user / history
-			res := make([]*schema.Message, 0, len(input)+1)
-			res = append(res, schema.SystemMessage(
-				"You are a helpful codebase assistant. The user wants to understand how the codebase works. Use the tools at your disposal to answer the user's question."))
-			res = append(res, input...)
-			return res
-		},
-		MaxStep: 100,
+		Name:        "Codebase Assistant",
+		Description: "An agent that helps the user understand a codebase.",
+		Instruction: systemPrompt,
 	})
 
 	if err != nil {
@@ -101,47 +109,29 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 		return "", err
 	}
 
-	// Stream the agent and log every stream event
-	reader, err := agent.Stream(ctx, messages)
-	if err != nil {
-		log.Printf("Error starting react agent stream: %v", err)
-		return "", err
-	}
-	if reader == nil {
-		return "", fmt.Errorf("agent returned nil stream reader")
-	}
-	defer reader.Close()
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
+	iter := runner.Query(ctx, "Here is an initial listing of the project (capped at 100 files):\n\n"+
+		preview+
+		"\n\nHow does the git diff frontend component work? Add your explanation by editing the file called explanations.md at the project root, between App Settings and Repo Linking. You must use the edit tool to edit the file, not the write tool. Keep the current content.")
 
-	var finalContent string
-
+	var lastMessage string
 	for {
-		msg, recvErr := reader.Recv()
-		if recvErr != nil {
-			if errors.Is(recvErr, io.EOF) {
-				// finish
-				break
-			}
-			// error during streaming
-			log.Printf("stream recv error: %v", recvErr)
-			return "", recvErr
+		event, ok := iter.Next()
+		if !ok {
+			break
 		}
-
-		if len(msg.ReasoningContent) > 0 {
-			println("REASONING CONTENT: ", msg.ReasoningContent)
+		if event.Err != nil {
+			log.Fatal(event.Err)
 		}
-
-		// Accumulate assistant content for the final return value
-		if msg != nil && msg.Role == schema.Assistant && len(msg.Content) > 0 {
-			finalContent += msg.Content
+		msg, err := event.Output.MessageOutput.GetMessage()
+		if err != nil {
+			log.Fatal(err)
 		}
+		lastMessage = msg.Content
 	}
 
-	if finalContent == "" {
-		return "", fmt.Errorf("no assistant content produced during streaming")
-	}
-
-	println("OUT MESSAGE CONTENT (streamed): \n\n", finalContent)
-	return finalContent, nil
+	log.Printf("Last event message: %s", lastMessage)
+	return "", nil
 }
 
 // recordOpenedFile appends a file path to the session history if not already present.
@@ -197,7 +187,7 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 	if strings.TrimSpace(lsDesc) == "" {
 		lsDesc = "lists the contents of a directory"
 	}
-	listDirectoryTool, err := utils.InferTool("list_directory_tool", lsDesc, tools.ListDirectory)
+	listDirectoryTool, err := einoUtils.InferTool("list_directory_tool", lsDesc, tools.ListDirectory)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +206,7 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 	if strings.TrimSpace(rfDesc) == "" {
 		rfDesc = "reads the contents of a file"
 	}
-	readFileTool, err := utils.InferTool("read_file_tool", rfDesc, readFileWithHistory)
+	readFileTool, err := einoUtils.InferTool("read_file_tool", rfDesc, readFileWithHistory)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +216,7 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 	if strings.TrimSpace(globDesc) == "" {
 		globDesc = "find files by glob pattern"
 	}
-	globTool, err := utils.InferTool("glob_tool", globDesc, tools.Glob)
+	globTool, err := einoUtils.InferTool("glob_tool", globDesc, tools.Glob)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +226,7 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 	if strings.TrimSpace(grepDesc) == "" {
 		grepDesc = "search file contents by regex"
 	}
-	grepTool, err := utils.InferTool("grep_tool", grepDesc, tools.Grep)
+	grepTool, err := einoUtils.InferTool("grep_tool", grepDesc, tools.Grep)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +309,7 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 		}
 		return tools.WriteFile(ctx, in)
 	}
-	writeTool, err := utils.InferTool("write_file_tool", writeDesc, writeWithPolicy)
+	writeTool, err := einoUtils.InferTool("write_file_tool", writeDesc, writeWithPolicy)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +392,7 @@ func (o *OpenAIClient) InitTools() ([]tool.BaseTool, error) {
 		}
 		return tools.Edit(ctx, in)
 	}
-	editTool, err := utils.InferTool("edit_tool", editDesc, editWithPolicy)
+	editTool, err := einoUtils.InferTool("edit_tool", editDesc, editWithPolicy)
 	if err != nil {
 		return nil, err
 	}

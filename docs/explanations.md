@@ -104,6 +104,51 @@ Suggestions / considerations
 - Consider returning the UpdatedAt from the backend and letting the frontend use server time as the source of truth (it already does), but be explicit about timezone format expectations.
 - If more locales will be added, keep normalizeToSupportedLocale in sync with i18n supported languages.
 
+# Git Diff Viewer (Frontend)
+
+This section documents how the frontend renders a Git-style diff in a modal dialog using a lightweight viewer component.
+
+High-level summary
+
+- The Git diff UI is implemented as a reusable dialog component that parses unified git-diff text and renders it using react-diff-view (Diff / Hunk components).
+- It currently uses a bundled SAMPLE_DIFF string as a placeholder; in a full implementation the component would accept diff text or file patches from the app state or an API.
+- Users can toggle the view between "unified" and "split" (side-by-side) rendering.
+
+Relevant file
+
+- frontend/src/components/GitDiffDialog/GitDiffDialog.tsx (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L6,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L43-L46,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L77-L90)
+
+Behavior and UI
+
+- The component is a Dialog wrapper that uses DialogTrigger/DialogContent from the local UI primitives to show a modal diff viewer. (see component render and Dialog usage) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L53-L61,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L76-L85)
+- parseDiff(SAMPLE_DIFF) is called and memoized to produce a files[] structure consumed by the Diff component from react-diff-view. (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L43-L46)
+- The top bar shows the file path and a toggle Button that switches the viewType state between "unified" and "split". (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L62-L71)
+- Diff receives props: diffType (file.type), thunks (file.hunks), viewType and renders Hunk components for each hunk. (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L78-L89)
+
+Data flow and extension points
+
+- Placeholder diff: The current implementation uses a hard-coded SAMPLE_DIFF string (for demo/development). The natural integration points are:
+  - Accepting a `diffText` prop on GitDiffDialog and calling parseDiff(diffText).
+  - Passing the selected file/patch from the parent (for multi-file diffs) rather than always using files[0].
+  - Loading diffs from a backend RPC or Git integration and sanitizing them before rendering.
+  (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L44-L46)
+
+Accessibility and theming
+
+- The component imports react-diff-view styles and a local diff-view-theme.css for theming. Ensure the theme CSS provides sufficient contrast for added/removed lines. (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L4-L5)
+- The modal uses existing Dialog primitives which usually handle focus trapping; verify keyboard navigation for the toggle and diff content.
+
+Limitations and notes
+
+- Currently the component always renders the first file from parseDiff(files)[0]. For multi-file diffs, add file list UI and selection.
+- SAMPLE_DIFF is only for demonstration; production diffs may contain large patches — consider virtualizing hunk rendering or limiting default expansion for performance.
+- The component does not perform any security-sensitive operations, but if diff text is loaded from external sources, avoid rendering any embedded HTML and treat content as plain text.
+
+Where to look in code
+
+- Component implementation: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx (entry points and render) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L6,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L39-L46,frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L77-L90)
+- Styles: frontend/src/components/GitDiffDialog/diff-view-theme.css (imported; review for color tokens) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L4-L5)
+
 # Repo Linking
 
 This section explains how repository linking works in this project. Repo linking associates a documentation repository (e.g., for Markdown docs) with a codebase repository for a given project, enabling features like automatic documentation setup using Fumadocs.
@@ -173,82 +218,3 @@ Implements `RepoLinkService`:
 - Service depends on injected `FumadocsService`; ensure it's available.
 - For production, add validation for repo URLs (e.g., GitHub format).
 - Tests exist in `internal/tests/unit-tests/repo_link_service_test.go` covering registration errors.
-
-# Git Diff Viewer
-
-This section explains how the git diff viewer works in this project. It allows users to visualize differences between git commits in a dialog interface.
-
-## High-level Summary
-
-- Backend (Go): The `GitService` computes raw diff patches between two commits using the go-git library.
-- Frontend (React): The `GitDiffDialog` component renders the diff using the `react-diff-view` library, supporting unified and split views.
-- Integration: The frontend would call backend RPCs (via Wails bindings) to fetch diffs, which are then displayed in the dialog.
-- Currently, the component uses a sample diff for demonstration; full integration fetches real diffs from the backend.
-
-## Backend (Go)
-
-Relevant files:
-- `internal/services/git_service.go`
-
-### GitService
-- `DiffBetweenCommits(repo *git.Repository, hash1, hash2 string) (string, error)`:
-  - Retrieves commit objects for the given hashes.
-  - Gets the trees associated with each commit.
-  - Computes the patch using `tree1.Patch(tree2)`.
-  - Encodes the patch to a unified diff string using `patch.Encode(&buf)`.
-  - Returns the diff string.
-- This method provides the raw git diff output, which can be sent to the frontend.
-
-Other relevant methods:
-- `Open(path string)`: Opens a git repository.
-- `LatestCommit(repoPath string)`: Gets the latest commit hash.
-- The service uses `github.com/go-git/go-git/v5` for all git operations.
-
-## Frontend (TypeScript / React)
-
-Relevant files:
-- `frontend/src/components/GitDiffDialog/GitDiffDialog.tsx`
-- `frontend/src/components/GitDiffDialog/diff-view-theme.css` (custom styling)
-
-### GitDiffDialog Component
-- A dialog component built with shadcn/ui `Dialog`.
-- Props: `children` (React node for the trigger button or element).
-- State: `viewType` ("unified" or "split").
-- Uses `useMemo` to parse the diff string into files and hunks via `parseDiff` from `react-diff-view`.
-- Renders:
-  - Dialog header with title (translated via i18n).
-  - File path display and toggle button for view type.
-  - `<Diff>` component from `react-diff-view` to render the diff:
-    - `diffType`: e.g., "modify".
-    - `hunks`: Array of diff hunks.
-    - `viewType`: Unified or split.
-    - Maps over hunks to render each with `<Hunk>`.
-- Styling: Imports `react-diff-view/style/index.css` and custom `diff-view-theme.css` for theme integration (e.g., with Tailwind/shadcn classes like `text-foreground`).
-- Currently uses a hardcoded `SAMPLE_DIFF` (a simple JS file modification example).
-- In full use: The diff string would be passed as a prop or fetched via a store/service calling the backend.
-
-### Dependencies
-- `react-diff-view`: Handles parsing unified diffs and rendering with syntax highlighting, line numbers, and change indicators.
-- `react-i18next`: For translations (e.g., "Git Diff", "Inline View", "Split View").
-
-## Integration and Usage Flow
-1. User interacts with a UI element (e.g., in a commit history or branch comparison view) that triggers the `GitDiffDialog`.
-2. Frontend calls backend `GitService.DiffBetweenCommits` via Wails-generated JS binding (e.g., from `wailsjs/go/services/GitService`), passing repository path and commit hashes.
-3. Backend computes and returns the diff string.
-4. Frontend parses the diff and opens the dialog, rendering the `<Diff>` view.
-5. User can toggle between unified (inline changes) and split (side-by-side) views.
-6. Dialog is responsive, with max height/width for large diffs.
-
-## Notes and Considerations
-- **Placeholder Implementation**: The current `GitDiffDialog` uses a static sample diff. To make it functional, integrate with a git service store or direct RPC call to fetch real diffs.
-- **Performance**: For large diffs, consider lazy loading or pagination of hunks. `react-diff-view` optimizes rendering, but very large files may need truncation.
-- **Error Handling**: Backend errors (e.g., invalid hashes) should be propagated to the frontend and displayed in the dialog.
-- **Customization**: The library supports custom `lineClassName` and `optimizeSelection`; extend for features like line selection or search.
-- **Testing**: Integration tests in `internal/tests/integration-tests/git_service_test.go` cover diff computation.
-- **Future Enhancements**: Add support for diffing working tree vs. commit, or staging area previews. Ensure repo validation via `ValidateRepository` before diffing.
-
-Where to look in code:
-- Backend diff logic: `internal/services/git_service.go` (DiffBetweenCommits).
-- Frontend rendering: `frontend/src/components/GitDiffDialog/GitDiffDialog.tsx`.
-- Git service tests: `internal/tests/integration-tests/git_service_test.go`.
-
