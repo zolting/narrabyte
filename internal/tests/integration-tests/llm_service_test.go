@@ -27,7 +27,7 @@ func TestExploreCodebase(t *testing.T) {
 		t.Fatalf("Error finding project root: %v", err)
 	}
 
-	result, err := llmClient.InvokeListDirectoryDemo(testCtx, root)
+	result, err := llmClient.ExploreCodebaseDemo(testCtx, root)
 	utils.NilError(t, err)
 	assert.Contains(t, result, " ")
 }

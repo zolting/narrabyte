@@ -3,6 +3,7 @@ package tools
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 )
 
 // listDirBaseRoot holds an optional base directory for the list directory tools.
@@ -10,17 +11,24 @@ import (
 var listDirBaseRoot string
 
 // SetListDirectoryBaseRoot sets the base directory that ListDirectory tools
-// will treat as the root for resolving relative paths.
+// will treat as the root for resolving paths.
 // Example: if set to "/repo", an input of "frontend" resolves to "/repo/frontend".
 func SetListDirectoryBaseRoot(root string) {
+	// Normalize and store an absolute, cleaned base root
+	if strings.TrimSpace(root) == "" {
+		listDirBaseRoot = ""
+		return
+	}
+	if abs, err := filepath.Abs(root); err == nil {
+		listDirBaseRoot = abs
+		return
+	}
+	// Fallback to raw value if Abs fails (should be rare)
 	listDirBaseRoot = root
 }
 
 // getListDirectoryBaseRoot returns the configured base directory for list tools.
-// Resolution order:
-// 1) value set via SetListDirectoryBaseRoot
-// 2) env var NARRABYTE_PROJECT_ROOT (absolute or relative to current working dir)
-// 3) current working directory
+// Resolution: value set via SetListDirectoryBaseRoot.
 func getListDirectoryBaseRoot() (string, error) {
 	if listDirBaseRoot != "" {
 		return listDirBaseRoot, nil
@@ -29,9 +37,9 @@ func getListDirectoryBaseRoot() (string, error) {
 	return "", errors.New("list directory base root not set")
 }
 
-// safeJoinUnderBase resolves relPath under base, returning an absolute path that
+// safeJoinUnderBase resolves a path under base, returning an absolute path that
 // is guaranteed to remain within base. If the resolution escapes base, ok=false.
-func safeJoinUnderBase(base, relPath string) (abs string, ok bool) {
+func safeJoinUnderBase(base, p string) (abs string, ok bool) {
 	// Clean inputs
 	cleanBase := base
 	if cleanBase == "" {
@@ -43,7 +51,7 @@ func safeJoinUnderBase(base, relPath string) (abs string, ok bool) {
 		return "", false
 	}
 	// Join and clean the target
-	candidate := filepath.Join(absBase, relPath)
+	candidate := filepath.Join(absBase, p)
 	absCandidate, err := filepath.Abs(candidate)
 	if err != nil {
 		return "", false

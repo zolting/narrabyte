@@ -19,9 +19,8 @@ const (
 
 // ReadFileInput defines the parameters for the read file tool.
 type ReadFileInput struct {
-	// FileRelativePath is the path to the file relative to the project root.
-	// Absolute paths are allowed only if they resolve under the configured base root.
-	FileRelativePath string `json:"file_relative_path" jsonschema:"description=The path to the file to read (relative to project root)"`
+	// FilePath is the absolute path to the file to read.
+	FilePath string `json:"file_path" jsonschema:"description=The absolute path to the file to read"`
 	// Offset is the 0-based line number to start reading from.
 	Offset int `json:"offset,omitempty" jsonschema:"description=The line number to start reading from (0-based)"`
 	// Limit is the number of lines to read.
@@ -45,7 +44,7 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 	if err != nil {
 		return nil, err
 	}
-	pathArg := strings.TrimSpace(input.FileRelativePath)
+	pathArg := strings.TrimSpace(input.FilePath)
 	if pathArg == "" {
 		return nil, fmt.Errorf("file path is required")
 	}
@@ -87,13 +86,6 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 			baseName := filepath.Base(absPath)
 			suggestions := similarEntries(dir, baseName)
 
-			// Title should be relative to base root
-			rel, relErr := filepath.Rel(base, absPath)
-			if relErr != nil {
-				rel = absPath // fallback
-			}
-			rel = filepath.ToSlash(rel)
-
 			output := "<file>\nFile not found: " + absPath + "\n"
 			if len(suggestions) > 0 {
 				output += "\nDid you mean one of these?\n" + strings.Join(suggestions, "\n") + "\n"
@@ -101,10 +93,11 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 			output += "\n</file>"
 
 			return &ReadFileOutput{
-				Title:  rel,
+				Title:  filepath.ToSlash(absPath),
 				Output: output,
 				Metadata: map[string]string{
-					"error": "file_not_found",
+					"error":    "file_not_found",
+					"filepath": filepath.ToSlash(absPath),
 				},
 			}, nil
 		}
@@ -195,20 +188,12 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 	}
 	preview := strings.Join(raw[:previewCount], "\n")
 
-	// Title should be relative to base root
-	rel, err := filepath.Rel(base, absPath)
-	if err != nil {
-		rel = absPath // fallback
-	}
-	rel = filepath.ToSlash(rel)
-
-	println(b.String())
-
 	return &ReadFileOutput{
-		Title:  rel,
+		Title:  filepath.ToSlash(absPath),
 		Output: b.String(),
 		Metadata: map[string]string{
-			"preview": preview,
+			"preview":  preview,
+			"filepath": filepath.ToSlash(absPath),
 		},
 	}, nil
 }
@@ -297,19 +282,19 @@ func similarEntries(dir string, baseName string) []string {
 	if err != nil {
 		return nil
 	}
-	needle := strings.ToLower(baseName)
+	needle := strings.ToLower(strings.TrimSuffix(baseName, filepath.Ext(baseName)))
 	var candidates []string
 	for _, e := range entries {
 		name := e.Name()
-		lower := strings.ToLower(name)
+		lower := strings.ToLower(strings.TrimSuffix(name, filepath.Ext(name)))
+		// Check if needle is a substring of the file name or vice versa
 		if strings.Contains(lower, needle) || strings.Contains(needle, lower) {
-			candidates = append(candidates, filepath.Join(dir, name))
+			candidates = append(candidates, name) // Just return the filename, not the full path
 		}
 	}
 	sort.Strings(candidates)
 	if len(candidates) > 3 {
 		candidates = candidates[:3]
 	}
-	// Normalize to platform path format
 	return candidates
 }

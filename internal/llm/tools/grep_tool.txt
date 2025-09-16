@@ -1,0 +1,9 @@
+Search file contents using a regex pattern within a directory. Pure Go implementation that scans files recursively. Supports optionally scoping the search and including only certain file patterns.
+
+Usage:
+- `pattern`: required regex to search for in contents
+- `path`: optional directory to search; omit to use the configured project root (must remain within project)
+- `include`: optional file glob to constrain search (e.g. "*.js", "*.{ts,tsx}")
+- Returns up to 100 matches, grouped by file, sorted by most recently modified files first
+- If no matches are found, the output indicates that explicitly
+- Results include line numbers and the matching line text
