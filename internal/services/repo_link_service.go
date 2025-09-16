@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"narrabyte/internal/models"
 	"narrabyte/internal/repositories"
+	"narrabyte/internal/utils"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -42,6 +43,22 @@ func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo 
 
 	if codebaseRepo == "" {
 		return nil, errors.New("codebase repo is required")
+	}
+
+	if !utils.HasGitRepo(documentationRepo) {
+		return nil, errors.New("missing_git_repo: documentation")
+	}
+
+	if !utils.HasGitRepo(codebaseRepo) {
+		return nil, errors.New("missing_git_repo: codebase")
+	}
+
+	if !utils.DirectoryExists(documentationRepo) {
+		return nil, errors.New("documentation repo path does not exist")
+	}
+
+	if !utils.DirectoryExists(codebaseRepo) {
+		return nil, errors.New("codebase repo path does not exist")
 	}
 
 	link := &models.RepoLink{

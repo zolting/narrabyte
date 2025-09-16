@@ -9,6 +9,7 @@ import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Init } from "../../wailsjs/go/services/GitService";
 import { LinkRepositories } from "../../wailsjs/go/services/repoLinkService";
 import { Greet } from "../../wailsjs/go/services/userService";
 import DemoEvents from "../components/DemoEvents";
@@ -55,12 +56,47 @@ function Home() {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
-				data.codebaseDirectory
+				data.codebaseDirectory,
 			);
 			alert(t("home.linkSuccess"));
 			setIsAddProjectOpen(false);
 			setLastProject(data);
 		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			if (errorMsg.startsWith("missing_git_repo")) {
+				const which = errorMsg.endsWith("documentation")
+					? t("projectManager.docDirectory")
+					: t("projectManager.codebaseDirectory");
+				if (
+					window.confirm(
+						`${which} n'est pas un dépôt git. Voulez-vous en créer un ?`,
+					)
+				) {
+					// Determine which directory is missing .git
+					const dir = errorMsg.endsWith("documentation")
+						? data.docDirectory
+						: data.codebaseDirectory;
+
+					try {
+						await Init(dir);
+						// After initializing, try linking again
+						await LinkRepositories(
+							data.name,
+							data.docDirectory,
+							data.codebaseDirectory,
+						);
+						alert(t("home.linkSuccess"));
+						setIsAddProjectOpen(false);
+						setLastProject(data);
+					} catch (initError) {
+						console.error("Error initializing git repo:", initError);
+						alert("Erreur lors de l'initialisation du dépôt git.");
+					}
+					return;
+				} else {
+					return;
+				}
+			}
 			console.error("Error linking repositories:", error);
 			alert(t("home.linkError"));
 			return;
