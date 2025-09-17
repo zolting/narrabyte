@@ -3,7 +3,7 @@ import { Init } from "@go/services/GitService";
 import { LinkRepositories, List } from "@go/services/repoLinkService";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AddProjectDialog from "@/components/AddProjectDialog";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,7 @@ export function Sidebar({ className }: SidebarProps) {
 	const [loading, setLoading] = useState(false);
 	const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
 
-	const loadProjects = () => {
+	const loadProjects = useCallback(() => {
 		setLoading(true);
 		Promise.resolve(List(MAX_REPOS, REPO_OFFSET))
 			.then((res) => {
@@ -47,11 +47,11 @@ export function Sidebar({ className }: SidebarProps) {
 			.finally(() => {
 				setLoading(false);
 			});
-	};
+	}, []);
 
 	useEffect(() => {
 		loadProjects();
-	}, []);
+	}, [loadProjects]);
 
 	const handleAddProject = async (data: {
 		name: string;
@@ -139,7 +139,7 @@ export function Sidebar({ className }: SidebarProps) {
 						</div>
 						<Button
 							aria-label={t("home.addProject")}
-							className="h-6 w-6"
+							className="h-6 w-6 border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xs hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 							onClick={() => setIsAddProjectOpen(true)}
 							size="icon"
 							variant="outline"
