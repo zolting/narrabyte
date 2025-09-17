@@ -1,6 +1,6 @@
+import { StartDemoEvents, StopDemoEvents } from "@go/main/App";
 import { create } from "zustand";
 import { type DemoEvent, demoEventSchema } from "@/types/events";
-import { StartDemoEvents, StopDemoEvents } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime";
 
 type State = {

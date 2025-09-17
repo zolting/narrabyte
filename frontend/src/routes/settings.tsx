@@ -62,13 +62,13 @@ function Settings() {
 										onClick={() => setLocale("en")}
 										variant={locale.startsWith("en") ? "default" : "outline"}
 									>
-										{t("settings.english")}
+										English
 									</Button>
 									<Button
 										onClick={() => setLocale("fr")}
 										variant={locale.startsWith("fr") ? "default" : "outline"}
 									>
-										{t("settings.french")}
+										Français
 									</Button>
 								</div>
 							</section>

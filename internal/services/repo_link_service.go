@@ -94,7 +94,7 @@ func (s *repoLinkService) LinkRepositories(projectName, docRepo, codebaseRepo st
 
 	x, err := s.fumadocsService.CreateFumadocsProject(docRepo)
 	if err != nil {
-		runtime.LogError(context.Background(), fmt.Sprintf("failed to create fumadocs project: %v", err))
+		runtime.LogError(s.context, fmt.Sprintf("failed to create fumadocs project: %v", err))
 		return fmt.Errorf("failed to create fumadocs project: %w", err)
 	}
 	runtime.LogInfo(s.context, x)

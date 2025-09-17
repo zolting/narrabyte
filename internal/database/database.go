@@ -61,7 +61,6 @@ func Init(cfg Config) (*gorm.DB, error) {
 // migrate runs all automigrations. Keep the model list in one place.
 func migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(
-		&models.User{},
 		&models.RepoLink{},
 		&models.AppSettings{},
 	); err != nil {

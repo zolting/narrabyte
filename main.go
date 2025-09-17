@@ -60,7 +60,6 @@ func main() {
 		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,
-			dbService.Users,
 			dbService.RepoLinks,
 			dbService.AppSettings,
 			fumadocsService,

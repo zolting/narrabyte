@@ -18,7 +18,8 @@
 		"strictNullChecks": true,
 		"baseUrl": ".",
 		"paths": {
-			"@/*": ["./src/*"]
+			"@/*": ["./src/*"],
+			"@go/*": ["./wailsjs/go/*"],
 		}
 	},
 	"include": ["src"],

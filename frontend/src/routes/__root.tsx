@@ -1,7 +1,8 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { useEffect } from "react";
-import { useAppSettingsStore } from "../stores/appSettings";
+import { Sidebar } from "@/components/Sidebar";
+import { useAppSettingsStore } from "@/stores/appSettings";
 
 function ThemeSync() {
 	const { settings } = useAppSettingsStore();
@@ -42,12 +43,19 @@ function ThemeSync() {
 	return null;
 }
 
-export const Route = createRootRoute({
-	component: () => (
-		<>
+function RootLayout() {
+	return (
+		<div className="flex h-screen bg-background">
 			<ThemeSync />
-			<Outlet />
-			<TanStackRouterDevtools />
-		</>
-	),
+			<Sidebar />
+			<main className="flex-1 overflow-auto p-6">
+				<Outlet />
+				<TanStackRouterDevtools />
+			</main>
+		</div>
+	);
+}
+
+export const Route = createRootRoute({
+	component: RootLayout,
 });

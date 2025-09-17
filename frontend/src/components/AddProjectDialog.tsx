@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import DirectoryPicker from "@/components/DirectoryPicker";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
 type AddProjectDialogProps = {
@@ -37,28 +44,29 @@ export default function AddProjectDialog({
 		}
 	}, [open]);
 
-	if (!open) {
-		return null;
-	}
-
 	return (
-		<div className="dialog-backdrop">
-			<div className="dialog">
-				<h2 className="mb-4 font-bold text-lg">
-					{t("projectManager.addProject")}
-				</h2>
+		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
+			<DialogContent className="sm:max-w-[520px]">
+				<DialogHeader>
+					<DialogTitle className="font-semibold text-lg">
+						{t("projectManager.addProject")}
+					</DialogTitle>
+				</DialogHeader>
+
 				<form className="space-y-4" onSubmit={handleSubmit}>
 					<div>
 						<label className="mb-1 block font-medium" htmlFor="project-name">
 							{t("projectManager.projectName")}
 						</label>
 						<Input
+							id="project-name"
 							onChange={(e) => setName(e.target.value)}
-							placeholder="Nom du projet"
+							placeholder={t("projectManager.projectName")}
 							required
 							value={name}
 						/>
 					</div>
+
 					<div>
 						<label className="mb-1 block font-medium" htmlFor="doc-directory">
 							{t("projectManager.docDirectory")}
@@ -66,6 +74,7 @@ export default function AddProjectDialog({
 						<DirectoryPicker onDirectorySelected={setDocDirectory} />
 						{docDirectory && <div className="mt-1 text-xs">{docDirectory}</div>}
 					</div>
+
 					<div>
 						<label
 							className="mb-1 block font-medium"
@@ -78,7 +87,8 @@ export default function AddProjectDialog({
 							<div className="mt-1 text-xs">{codebaseDirectory}</div>
 						)}
 					</div>
-					<div className="flex justify-end gap-2">
+
+					<DialogFooter className="pt-2">
 						<Button onClick={onClose} type="button" variant="outline">
 							{t("common.cancel")}
 						</Button>
@@ -88,9 +98,9 @@ export default function AddProjectDialog({
 						>
 							{t("home.addProject")}
 						</Button>
-					</div>
+					</DialogFooter>
 				</form>
-			</div>
-		</div>
+			</DialogContent>
+		</Dialog>
 	);
 }
