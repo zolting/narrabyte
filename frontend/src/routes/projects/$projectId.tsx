@@ -45,7 +45,7 @@ function ProjectDetailPage() {
 
 	return (
 		<div className="space-y-4">
-			<h1 className="text-center font-semibold shadow-2xl text-foreground text-xl">
+			<h1 className="text-center font-semibold text-foreground text-xl shadow-2xl">
 				{project.ProjectName}
 			</h1>
 			<div>

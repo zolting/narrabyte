@@ -62,8 +62,8 @@ export default function AddProjectDialog({
 							{t("projectManager.projectName")}
 						</label>
 						<Input
-							id="project-name"
 							className="text-foreground"
+							id="project-name"
 							onChange={(e) => setName(e.target.value)}
 							placeholder={t("projectManager.projectName")}
 							required
