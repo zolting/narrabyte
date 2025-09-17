@@ -55,11 +55,15 @@ export default function AddProjectDialog({
 
 				<form className="space-y-4" onSubmit={handleSubmit}>
 					<div>
-						<label className="mb-1 block font-medium" htmlFor="project-name">
+						<label
+							className="mb-1 block font-medium text-foreground"
+							htmlFor="project-name"
+						>
 							{t("projectManager.projectName")}
 						</label>
 						<Input
 							id="project-name"
+							className="text-foreground"
 							onChange={(e) => setName(e.target.value)}
 							placeholder={t("projectManager.projectName")}
 							required

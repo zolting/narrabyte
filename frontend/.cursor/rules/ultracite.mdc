@@ -296,6 +296,37 @@ Ultracite enforces strict type safety, accessibility standards, and consistent c
 - Make sure the assertion function, like expect, is placed inside an it() function call.
 - Don't use disabled tests.
 
+## Styling Guidelines
+
+### Global CSS Variables
+Make frequent use of the global styling variables defined in `style.css` when applying Tailwind classes. These variables ensure consistency across the application and support both light and dark themes.
+
+#### Available Variable Categories
+- **Colors**: `--background`, `--foreground`, `--primary`, `--secondary`, `--accent`, `--destructive`, etc.
+- **Sidebar**: `--sidebar`, `--sidebar-foreground`, `--sidebar-primary`, etc.
+- **Shadows**: `--shadow-xs`, `--shadow-sm`, `--shadow-md`, `--shadow-lg`, etc.
+- **Typography**: `--font-sans`, `--font-serif`, `--font-mono`
+- **Spacing**: `--spacing`, `--radius`
+
+#### Examples
+```tsx
+// ✅ Good: Using CSS variables with Tailwind
+<div className="bg-background text-foreground">
+<Button className="bg-primary text-primary-foreground">
+<Card className="shadow-md border-border">
+
+// ❌ Bad: Hardcoding colors
+<div className="bg-white text-black">
+<Button className="bg-blue-500 text-white">
+<Card className="shadow-md border-gray-200">
+```
+
+### Component Styling Rules
+- Always add CSS styling in the component's corresponding SCSS file
+- When using MUI components, apply styles using MUI's `sx` prop instead of external CSS
+- Prefer CSS variables over hardcoded values for consistency and theme support
+- Use semantic color names (primary, secondary, accent) rather than specific color values
+
 ## Common Tasks
 - `npx ultracite init` - Initialize Ultracite in your project
 - `npx ultracite format` - Format and fix code automatically
