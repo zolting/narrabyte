@@ -1,7 +1,13 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { useEffect } from "react";
-import { useAppSettingsStore } from "../stores/appSettings";
+import { AppSidebar } from "@/components/Sidebar";
+import {
+	SidebarInset,
+	SidebarProvider,
+	SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { useAppSettingsStore } from "@/stores/appSettings";
 
 function ThemeSync() {
 	const { settings } = useAppSettingsStore();
@@ -42,12 +48,24 @@ function ThemeSync() {
 	return null;
 }
 
-export const Route = createRootRoute({
-	component: () => (
-		<>
+function RootLayout() {
+	return (
+		<SidebarProvider>
 			<ThemeSync />
-			<Outlet />
-			<TanStackRouterDevtools />
-		</>
-	),
+			<AppSidebar />
+			<SidebarInset>
+				<header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+					<SidebarTrigger className="-ml-1" />
+				</header>
+				<main className="flex-1 overflow-auto p-6">
+					<Outlet />
+					<TanStackRouterDevtools position="bottom-right" />
+				</main>
+			</SidebarInset>
+		</SidebarProvider>
+	);
+}
+
+export const Route = createRootRoute({
+	component: RootLayout,
 });

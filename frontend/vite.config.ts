@@ -8,6 +8,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),
+			"@go": path.resolve(__dirname, "./wailsjs/go"),
 		},
 	},
 	plugins: [

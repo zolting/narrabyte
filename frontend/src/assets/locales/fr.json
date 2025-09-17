@@ -19,7 +19,8 @@
     "project": "Projet",
     "selectProject": "Sélectionner un projet",
     "selectProjectFirst": "Sélectionner un projet pour choisir les branches",
-    "swapBranches": "Interchanger les branches"
+    "swapBranches": "Interchanger les branches",
+    "noBranchFound": "Aucune branche n'a été trouvée."
   },
   "projectManager": {
     "addProject": "Ajouter un projet",
@@ -42,6 +43,8 @@
     "addProject": "Ajouter un projet",
     "linkSuccess": "Répertoires liés avec succès!",
     "linkError": "Échec de la liaison des répertoires",
+    "initGitError": "Erreur lors de l'initialisation du répertoire Git.",
+    "unexistantGitRepoCreate": "n'est pas un répertoire Git existant. Voulez-vous en créer un nouveau?",
     "selectBothDirectories": "Veuillez d'abord sélectionner les deux répertoires"
   },
   "settings": {
@@ -57,9 +60,7 @@
     "language": "Langue",
     "light": "Clair",
     "dark": "Sombre",
-    "system": "Système",
-    "english": "Anglais",
-    "french": "Français"
+    "system": "Système"
   },
   "demoEvents": {
     "title": "Événements de démonstration",
@@ -68,5 +69,14 @@
     "stop": "Arrêter",
     "clear": "Effacer",
     "noEvents": "Aucun événement pour le moment. Cliquez sur Démarrer la démo."
+  },
+  "sidebar": {
+    "home": "Accueil",
+    "projects": "Projets",
+    "settings": "Paramètres",
+    "loading": "Chargement…",
+    "noProjects": "Aucun projet",
+    "collapseSidebar": "Replier la barre latérale",
+    "expandSidebar": "Déplier la barre latérale"
   }
 }

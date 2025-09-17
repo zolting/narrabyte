@@ -1,3 +1,5 @@
+import type { models } from "@go/models";
+import { ListBranchesByPath } from "@go/services/GitService";
 import { ArrowRight, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,17 +26,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { models } from "../../wailsjs/go/models";
-import { ListBranchesByPath } from "../../wailsjs/go/services/GitService";
-import { List as ListRepoLinks } from "../../wailsjs/go/services/repoLinkService";
 
 const twTrigger =
 	"h-10 w-full bg-card text-card-foreground border border-border " +
@@ -42,20 +34,18 @@ const twTrigger =
 	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 const twContent =
 	"bg-popover text-popover-foreground border border-border shadow-md";
-const twItem =
-	"data-[highlighted]:bg-muted data-[highlighted]:text-foreground " +
-	"data-[state=checked]:bg-primary/15 data-[state=checked]:text-foreground";
 
 export default function GenerateDocsDialog({
 	open,
 	onClose,
+	project,
 }: {
 	open: boolean;
 	onClose: () => void;
+	project: models.RepoLink;
 }) {
 	const { t } = useTranslation();
 
-	const [projects, setProjects] = useState<models.RepoLink[]>([]);
 	const [selectedProject, setSelectedProject] = useState<
 		models.RepoLink | undefined
 	>();
@@ -67,15 +57,11 @@ export default function GenerateDocsDialog({
 	const [targetOpen, setTargetOpen] = useState(false);
 
 	useEffect(() => {
-		if (open) {
-			ListRepoLinks(100, 0)
-				.then((repos) => {
-					console.log("repos", repos);
-					setProjects(repos);
-				})
-				.catch((err) => console.error("failed to fetch repo links:", err));
+		if (!open) {
+			return;
 		}
-	}, [open]);
+		setSelectedProject(project);
+	}, [open, project]);
 
 	useEffect(() => {
 		if (selectedProject) {
@@ -85,9 +71,9 @@ export default function GenerateDocsDialog({
 						[...arr].sort(
 							(a, b) =>
 								new Date(b.lastCommitDate as unknown as string).getTime() -
-								new Date(a.lastCommitDate as unknown as string).getTime(),
-						),
-					),
+								new Date(a.lastCommitDate as unknown as string).getTime()
+						)
+					)
 				)
 				.catch((err) => console.error("failed to fetch branches:", err));
 		} else {
@@ -103,9 +89,9 @@ export default function GenerateDocsDialog({
 				selectedProject &&
 					sourceBranch &&
 					targetBranch &&
-					sourceBranch !== targetBranch,
+					sourceBranch !== targetBranch
 			),
-		[selectedProject, sourceBranch, targetBranch],
+		[selectedProject, sourceBranch, targetBranch]
 	);
 
 	const swapBranches = () => {
@@ -122,7 +108,7 @@ export default function GenerateDocsDialog({
 				onClose();
 			}
 		},
-		[onClose],
+		[onClose]
 	);
 
 	return (
@@ -138,33 +124,20 @@ export default function GenerateDocsDialog({
 				</DialogHeader>
 
 				<div className="space-y-6">
-					{/* Project select */}
+					{/* Project (read-only) */}
 					<div className="grid gap-2">
-						<Label className="mb-1 text-foreground" htmlFor="project-select">
+						<Label className="mb-1 text-foreground" htmlFor="project-readonly">
 							{t("common.project")}
 						</Label>
-						<Select
-							onValueChange={(id) => {
-								const proj = projects.find((p) => p.ID.toString() === id);
-								setSelectedProject(proj);
-							}}
-							value={selectedProject?.ID.toString()}
+						<div
+							className={cn(
+								"h-10 w-full rounded-md border border-border bg-card text-card-foreground",
+								"flex items-center px-3"
+							)}
+							id="project-readonly"
 						>
-							<SelectTrigger className={twTrigger} id="project-select">
-								<SelectValue placeholder={t("common.selectProject")} />
-							</SelectTrigger>
-							<SelectContent className={twContent}>
-								{projects.map((p) => (
-									<SelectItem
-										className={twItem}
-										key={p.ID}
-										value={p.ID.toString()}
-									>
-										{p.ProjectName}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							{project.ProjectName}
+						</div>
 					</div>
 
 					{/* Branch comboboxes */}
@@ -199,7 +172,7 @@ export default function GenerateDocsDialog({
 											aria-expanded={sourceOpen}
 											className={cn(
 												"w-full justify-between hover:text-foreground",
-												twTrigger,
+												twTrigger
 											)}
 											id="source-branch-combobox"
 											role="combobox"
@@ -213,7 +186,7 @@ export default function GenerateDocsDialog({
 									<PopoverContent
 										className={cn(
 											"w-[var(--radix-popover-trigger-width)] p-0",
-											twContent,
+											twContent
 										)}
 									>
 										<Command>
@@ -240,7 +213,7 @@ export default function GenerateDocsDialog({
 																		"mr-2 h-4 w-4",
 																		sourceBranch === b.name
 																			? "opacity-100"
-																			: "opacity-0",
+																			: "opacity-0"
 																	)}
 																/>
 																{b.name}
@@ -271,7 +244,7 @@ export default function GenerateDocsDialog({
 											aria-expanded={targetOpen}
 											className={cn(
 												"w-full justify-between hover:text-foreground",
-												twTrigger,
+												twTrigger
 											)}
 											id="target-branch-combobox"
 											role="combobox"
@@ -285,7 +258,7 @@ export default function GenerateDocsDialog({
 									<PopoverContent
 										className={cn(
 											"w-[var(--radix-popover-trigger-width)] p-0",
-											twContent,
+											twContent
 										)}
 									>
 										<Command>
@@ -312,7 +285,7 @@ export default function GenerateDocsDialog({
 																		"mr-2 h-4 w-4",
 																		targetBranch === b.name
 																			? "opacity-100"
-																			: "opacity-0",
+																			: "opacity-0"
 																	)}
 																/>
 																{b.name}
