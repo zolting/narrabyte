@@ -50,7 +50,7 @@ function RootLayout() {
 			<Sidebar />
 			<main className="flex-1 overflow-auto p-6">
 				<Outlet />
-				<TanStackRouterDevtools />
+				<TanStackRouterDevtools position="bottom-right" />
 			</main>
 		</div>
 	);
