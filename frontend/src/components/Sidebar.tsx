@@ -13,7 +13,6 @@ import {
 import { useCallback, useEffect, useState, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import AddProjectDialog from "@/components/AddProjectDialog";
-import { Button } from "@/components/ui/button";
 
 function NavItem(props: {
 	to?: string;
@@ -151,11 +150,9 @@ export function Sidebar({ className }: SidebarProps) {
 		<aside className={cn}>
 			<div className="relative mb-4 h-6">
 				<button
-					aria-label={
-						open ? t("sidebar.collapseSidebar") : t("sidebar.expandSidebar")
-					}
-					className="-right-2 absolute top-0 rounded-full border bg-background p-1 text-foreground shadow hover:bg-accent"
-					onClick={() => setOpen((v) => !v)}
+					aria-label={open ? t("sidebar.collapseSidebar") : t("sidebar.expandSidebar")}
+					className="-right-1 absolute top-0 h-6 w-6 border bg-background text-foreground shadow hover:bg-accent rounded-none flex items-center justify-center"
+					onClick={() => setOpen(v => !v)}
 					type="button"
 				>
 					{open ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
@@ -171,23 +168,21 @@ export function Sidebar({ className }: SidebarProps) {
 						collapsed={!open}
 					/>
 
-					{/* Projects section */}
 					{open ? (
 						<div className="mt-4 px-2">
 							<div className="flex items-center justify-between">
-                                <div className="flex h-10 items-center gap-2 truncate px-1 text-sm">
-                                    <FolderKanban size={18} />
-                                    <span>{t("sidebar.projects")}</span>
-                                </div>
-								<Button
+								<div className="flex h-10 items-center gap-2 truncate px-1 text-sm">
+									<FolderKanban size={18} />
+									<span>{t("sidebar.projects")}</span>
+								</div>
+								<button
+									type="button"
 									aria-label={t("home.addProject")}
-									className="h-6 w-6 border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xs hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 									onClick={() => setIsAddProjectOpen(true)}
-									size="icon"
-									variant="outline"
+									className="h-6 w-6 border bg-background p-1 text-foreground shadow hover:bg-accent rounded-none flex items-center justify-center"
 								>
 									<Plus className="h-3 w-3" />
-								</Button>
+								</button>
 							</div>
 
 							<ul
