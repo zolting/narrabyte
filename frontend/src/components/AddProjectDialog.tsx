@@ -48,7 +48,7 @@ export default function AddProjectDialog({
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
 			<DialogContent className="sm:max-w-[520px]">
 				<DialogHeader>
-					<DialogTitle className="font-semibold text-lg">
+					<DialogTitle className="font-semibold text-foreground text-lg">
 						{t("projectManager.addProject")}
 					</DialogTitle>
 				</DialogHeader>
@@ -72,7 +72,10 @@ export default function AddProjectDialog({
 					</div>
 
 					<div>
-						<label className="mb-1 block font-medium" htmlFor="doc-directory">
+						<label
+							className="mb-1 block from-foreground font-medium text-foreground"
+							htmlFor="doc-directory"
+						>
 							{t("projectManager.docDirectory")}
 						</label>
 						<DirectoryPicker onDirectorySelected={setDocDirectory} />
@@ -81,7 +84,7 @@ export default function AddProjectDialog({
 
 					<div>
 						<label
-							className="mb-1 block font-medium"
+							className="mb-1 block font-medium text-foreground"
 							htmlFor="codebase-directory"
 						>
 							{t("projectManager.codebaseDirectory")}
@@ -93,7 +96,12 @@ export default function AddProjectDialog({
 					</div>
 
 					<DialogFooter className="pt-2">
-						<Button onClick={onClose} type="button" variant="outline">
+						<Button
+							className="text-foreground hover:text-accent"
+							onClick={onClose}
+							type="button"
+							variant="outline"
+						>
 							{t("common.cancel")}
 						</Button>
 						<Button
