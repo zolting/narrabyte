@@ -79,14 +79,10 @@ export function Sidebar({ className }: SidebarProps) {
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			if (errorMsg.startsWith("missing_git_repo")) {
-				const which = errorMsg.endsWith("documentation")
+				const dir = errorMsg.endsWith("documentation")
 					? t("projectManager.docDirectory")
 					: t("projectManager.codebaseDirectory");
-				if (window.confirm(`${which} + ${t("home.unexistantGitRepoCreate")}`)) {
-					const dir = errorMsg.endsWith("documentation")
-						? data.docDirectory
-						: data.codebaseDirectory;
-
+				if (window.confirm(`${dir} + ${t("home.unexistantGitRepoCreate")}`)) {
 					try {
 						await Init(dir);
 						await LinkRepositories(
