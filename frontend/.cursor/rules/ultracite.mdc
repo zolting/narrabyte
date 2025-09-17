@@ -323,7 +323,6 @@ Make frequent use of the global styling variables defined in `style.css` when ap
 
 ### Component Styling Rules
 - Always add CSS styling in the component's corresponding SCSS file
-- When using MUI components, apply styles using MUI's `sx` prop instead of external CSS
 - Prefer CSS variables over hardcoded values for consistency and theme support
 - Use semantic color names (primary, secondary, accent) rather than specific color values
 
