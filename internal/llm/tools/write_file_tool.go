@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"narrabyte/internal/events"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,9 +25,11 @@ type WriteFileOutput struct {
 
 // WriteFile writes content to a file under the configured project root. Creates the file if it does not exist.
 // It does not create parent directories; the target directory must already exist.
-func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) {
+func WriteFile(ctx context.Context, in *WriteFileInput) (*WriteFileOutput, error) {
+	runtime.EventsEmit(ctx, events.EventToolStart, events.NewInfo("WriteFile: starting"))
 
 	if in == nil {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("WriteFile: input is required"))
 		return &WriteFileOutput{
 			Title:  "",
 			Output: "Format error: input is required",
@@ -37,6 +41,7 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("WriteFile: project root not set"))
 		return &WriteFileOutput{
 			Title:  "",
 			Output: "Format error: project root not set",
@@ -48,6 +53,7 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 
 	p := strings.TrimSpace(in.FilePath)
 	if p == "" {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("WriteFile: file_path is required"))
 		return &WriteFileOutput{
 			Title:  "",
 			Output: "Format error: file_path is required",
@@ -60,20 +66,23 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 	// Resolve target path under base, ensuring it cannot escape.
 	var absPath string
 	if filepath.IsAbs(p) {
-		// Ensure absolute path is under base
 		absBase, err := filepath.Abs(base)
 		if err != nil {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("WriteFile: base resolve error: %v", err)))
 			return nil, err
 		}
 		absCandidate, err := filepath.Abs(p)
 		if err != nil {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("WriteFile: abs path error: %v", err)))
 			return nil, err
 		}
 		relToBase, err := filepath.Rel(absBase, absCandidate)
 		if err != nil {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("WriteFile: rel error: %v", err)))
 			return nil, err
 		}
 		if strings.HasPrefix(relToBase, "..") {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewWarn("WriteFile: path escapes the configured project root"))
 			return &WriteFileOutput{
 				Title:  filepath.ToSlash(absCandidate),
 				Output: "Format error: file is not in the configured project root",
@@ -86,6 +95,7 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 	} else {
 		abs, ok := safeJoinUnderBase(base, p)
 		if !ok {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewWarn("WriteFile: path escapes the configured project root"))
 			return &WriteFileOutput{
 				Title:  filepath.ToSlash(filepath.Join(base, p)),
 				Output: "Format error: path escapes the configured project root",
@@ -97,11 +107,14 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 		absPath = abs
 	}
 
+	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("WriteFile: writing '%s'", filepath.ToSlash(absPath))))
+
 	// Ensure parent directory exists
 	dir := filepath.Dir(absPath)
 	info, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("WriteFile: directory does not exist: %s", filepath.ToSlash(dir))))
 			return &WriteFileOutput{
 				Title:  filepath.ToSlash(absPath),
 				Output: fmt.Sprintf("Format error: directory does not exist: %s", dir),
@@ -110,9 +123,11 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 				},
 			}, nil
 		}
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("WriteFile: stat error: %v", err)))
 		return nil, err
 	}
 	if !info.IsDir() {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("WriteFile: not a directory: %s", filepath.ToSlash(dir))))
 		return &WriteFileOutput{
 			Title:  filepath.ToSlash(absPath),
 			Output: fmt.Sprintf("Format error: not a directory: %s", dir),
@@ -130,6 +145,7 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 
 	// Write file (creates or truncates)
 	if err := os.WriteFile(absPath, []byte(in.Content), 0o644); err != nil {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("WriteFile: write error: %v", err)))
 		return nil, err
 	}
 
@@ -139,6 +155,8 @@ func WriteFile(_ context.Context, in *WriteFileInput) (*WriteFileOutput, error) 
 	} else {
 		outputMsg = fmt.Sprintf("Created file: %s", filepath.ToSlash(absPath))
 	}
+	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(outputMsg))
+	runtime.EventsEmit(ctx, events.EventToolDone, events.NewInfo(fmt.Sprintf("WriteFile: done for '%s'", filepath.ToSlash(absPath))))
 
 	return &WriteFileOutput{
 		Title:  filepath.ToSlash(absPath),

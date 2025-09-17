@@ -38,6 +38,7 @@ func main() {
 	//Create each service
 	fumadocsService := services.NewFumadocsService()
 	gitService := services.NewGitService()
+	clientService := services.NewClientService()
 
 	//Create repositories
 	dbService := services.NewDbServices(db, *fumadocsService)
@@ -56,6 +57,12 @@ func main() {
 			dbService.StartDbServices(ctx)
 			fumadocsService.Startup(ctx)
 			gitService.Startup(ctx)
+
+			//will have to check for this lowkey
+			err := clientService.Startup(ctx)
+			if err != nil {
+				fmt.Println("Error starting client service:", err)
+			}
 		},
 		OnShutdown: app.shutdown,
 		Bind: []interface{}{
@@ -65,6 +72,7 @@ func main() {
 			dbService.AppSettings,
 			fumadocsService,
 			gitService,
+			clientService,
 		},
 	})
 

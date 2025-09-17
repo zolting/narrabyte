@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"io"
+	"narrabyte/internal/events"
 	"os"
 	"path/filepath"
 	"sort"
@@ -35,98 +37,129 @@ type ReadFileOutput struct {
 }
 
 // ReadFile reads a text file within the project root with paging and safety checks.
-func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) {
+func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, err error) {
+	// Start
+	runtime.EventsEmit(ctx, events.EventToolStart, events.NewInfo("ReadFile: starting"))
+
+	// Emit error/done for every return path
+	defer func() {
+		if err != nil {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("ReadFile: %v", err)))
+			return
+		}
+		title := ""
+		if out != nil {
+			title = strings.TrimSpace(out.Title)
+		}
+		if title == "" {
+			title = "success"
+		}
+		runtime.EventsEmit(ctx, events.EventToolDone, events.NewInfo(fmt.Sprintf("ReadFile: done (%s)", title)))
+	}()
+
 	if input == nil {
-		return nil, errors.New("input is required")
+		err = errors.New("input is required")
+		return nil, err
 	}
 
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
+		// defer will emit error
 		return nil, err
 	}
 	pathArg := strings.TrimSpace(input.FilePath)
 	if pathArg == "" {
-		return nil, fmt.Errorf("file path is required")
+		err = fmt.Errorf("file path is required")
+		return nil, err
 	}
 
-	// Resolve target path under base, ensuring it cannot escape.
+	// Resolve target path under base, ensuring it cannot escape base.
 	var absPath string
 	if filepath.IsAbs(pathArg) {
 		// Ensure absolute path is under base
-		absBase, err := filepath.Abs(base)
-		if err != nil {
+		absBase, e := filepath.Abs(base)
+		if e != nil {
+			err = e
 			return nil, err
 		}
-		absCandidate, err := filepath.Abs(pathArg)
-		if err != nil {
+		absCandidate, e := filepath.Abs(pathArg)
+		if e != nil {
+			err = e
 			return nil, err
 		}
-		relToBase, err := filepath.Rel(absBase, absCandidate)
-		if err != nil {
+		relToBase, e := filepath.Rel(absBase, absCandidate)
+		if e != nil {
+			err = e
 			return nil, err
 		}
 		if strings.HasPrefix(relToBase, "..") {
-			return nil, fmt.Errorf("file %s is not in the configured project root", pathArg)
+			err = fmt.Errorf("file %s is not in the configured project root", pathArg)
+			return nil, err
 		}
 		absPath = absCandidate
 	} else {
 		abs, ok := safeJoinUnderBase(base, pathArg)
 		if !ok {
-			return nil, fmt.Errorf("path escapes the configured base root")
+			err = fmt.Errorf("path escapes the configured base root")
+			return nil, err
 		}
 		absPath = abs
 	}
 
+	// Progress: resolved path
+	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("ReadFile: reading '%s'", filepath.ToSlash(absPath))))
+
 	// Ensure file exists
-	file, err := os.Stat(absPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// Build suggestions from sibling entries
-			dir := filepath.Dir(absPath)
-			baseName := filepath.Base(absPath)
-			suggestions := similarEntries(dir, baseName)
-
-			output := "<file>\nFile not found: " + absPath + "\n"
-			if len(suggestions) > 0 {
-				output += "\nDid you mean one of these?\n" + strings.Join(suggestions, "\n") + "\n"
-			}
-			output += "\n</file>"
-
-			return &ReadFileOutput{
-				Title:  filepath.ToSlash(absPath),
-				Output: output,
-				Metadata: map[string]string{
-					"error":    "file_not_found",
-					"filepath": filepath.ToSlash(absPath),
-				},
-			}, nil
-		}
+	fileInfo, statErr := os.Stat(absPath)
+	if statErr != nil {
+		err = statErr
 		return nil, err
 	}
-	if file.IsDir() {
-		return nil, fmt.Errorf("path is a directory: %s", absPath)
+	if fileInfo.IsDir() {
+		err = fmt.Errorf("path is a directory: %s", filepath.ToSlash(absPath))
+		return nil, err
 	}
 
 	// Image file check
 	if img := imageTypeByExt(absPath); img != "" {
-		return nil, fmt.Errorf("this is an image file of type: %s\nUse a different tool to process images", img)
+		// Treat as non-fatal informational output
+		out = &ReadFileOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: fmt.Sprintf("Binary image detected (%s). Reading skipped.", img),
+			Metadata: map[string]string{
+				"error": "unsupported_image",
+				"type":  img,
+			},
+		}
+		// Optional progress notice
+		runtime.EventsEmit(ctx, events.EventToolProgress, events.NewWarn(fmt.Sprintf("ReadFile: unsupported image '%s' (%s)", filepath.ToSlash(absPath), img)))
+		return out, nil
 	}
 
 	// Binary file check
-	isBin, err := isBinaryFile(absPath)
-	if err != nil {
+	isBin, binErr := isBinaryFile(absPath)
+	if binErr != nil {
+		err = binErr
 		return nil, err
 	}
 	if isBin {
-		return nil, fmt.Errorf("cannot read binary file: %s", absPath)
+		out = &ReadFileOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: "Binary file detected. Reading skipped.",
+			Metadata: map[string]string{
+				"error": "unsupported_binary",
+			},
+		}
+		runtime.EventsEmit(ctx, events.EventToolProgress, events.NewWarn(fmt.Sprintf("ReadFile: unsupported binary '%s'", filepath.ToSlash(absPath))))
+		return out, nil
 	}
 
 	// Read all text and split into lines
-	data, err := os.ReadFile(absPath)
-	if err != nil {
+	data, readErr := os.ReadFile(absPath)
+	if readErr != nil {
+		err = readErr
 		return nil, err
 	}
-	// Normalize to LF for counting; we split on '\n'
 	text := string(data)
 	lines := strings.Split(text, "\n")
 
@@ -148,11 +181,12 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 		end = len(lines)
 	}
 
+	// Prepare output raw lines with truncation of very long lines
 	raw := make([]string, 0, end-start)
 	for i := start; i < end; i++ {
 		line := lines[i]
 		if len(line) > maxLineLength {
-			line = line[:maxLineLength] + "..."
+			line = line[:maxLineLength] + " …(truncated)…"
 		}
 		raw = append(raw, line)
 	}
@@ -161,25 +195,13 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 	var b strings.Builder
 	b.WriteString("<file>\n")
 	for i, line := range raw {
-		// Line numbers are 1-based, padded to 5 digits
-		ln := fmt.Sprintf("%05d| ", i+offset+1)
-		b.WriteString(ln)
-		b.WriteString(line)
-		if i < len(raw)-1 {
-			b.WriteByte('\n')
-		}
+		// 1-based line numbering in the excerpt
+		b.WriteString(fmt.Sprintf("%6d: %s\n", start+i+1, line))
 	}
-
 	if len(lines) > offset+len(raw) {
-		if b.Len() > 0 {
-			b.WriteString("\n\n")
-		} else {
-			// Ensure a leading newline before the note in empty slice
-			b.WriteString("\n")
-		}
-		b.WriteString(fmt.Sprintf("(File has more lines. Use 'offset' parameter to read beyond line %d)", offset+len(raw)))
+		b.WriteString("... (truncated)\n")
 	}
-	b.WriteString("\n</file>")
+	b.WriteString("</file>")
 
 	// Compute preview (first 20 raw lines)
 	previewCount := 20
@@ -188,14 +210,18 @@ func ReadFile(_ context.Context, input *ReadFileInput) (*ReadFileOutput, error) 
 	}
 	preview := strings.Join(raw[:previewCount], "\n")
 
-	return &ReadFileOutput{
+	out = &ReadFileOutput{
 		Title:  filepath.ToSlash(absPath),
 		Output: b.String(),
 		Metadata: map[string]string{
-			"preview":  preview,
-			"filepath": filepath.ToSlash(absPath),
+			"offset":  fmt.Sprintf("%d", offset),
+			"limit":   fmt.Sprintf("%d", limit),
+			"preview": preview,
 		},
-	}, nil
+	}
+
+	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s'", len(raw), len(lines), filepath.ToSlash(absPath))))
+	return out, nil
 }
 
 // imageTypeByExt returns a human-readable image type for common image extensions, else "".

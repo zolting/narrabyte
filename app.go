@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"narrabyte/internal/events"
 	"sync"
 	"time"
@@ -97,8 +98,8 @@ func (a *App) StartDemoEvents() {
 				if i > 15 {
 					return
 				}
-				evt := events.DemoEvent{
-					ID:        i,
+				evt := events.ToolEvent{
+					ID:        uuid.New(),
 					Type:      eventTypes[(i-1)%len(eventTypes)],
 					Message:   fmt.Sprintf("Demo event #%d", i),
 					Timestamp: t,

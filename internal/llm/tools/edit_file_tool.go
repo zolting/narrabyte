@@ -1,3 +1,4 @@
+// go
 package tools
 
 import (
@@ -8,30 +9,41 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"narrabyte/internal/events"
 )
 
-// EditInput defines parameters for the edit tool.
 type EditInput struct {
-	// FilePath is the absolute path to the file to modify.
-	FilePath string `json:"file_path" jsonschema:"description=The absolute path to the file to modify"`
-	// OldString is the text to replace. If empty, the entire file content will be replaced with NewString.
-	OldString string `json:"old_string" jsonschema:"description=The text to replace (empty to overwrite entire file)"`
-	// NewString is the replacement text.
-	NewString string `json:"new_string" jsonschema:"description=The replacement text (must be different from old_string)"`
-	// ReplaceAll replaces all occurrences of the matched search block.
-	ReplaceAll bool `json:"replace_all,omitempty" jsonschema:"description=Replace all occurrences of the matched search block (default false)"`
+	// FilePath is the absolute or project-root-relative path to the file to edit.
+	FilePath string `json:"file_path" jsonschema:"description=Absolute or project-root-relative path to the file to edit"`
+	// Find is the exact text to search for.
+	Find string `json:"find" jsonschema:"description=Exact text to find"`
+	// Replace is the replacement text.
+	Replace string `json:"replace" jsonschema:"description=Replacement text"`
+	// AnchorBefore, when set, restricts the edit region to the text after the first occurrence of this anchor.
+	AnchorBefore string `json:"anchor_before,omitempty" jsonschema:"description=Optional text that must appear before the edit region"`
+	// AnchorAfter, when set, restricts the edit region to the text before the first occurrence of this anchor (after AnchorBefore).`
+	AnchorAfter string `json:"anchor_after,omitempty" jsonschema:"description=Optional text that must appear after the edit region"`
+	// Occurrence, if >0, replaces only the Nth occurrence (within the anchored region if anchors are used).
+	Occurrence int `json:"occurrence,omitempty" jsonschema:"description=If > 0, replace only the Nth occurrence inside the (optional) anchored region"`
+	// MaxEdits, if >0, limits the total number of replacements (ignored when Occurrence > 0).
+	MaxEdits int `json:"max_edits,omitempty" jsonschema:"description=If > 0, replace up to this many occurrences (ignored if occurrence > 0)"`
 }
 
-// EditOutput is the output of the edit tool.
 type EditOutput struct {
 	Title    string            `json:"title"`
 	Output   string            `json:"output"`
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
-// Edit applies a context-aware replacement to a single file under the configured project root.
-func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
+// Edit performs safe, context-aware string replacement in a text file under the configured project root.
+func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
+	runtime.EventsEmit(ctx, events.EventToolStart, events.NewInfo("Edit: starting"))
+
+	// Validate input
 	if in == nil {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: input is required"))
 		return &EditOutput{
 			Title:  "",
 			Output: "Format error: input is required",
@@ -40,30 +52,9 @@ func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
 			},
 		}, nil
 	}
-
-	if in.OldString == in.NewString {
-		return &EditOutput{
-			Title:  "",
-			Output: "Format error: old_string and new_string must be different",
-			Metadata: map[string]string{
-				"error": "format_error",
-			},
-		}, nil
-	}
-
-	base, err := getListDirectoryBaseRoot()
-	if err != nil {
-		return &EditOutput{
-			Title:  "",
-			Output: "Format error: project root not set",
-			Metadata: map[string]string{
-				"error": "format_error",
-			},
-		}, nil
-	}
-
 	p := strings.TrimSpace(in.FilePath)
 	if p == "" {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: file_path is required"))
 		return &EditOutput{
 			Title:  "",
 			Output: "Format error: file_path is required",
@@ -72,24 +63,51 @@ func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
 			},
 		}, nil
 	}
+	find := in.Find
+	if strings.TrimSpace(find) == "" {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: find is required"))
+		return &EditOutput{
+			Title:  p,
+			Output: "Format error: find is required",
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
+	}
 
-	// Resolve target path under base, ensuring it cannot escape.
+	// Resolve base root
+	base, err := getListDirectoryBaseRoot()
+	if err != nil {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: project root not set"))
+		return &EditOutput{
+			Title:  p,
+			Output: "Format error: project root not set",
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
+	}
+
+	// Resolve absolute path under base
 	var absPath string
 	if filepath.IsAbs(p) {
-		// Ensure absolute path is under base
-		absBase, err := filepath.Abs(base)
-		if err != nil {
-			return nil, err
+		absBase, e := filepath.Abs(base)
+		if e != nil {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("Edit: base resolve error: %v", e)))
+			return nil, e
 		}
-		absCandidate, err := filepath.Abs(p)
-		if err != nil {
-			return nil, err
+		absCandidate, e := filepath.Abs(p)
+		if e != nil {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("Edit: abs path error: %v", e)))
+			return nil, e
 		}
-		relToBase, err := filepath.Rel(absBase, absCandidate)
-		if err != nil {
-			return nil, err
+		relToBase, e := filepath.Rel(absBase, absCandidate)
+		if e != nil {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("Edit: rel error: %v", e)))
+			return nil, e
 		}
 		if strings.HasPrefix(relToBase, "..") {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewWarn("Edit: path escapes the configured project root"))
 			return &EditOutput{
 				Title:  filepath.ToSlash(absCandidate),
 				Output: "Format error: file is not in the configured project root",
@@ -102,6 +120,7 @@ func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
 	} else {
 		abs, ok := safeJoinUnderBase(base, p)
 		if !ok {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewWarn("Edit: path escapes the configured project root"))
 			return &EditOutput{
 				Title:  filepath.ToSlash(filepath.Join(base, p)),
 				Output: "Format error: path escapes the configured project root",
@@ -113,140 +132,184 @@ func Edit(_ context.Context, in *EditInput) (*EditOutput, error) {
 		absPath = abs
 	}
 
-	// Ensure parent directory exists
-	dir := filepath.Dir(absPath)
-	info, err := os.Stat(dir)
+	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("Edit: reading '%s'", filepath.ToSlash(absPath))))
+
+	// Ensure file exists and is a regular file
+	info, err := os.Stat(absPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return &EditOutput{
-				Title:  filepath.ToSlash(absPath),
-				Output: fmt.Sprintf("Format error: directory does not exist: %s", dir),
-				Metadata: map[string]string{
-					"error": "format_error",
-				},
-			}, nil
-		}
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: file does not exist or is not accessible"))
+		return &EditOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: "Format error: file does not exist or is not accessible",
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
+	}
+	if info.IsDir() {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: not a file"))
+		return &EditOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: "Format error: path is a directory",
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
+	}
+
+	// Binary/image checks
+	if img := imageTypeByExt(absPath); img != "" {
+		runtime.EventsEmit(ctx, events.EventToolProgress, events.NewWarn(fmt.Sprintf("Edit: unsupported image '%s' (%s)", filepath.ToSlash(absPath), img)))
+		return &EditOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: fmt.Sprintf("Binary image detected (%s). Edit skipped.", img),
+			Metadata: map[string]string{
+				"error": "unsupported_image",
+				"type":  img,
+			},
+		}, nil
+	}
+	if bin, berr := isBinaryFile(absPath); berr == nil && bin {
+		runtime.EventsEmit(ctx, events.EventToolProgress, events.NewWarn(fmt.Sprintf("Edit: unsupported binary '%s'", filepath.ToSlash(absPath))))
+		return &EditOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: "Binary file detected. Edit skipped.",
+			Metadata: map[string]string{
+				"error": "unsupported_binary",
+			},
+		}, nil
+	} else if berr != nil {
+		// Unexpected error determining binary
+		return nil, berr
+	}
+
+	// Load content
+	data, err := os.ReadFile(absPath)
+	if err != nil {
 		return nil, err
 	}
-	if !info.IsDir() {
-		return &EditOutput{
-			Title:  filepath.ToSlash(absPath),
-			Output: fmt.Sprintf("Format error: not a directory: %s", dir),
-			Metadata: map[string]string{
-				"error": "format_error",
-			},
-		}, nil
-	}
+	content := string(data)
 
-	// Check if target path is a directory
-	if st, err := os.Stat(absPath); err == nil && st.IsDir() {
-		return &EditOutput{
-			Title:  filepath.ToSlash(absPath),
-			Output: fmt.Sprintf("Format error: cannot edit directory: %s", absPath),
-			Metadata: map[string]string{
-				"error": "format_error",
-			},
-		}, nil
-	}
+	// Determine edit region using anchors (optional)
+	startIdx := 0
+	endIdx := len(content)
 
-	// Read old content (if file exists). If not, old content is empty.
-	var existed bool
-	var oldContent string
-	if st, err := os.Stat(absPath); err == nil && !st.IsDir() {
-		existed = true
-		// Binary check for safety
-		if bin, berr := isBinaryFile(absPath); berr == nil && bin {
+	if strings.TrimSpace(in.AnchorBefore) != "" {
+		i := strings.Index(content, in.AnchorBefore)
+		if i < 0 {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: anchor_before not found"))
 			return &EditOutput{
 				Title:  filepath.ToSlash(absPath),
-				Output: fmt.Sprintf("Format error: cannot edit binary file: %s", absPath),
+				Output: "Format error: anchor_before not found",
 				Metadata: map[string]string{
 					"error": "format_error",
 				},
 			}, nil
 		}
-		data, rerr := os.ReadFile(absPath)
-		if rerr != nil {
-			return nil, rerr
-		}
-		oldContent = string(data)
+		startIdx = i + len(in.AnchorBefore)
 	}
-
-	var newContent string
-	var replacedCount int
-	var replaced bool
-
-	if in.OldString == "" {
-		// Overwrite entire content (or create the file)
-		newContent = in.NewString
-		// If content differs, consider as replaced
-		replaced = (oldContent != newContent)
-		if replaced {
-			// Count as a single replacement of full content
-			replacedCount = 1
-		}
-	} else {
-		// Context-aware replacement path
-		var out string
-		out, replacedCount, err = replace(oldContent, in.OldString, in.NewString, in.ReplaceAll)
-		if err != nil {
-			// Convert search errors into structured tool output
-			msg := err.Error()
-			code := "input_error"
-			switch msg {
-			case "old_string not found in content", "oldString not found in content":
-				code = "search_not_found"
-			case "old_string found multiple times and requires more code context to uniquely identify the intended match",
-				"oldString found multiple times and requires more code context to uniquely identify the intended match":
-				code = "ambiguous_match"
-			case "old_string and new_string must be different":
-				code = "format_error"
-			}
+	if strings.TrimSpace(in.AnchorAfter) != "" {
+		jRel := strings.Index(content[startIdx:], in.AnchorAfter)
+		if jRel < 0 {
+			runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: anchor_after not found"))
 			return &EditOutput{
 				Title:  filepath.ToSlash(absPath),
-				Output: "Edit error: " + msg,
+				Output: "Format error: anchor_after not found",
 				Metadata: map[string]string{
-					"error":    code,
-					"filepath": filepath.ToSlash(absPath),
+					"error": "format_error",
 				},
 			}, nil
 		}
-		newContent = out
-		replaced = replacedCount > 0
+		endIdx = startIdx + jRel
+	}
+	if endIdx < startIdx {
+		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: anchors produce invalid region"))
+		return &EditOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: "Format error: anchors produce invalid region",
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 
-	// Write new content
+	region := content[startIdx:endIdx]
+	replaced := 0
+	newRegion := region
+
+	// Replacement strategy
+	switch {
+	case in.Occurrence > 0:
+		// Replace only the Nth occurrence in region
+		n := in.Occurrence
+		count := 0
+		scanPos := 0
+		for {
+			idx := strings.Index(newRegion[scanPos:], find)
+			if idx < 0 {
+				break
+			}
+			idx += scanPos
+			count++
+			if count == n {
+				newRegion = newRegion[:idx] + in.Replace + newRegion[idx+len(find):]
+				replaced = 1
+				break
+			}
+			scanPos = idx + len(find)
+		}
+	default:
+		// Replace up to MaxEdits (or all if MaxEdits <= 0)
+		limit := in.MaxEdits
+		if limit > 0 {
+			replaced = strings.Count(newRegion, find)
+			if replaced > limit {
+				replaced = limit
+			}
+			newRegion = strings.Replace(newRegion, find, in.Replace, limit)
+		} else {
+			replaced = strings.Count(newRegion, find)
+			if replaced > 0 {
+				newRegion = strings.ReplaceAll(newRegion, find, in.Replace)
+			}
+		}
+	}
+
+	// If no changes, report and stop without writing
+	if replaced == 0 {
+		runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo("Edit: no changes made"))
+		runtime.EventsEmit(ctx, events.EventToolDone, events.NewInfo(fmt.Sprintf("Edit: done for '%s'", filepath.ToSlash(absPath))))
+		return &EditOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: "No changes made",
+			Metadata: map[string]string{
+				"replacements": "0",
+				"anchored":     fmt.Sprintf("%v", strings.TrimSpace(in.AnchorBefore) != "" || strings.TrimSpace(in.AnchorAfter) != ""),
+				"occurrence":   fmt.Sprintf("%d", in.Occurrence),
+				"limited":      fmt.Sprintf("%v", in.Occurrence > 0 || in.MaxEdits > 0),
+			},
+		}, nil
+	}
+
+	// Write updated content
+	newContent := content[:startIdx] + newRegion + content[endIdx:]
+	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("Edit: writing '%s'", filepath.ToSlash(absPath))))
 	if err := os.WriteFile(absPath, []byte(newContent), 0o644); err != nil {
 		return nil, err
 	}
 
-	// Build a simple unified diff and trim it for readability
-	diff := trimDiff(createTwoFilesPatch(absPath, absPath, oldContent, newContent))
-
-	// Output message
-	verb := "Edited"
-	if !existed {
-		verb = "Created"
-	}
-	outMsg := fmt.Sprintf("%s file: %s", verb, filepath.ToSlash(absPath))
-	if replacedCount > 1 {
-		outMsg += fmt.Sprintf(" (replaced %d occurrences)", replacedCount)
-	} else if replacedCount == 1 {
-		outMsg += " (replaced 1 occurrence)"
-	} else if in.OldString != "" {
-		outMsg += " (no changes)"
-	}
-
-	meta := map[string]string{
-		"filepath":    filepath.ToSlash(absPath),
-		"replaced":    fmt.Sprintf("%v", replaced),
-		"occurrences": fmt.Sprintf("%d", replacedCount),
-		"diff":        diff,
-	}
+	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("Edit: applied %d replacement(s)", replaced)))
+	runtime.EventsEmit(ctx, events.EventToolDone, events.NewInfo(fmt.Sprintf("Edit: done for '%s'", filepath.ToSlash(absPath))))
 
 	return &EditOutput{
-		Title:    filepath.ToSlash(absPath),
-		Output:   outMsg,
-		Metadata: meta,
+		Title:  filepath.ToSlash(absPath),
+		Output: fmt.Sprintf("Edited file: %s (%d replacement(s))", filepath.ToSlash(absPath), replaced),
+		Metadata: map[string]string{
+			"replacements": fmt.Sprintf("%d", replaced),
+			"anchored":     fmt.Sprintf("%v", strings.TrimSpace(in.AnchorBefore) != "" || strings.TrimSpace(in.AnchorAfter) != ""),
+			"occurrence":   fmt.Sprintf("%d", in.Occurrence),
+			"limited":      fmt.Sprintf("%v", in.Occurrence > 0 || in.MaxEdits > 0),
+		},
 	}, nil
 }
 
