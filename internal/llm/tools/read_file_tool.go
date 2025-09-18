@@ -39,12 +39,12 @@ type ReadFileOutput struct {
 // ReadFile reads a text file within the project root with paging and safety checks.
 func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, err error) {
 	// Start
-	runtime.EventsEmit(ctx, events.EventToolStart, events.NewInfo("ReadFile: starting"))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo("ReadFile: starting"))
 
 	// Emit error/done for every return path
 	defer func() {
 		if err != nil {
-			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("ReadFile: %v", err)))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: %v", err)))
 			return
 		}
 		title := ""
@@ -54,7 +54,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, e
 		if title == "" {
 			title = "success"
 		}
-		runtime.EventsEmit(ctx, events.EventToolDone, events.NewInfo(fmt.Sprintf("ReadFile: done (%s)", title)))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s)", title)))
 	}()
 
 	if input == nil {
@@ -107,7 +107,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, e
 	}
 
 	// Progress: resolved path
-	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("ReadFile: reading '%s'", filepath.ToSlash(absPath))))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: reading '%s'", filepath.ToSlash(absPath))))
 
 	// Ensure file exists
 	fileInfo, statErr := os.Stat(absPath)
@@ -132,7 +132,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, e
 			},
 		}
 		// Optional progress notice
-		runtime.EventsEmit(ctx, events.EventToolProgress, events.NewWarn(fmt.Sprintf("ReadFile: unsupported image '%s' (%s)", filepath.ToSlash(absPath), img)))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile: unsupported image '%s' (%s)", filepath.ToSlash(absPath), img)))
 		return out, nil
 	}
 
@@ -150,7 +150,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, e
 				"error": "unsupported_binary",
 			},
 		}
-		runtime.EventsEmit(ctx, events.EventToolProgress, events.NewWarn(fmt.Sprintf("ReadFile: unsupported binary '%s'", filepath.ToSlash(absPath))))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile: unsupported binary '%s'", filepath.ToSlash(absPath))))
 		return out, nil
 	}
 
@@ -220,7 +220,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, e
 		},
 	}
 
-	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s'", len(raw), len(lines), filepath.ToSlash(absPath))))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s'", len(raw), len(lines), filepath.ToSlash(absPath))))
 	return out, nil
 }
 

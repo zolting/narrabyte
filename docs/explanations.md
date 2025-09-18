@@ -104,6 +104,45 @@ Suggestions / considerations
 - Consider returning the UpdatedAt from the backend and letting the frontend use server time as the source of truth (it already does), but be explicit about timezone format expectations.
 - If more locales will be added, keep normalizeToSupportedLocale in sync with i18n supported languages.
 
+## Git Diff Frontend Component
+
+Summary
+
+- The Git diff UI is implemented as a reusable Dialog component that renders a parsed git diff using the react-diff-view library. It is a presentation component: in the current codebase it displays a placeholder diff string (SAMPLE_DIFF) but is wired to be used wherever a diff preview is needed.
+
+How it works (implementation)
+
+- Files:
+  - frontend/src/components/GitDiffDialog/GitDiffDialog.tsx (main component and styles) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L14)
+  - frontend/src/components/GitDiffDialog/diff-view-theme.css (styling for the diff view)
+  - The component is imported and used on the home route: frontend/src/routes/index.tsx (source: frontend/src/routes/index.tsx#L8-L8, frontend/src/routes/index.tsx#L114-L119)
+
+- Parsing and data flow:
+  - A SAMPLE_DIFF string is defined inside the component as a fallback / placeholder (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33).
+  - parseDiff(SAMPLE_DIFF) is called inside a useMemo to avoid re-parsing on every render; the resulting files array is used to select the first file to display (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L43-L46).
+
+- Rendering:
+  - The component uses a Dialog wrapper (Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle) so it can be opened from any button or trigger passed as children (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L54-L56, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L86-L93).
+  - It renders file metadata (newPath) and a toggle button that switches between "split" and "unified" views (React state viewType toggled by setViewType) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L41-L51, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L62-L75).
+  - The actual diff is rendered using the <Diff> component from react-diff-view with props: diffType, hunks, viewType, and a render function that maps hunks to <Hunk> components (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L78-L89).
+
+Usage notes and integration points
+
+- Currently the component shows a hardcoded SAMPLE_DIFF. To show real diffs:
+  - Provide a diff string from the GitService (e.g., a backend RPC that runs git --no-pager diff or shows staged/uncommitted changes) and pass it into parseDiff instead of SAMPLE_DIFF. The component is already memoized so passing a diff prop and using it in the dependency array will avoid extra parsing.
+  - Consider adding a loading state while fetching diffs and error handling when parseDiff fails or the diff is empty.
+
+- i18n: The title uses t("common.gitDiff") so translations will be applied if keys exist (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L40-L41, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L58-L60).
+
+- Accessibility: The Dialog and Button components are used (as provided by the UI primitives) and the trigger is the child passed in from the home route. The trigger includes an sr-only label on the button (source: frontend/src/routes/index.tsx#L115-L118).
+
+- Styling: react-diff-view's default stylesheet is imported and augmented with a local diff-view-theme.css to match the app theme (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L4-L5).
+
+Sources
+
+- Component implementation: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L96
+- Usage in app: frontend/src/routes/index.tsx#L8-L8 and frontend/src/routes/index.tsx#L114-L119
+
 # Repo Linking
 
 This section explains how repository linking works in this project. Repo linking associates a documentation repository (e.g., for Markdown docs) with a codebase repository for a given project, enabling features like automatic documentation setup using Fumadocs.

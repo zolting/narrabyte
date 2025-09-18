@@ -39,11 +39,11 @@ type EditOutput struct {
 
 // Edit performs safe, context-aware string replacement in a text file under the configured project root.
 func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
-	runtime.EventsEmit(ctx, events.EventToolStart, events.NewInfo("Edit: starting"))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo("Edit: starting"))
 
 	// Validate input
 	if in == nil {
-		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: input is required"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Edit: input is required"))
 		return &EditOutput{
 			Title:  "",
 			Output: "Format error: input is required",
@@ -54,7 +54,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	}
 	p := strings.TrimSpace(in.FilePath)
 	if p == "" {
-		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: file_path is required"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Edit: file_path is required"))
 		return &EditOutput{
 			Title:  "",
 			Output: "Format error: file_path is required",
@@ -65,7 +65,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	}
 	find := in.Find
 	if strings.TrimSpace(find) == "" {
-		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: find is required"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Edit: find is required"))
 		return &EditOutput{
 			Title:  p,
 			Output: "Format error: find is required",
@@ -78,7 +78,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	// Resolve base root
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
-		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: project root not set"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Edit: project root not set"))
 		return &EditOutput{
 			Title:  p,
 			Output: "Format error: project root not set",
@@ -93,21 +93,21 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	if filepath.IsAbs(p) {
 		absBase, e := filepath.Abs(base)
 		if e != nil {
-			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("Edit: base resolve error: %v", e)))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Edit: base resolve error: %v", e)))
 			return nil, e
 		}
 		absCandidate, e := filepath.Abs(p)
 		if e != nil {
-			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("Edit: abs path error: %v", e)))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Edit: abs path error: %v", e)))
 			return nil, e
 		}
 		relToBase, e := filepath.Rel(absBase, absCandidate)
 		if e != nil {
-			runtime.EventsEmit(ctx, events.EventToolError, events.NewError(fmt.Sprintf("Edit: rel error: %v", e)))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Edit: rel error: %v", e)))
 			return nil, e
 		}
 		if strings.HasPrefix(relToBase, "..") {
-			runtime.EventsEmit(ctx, events.EventToolError, events.NewWarn("Edit: path escapes the configured project root"))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn("Edit: path escapes the configured project root"))
 			return &EditOutput{
 				Title:  filepath.ToSlash(absCandidate),
 				Output: "Format error: file is not in the configured project root",
@@ -120,7 +120,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	} else {
 		abs, ok := safeJoinUnderBase(base, p)
 		if !ok {
-			runtime.EventsEmit(ctx, events.EventToolError, events.NewWarn("Edit: path escapes the configured project root"))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn("Edit: path escapes the configured project root"))
 			return &EditOutput{
 				Title:  filepath.ToSlash(filepath.Join(base, p)),
 				Output: "Format error: path escapes the configured project root",
@@ -132,12 +132,12 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		absPath = abs
 	}
 
-	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("Edit: reading '%s'", filepath.ToSlash(absPath))))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: reading '%s'", filepath.ToSlash(absPath))))
 
 	// Ensure file exists and is a regular file
 	info, err := os.Stat(absPath)
 	if err != nil {
-		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: file does not exist or is not accessible"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Edit: file does not exist or is not accessible"))
 		return &EditOutput{
 			Title:  filepath.ToSlash(absPath),
 			Output: "Format error: file does not exist or is not accessible",
@@ -147,7 +147,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		}, nil
 	}
 	if info.IsDir() {
-		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: not a file"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Edit: not a file"))
 		return &EditOutput{
 			Title:  filepath.ToSlash(absPath),
 			Output: "Format error: path is a directory",
@@ -159,7 +159,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 
 	// Binary/image checks
 	if img := imageTypeByExt(absPath); img != "" {
-		runtime.EventsEmit(ctx, events.EventToolProgress, events.NewWarn(fmt.Sprintf("Edit: unsupported image '%s' (%s)", filepath.ToSlash(absPath), img)))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Edit: unsupported image '%s' (%s)", filepath.ToSlash(absPath), img)))
 		return &EditOutput{
 			Title:  filepath.ToSlash(absPath),
 			Output: fmt.Sprintf("Binary image detected (%s). Edit skipped.", img),
@@ -170,7 +170,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		}, nil
 	}
 	if bin, berr := isBinaryFile(absPath); berr == nil && bin {
-		runtime.EventsEmit(ctx, events.EventToolProgress, events.NewWarn(fmt.Sprintf("Edit: unsupported binary '%s'", filepath.ToSlash(absPath))))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Edit: unsupported binary '%s'", filepath.ToSlash(absPath))))
 		return &EditOutput{
 			Title:  filepath.ToSlash(absPath),
 			Output: "Binary file detected. Edit skipped.",
@@ -197,7 +197,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	if strings.TrimSpace(in.AnchorBefore) != "" {
 		i := strings.Index(content, in.AnchorBefore)
 		if i < 0 {
-			runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: anchor_before not found"))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Edit: anchor_before not found"))
 			return &EditOutput{
 				Title:  filepath.ToSlash(absPath),
 				Output: "Format error: anchor_before not found",
@@ -211,7 +211,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	if strings.TrimSpace(in.AnchorAfter) != "" {
 		jRel := strings.Index(content[startIdx:], in.AnchorAfter)
 		if jRel < 0 {
-			runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: anchor_after not found"))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Edit: anchor_after not found"))
 			return &EditOutput{
 				Title:  filepath.ToSlash(absPath),
 				Output: "Format error: anchor_after not found",
@@ -223,7 +223,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		endIdx = startIdx + jRel
 	}
 	if endIdx < startIdx {
-		runtime.EventsEmit(ctx, events.EventToolError, events.NewError("Edit: anchors produce invalid region"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Edit: anchors produce invalid region"))
 		return &EditOutput{
 			Title:  filepath.ToSlash(absPath),
 			Output: "Format error: anchors produce invalid region",
@@ -277,8 +277,8 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 
 	// If no changes, report and stop without writing
 	if replaced == 0 {
-		runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo("Edit: no changes made"))
-		runtime.EventsEmit(ctx, events.EventToolDone, events.NewInfo(fmt.Sprintf("Edit: done for '%s'", filepath.ToSlash(absPath))))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo("Edit: no changes made"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: done for '%s'", filepath.ToSlash(absPath))))
 		return &EditOutput{
 			Title:  filepath.ToSlash(absPath),
 			Output: "No changes made",
@@ -293,13 +293,13 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 
 	// Write updated content
 	newContent := content[:startIdx] + newRegion + content[endIdx:]
-	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("Edit: writing '%s'", filepath.ToSlash(absPath))))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: writing '%s'", filepath.ToSlash(absPath))))
 	if err := os.WriteFile(absPath, []byte(newContent), 0o644); err != nil {
 		return nil, err
 	}
 
-	runtime.EventsEmit(ctx, events.EventToolProgress, events.NewInfo(fmt.Sprintf("Edit: applied %d replacement(s)", replaced)))
-	runtime.EventsEmit(ctx, events.EventToolDone, events.NewInfo(fmt.Sprintf("Edit: done for '%s'", filepath.ToSlash(absPath))))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: applied %d replacement(s)", replaced)))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: done for '%s'", filepath.ToSlash(absPath))))
 
 	return &EditOutput{
 		Title:  filepath.ToSlash(absPath),

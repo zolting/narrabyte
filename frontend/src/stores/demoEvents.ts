@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { type DemoEvent, demoEventSchema } from "@/types/events";
 import { StartDemoEvents, StopDemoEvents } from "../../wailsjs/go/main/App";
+import {ExploreDemo} from "../../wailsjs/go/services/ClientService";
 import { EventsOn } from "../../wailsjs/runtime";
 
 type State = {
@@ -29,7 +30,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 		unsubscribeEvents?.();
 		unsubscribeDone?.();
 
-		unsubscribeEvents = EventsOn("events:demo", (payload) => {
+		unsubscribeEvents = EventsOn("event:llm:tool", (payload) => {
 			try {
 				const evt = demoEventSchema.parse(payload);
 				set((s) => ({ events: [...s.events, evt] }));
@@ -48,7 +49,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 
 		set({ isListening: true });
 		try {
-			await StartDemoEvents();
+			await ExploreDemo();
 		} catch (e) {
 			console.error("Failed to start demo event", e);
 			set({ isListening: false });

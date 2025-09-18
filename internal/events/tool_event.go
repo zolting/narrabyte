@@ -1,7 +1,6 @@
 package events
 
 import "time"
-import "github.com/google/uuid"
 
 type EventType string
 
@@ -13,15 +12,12 @@ const (
 )
 
 const (
-	EventToolStart    = "llm:tool:start"
-	EventToolProgress = "llm:tool:progress"
-	EventToolError    = "llm:tool:error"
-	EventToolDone     = "llm:tool:done"
+	LLMEventTool = "event:llm:tool"
 )
 
 // ToolEvent is a simple struct representing a backend event payload
 type ToolEvent struct {
-	ID        uuid.UUID `json:"id"`
+	ID        int       `json:"id"`
 	Type      EventType `json:"type"`
 	Message   string    `json:"message"`
 	Timestamp time.Time `json:"timestamp"`
@@ -29,7 +25,7 @@ type ToolEvent struct {
 
 func CreateToolEvent(eventType EventType, message string) ToolEvent {
 	return ToolEvent{
-		ID:        uuid.New(),
+		ID:        1,
 		Type:      eventType,
 		Message:   message,
 		Timestamp: time.Now(),

@@ -16,14 +16,6 @@ import (
 
 const globResultLimit = 100
 
-// Common event names for consistency across tools.
-const (
-	EventToolStart    = "llm:tool:start"
-	EventToolProgress = "llm:tool:progress"
-	EventToolError    = "llm:tool:error"
-	EventToolDone     = "llm:tool:done"
-)
-
 type GlobInput struct {
 	// Pattern is the glob to match files against (supports **).
 	Pattern string `json:"pattern" jsonschema:"description=The glob pattern to match files against"`
@@ -39,10 +31,10 @@ type GlobOutput struct {
 
 // Glob finds files matching a glob pattern under a directory, limited and sorted by mtime desc.
 func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
-	runtime.EventsEmit(ctx, EventToolStart, events.NewInfo("Glob: starting"))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo("Glob: starting"))
 
 	if in == nil {
-		runtime.EventsEmit(ctx, EventToolError, events.NewError("Glob: input is required"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Glob: input is required"))
 		return &GlobOutput{
 			Title:  "",
 			Output: "Format error: input is required",
@@ -56,7 +48,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 
 	pattern := strings.TrimSpace(in.Pattern)
 	if pattern == "" {
-		runtime.EventsEmit(ctx, EventToolError, events.NewError("Glob: pattern is required"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Glob: pattern is required"))
 		return &GlobOutput{
 			Title:  strings.TrimSpace(in.Path),
 			Output: "Format error: pattern is required",
@@ -70,7 +62,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
-		runtime.EventsEmit(ctx, EventToolError, events.NewError("Glob: project root not set"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Glob: project root not set"))
 		return &GlobOutput{
 			Title:  strings.TrimSpace(in.Path),
 			Output: "Format error: project root not set",
@@ -90,7 +82,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 	} else if filepath.IsAbs(search) {
 		absBase, err := filepath.Abs(base)
 		if err != nil {
-			runtime.EventsEmit(ctx, EventToolError, events.NewError(fmt.Sprintf("Glob: invalid project root: %v", err)))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Glob: invalid project root: %v", err)))
 			return &GlobOutput{
 				Title:  search,
 				Output: "Format error: invalid project root",
@@ -103,7 +95,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 		}
 		absReq, err := filepath.Abs(search)
 		if err != nil {
-			runtime.EventsEmit(ctx, EventToolError, events.NewError(fmt.Sprintf("Glob: invalid search path: %v", err)))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Glob: invalid search path: %v", err)))
 			return &GlobOutput{
 				Title:  search,
 				Output: "Format error: invalid search path",
@@ -116,7 +108,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 		}
 		relToBase, err := filepath.Rel(absBase, absReq)
 		if err != nil {
-			runtime.EventsEmit(ctx, EventToolError, events.NewError(fmt.Sprintf("Glob: invalid search path: %v", err)))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Glob: invalid search path: %v", err)))
 			return &GlobOutput{
 				Title:  search,
 				Output: "Format error: invalid search path",
@@ -128,7 +120,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 			}, nil
 		}
 		if strings.HasPrefix(relToBase, "..") {
-			runtime.EventsEmit(ctx, EventToolError, events.NewWarn("Glob: path escapes the configured project root"))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn("Glob: path escapes the configured project root"))
 			return &GlobOutput{
 				Title:  search,
 				Output: "Format error: path escapes the configured project root",
@@ -143,7 +135,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 	} else {
 		abs, ok := safeJoinUnderBase(base, search)
 		if !ok {
-			runtime.EventsEmit(ctx, EventToolError, events.NewWarn("Glob: path escapes the configured project root"))
+			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn("Glob: path escapes the configured project root"))
 			return &GlobOutput{
 				Title:  search,
 				Output: "Format error: path escapes the configured project root",
@@ -157,12 +149,12 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 		searchPath = abs
 	}
 
-	runtime.EventsEmit(ctx, EventToolProgress, events.NewInfo(fmt.Sprintf("Glob: searching in '%s'", filepath.ToSlash(searchPath))))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Glob: searching in '%s'", filepath.ToSlash(searchPath))))
 
 	// Ensure directory exists
 	info, err := os.Stat(searchPath)
 	if err != nil {
-		runtime.EventsEmit(ctx, EventToolError, events.NewError("Glob: path does not exist or is not accessible"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Glob: path does not exist or is not accessible"))
 		return &GlobOutput{
 			Title:  filepath.ToSlash(searchPath),
 			Output: "Format error: path does not exist or is not accessible",
@@ -174,7 +166,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 		}, nil
 	}
 	if !info.IsDir() {
-		runtime.EventsEmit(ctx, EventToolError, events.NewError("Glob: not a directory"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Glob: not a directory"))
 		return &GlobOutput{
 			Title:  filepath.ToSlash(searchPath),
 			Output: "Format error: not a directory",
@@ -191,12 +183,12 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 	if !filepath.IsAbs(pattern) {
 		absPattern = filepath.Join(searchPath, pattern)
 	}
-	runtime.EventsEmit(ctx, EventToolProgress, events.NewDebug(fmt.Sprintf("Glob: using pattern '%s'", filepath.ToSlash(absPattern))))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Glob: using pattern '%s'", filepath.ToSlash(absPattern))))
 
 	// Expand glob
 	matches, err := filepathx.Glob(absPattern)
 	if err != nil {
-		runtime.EventsEmit(ctx, EventToolError, events.NewError("Glob: invalid glob pattern"))
+		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("Glob: invalid glob pattern"))
 		return &GlobOutput{
 			Title:  filepath.ToSlash(strings.TrimPrefix(searchPath, base+string(os.PathSeparator))),
 			Output: "Format error: invalid glob pattern",
@@ -247,8 +239,8 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 
 	relTitle := filepath.ToSlash(searchPath)
 
-	runtime.EventsEmit(ctx, EventToolProgress, events.NewInfo(fmt.Sprintf("Glob: matched %d file(s)%s", len(files), map[bool]string{true: " (truncated)", false: ""}[truncated])))
-	runtime.EventsEmit(ctx, EventToolDone, events.NewInfo(fmt.Sprintf("Glob: done for '%s'", filepath.ToSlash(searchPath))))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Glob: matched %d file(s)%s", len(files), map[bool]string{true: " (truncated)", false: ""}[truncated])))
+	runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Glob: done for '%s'", filepath.ToSlash(searchPath))))
 
 	out := &GlobOutput{
 		Title:  relTitle,

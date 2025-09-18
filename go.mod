@@ -6,7 +6,6 @@ require (
 	github.com/cloudwego/eino v0.5.2
 	github.com/cloudwego/eino-ext/components/model/openai v0.0.0-20250905035413-86dbae6351d5
 	github.com/go-git/go-git/v5 v5.13.2
-	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0
 	github.com/wailsapp/wails/v2 v2.10.2
@@ -47,6 +46,7 @@ require (
 	github.com/go-openapi/swag v0.19.5 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/goph/emperror v0.17.2 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/invopop/yaml v0.1.0 // indirect
