@@ -1,6 +1,9 @@
 package events
 
-import "time"
+import (
+	"github.com/google/uuid"
+	"time"
+)
 
 type EventType string
 
@@ -18,7 +21,7 @@ const (
 
 // ToolEvent is a simple struct representing a backend event payload
 type ToolEvent struct {
-	ID        int       `json:"id"`
+	ID        string    `json:"id"`
 	Type      EventType `json:"type"`
 	Message   string    `json:"message"`
 	Timestamp time.Time `json:"timestamp"`
@@ -26,7 +29,7 @@ type ToolEvent struct {
 
 func CreateToolEvent(eventType EventType, message string) ToolEvent {
 	return ToolEvent{
-		ID:        1,
+		ID:        uuid.NewString(),
 		Type:      eventType,
 		Message:   message,
 		Timestamp: time.Now(),

@@ -105,32 +105,34 @@ func (o *OpenAIClient) loadSystemPrompt() (string, error) {
 }
 
 func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath string) (string, error) {
-	// Initialize tools for this session
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ExploreCodebaseDemo: starting"))
+
+	// Initialize tools
 	allTools, err := o.initTools()
 	if err != nil {
-		log.Printf("Error initializing tools: %v", err)
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: init tools error: %v", err)))
 		return "", err
 	}
 
 	o.SetListDirectoryBaseRoot(codebasePath)
 
-	// Load system prompt from demo.txt
+	// Load system prompt
 	systemPrompt, err := o.loadSystemPrompt()
 	if err != nil {
-		log.Printf("Error loading system prompt: %v", err)
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: load system prompt error: %v", err)))
 		return "", err
 	}
+	events.Emit(ctx, events.LLMEventTool, events.NewDebug("ExploreCodebaseDemo: system prompt loaded"))
 
-	// Create an initial preview of the repo tree for context (textual)
-	preview, err := tools.ListDirectory(ctx, &tools.ListLSInput{
-		Path: codebasePath,
-	})
+	// Repo preview
+	preview, err := tools.ListDirectory(ctx, &tools.ListLSInput{Path: codebasePath})
 	if err != nil {
-		log.Printf("Error listing tree JSON: %v", err)
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: preview error: %v", err)))
 		return "", err
 	}
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ExploreCodebaseDemo: repository preview generated"))
 
-	// Build a ReAct agent with the tool-callable model and tools config
+	// Build agent
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Model: &o.ChatModel,
 		ToolsConfig: adk.ToolsConfig{
@@ -142,44 +144,42 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 		Description: "An agent that helps the user understand a codebase.",
 		Instruction: systemPrompt,
 	})
-
 	if err != nil {
-		log.Printf("Error creating react agent: %v", err)
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: agent creation error: %v", err)))
 		return "", err
 	}
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ExploreCodebaseDemo: agent created"))
 
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
 	iter := runner.Query(ctx, "Here is an initial listing of the project (capped at 100 files):\n\n"+
 		preview+
 		"\n\nHow does the git diff frontend component work? Add your explanation by editing the explanations.md file, between App Settings and Repo Linking. You must use the edit tool to edit the file, not the write tool. Keep the current content. End by creating a file called haiku.txt in the same directory as the explanations. The haiku should be a short poem about the git diff frontend component.")
 
-	//send events here?
 	var lastMessage string
 	for {
 		event, ok := iter.Next()
 		if !ok {
 			break
 		}
-
 		if event.Err != nil {
 			if errors.Is(event.Err, context.Canceled) {
+				events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing canceled"))
 				return "", context.Canceled
 			}
+			events.Emit(ctx, events.LLMEventDone, events.NewError("LLM processing error"))
 			return "", event.Err
-		}
-
-		if event.Err != nil {
-			log.Fatal(event.Err)
 		}
 		msg, err := event.Output.MessageOutput.GetMessage()
 		if err != nil {
-			log.Fatal(err)
+			events.Emit(ctx, events.LLMEventDone, events.NewError(fmt.Sprintf("LLM message error: %v", err)))
+			continue
 		}
 		lastMessage = msg.Content
 	}
 
+	events.Emit(ctx, events.LLMEventTool, events.NewDebug("ExploreCodebaseDemo: finished"))
 	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
-	log.Printf("Last event message: %s", lastMessage)
+
 	return lastMessage, nil
 }
 
