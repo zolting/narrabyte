@@ -102,58 +102,8 @@ Where to look in code
 Suggestions / considerations
 - If concurrent updates are a concern, implement optimistic locking using Version or database transactions.
 - Consider returning the UpdatedAt from the backend and letting the frontend use server time as the source of truth (it already does), but be explicit about timezone format expectations.
-- If more locales will be added, keep normalizeToSupportedLocale in sync with i18n supported languages.## Git Diff Frontend Component
+- If more locales will be added, keep normalizeToSupportedLocale in sync with i18n supported languages.
 
-Short summary
-
-- What it is: A small, reusable Git diff viewer rendered inside a Dialog. It parses unified-diff text with parseDiff (from react-diff-view) and renders file hunks using the library's <Diff> and <Hunk> components. The implementation ships with a placeholder SAMPLE_DIFF but is structured so a real diff string can be passed in with a small change (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L96).
-
-Key files
-
-- frontend/src/components/GitDiffDialog/GitDiffDialog.tsx (implementation) — parses and renders diffs, provides a toolbar to toggle view type (split/unified) and exposes a trigger API via DialogTrigger asChild (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L96).
-- frontend/src/components/GitDiffDialog/diff-view-theme.css (styling) — CSS variables and layout tweaks that theme the react-diff-view output to match the app (source: frontend/src/components/GitDiffDialog/diff-view-theme.css#L1-L74).
-- frontend/src/routes/__root.tsx (usage) — the header includes a compact Button wrapped by <GitDiffDialog> which becomes the dialog trigger (source: frontend/src/routes/__root.tsx#L66-L71).
-
-How it works (concise)
-
-1. Input: The component currently uses a constant SAMPLE_DIFF (a unified-diff string) defined in the same file (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33). 
-2. Parse: parseDiff(SAMPLE_DIFF) converts the text into an array of file objects (oldPath/newPath, type, hunks). Parsing is memoized with useMemo to avoid re-parsing on every render (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L43-L46).
-3. Select file: The component selects the first file (files[0]) and displays file.newPath (falling back to "example.js" if absent) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L44-L46, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L62-L65).
-4. Render: <Diff> is passed diffType, hunks and viewType and maps each hunk to a <Hunk> element which renders additions/removals/context lines. The view can be toggled between "split" and "unified" via a toolbar Button (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L77-L89, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L41-L51).
-5. Trigger: The component is a Dialog; DialogTrigger uses asChild so the caller supplies the trigger element (e.g., a Button in the header). This keeps the dialog accessible and allows the caller to provide an sr-only label for screen readers (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L54-L56, frontend/src/routes/__root.tsx#L66-L71).
-
-Notes on current behavior and limitations
-
-- Single-file view: The current UI renders only the first parsed file. When parseDiff returns multiple files, there is no file list or tabs — adding that improves UX (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L43-L46).
-- Hardcoded sample diff: SAMPLE_DIFF is embedded in the file as a placeholder. Switching to a prop-based input or calling a backend RPC will be required to display real diffs (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33).
-- Styling: The component relies on the library stylesheet plus local overrides in diff-view-theme.css to align colors, gutters and layout with the app theme (source: frontend/src/components/GitDiffDialog/diff-view-theme.css#L1-L74, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L4-L5).
-
-Recommended small changes to integrate real diffs
-
-- Make the component accept an optional diff prop and parse that instead of SAMPLE_DIFF. Example (small change):
-
-  function GitDiffDialog({ children, diff }: { children: React.ReactNode; diff?: string }) {
-    const files = useMemo(() => parseDiff(diff ?? SAMPLE_DIFF), [diff]);
-    ...
-  }
-
-  This preserves the existing trigger-as-child API while allowing callers to pass server-provided diffs.
-
-- Provide a backend RPC that returns a unified diff string for a target (file/path/commit). The frontend can call that RPC and pass the result into the dialog as the diff prop. The app already includes Wails bindings for services under frontend/wailsjs/go/services/, so adding or reusing a GitService RPC is a natural place to expose this (usage/availability of a Git RPC is an inference based on existing Wails bindings in the repo) (Inferred). 
-
-UX and accessibility suggestions (evidence-backed + inferred)
-
-- Add a loading state while the diff is fetched and a placeholder when no hunks are present (inferred UX improvement).
-- If multiple files are present, render a file list or tabs so users can switch between files (evidence: current code selects files[0]) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L44-L46).
-- Ensure the trigger element includes an accessible label (the header Button uses an sr-only label) (source: frontend/src/routes/__root.tsx#L66-L71).
-
-Sources
-
-- Component implementation and behavior: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L96
-- SAMPLE_DIFF and parseDiff usage: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L46
-- View toggle and rendering details: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L41-L51, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L77-L89
-- Styling for react-diff-view: frontend/src/components/GitDiffDialog/diff-view-theme.css#L1-L74
-- Dialog trigger usage in app header: frontend/src/routes/__root.tsx#L66-L71
 # Repo Linking
 
 This section explains how repository linking works in this project. Repo linking associates a documentation repository (e.g., for Markdown docs) with a codebase repository for a given project, enabling features like automatic documentation setup using Fumadocs.
