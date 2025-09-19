@@ -25,6 +25,10 @@ func (s *ClientService) Startup(ctx context.Context) error {
 
 	temp, err := client.NewOpenAIClient(ctx, key)
 
+	if err != nil {
+		return err
+	}
+
 	s.OpenAIClient = *temp
 
 	return nil
