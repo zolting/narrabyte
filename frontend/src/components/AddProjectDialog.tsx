@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import DirectoryPicker from "@/components/DirectoryPicker";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
 type AddProjectDialogProps = {
@@ -37,38 +44,47 @@ export default function AddProjectDialog({
 		}
 	}, [open]);
 
-	if (!open) {
-		return null;
-	}
-
 	return (
-		<div className="dialog-backdrop">
-			<div className="dialog">
-				<h2 className="mb-4 font-bold text-lg">
-					{t("projectManager.addProject")}
-				</h2>
+		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
+			<DialogContent className="sm:max-w-[520px]">
+				<DialogHeader>
+					<DialogTitle className="font-semibold text-foreground text-lg">
+						{t("projectManager.addProject")}
+					</DialogTitle>
+				</DialogHeader>
+
 				<form className="space-y-4" onSubmit={handleSubmit}>
 					<div>
-						<label className="mb-1 block font-medium" htmlFor="project-name">
+						<label
+							className="mb-1 block font-medium text-foreground"
+							htmlFor="project-name"
+						>
 							{t("projectManager.projectName")}
 						</label>
 						<Input
+							className="text-foreground"
+							id="project-name"
 							onChange={(e) => setName(e.target.value)}
-							placeholder="Nom du projet"
+							placeholder={t("projectManager.projectName")}
 							required
 							value={name}
 						/>
 					</div>
+
 					<div>
-						<label className="mb-1 block font-medium" htmlFor="doc-directory">
+						<label
+							className="mb-1 block from-foreground font-medium text-foreground"
+							htmlFor="doc-directory"
+						>
 							{t("projectManager.docDirectory")}
 						</label>
 						<DirectoryPicker onDirectorySelected={setDocDirectory} />
 						{docDirectory && <div className="mt-1 text-xs">{docDirectory}</div>}
 					</div>
+
 					<div>
 						<label
-							className="mb-1 block font-medium"
+							className="mb-1 block font-medium text-foreground"
 							htmlFor="codebase-directory"
 						>
 							{t("projectManager.codebaseDirectory")}
@@ -78,8 +94,14 @@ export default function AddProjectDialog({
 							<div className="mt-1 text-xs">{codebaseDirectory}</div>
 						)}
 					</div>
-					<div className="flex justify-end gap-2">
-						<Button onClick={onClose} type="button" variant="outline">
+
+					<DialogFooter className="pt-2">
+						<Button
+							className="text-foreground hover:text-accent"
+							onClick={onClose}
+							type="button"
+							variant="outline"
+						>
 							{t("common.cancel")}
 						</Button>
 						<Button
@@ -88,9 +110,9 @@ export default function AddProjectDialog({
 						>
 							{t("home.addProject")}
 						</Button>
-					</div>
+					</DialogFooter>
 				</form>
-			</div>
-		</div>
+			</DialogContent>
+		</Dialog>
 	);
 }

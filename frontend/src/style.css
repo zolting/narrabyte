@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@custom-variant dark (&:is(.dark *));
+
 @font-face {
 	font-family: "JetBrains Mono";
 	font-style: normal;
@@ -180,4 +182,13 @@ body {
 	font-family:
 		var(--font-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono",
 		Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
 }

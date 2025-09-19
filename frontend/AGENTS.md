@@ -290,22 +290,77 @@ Ultracite enforces strict type safety, accessibility standards, and consistent c
 - Make sure to use the digits argument with Number#toFixed().
 - Make sure to use the "use strict" directive in script files.
 
-### Next.js Specific Rules
-- Don't use `<img>` elements in Next.js projects.
-- Don't use `<head>` elements in Next.js projects.
-- Don't import next/document outside of pages/_document.jsx in Next.js projects.
-- Don't use the next/head module in pages/_document.js on Next.js projects.
-
 ### Testing Best Practices
 - Don't use export or module.exports in test files.
 - Don't use focused tests.
 - Make sure the assertion function, like expect, is placed inside an it() function call.
 - Don't use disabled tests.
 
+## Styling Guidelines
+
+### Global CSS Variables
+Make frequent use of the global styling variables defined in `style.css` when applying Tailwind classes. These variables ensure consistency across the application and support both light and dark themes.
+
+#### Available Variable Categories
+- **Colors**: `--background`, `--foreground`, `--primary`, `--secondary`, `--accent`, `--destructive`, etc.
+- **Sidebar**: `--sidebar`, `--sidebar-foreground`, `--sidebar-primary`, etc.
+- **Shadows**: `--shadow-xs`, `--shadow-sm`, `--shadow-md`, `--shadow-lg`, etc.
+- **Typography**: `--font-sans`, `--font-serif`, `--font-mono`
+- **Spacing**: `--spacing`, `--radius`
+
+#### Examples
+```tsx
+// ✅ Good: Using CSS variables with Tailwind
+<div className="bg-background text-foreground">
+<Button className="bg-primary text-primary-foreground">
+<Card className="shadow-md border-border">
+
+// ❌ Bad: Hardcoding colors
+<div className="bg-white text-black">
+<Button className="bg-blue-500 text-white">
+<Card className="shadow-md border-gray-200">
+```
+
+### Component Styling Rules
+- Always add CSS styling in the component's corresponding SCSS file
+- Prefer CSS variables over hardcoded values for consistency and theme support
+- Use semantic color names (primary, secondary, accent) rather than specific color values
+
 ## Common Tasks
 - `npx ultracite init` - Initialize Ultracite in your project
 - `npx ultracite format` - Format and fix code automatically
 - `npx ultracite lint` - Check for issues without fixing
+
+## Internationalization (i18n)
+All text content in the app must be displayed using the translation system. Never hardcode text strings directly in components.
+
+### How to Use Translations
+1. **Import the hook**: `import { useTranslation } from "react-i18next";`
+2. **Use in component**: `const { t } = useTranslation();`
+3. **Translate text**: `{t("section.key")}` instead of hardcoded strings
+4. **Add new translations**: Update `/frontend/src/assets/locales/en.json` and `/frontend/src/assets/locales/fr.json`
+
+### Translation Structure
+- `common.*` - Shared UI elements (buttons, labels, etc.)
+- `home.*` - Home page content
+- `settings.*` - Settings page content
+- `demoEvents.*` - Demo events component
+
+### Examples
+```tsx
+// ✅ Good: Using translations
+const { t } = useTranslation();
+return <Button>{t("common.greet")}</Button>;
+
+// ❌ Bad: Hardcoded text
+return <Button>Greet</Button>;
+```
+
+### Adding New Translations
+1. Add the key-value pair to both `en.json` (English) and `fr.json` (French)
+2. Use the translation key in your component
+3. TypeScript will validate the key exists
+4. Ensure translations are contextually appropriate for both languages
 
 ## Example: Error Handling
 ```typescript

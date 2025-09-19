@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import "../i18n";
+import { Get, Update } from "@go/services/appSettingsService";
 import i18n from "i18next";
-import { Get, Update } from "../../wailsjs/go/services/appSettingsService";
 
 export type AppTheme = "light" | "dark" | "system";
 

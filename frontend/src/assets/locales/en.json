@@ -19,7 +19,8 @@
     "project": "Project",
     "selectProject": "Select Project",
     "selectProjectFirst": "Select a project to choose branches",
-    "swapBranches": "Swap Branches"
+    "swapBranches": "Swap Branches",
+    "noBranchFound": "No branch found."
   },
   "projectManager": {
     "addProject": "Add Project",
@@ -42,6 +43,8 @@
     "linkRepositories": "Link Repositories",
     "linkSuccess": "Repositories linked successfully!",
     "linkError": "Failed to link repositories",
+    "initGitError": "Error initializing Git repository.",
+    "unexistantGitRepoCreate": "is not a Git repository. Do you want to create one?",
     "selectBothDirectories": "Please select both directories first"
   },
   "settings": {
@@ -57,9 +60,7 @@
     "language": "Language",
     "light": "Light",
     "dark": "Dark",
-    "system": "System",
-    "english": "English",
-    "french": "French"
+    "system": "System"
   },
   "demoEvents": {
     "title": "Demo Events",
@@ -68,5 +69,14 @@
     "stop": "Stop",
     "clear": "Clear",
     "noEvents": "No events yet. Click Start Demo."
+  },
+  "sidebar": {
+    "home": "Home",
+    "projects": "Projects",
+    "settings": "Settings",
+    "loading": "Loading…",
+    "noProjects": "No projects",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar"
   }
 }

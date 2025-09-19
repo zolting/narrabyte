@@ -1,6 +1,6 @@
+import { SelectDirectory } from "@go/main/App";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { SelectDirectory } from "../../wailsjs/go/main/App";
 import { Button } from "./ui/button";
 
 type DirectoryPickerProps = {
@@ -13,7 +13,6 @@ export default function DirectoryPicker({
 	id,
 }: DirectoryPickerProps) {
 	const { t } = useTranslation();
-	const [selectedPath, setSelectedPath] = useState<string>("");
 	const [isLoading, setIsLoading] = useState(false);
 
 	const handleSelectDirectory = async () => {
@@ -21,7 +20,6 @@ export default function DirectoryPicker({
 		try {
 			const path = await SelectDirectory();
 			if (path) {
-				setSelectedPath(path);
 				onDirectorySelected?.(path);
 			}
 		} catch {
@@ -42,11 +40,6 @@ export default function DirectoryPicker({
 				>
 					{isLoading ? t("common.selecting") : t("common.selectDirectory")}
 				</Button>
-				{selectedPath && (
-					<div className="max-w-xs truncate text-gray-600 text-sm">
-						{t("common.selected")}: {selectedPath}
-					</div>
-				)}
 			</div>
 		</div>
 	);
