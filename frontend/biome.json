@@ -41,10 +41,12 @@
         "useConsistentTypeDefinitions": "off"
       },
       "style": {
-        "useFilenamingConvention": "off"
+        "useFilenamingConvention": "off",
+        "noMagicNumbers": "off"
       },
       "correctness": {
-        "useUniqueElementIds": "off"
+        "useUniqueElementIds": "off",
+        "useExhaustiveDependencies": "warn"
       }
     }
   },
