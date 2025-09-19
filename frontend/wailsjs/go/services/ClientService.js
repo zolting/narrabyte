@@ -9,3 +9,7 @@ export function ExploreDemo() {
 export function Startup(arg1) {
   return window['go']['services']['ClientService']['Startup'](arg1);
 }
+
+export function StopStream() {
+  return window['go']['services']['ClientService']['StopStream']();
+}

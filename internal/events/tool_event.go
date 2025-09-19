@@ -13,6 +13,7 @@ const (
 
 const (
 	LLMEventTool = "event:llm:tool"
+	LLMEventDone = "events:llm:done"
 )
 
 // ToolEvent is a simple struct representing a backend event payload
@@ -32,6 +33,7 @@ func CreateToolEvent(eventType EventType, message string) ToolEvent {
 	}
 }
 
+// NewInfo creates an info ToolEvent.
 func NewInfo(message string) ToolEvent {
 	return CreateToolEvent(EventInfo, message)
 }

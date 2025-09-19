@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { type DemoEvent, demoEventSchema } from "@/types/events";
-import { StartDemoEvents, StopDemoEvents } from "../../wailsjs/go/main/App";
-import {ExploreDemo} from "../../wailsjs/go/services/ClientService";
+import {
+	ExploreDemo,
+	StopStream,
+} from "../../wailsjs/go/services/ClientService";
 import { EventsOn } from "../../wailsjs/runtime";
 
 type State = {
@@ -39,7 +41,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 			}
 		});
 
-		unsubscribeDone = EventsOn("events:demo:done", () => {
+		unsubscribeDone = EventsOn("events:llm:done", () => {
 			set({ isListening: false });
 			unsubscribeEvents?.();
 			unsubscribeEvents = null;
@@ -58,7 +60,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 
 	stop: async () => {
 		try {
-			await StopDemoEvents();
+			await StopStream();
 		} catch (e) {
 			console.error("Failed to stop dem event", e);
 		}

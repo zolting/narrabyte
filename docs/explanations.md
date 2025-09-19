@@ -102,47 +102,94 @@ Where to look in code
 Suggestions / considerations
 - If concurrent updates are a concern, implement optimistic locking using Version or database transactions.
 - Consider returning the UpdatedAt from the backend and letting the frontend use server time as the source of truth (it already does), but be explicit about timezone format expectations.
-- If more locales will be added, keep normalizeToSupportedLocale in sync with i18n supported languages.
+- If more locales will be added, keep normalizeToSupportedLocale in sync with i18n supported languages.## Git Diff Frontend Component
 
-## Git Diff Frontend Component
+What it is (short)
 
-Summary
+- Summary: Renders unified git diffs in a dialog using react-diff-view; parses with parseDiff and supports split/unified views. The component is designed to accept a diff string (currently it uses SAMPLE_DIFF) and render per-file hunks with a toggleable view type.
 
-- The Git diff UI is implemented as a reusable Dialog component that renders a parsed git diff using the react-diff-view library. It is a presentation component: in the current codebase it displays a placeholder diff string (SAMPLE_DIFF) but is wired to be used wherever a diff preview is needed.
+- A small, reusable Git diff viewer exposed as a Dialog: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx. It parses unified diff text and renders it with the react-diff-view library inside the app's Dialog primitive. The component currently ships with a hardcoded SAMPLE_DIFF used as a placeholder; it is structured so a real diff string can be passed in with minimal changes (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L96).
+
+Quick summary (practical)
+
+- Input: a unified-diff string (SAMPLE_DIFF by default).
+- Parse: parseDiff turns the string into an array of file objects (oldPath/newPath, hunks).
+- Render: react-diff-view's <Diff> + <Hunk> render line-level additions/removals; local CSS styles it.
+- Controls: toolbar allows toggling between "split" and "unified" views; the trigger is supplied by the caller via DialogTrigger asChild.
 
 How it works (implementation)
 
-- Files:
-  - frontend/src/components/GitDiffDialog/GitDiffDialog.tsx (main component and styles) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L14)
-  - frontend/src/components/GitDiffDialog/diff-view-theme.css (styling for the diff view)
-  - The component is imported and used on the home route: frontend/src/routes/index.tsx (source: frontend/src/routes/index.tsx#L8-L8, frontend/src/routes/index.tsx#L114-L119)
+- Files and imports:
+  - frontend/src/components/GitDiffDialog/GitDiffDialog.tsx — main component, imports parseDiff, Diff and Hunk from react-diff-view, app Dialog/Button primitives and CSS (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L13).
+  - frontend/src/components/GitDiffDialog/diff-view-theme.css — local styling layered on top of the library stylesheet (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L4-L5).
+  - The component is used on the home route where a compact icon Button is wrapped by <GitDiffDialog> to act as the trigger (source: frontend/src/routes/index.tsx#L114-L119).
 
-- Parsing and data flow:
-  - A SAMPLE_DIFF string is defined inside the component as a fallback / placeholder (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33).
-  - parseDiff(SAMPLE_DIFF) is called inside a useMemo to avoid re-parsing on every render; the resulting files array is used to select the first file to display (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L43-L46).
+- Data flow and parsing:
+  - The component defines SAMPLE_DIFF (placeholder unified-diff string) and calls parseDiff(SAMPLE_DIFF) to convert it into an array of file objects (each with metadata and hunks). Parsing is memoized with useMemo to avoid repeated work (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L33, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L43-L46).
+  - The current implementation selects the first parsed file (files[0]) and renders its newPath and hunks. If parsing yields no files the UI falls back to showing "example.js" as the filename (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L44-L46, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L62-L65).
 
-- Rendering:
-  - The component uses a Dialog wrapper (Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle) so it can be opened from any button or trigger passed as children (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L54-L56, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L86-L93).
-  - It renders file metadata (newPath) and a toggle button that switches between "split" and "unified" views (React state viewType toggled by setViewType) (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L41-L51, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L62-L75).
-  - The actual diff is rendered using the <Diff> component from react-diff-view with props: diffType, hunks, viewType, and a render function that maps hunks to <Hunk> components (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L78-L89).
+- Rendering and interactivity:
+  - The component is implemented as a Dialog. DialogTrigger is used with asChild so any child passed into <GitDiffDialog> (for example the Button on the home route) becomes the clickable trigger opening the dialog (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L54-L56).
+  - A local React state viewType toggles between "split" and "unified" rendering modes. The toolbar Button toggles this state; labels come from i18n keys (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L41-L51, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L66-L75).
+  - The react-diff-view <Diff> component receives diffType, hunks and viewType, and renders each hunk by mapping to <Hunk>. Lines inherit styling from the library CSS plus the local diff-view-theme.css (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L77-L89, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L4-L5).
 
-Usage notes and integration points
+Implementation details (step-by-step)
 
-- Currently the component shows a hardcoded SAMPLE_DIFF. To show real diffs:
-  - Provide a diff string from the GitService (e.g., a backend RPC that runs git --no-pager diff or shows staged/uncommitted changes) and pass it into parseDiff instead of SAMPLE_DIFF. The component is already memoized so passing a diff prop and using it in the dependency array will avoid extra parsing.
-  - Consider adding a loading state while fetching diffs and error handling when parseDiff fails or the diff is empty.
+1. On initial render the component memoizes parseDiff(SAMPLE_DIFF) so parsing occurs once (or when the input changes). The parsed result is an array of file objects with fields like oldPath/newPath, type and hunks (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L43-L46).
 
-- i18n: The title uses t("common.gitDiff") so translations will be applied if keys exist (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L40-L41, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L58-L60).
+2. The UI displays the filename from file.newPath (or a fallback) and shows a toolbar Button to toggle viewType between "split" and "unified". The button label is internationalized (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L62-L75).
 
-- Accessibility: The Dialog and Button components are used (as provided by the UI primitives) and the trigger is the child passed in from the home route. The trigger includes an sr-only label on the button (source: frontend/src/routes/index.tsx#L115-L118).
+3. The <Diff> component from react-diff-view receives the parsed hunks and current viewType; the component maps hunks to <Hunk> elements which render line-level additions/deletions/context (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L77-L89).
 
-- Styling: react-diff-view's default stylesheet is imported and augmented with a local diff-view-theme.css to match the app theme (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L4-L5).
+4. Because DialogTrigger uses asChild, the consumer controls the trigger element and its accessible label. The home route provides an sr-only label on the trigger Button for screen readers (source: frontend/src/routes/index.tsx#L115-L118).
+
+How to extend it to show real diffs (recommended approach)
+
+- Prop-based input (recommended): Make GitDiffDialog accept a prop such as diff?: string and memoize parseDiff(diff ?? SAMPLE_DIFF). This keeps parsing client-side and keeps the existing trigger-as-child API.
+
+  Example (pseudo):
+  - function GitDiffDialog({ children, diff }: { children: React.ReactNode; diff?: string }) {
+  -   const parsed = useMemo(() => parseDiff(diff ?? SAMPLE_DIFF), [diff]);
+  -   ...
+  - }
+
+- Fetching diffs from the backend (implementation note): Add or extend a Git RPC in the existing Wails GitService that runs git --no-pager diff -- <path> (or similar) and returns the unified diff string. The frontend can call that RPC, pass the returned string into GitDiffDialog as the diff prop, and render it client-side.
+  - The repo already imports a Wails GitService in the routes file and Wails bindings exist under frontend/wailsjs/go/services/GitService.* (source: frontend/src/routes/index.tsx#L12-L12, frontend/wailsjs/go/services/GitService.d.ts#L1-L1) — this usage is inferred from imports in the code (Inferred).
+
+Practical notes and UX improvements (Inferred)
+
+- Add a loading state while fetching diffs and display a friendly placeholder when the diff is empty.
+- Surface parsing errors if parseDiff throws or returns an unexpected shape.
+- When parseDiff returns multiple changed files, show a file list / tabs instead of only the first file (current behavior) to improve discoverability.
+- Preserve scroll/split-pane sync and add keyboard shortcuts for accessibility.
+
+i18n & accessibility
+
+- The dialog title and toggle labels use i18n keys (e.g., t("common.gitDiff") and t("common.splitView")), so translations will apply when keys exist in locale files (source: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L40-L41, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L58-L60, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L72-L74).
+- The component delegates accessible labeling to the trigger element (the home route supplies an sr-only label), which keeps the Dialog semantics straightforward (source: frontend/src/routes/index.tsx#L115-L118).
+
+Usage (quick example)
+
+- Minimal usage (current pattern):
+  - <GitDiffDialog>
+  -   <Button aria-label="Open diff">...</Button>
+  - </GitDiffDialog>
+  - This uses SAMPLE_DIFF internally and opens the dialog when the Button is clicked.
+
+- Preferred usage (pass a real diff string):
+  - const diff = await GitService.GetDiff(path)
+  - <GitDiffDialog diff={diff}>
+  -   <Button aria-label="Open diff">...</Button>
+  - </GitDiffDialog>
 
 Sources
 
 - Component implementation: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L1-L96
-- Usage in app: frontend/src/routes/index.tsx#L8-L8 and frontend/src/routes/index.tsx#L114-L119
-
+- SAMPLE_DIFF definition and parse usage: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L15-L46
+- Diff rendering and view toggle: frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L41-L51, frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L66-L89
+- Dialog trigger usage (asChild): frontend/src/components/GitDiffDialog/GitDiffDialog.tsx#L54-L56
+- Usage in home route (trigger): frontend/src/routes/index.tsx#L114-L119
+- Wails GitService import (example of existing git bindings): frontend/src/routes/index.tsx#L12-L12, frontend/wailsjs/go/services/GitService.d.ts#L1-L1 (Inferred)
 # Repo Linking
 
 This section explains how repository linking works in this project. Repo linking associates a documentation repository (e.g., for Markdown docs) with a codebase repository for a given project, enabling features like automatic documentation setup using Fumadocs.

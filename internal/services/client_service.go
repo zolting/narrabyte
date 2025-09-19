@@ -7,6 +7,8 @@ import (
 	"os"
 )
 
+// On pourrait lowkey rendre ca plus generique pour n'importe quel client
+// Interface pour clients?
 type ClientService struct {
 	OpenAIClient client.OpenAIClient
 	context      context.Context
@@ -38,10 +40,17 @@ func (s *ClientService) ExploreDemo() (string, error) {
 		return "", err
 	}
 
-	result, err := s.OpenAIClient.ExploreCodebaseDemo(s.context, root)
+	ctx := s.OpenAIClient.StartStream(s.context)
+	defer s.OpenAIClient.StopStream()
+
+	result, err := s.OpenAIClient.ExploreCodebaseDemo(ctx, root)
 	if err != nil {
 		return "", err
 	}
 
 	return result, nil
+}
+
+func (s *ClientService) StopStream() {
+	s.OpenAIClient.StopStream()
 }

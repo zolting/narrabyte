@@ -2,8 +2,8 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"log"
 	"narrabyte/internal/events"
 	"narrabyte/internal/llm/tools"
@@ -28,6 +28,10 @@ type OpenAIClient struct {
 	fileHistoryMu   sync.Mutex
 	fileOpenHistory []string
 	baseRoot        string
+
+	mu      sync.Mutex
+	running bool
+	cancel  context.CancelFunc
 }
 
 func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
@@ -42,6 +46,31 @@ func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 	}
 
 	return &OpenAIClient{ChatModel: *model, Key: key}, err
+}
+
+// watch out pour le contexte ici
+func (o *OpenAIClient) StartStream(ctx context.Context) context.Context {
+	o.mu.Lock()
+	if o.running {
+		o.mu.Unlock()
+		return ctx
+	}
+	o.running = true
+	ctx, cancel := context.WithCancel(ctx)
+	o.cancel = cancel
+	o.mu.Unlock()
+	return ctx
+}
+
+func (o *OpenAIClient) StopStream() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	cancel := o.cancel
+	if cancel != nil {
+		cancel()
+	}
+	o.running = false
+	o.cancel = nil
 }
 
 // SetListDirectoryBaseRoot binds the list-directory tools to a specific base directory.
@@ -124,12 +153,21 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 		preview+
 		"\n\nHow does the git diff frontend component work? Add your explanation by editing the explanations.md file, between App Settings and Repo Linking. You must use the edit tool to edit the file, not the write tool. Keep the current content. End by creating a file called haiku.txt in the same directory as the explanations. The haiku should be a short poem about the git diff frontend component.")
 
+	//send events here?
 	var lastMessage string
 	for {
 		event, ok := iter.Next()
 		if !ok {
 			break
 		}
+
+		if event.Err != nil {
+			if errors.Is(event.Err, context.Canceled) {
+				return "", context.Canceled
+			}
+			return "", event.Err
+		}
+
 		if event.Err != nil {
 			log.Fatal(event.Err)
 		}
@@ -140,6 +178,7 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 		lastMessage = msg.Content
 	}
 
+	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
 	log.Printf("Last event message: %s", lastMessage)
 	return lastMessage, nil
 }
@@ -305,10 +344,10 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 		writeDesc = "write or create a file within the project"
 	}
 	writeWithPolicy := func(ctx context.Context, in *tools.WriteFileInput) (*tools.WriteFileOutput, error) {
-		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo("WriteFile(policy): starting"))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("WriteFile(policy): starting"))
 
 		if in == nil {
-			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): input is required"))
+			events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): input is required"))
 			return &tools.WriteFileOutput{
 				Title:  "",
 				Output: "Format error: input is required",
@@ -320,7 +359,7 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 
 		p := strings.TrimSpace(in.FilePath)
 		if p == "" {
-			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): file_path is required"))
+			events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): file_path is required"))
 			return &tools.WriteFileOutput{
 				Title:  "",
 				Output: "Format error: file_path is required",
@@ -330,11 +369,11 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 			}, nil
 		}
 
-		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("WriteFile(policy): resolving '%s'", p)))
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("WriteFile(policy): resolving '%s'", p)))
 		absCandidate, rerr := o.resolveAbsWithinBase(p)
 		if rerr != nil {
 			if rerr.Error() == "project root not set" {
-				runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): project root not set"))
+				events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): project root not set"))
 				return &tools.WriteFileOutput{
 					Title:    "",
 					Output:   "Format error: project root not set",
@@ -342,21 +381,21 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 				}, nil
 			}
 			if strings.Contains(rerr.Error(), "escapes") {
-				runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): path escapes the configured project root"))
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): path escapes the configured project root"))
 				return &tools.WriteFileOutput{
 					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Format error: path escapes the configured project root",
 					Metadata: map[string]string{"error": "format_error"},
 				}, nil
 			}
-			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): resolve error: %v", rerr)))
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): resolve error: %v", rerr)))
 			return nil, rerr
 		}
 
 		// If file exists, enforce prior read
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
 			if !o.hasRead(absCandidate) {
-				runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): policy violation - must read before write"))
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): policy violation - must read before write"))
 				return &tools.WriteFileOutput{
 					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Policy error: must read the file before writing",
@@ -365,17 +404,17 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 			}
 		}
 
-		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): invoking underlying WriteFile for '%s'", filepath.ToSlash(absCandidate))))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): invoking underlying WriteFile for '%s'", filepath.ToSlash(absCandidate))))
 		out, err := tools.WriteFile(ctx, in)
 		if err != nil {
-			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): underlying error: %v", err)))
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): underlying error: %v", err)))
 			return out, err
 		}
 		title := ""
 		if out != nil && strings.TrimSpace(out.Title) != "" {
 			title = filepath.ToSlash(out.Title)
 		}
-		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): done%s", func() string {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): done%s", func() string {
 			if title == "" {
 				return ""
 			}
@@ -395,11 +434,11 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 	}
 
 	editWithPolicy := func(ctx context.Context, in *tools.EditInput) (*tools.EditOutput, error) {
-		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo("EditFile(policy): starting"))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("EditFile(policy): starting"))
 
 		// Validate input
 		if in == nil {
-			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): input is required"))
+			events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): input is required"))
 			return &tools.EditOutput{
 				Title:    "",
 				Output:   "Format error: input is required",
@@ -408,7 +447,7 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 		}
 		p := strings.TrimSpace(in.FilePath)
 		if p == "" {
-			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): file_path is required"))
+			events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): file_path is required"))
 			return &tools.EditOutput{
 				Title:    "",
 				Output:   "Format error: file_path is required",
@@ -417,11 +456,11 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 		}
 
 		// Resolve absolute path and ensure it is under base
-		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("EditFile(policy): resolving '%s'", p)))
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("EditFile(policy): resolving '%s'", p)))
 		absCandidate, rerr := o.resolveAbsWithinBase(p)
 		if rerr != nil {
 			if rerr.Error() == "project root not set" {
-				runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): project root not set"))
+				events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): project root not set"))
 				return &tools.EditOutput{
 					Title:    "",
 					Output:   "Format error: project root not set",
@@ -429,21 +468,21 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 				}, nil
 			}
 			if strings.Contains(rerr.Error(), "escapes") {
-				runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): path escapes the configured project root"))
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): path escapes the configured project root"))
 				return &tools.EditOutput{
 					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Format error: path escapes the configured project root",
 					Metadata: map[string]string{"error": "format_error"},
 				}, nil
 			}
-			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): resolve error: %v", rerr)))
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): resolve error: %v", rerr)))
 			return nil, rerr
 		}
 
 		// If file exists, enforce prior read
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
 			if !o.hasRead(absCandidate) {
-				runtime.EventsEmit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): policy violation - must read before edit"))
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): policy violation - must read before edit"))
 				return &tools.EditOutput{
 					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Policy error: must read the file before editing",
@@ -453,10 +492,10 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 		}
 
 		// Invoke underlying Edit tool
-		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("EditFile(policy): invoking underlying Edit for '%s'", filepath.ToSlash(absCandidate))))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("EditFile(policy): invoking underlying Edit for '%s'", filepath.ToSlash(absCandidate))))
 		out, err := tools.Edit(ctx, in)
 		if err != nil {
-			runtime.EventsEmit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): underlying error: %v", err)))
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): underlying error: %v", err)))
 			return out, err
 		}
 
@@ -464,7 +503,7 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 		if out != nil && strings.TrimSpace(out.Title) != "" {
 			title = filepath.ToSlash(out.Title)
 		}
-		runtime.EventsEmit(ctx, events.LLMEventTool, events.NewInfo(func() string {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(func() string {
 			if title == "" {
 				return "EditFile(policy): done"
 			}

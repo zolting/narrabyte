@@ -5,3 +5,5 @@ import {context} from '../models';
 export function ExploreDemo():Promise<string>;
 
 export function Startup(arg1:context.Context):Promise<void>;
+
+export function StopStream():Promise<void>;
