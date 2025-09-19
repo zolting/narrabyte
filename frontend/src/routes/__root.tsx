@@ -82,7 +82,7 @@ function RootLayout() {
 						</Button>
 					</div>
 				</header>
-				<main className="flex-1 overflow-hidden">
+				<main>
 					<Outlet />
 					<TanStackRouterDevtools position="bottom-right" />
 				</main>

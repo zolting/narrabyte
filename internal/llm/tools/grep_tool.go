@@ -253,7 +253,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 			}
 			// Skip ignored directories using default patterns
 			if matchIgnoredDir(rel, DefaultIgnorePatterns) {
-				events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: ignoring dir '%s'", rel)))
+				// events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: ignoring dir '%s'", rel)))
 				return fs.SkipDir
 			}
 			return nil
@@ -277,7 +277,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 
 		// Skip binary files
 		if bin, berr := isBinaryFile(p); berr == nil && bin {
-			events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: skipping binary '%s'", filepath.ToSlash(p))))
+			// events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: skipping binary '%s'", filepath.ToSlash(p))))
 			return nil
 		}
 

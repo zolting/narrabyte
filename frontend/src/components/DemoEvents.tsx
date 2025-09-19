@@ -28,7 +28,7 @@ export default function DemoEvents() {
 	}, [events]);
 
 	return (
-		<div className="mt-6 flex min-h-0 min-w-0 flex-1 flex-col gap-4 border-t pt-4">
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 border-t pt-4">
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div className="font-semibold">{t("demoEvents.title")}</div>
 				<div className="flex flex-wrap gap-2">
@@ -55,10 +55,10 @@ export default function DemoEvents() {
 					</Button>
 				</div>
 			</div>
-			<div className="flex-1 overflow-hidden rounded-md border border-border bg-muted/30">
+			<div className="flex-1 min-h-0 overflow-hidden rounded-md border border-border bg-muted/30">
 				<div
 					aria-live="polite"
-					className="h-full min-h-0 w-full overflow-auto overflow-x-hidden p-3 text-sm"
+					className="h-full w-full overflow-auto overflow-x-hidden p-3 text-sm"
 					ref={eventsContainerRef}
 				>
 					{events.length === 0 ? (

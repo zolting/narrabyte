@@ -11,17 +11,19 @@ function Home() {
 	const { t } = useTranslation();
 
 	return (
-		<div className="flex h-full w-full items-center justify-center bg-background font-mono">
-			<Card className="flex h-full w-full min-w-0 max-w-5xl flex-col overflow-hidden border border-border/60 shadow-lg">
-				<CardHeader className="border-border border-b pb-6 text-center shrink-0">
-					<CardTitle className="text-2xl text-foreground">
-						{t("common.appName")}
-					</CardTitle>
-				</CardHeader>
-				<CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-6">
-					<DemoEvents />
-				</CardContent>
-			</Card>
+		<div className="flex w-full items-center justify-center bg-background font-mono overflow-hidden">
+			<div className="flex w-full max-w-5xl p-4">
+				<Card className="flex h-[80vh] w-full min-w-0 flex-col overflow-hidden border border-border/60 shadow-lg py-0">
+					<CardHeader className="border-border border-b pb-4 pt-4 text-center shrink-0">
+						<CardTitle className="text-2xl text-foreground">
+							{t("common.appName")}
+						</CardTitle>
+					</CardHeader>
+					<CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-4 pb-4">
+						<DemoEvents />
+					</CardContent>
+				</Card>
+			</div>
 		</div>
 	);
 }
