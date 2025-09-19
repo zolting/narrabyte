@@ -177,7 +177,6 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 		lastMessage = msg.Content
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewDebug("ExploreCodebaseDemo: finished"))
 	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
 
 	return lastMessage, nil

@@ -41,7 +41,14 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 			}
 		});
 
-		unsubscribeDone = EventsOn("events:llm:done", () => {
+		unsubscribeDone = EventsOn("events:llm:done", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				set((s) => ({ events: [...s.events, evt] }));
+			} catch (error) {
+				console.error("Invalid demo event payload:", error, payload);
+			}
+
 			set({ isListening: false });
 			unsubscribeEvents?.();
 			unsubscribeEvents = null;
