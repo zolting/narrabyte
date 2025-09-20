@@ -1,10 +1,23 @@
 package services
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"narrabyte/internal/events"
 	"narrabyte/internal/llm/client"
+	"narrabyte/internal/models"
 	"narrabyte/internal/utils"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 )
 
 // On pourrait lowkey rendre ca plus generique pour n'importe quel client
@@ -12,10 +25,18 @@ import (
 type ClientService struct {
 	OpenAIClient client.OpenAIClient
 	context      context.Context
+	repoLinks    RepoLinkService
+	gitService   *GitService
 }
 
 func (s *ClientService) Startup(ctx context.Context) error {
 	s.context = ctx
+	if s.repoLinks == nil {
+		return fmt.Errorf("repo link service not configured")
+	}
+	if s.gitService == nil {
+		return fmt.Errorf("git service not configured")
+	}
 
 	err := utils.LoadEnv()
 	if err != nil {
@@ -34,8 +55,11 @@ func (s *ClientService) Startup(ctx context.Context) error {
 	return nil
 }
 
-func NewClientService() *ClientService {
-	return &ClientService{}
+func NewClientService(repoLinks RepoLinkService, gitService *GitService) *ClientService {
+	return &ClientService{
+		repoLinks:  repoLinks,
+		gitService: gitService,
+	}
 }
 
 func (s *ClientService) ExploreDemo() (string, error) {
@@ -55,6 +79,290 @@ func (s *ClientService) ExploreDemo() (string, error) {
 	return result, nil
 }
 
+func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch string) (*models.DocGenerationResult, error) {
+	ctx := s.context
+	if ctx == nil {
+		return nil, fmt.Errorf("client service not initialized")
+	}
+	sourceBranch = strings.TrimSpace(sourceBranch)
+	targetBranch = strings.TrimSpace(targetBranch)
+	if projectID == 0 {
+		return nil, fmt.Errorf("project id is required")
+	}
+	if sourceBranch == "" || targetBranch == "" {
+		return nil, fmt.Errorf("source and target branches are required")
+	}
+	if sourceBranch == targetBranch {
+		return nil, fmt.Errorf("source and target branches must differ")
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+		"GenerateDocs: starting for project %d (%s -> %s)",
+		projectID, targetBranch, sourceBranch,
+	)))
+
+	project, err := s.repoLinks.Get(projectID)
+	if err != nil {
+		return nil, err
+	}
+	if project == nil {
+		return nil, fmt.Errorf("project not found")
+	}
+
+	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
+	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
+	if codeRepoPath == "" || docRepoPath == "" {
+		return nil, fmt.Errorf("project repositories are not configured")
+	}
+
+	if !utils.DirectoryExists(codeRepoPath) {
+		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
+	}
+	if !utils.DirectoryExists(docRepoPath) {
+		return nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
+	}
+	if !utils.HasGitRepo(codeRepoPath) {
+		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
+	}
+	if !utils.HasGitRepo(docRepoPath) {
+		return nil, fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
+	}
+
+	codeRoot, err := filepath.Abs(codeRepoPath)
+	if err != nil {
+		return nil, err
+	}
+	docRoot, err := filepath.Abs(docRepoPath)
+	if err != nil {
+		return nil, err
+	}
+
+	codeRepo, err := s.gitService.Open(codeRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open code repository: %w", err)
+	}
+
+	targetHash, err := resolveBranchHash(codeRepo, targetBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve target branch '%s': %w", targetBranch, err)
+	}
+	sourceHash, err := resolveBranchHash(codeRepo, sourceBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve source branch '%s': %w", sourceBranch, err)
+	}
+
+	diffText, err := s.gitService.DiffBetweenCommits(codeRepo, targetHash.String(), sourceHash.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute branch diff: %w", err)
+	}
+	changedFiles := extractPathsFromDiff(diffText)
+	if len(changedFiles) == 0 {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocs: no code changes detected between branches"))
+	}
+
+	docRepo, err := s.gitService.Open(docRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open documentation repository: %w", err)
+	}
+	docWorktree, err := docRepo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load documentation worktree: %w", err)
+	}
+
+	status, err := docWorktree.Status()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read documentation repo status: %w", err)
+	}
+	if !status.IsClean() {
+		return nil, fmt.Errorf("documentation repository has uncommitted changes; please commit or stash them before generating docs")
+	}
+
+	baseHash, err := ensureBaseBranch(docRepo, docWorktree, targetBranch)
+	if err != nil {
+		return nil, err
+	}
+	if err := prepareDocumentationBranch(docRepo, docWorktree, sourceBranch, baseHash); err != nil {
+		return nil, err
+	}
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+		"GenerateDocs: documentation branch '%s' ready",
+		sourceBranch,
+	)))
+
+	streamCtx := s.OpenAIClient.StartStream(ctx)
+	defer s.OpenAIClient.StopStream()
+
+	llmResult, err := s.OpenAIClient.GenerateDocs(streamCtx, &client.DocGenerationRequest{
+		ProjectName:       project.ProjectName,
+		CodebasePath:      codeRoot,
+		DocumentationPath: docRoot,
+		SourceBranch:      sourceBranch,
+		TargetBranch:      targetBranch,
+		Diff:              diffText,
+		ChangedFiles:      changedFiles,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	docStatus, err := docWorktree.Status()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read documentation repo status after generation: %w", err)
+	}
+	var files []models.DocChangedFile
+	for path, st := range docStatus {
+		if st == nil {
+			continue
+		}
+		if st.Staging == git.Unmodified && st.Worktree == git.Unmodified {
+			continue
+		}
+		files = append(files, models.DocChangedFile{
+			Path:   filepath.ToSlash(path),
+			Status: describeStatus(*st),
+		})
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+
+	docDiff, err := runGitDiff(docRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocs: completed"))
+
+	summary := ""
+	if llmResult != nil {
+		summary = llmResult.Summary
+	}
+	return &models.DocGenerationResult{
+		Branch:  sourceBranch,
+		Files:   files,
+		Diff:    docDiff,
+		Summary: summary,
+	}, nil
+}
+
 func (s *ClientService) StopStream() {
 	s.OpenAIClient.StopStream()
+}
+
+func resolveBranchHash(repo *git.Repository, branch string) (plumbing.Hash, error) {
+	refName := plumbing.NewBranchReferenceName(branch)
+	ref, err := repo.Reference(refName, true)
+	if err == nil {
+		return ref.Hash(), nil
+	}
+	if !errors.Is(err, plumbing.ErrReferenceNotFound) {
+		return plumbing.Hash{}, err
+	}
+	rev, err := repo.ResolveRevision(plumbing.Revision("refs/heads/" + branch))
+	if err == nil {
+		return *rev, nil
+	}
+	return plumbing.Hash{}, fmt.Errorf("branch '%s' not found", branch)
+}
+
+func extractPathsFromDiff(diff string) []string {
+	seen := map[string]struct{}{}
+	scanner := bufio.NewScanner(strings.NewReader(diff))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "+++") {
+			path := strings.TrimSpace(strings.TrimPrefix(line, "+++"))
+			if path == "+" {
+				continue
+			}
+			if strings.HasPrefix(path, "b/") {
+				path = strings.TrimPrefix(path, "b/")
+			}
+			if path == "/dev/null" || path == "" {
+				continue
+			}
+			path = filepath.ToSlash(path)
+			seen[path] = struct{}{}
+		}
+	}
+
+	paths := make([]string, 0, len(seen))
+	for p := range seen {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func ensureBaseBranch(repo *git.Repository, wt *git.Worktree, targetBranch string) (plumbing.Hash, error) {
+	head, err := repo.Head()
+	if err != nil {
+		return plumbing.Hash{}, fmt.Errorf("failed to read documentation HEAD: %w", err)
+	}
+	baseHash := head.Hash()
+	if targetBranch == "" {
+		return baseHash, nil
+	}
+	refName := plumbing.NewBranchReferenceName(targetBranch)
+	if err := wt.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
+		if errors.Is(err, plumbing.ErrReferenceNotFound) || errors.Is(err, git.ErrBranchNotFound) {
+			return baseHash, nil
+		}
+		return plumbing.Hash{}, fmt.Errorf("failed to checkout documentation branch '%s': %w", targetBranch, err)
+	}
+	head, err = repo.Head()
+	if err != nil {
+		return plumbing.Hash{}, fmt.Errorf("failed to read documentation HEAD: %w", err)
+	}
+	return head.Hash(), nil
+}
+
+func prepareDocumentationBranch(repo *git.Repository, wt *git.Worktree, branch string, baseHash plumbing.Hash) error {
+	refName := plumbing.NewBranchReferenceName(branch)
+	ref := plumbing.NewHashReference(refName, baseHash)
+	if err := repo.Storer.SetReference(ref); err != nil {
+		return fmt.Errorf("failed to update documentation branch '%s': %w", branch, err)
+	}
+	if err := wt.Checkout(&git.CheckoutOptions{Branch: refName, Force: true}); err != nil {
+		return fmt.Errorf("failed to checkout documentation branch '%s': %w", branch, err)
+	}
+	return nil
+}
+
+func runGitDiff(repoPath string) (string, error) {
+	cmd := exec.Command("git", "diff", "--no-color")
+	cmd.Dir = repoPath
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		errMsg := strings.TrimSpace(stderr.String())
+		if errMsg != "" {
+			return "", fmt.Errorf("git diff error: %s", errMsg)
+		}
+		return "", fmt.Errorf("git diff error: %w", err)
+	}
+	return stdout.String(), nil
+}
+
+func describeStatus(st git.FileStatus) string {
+	code := st.Worktree
+	if code == git.Unmodified {
+		code = st.Staging
+	}
+	switch code {
+	case git.Added:
+		return "added"
+	case git.Untracked:
+		return "untracked"
+	case git.Modified:
+		return "modified"
+	case git.Deleted:
+		return "deleted"
+	case git.Renamed:
+		return "renamed"
+	case git.Copied:
+		return "copied"
+	default:
+		return "changed"
+	}
 }

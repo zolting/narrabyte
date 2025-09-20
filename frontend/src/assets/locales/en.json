@@ -21,7 +21,16 @@
     "selectProject": "Select Project",
     "selectProjectFirst": "Select a project to choose branches",
     "swapBranches": "Swap Branches",
-    "noBranchFound": "No branch found."
+    "noBranchFound": "No branch found.",
+    "documentationUpdates": "Documentation Updates",
+    "branch": "Branch",
+    "generatingDocs": "Generating documentation…",
+    "recentActivity": "Recent activity",
+    "inProgress": "In progress",
+    "noEvents": "No tool activity yet.",
+    "files": "Files",
+    "selectFile": "Select a file to preview the diff.",
+    "noDocumentationChanges": "No documentation changes were produced for this diff."
   },
   "projectManager": {
     "addProject": "Add Project",

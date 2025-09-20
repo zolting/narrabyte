@@ -21,7 +21,16 @@
     "selectProject": "Sélectionner un projet",
     "selectProjectFirst": "Sélectionner un projet pour choisir les branches",
     "swapBranches": "Interchanger les branches",
-    "noBranchFound": "Aucune branche n'a été trouvée."
+    "noBranchFound": "Aucune branche n'a été trouvée.",
+    "documentationUpdates": "Mises à jour de la documentation",
+    "branch": "Branche",
+    "generatingDocs": "Génération de la documentation…",
+    "recentActivity": "Activité récente",
+    "inProgress": "En cours",
+    "noEvents": "Aucune activité d'outil pour le moment.",
+    "files": "Fichiers",
+    "selectFile": "Sélectionnez un fichier pour afficher le diff.",
+    "noDocumentationChanges": "Aucun changement de documentation n'a été produit pour ce diff."
   },
   "projectManager": {
     "addProject": "Ajouter un projet",

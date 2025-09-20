@@ -1,7 +1,7 @@
 import type { models } from "@go/models";
 import { ListBranchesByPath } from "@go/services/GitService";
 import { ArrowRight, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +27,8 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useDocGenerationStore } from "@/stores/docGeneration";
+import type { DemoEvent } from "@/types/events";
 
 const twTrigger =
 	"h-10 w-full bg-card text-card-foreground border border-border " +
@@ -34,6 +36,79 @@ const twTrigger =
 	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 const twContent =
 	"bg-popover text-popover-foreground border border-border shadow-md";
+
+function ProgressLog({
+	events,
+	isRunning,
+}: {
+	events: DemoEvent[];
+	isRunning: boolean;
+}) {
+	const { t } = useTranslation();
+	const containerRef = useRef<HTMLDivElement | null>(null);
+
+	useEffect(() => {
+		const el = containerRef.current;
+		if (!el) {
+			return;
+		}
+		el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+	}, [events]);
+
+	return (
+		<div className="space-y-2">
+			<div className="flex items-center justify-between">
+				<span className="text-sm font-medium text-foreground">
+					{isRunning
+						? t("common.generatingDocs", "Generating documentation…")
+						: t("common.recentActivity", "Recent activity")}
+				</span>
+				{isRunning && (
+					<span className="text-muted-foreground text-xs">
+						{t("common.inProgress", "In progress")}
+					</span>
+				)}
+			</div>
+			<div
+				className="max-h-48 overflow-y-auto rounded-md border border-border bg-muted/40 p-3 text-xs"
+				ref={containerRef}
+			>
+				{events.length === 0 ? (
+					<div className="text-muted-foreground">
+						{t("common.noEvents", "No tool activity yet.")}
+					</div>
+				) : (
+					<ol className="space-y-1">
+						{events.map((event) => (
+							<li className="flex items-start gap-2" key={event.id}>
+								<span
+									className={cn(
+										"rounded px-1.5 py-0.5 font-medium uppercase tracking-wide",
+										"text-[10px]",
+										{
+											error: "bg-red-500/10 text-red-600",
+											warn: "bg-yellow-500/15 text-yellow-700",
+											debug: "bg-blue-500/15 text-blue-700",
+											info: "bg-emerald-500/15 text-emerald-700",
+										}[event.type] ?? "bg-muted text-foreground/80",
+									)}
+								>
+									{event.type}
+								</span>
+								<span className="flex-1 text-foreground/90">
+									{event.message}
+								</span>
+								<span className="text-muted-foreground text-[10px]">
+									{event.timestamp.toLocaleTimeString()}
+								</span>
+							</li>
+						))}
+					</ol>
+				)}
+			</div>
+		</div>
+	);
+}
 
 export default function GenerateDocsDialog({
 	open,
@@ -45,6 +120,12 @@ export default function GenerateDocsDialog({
 	project: models.RepoLink;
 }) {
 	const { t } = useTranslation();
+	const status = useDocGenerationStore((s) => s.status);
+	const events = useDocGenerationStore((s) => s.events);
+	const startDocGeneration = useDocGenerationStore((s) => s.start);
+	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
+	const docGenerationError = useDocGenerationStore((s) => s.error);
+	const isRunning = status === "running";
 
 	const [selectedProject, setSelectedProject] = useState<
 		models.RepoLink | undefined
@@ -62,6 +143,20 @@ export default function GenerateDocsDialog({
 		}
 		setSelectedProject(project);
 	}, [open, project]);
+
+	useEffect(() => {
+		if (!open) {
+			setSourceBranch(undefined);
+			setTargetBranch(undefined);
+			resetDocGeneration();
+		}
+	}, [open, resetDocGeneration]);
+
+	useEffect(() => {
+		if (status === "success") {
+			onClose();
+		}
+	}, [onClose, status]);
 
 	useEffect(() => {
 		if (selectedProject) {
@@ -89,9 +184,10 @@ export default function GenerateDocsDialog({
 				selectedProject &&
 					sourceBranch &&
 					targetBranch &&
-					sourceBranch !== targetBranch
+					sourceBranch !== targetBranch &&
+					!isRunning
 			),
-		[selectedProject, sourceBranch, targetBranch]
+		[isRunning, selectedProject, sourceBranch, targetBranch]
 	);
 
 	const swapBranches = () => {
@@ -110,6 +206,21 @@ export default function GenerateDocsDialog({
 		},
 		[onClose]
 	);
+
+	const handleContinue = useCallback(() => {
+		if (!selectedProject || !sourceBranch || !targetBranch) {
+			return;
+		}
+		setSourceOpen(false);
+		setTargetOpen(false);
+		void startDocGeneration({
+			projectId: Number(selectedProject.ID),
+			sourceBranch,
+			targetBranch,
+		});
+	}, [selectedProject, sourceBranch, startDocGeneration, targetBranch]);
+
+	const disableControls = isRunning;
 
 	return (
 		<Dialog onOpenChange={handleOpenChange} open={open}>
@@ -153,6 +264,7 @@ export default function GenerateDocsDialog({
 									</Label>
 									<Button
 										className="hover:bg-accent"
+										disabled={disableControls}
 										onClick={swapBranches}
 										size="sm"
 										type="button"
@@ -177,6 +289,7 @@ export default function GenerateDocsDialog({
 											id="source-branch-combobox"
 											role="combobox"
 											type="button"
+											disabled={disableControls}
 											variant="outline"
 										>
 											{sourceBranch ?? t("common.sourceBranch")}
@@ -249,6 +362,7 @@ export default function GenerateDocsDialog({
 											id="target-branch-combobox"
 											role="combobox"
 											type="button"
+											disabled={disableControls}
 											variant="outline"
 										>
 											{targetBranch ?? t("common.targetBranch")}
@@ -299,7 +413,11 @@ export default function GenerateDocsDialog({
 							</div>
 						</>
 					)}
-				</div>
+					</div>
+
+					{status !== "idle" && (
+						<ProgressLog events={events} isRunning={isRunning} />
+					)}
 
 				<DialogFooter className="mt-2">
 					<Button
@@ -312,10 +430,14 @@ export default function GenerateDocsDialog({
 					<Button
 						className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
 						disabled={!canContinue}
+						onClick={handleContinue}
 					>
 						{t("common.continue")}
 						<ArrowRight className="h-4 w-4" />
 					</Button>
+					{status === "error" && docGenerationError && (
+						<div className="text-destructive text-xs">{docGenerationError}</div>
+					)}
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

@@ -4,7 +4,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import GenerateDocsDialog from "@/components/GenerateDocsDialog";
+import { DocGenerationResultPanel } from "@/components/DocGenerationResultPanel";
 import { Button } from "@/components/ui/button";
+import { useDocGenerationStore } from "@/stores/docGeneration";
 
 export const Route = createFileRoute("/projects/$projectId")({
 	component: ProjectDetailPage,
@@ -16,6 +18,7 @@ function ProjectDetailPage() {
 	const [project, setProject] = useState<models.RepoLink | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [isGenerateDocsOpen, setIsGenerateDocsOpen] = useState(false);
+	const docResult = useDocGenerationStore((s) => s.result);
 
 	useEffect(() => {
 		setLoading(true);
@@ -58,6 +61,7 @@ function ProjectDetailPage() {
 					project={project}
 				/>
 			</div>
+			{docResult && <DocGenerationResultPanel result={docResult} />}
 		</div>
 	);
 }

@@ -6,6 +6,10 @@ export function ExploreDemo() {
   return window['go']['services']['ClientService']['ExploreDemo']();
 }
 
+export function GenerateDocs(arg1, arg2, arg3) {
+  return window['go']['services']['ClientService']['GenerateDocs'](arg1, arg2, arg3);
+}
+
 export function Startup(arg1) {
   return window['go']['services']['ClientService']['Startup'](arg1);
 }

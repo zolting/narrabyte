@@ -3,7 +3,6 @@ package tools
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"narrabyte/internal/events"
@@ -36,40 +35,42 @@ type ReadFileOutput struct {
 }
 
 // ReadFile reads a text file within the project root with paging and safety checks.
-func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, err error) {
+func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error) {
 	// Start
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ReadFile: starting"))
 
-	// Emit error/done for every return path
-	defer func() {
-		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: %v", err)))
-			return
-		}
-		title := ""
-		if out != nil {
-			title = strings.TrimSpace(out.Title)
-		}
-		if title == "" {
-			title = "success"
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s)", title)))
-	}()
-
 	if input == nil {
-		err = errors.New("input is required")
-		return nil, err
+		events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile: input is required"))
+		return &ReadFileOutput{
+			Title:  "",
+			Output: "Format error: input is required",
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
-		// defer will emit error
-		return nil, err
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: base root error: %v", err)))
+		return &ReadFileOutput{
+			Title:  "",
+			Output: "Format error: project root not set",
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 	pathArg := strings.TrimSpace(input.FilePath)
 	if pathArg == "" {
-		err = fmt.Errorf("file path is required")
-		return nil, err
+		events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile: file_path is required"))
+		return &ReadFileOutput{
+			Title:  "",
+			Output: "Format error: file_path is required",
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 
 	// Resolve target path under base, ensuring it cannot escape base.
@@ -78,29 +79,59 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, e
 		// Ensure absolute path is under base
 		absBase, e := filepath.Abs(base)
 		if e != nil {
-			err = e
-			return nil, err
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: abs base resolve error: %v", e)))
+			return &ReadFileOutput{
+				Title:  filepath.ToSlash(pathArg),
+				Output: "Format error: failed to resolve base directory",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 		absCandidate, e := filepath.Abs(pathArg)
 		if e != nil {
-			err = e
-			return nil, err
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: abs path resolve error: %v", e)))
+			return &ReadFileOutput{
+				Title:  filepath.ToSlash(pathArg),
+				Output: "Format error: failed to resolve file path",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 		relToBase, e := filepath.Rel(absBase, absCandidate)
 		if e != nil {
-			err = e
-			return nil, err
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: rel path error: %v", e)))
+			return &ReadFileOutput{
+				Title:  filepath.ToSlash(absCandidate),
+				Output: "Format error: failed to resolve relative path",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 		if strings.HasPrefix(relToBase, "..") {
-			err = fmt.Errorf("file %s is not in the configured project root", pathArg)
-			return nil, err
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile: path escapes configured base root"))
+			return &ReadFileOutput{
+				Title:  filepath.ToSlash(absCandidate),
+				Output: "Format error: file is not in the configured project root",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 		absPath = absCandidate
 	} else {
 		abs, ok := safeJoinUnderBase(base, pathArg)
 		if !ok {
-			err = fmt.Errorf("path escapes the configured base root")
-			return nil, err
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile: path escapes configured base root"))
+			return &ReadFileOutput{
+				Title:  filepath.ToSlash(filepath.Join(base, pathArg)),
+				Output: "Format error: path escapes the configured base root",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 		absPath = abs
 	}
@@ -111,53 +142,74 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, e
 	// Ensure file exists
 	fileInfo, statErr := os.Stat(absPath)
 	if statErr != nil {
-		err = statErr
-		return nil, err
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: stat error: %v", statErr)))
+		return &ReadFileOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: fmt.Sprintf("Format error: file does not exist or is not accessible: %s", filepath.ToSlash(absPath)),
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 	if fileInfo.IsDir() {
-		err = fmt.Errorf("path is a directory: %s", filepath.ToSlash(absPath))
-		return nil, err
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: path is a directory: %s", filepath.ToSlash(absPath))))
+		return &ReadFileOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: fmt.Sprintf("Format error: path is a directory: %s", filepath.ToSlash(absPath)),
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 
 	// Image file check
 	if img := imageTypeByExt(absPath); img != "" {
 		// Treat as non-fatal informational output
-		out = &ReadFileOutput{
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile: unsupported image '%s' (%s)", filepath.ToSlash(absPath), img)))
+		return &ReadFileOutput{
 			Title:  filepath.ToSlash(absPath),
 			Output: fmt.Sprintf("Binary image detected (%s). Reading skipped.", img),
 			Metadata: map[string]string{
 				"error": "unsupported_image",
 				"type":  img,
 			},
-		}
-		// Optional progress notice
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile: unsupported image '%s' (%s)", filepath.ToSlash(absPath), img)))
-		return out, nil
+		}, nil
 	}
 
 	// Binary file check
 	isBin, binErr := isBinaryFile(absPath)
 	if binErr != nil {
-		err = binErr
-		return nil, err
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: binary check error: %v", binErr)))
+		return &ReadFileOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: "Format error: failed to check if file is binary",
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 	if isBin {
-		out = &ReadFileOutput{
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile: unsupported binary '%s'", filepath.ToSlash(absPath))))
+		return &ReadFileOutput{
 			Title:  filepath.ToSlash(absPath),
 			Output: "Binary file detected. Reading skipped.",
 			Metadata: map[string]string{
 				"error": "unsupported_binary",
 			},
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile: unsupported binary '%s'", filepath.ToSlash(absPath))))
-		return out, nil
+		}, nil
 	}
 
 	// Read all text and split into lines
 	data, readErr := os.ReadFile(absPath)
 	if readErr != nil {
-		err = readErr
-		return nil, err
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: read error: %v", readErr)))
+		return &ReadFileOutput{
+			Title:  filepath.ToSlash(absPath),
+			Output: fmt.Sprintf("Format error: failed to read file: %v", readErr),
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 	text := string(data)
 	lines := strings.Split(text, "\n")
@@ -209,7 +261,9 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, e
 	}
 	preview := strings.Join(raw[:previewCount], "\n")
 
-	out = &ReadFileOutput{
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s'", len(raw), len(lines), filepath.ToSlash(absPath))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s)", filepath.ToSlash(absPath))))
+	return &ReadFileOutput{
 		Title:  filepath.ToSlash(absPath),
 		Output: b.String(),
 		Metadata: map[string]string{
@@ -217,10 +271,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (out *ReadFileOutput, e
 			"limit":   fmt.Sprintf("%d", limit),
 			"preview": preview,
 		},
-	}
-
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s'", len(raw), len(lines), filepath.ToSlash(absPath))))
-	return out, nil
+	}, nil
 }
 
 // imageTypeByExt returns a human-readable image type for common image extensions, else "".
