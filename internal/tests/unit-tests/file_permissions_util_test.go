@@ -3,7 +3,6 @@ package unit_tests
 import (
 	"context"
 	"errors"
-	"narrabyte/internal/llm/tools"
 	"narrabyte/internal/models"
 	"narrabyte/internal/services"
 	"narrabyte/internal/tests/mocks"
@@ -11,13 +10,13 @@ import (
 	"testing"
 )
 
-func newFileServiceWithRepoMock(findFunc func(ctx context.Context, id uint) (*models.RepoLink, error)) *tools.FilePermissionsUtil {
+func newFileServiceWithRepoMock(findFunc func(ctx context.Context, id uint) (*models.RepoLink, error)) *services.FilePermissionsUtil {
 	repoMock := &mocks.RepoLinkRepositoryMock{
 		FindByIDFunc: findFunc,
 	}
 	fumaTest := services.FumadocsService{}
 	service := services.NewRepoLinkService(repoMock, fumaTest)
-	return &tools.FilePermissionsUtil{RepoLinks: service}
+	return &services.FilePermissionsUtil{RepoLinks: service}
 }
 
 func TestCheckReadPermissionsWithRepoMock_FilePermitted(t *testing.T) {

@@ -3,11 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"narrabyte/internal/events"
 	"sync"
-	"time"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -27,6 +25,7 @@ func NewApp() *App {
 // startup is called when the app starts. The context is saved
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
+	events.EnableRuntimeEmitter()
 	a.ctx = ctx
 }
 
@@ -60,64 +59,4 @@ func (a *App) SelectDirectory() (string, error) {
 		return "", err
 	}
 	return dir, nil
-}
-
-// StartDemoEvents starts emitting demo events periodically to the frontend via Wails events
-// It will no-op if a demo events stream is already running
-func (a *App) StartDemoEvents() {
-	a.demoMu.Lock()
-	if a.demoRunning {
-		// already running; ignore duplicate starts
-		a.demoMu.Unlock()
-		return
-	}
-	a.demoRunning = true
-	ctx, cancel := context.WithCancel(a.ctx)
-	a.demoCancel = cancel
-	a.demoMu.Unlock()
-
-	go func() {
-		defer func() {
-			a.demoMu.Lock()
-			a.demoRunning = false
-			a.demoCancel = nil
-			a.demoMu.Unlock()
-			// Notify frontend that the demo events stream has finished
-			runtime.EventsEmit(a.ctx, "events:demo:done")
-		}()
-
-		eventTypes := []events.EventType{events.EventInfo, events.EventDebug, events.EventWarn, events.EventError}
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-		i := 0
-		for {
-			select {
-			case t := <-ticker.C:
-				i++
-				if i > 15 {
-					return
-				}
-				evt := events.DemoEvent{
-					ID:        i,
-					Type:      eventTypes[(i-1)%len(eventTypes)],
-					Message:   fmt.Sprintf("Demo event #%d", i),
-					Timestamp: t,
-				}
-				runtime.EventsEmit(a.ctx, "events:demo", evt)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-}
-
-// StopDemoEvents cancels the running demo event stream, if any
-func (a *App) StopDemoEvents() {
-	a.demoMu.Lock()
-	cancel := a.demoCancel
-	running := a.demoRunning
-	a.demoMu.Unlock()
-	if running && cancel != nil {
-		cancel()
-	}
 }

@@ -1,3 +1,4 @@
+// go
 package tools
 
 import (
@@ -5,14 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"narrabyte/internal/events"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 )
-
-// ---------- LS-style listing tool ----------
 
 // Default ignore patterns similar to the TS tool.
 var DefaultIgnorePatterns = []string{
@@ -51,49 +51,62 @@ type ListLSInput struct {
 }
 
 // ListDirectory produces a simple textual tree listing similar to the TS tool.
-func ListDirectory(_ context.Context, in *ListLSInput) (string, error) {
+func ListDirectory(ctx context.Context, in *ListLSInput) (string, error) {
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ListDirectory: starting"))
+
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: base root error: %v", err)))
 		return "", err
 	}
+
 	req := "."
 	if in != nil && strings.TrimSpace(in.Path) != "" {
 		req = strings.TrimSpace(in.Path)
 	}
+	events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("ListDirectory: resolving '%s' under base '%s'", req, base)))
 
 	// Resolve search path under base (absolute allowed if it resides under base)
 	var searchPath string
 	if filepath.IsAbs(req) {
 		absBase, err := filepath.Abs(base)
 		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: abs base resolve error: %v", err)))
 			return "", err
 		}
 		absReq, err := filepath.Abs(req)
 		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: abs req resolve error: %v", err)))
 			return "", err
 		}
 		relToBase, err := filepath.Rel(absBase, absReq)
 		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: rel error: %v", err)))
 			return "", err
 		}
 		if strings.HasPrefix(relToBase, "..") {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn("ListDirectory: path escapes configured base root"))
 			return "", fmt.Errorf("path escapes the configured base root")
 		}
 		searchPath = absReq
 	} else {
 		abs, ok := safeJoinUnderBase(base, req)
 		if !ok {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn("ListDirectory: path escapes configured base root"))
 			return "", fmt.Errorf("path escapes the configured base root")
 		}
 		searchPath = abs
 	}
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: listing '%s'", filepath.ToSlash(searchPath))))
 
 	// Ensure directory exists
 	info, err := os.Stat(searchPath)
 	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: stat error: %v", err)))
 		return "", err
 	}
 	if !info.IsDir() {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: not a directory: %s", filepath.ToSlash(searchPath))))
 		return "", fmt.Errorf("not a directory: %s", searchPath)
 	}
 
@@ -109,8 +122,10 @@ func ListDirectory(_ context.Context, in *ListLSInput) (string, error) {
 		if err != nil {
 			// skip unreadable entries
 			if d != nil && d.IsDir() {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ListDirectory: skipping unreadable dir '%s'", filepath.ToSlash(p))))
 				return fs.SkipDir
 			}
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ListDirectory: unreadable entry '%s'", filepath.ToSlash(p))))
 			return nil
 		}
 		if p == searchPath {
@@ -122,17 +137,20 @@ func ListDirectory(_ context.Context, in *ListLSInput) (string, error) {
 		// If directory and ignored, skip subtree
 		if d.IsDir() {
 			if matchIgnoredDir(rel, patterns) {
+				events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("ListDirectory: ignoring dir '%s'", rel)))
 				return fs.SkipDir
 			}
 			return nil
 		}
 		// If file is ignored, skip
 		if matchIgnoredFile(rel, patterns) {
+			events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("ListDirectory: ignoring file '%s'", rel)))
 			return nil
 		}
 
 		files = append(files, rel)
 		if len(files) >= listLimit {
+			events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: limit reached at %d files", len(files))))
 			// Stop traversal once we've reached the limit
 			return errors.New("__LIST_LIMIT_REACHED__")
 		}
@@ -140,6 +158,7 @@ func ListDirectory(_ context.Context, in *ListLSInput) (string, error) {
 	})
 	if err != nil {
 		if err.Error() != "__LIST_LIMIT_REACHED__" {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: traversal error: %v", err)))
 			return "", err
 		}
 	}
@@ -229,7 +248,8 @@ func ListDirectory(_ context.Context, in *ListLSInput) (string, error) {
 	b.WriteString(absHeader)
 	b.WriteByte('\n')
 	b.WriteString(renderDir(".", 0))
-	//println("ListDirectory result: ", b.String())
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: done, %d files listed for '%s'", len(files), filepath.ToSlash(searchPath))))
 	return b.String(), nil
 }
 

@@ -1,8 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { GitBranch, Settings } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DemoEvents from "../components/DemoEvents";
 
@@ -14,36 +11,19 @@ function Home() {
 	const { t } = useTranslation();
 
 	return (
-		<div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-8 font-mono">
-			{/* Navigation Buttons */}
-			<div className="absolute top-4 right-4 flex gap-2">
-				<GitDiffDialog>
-					<Button className="text-foreground" size="icon" variant="outline">
-						<GitBranch className="h-4 w-4 text-foreground" />
-						<span className="sr-only">{t("common.viewDiff")}</span>
-					</Button>
-				</GitDiffDialog>
-				<Button
-					asChild
-					className="text-foreground"
-					size="icon"
-					variant="outline"
-				>
-					<Link to="/settings">
-						<Settings className="h-4 w-4 text-foreground" />
-						<span className="sr-only">{t("common.settings")}</span>
-					</Link>
-				</Button>
+		<div className="flex w-full items-center justify-center overflow-hidden bg-background font-mono">
+			<div className="flex w-full max-w-5xl p-4">
+				<Card className="flex h-[80vh] w-full min-w-0 flex-col overflow-hidden border border-border/60 py-0 shadow-lg">
+					<CardHeader className="shrink-0 border-border border-b pt-4 pb-4 text-center">
+						<CardTitle className="text-2xl text-foreground">
+							{t("common.appName")}
+						</CardTitle>
+					</CardHeader>
+					<CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-4 pb-4">
+						<DemoEvents />
+					</CardContent>
+				</Card>
 			</div>
-
-			<Card className="w-full max-w-md">
-				<CardHeader className="text-center">
-					<CardTitle className="text-xl">Narrabyte</CardTitle>
-				</CardHeader>
-				<CardContent className="space-y-6">
-					<DemoEvents />
-				</CardContent>
-			</Card>
 		</div>
 	);
 }

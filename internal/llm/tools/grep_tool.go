@@ -1,3 +1,4 @@
+// go
 package tools
 
 import (
@@ -12,6 +13,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"narrabyte/internal/events"
 )
 
 const grepResultLimit = 100
@@ -34,7 +37,10 @@ type GrepOutput struct {
 // Grep scans files under a directory and searches for a regex pattern.
 // It limits results to grepResultLimit, sorted by file mtime desc, and groups by file.
 func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Grep: starting"))
+
 	if in == nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError("Grep: input is required"))
 		return &GrepOutput{
 			Title:  "",
 			Output: "Format error: input is required",
@@ -47,6 +53,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 	}
 	pattern := strings.TrimSpace(in.Pattern)
 	if pattern == "" {
+		events.Emit(ctx, events.LLMEventTool, events.NewError("Grep: pattern is required"))
 		return &GrepOutput{
 			Title:  "",
 			Output: "Format error: pattern is required",
@@ -57,9 +64,11 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 			},
 		}, nil
 	}
+	events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: pattern '%s', include '%s'", pattern, strings.TrimSpace(in.Include))))
 
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError("Grep: project root not set"))
 		return &GrepOutput{
 			Title:  pattern,
 			Output: "Format error: project root not set",
@@ -79,6 +88,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 	} else if filepath.IsAbs(search) {
 		absBase, err := filepath.Abs(base)
 		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Grep: invalid project root: %v", err)))
 			return &GrepOutput{
 				Title:  pattern,
 				Output: "Format error: invalid project root",
@@ -91,6 +101,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 		}
 		absReq, err := filepath.Abs(search)
 		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Grep: invalid search path: %v", err)))
 			return &GrepOutput{
 				Title:  pattern,
 				Output: "Format error: invalid search path",
@@ -103,6 +114,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 		}
 		relToBase, err := filepath.Rel(absBase, absReq)
 		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Grep: invalid search path: %v", err)))
 			return &GrepOutput{
 				Title:  pattern,
 				Output: "Format error: invalid search path",
@@ -114,6 +126,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 			}, nil
 		}
 		if strings.HasPrefix(relToBase, "..") {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn("Grep: path escapes the configured project root"))
 			return &GrepOutput{
 				Title:  pattern,
 				Output: "Format error: path escapes the configured project root",
@@ -128,6 +141,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 	} else {
 		abs, ok := safeJoinUnderBase(base, search)
 		if !ok {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn("Grep: path escapes the configured project root"))
 			return &GrepOutput{
 				Title:  pattern,
 				Output: "Format error: path escapes the configured project root",
@@ -141,9 +155,12 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 		searchPath = abs
 	}
 
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Grep: searching in '%s'", filepath.ToSlash(searchPath))))
+
 	// Ensure directory exists
 	info, err := os.Stat(searchPath)
 	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError("Grep: path does not exist or is not accessible"))
 		return &GrepOutput{
 			Title:  pattern,
 			Output: "Format error: path does not exist or is not accessible",
@@ -155,6 +172,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 		}, nil
 	}
 	if !info.IsDir() {
+		events.Emit(ctx, events.LLMEventTool, events.NewError("Grep: not a directory"))
 		return &GrepOutput{
 			Title:  pattern,
 			Output: "Format error: not a directory",
@@ -177,11 +195,15 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 			}
 		}
 	}
+	if include != "" {
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: include filter '%s'", include)))
+	}
 
 	// Check for context cancellation early
 	if ctx != nil {
 		select {
 		case <-ctx.Done():
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn("Grep: canceled"))
 			return nil, ctx.Err()
 		default:
 		}
@@ -190,6 +212,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 	// Compile content regex
 	rx, err := regexp.Compile(pattern)
 	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError("Grep: invalid regex pattern"))
 		return &GrepOutput{
 			Title:  pattern,
 			Output: "Format error: invalid regex pattern",
@@ -213,8 +236,10 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 	err = filepath.WalkDir(searchPath, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if d != nil && d.IsDir() {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Grep: skipping unreadable dir '%s'", filepath.ToSlash(p))))
 				return fs.SkipDir
 			}
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Grep: unreadable entry '%s'", filepath.ToSlash(p))))
 			return nil
 		}
 
@@ -228,6 +253,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 			}
 			// Skip ignored directories using default patterns
 			if matchIgnoredDir(rel, DefaultIgnorePatterns) {
+				// events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: ignoring dir '%s'", rel)))
 				return fs.SkipDir
 			}
 			return nil
@@ -251,6 +277,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 
 		// Skip binary files
 		if bin, berr := isBinaryFile(p); berr == nil && bin {
+			// events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: skipping binary '%s'", filepath.ToSlash(p))))
 			return nil
 		}
 
@@ -296,11 +323,13 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 		return nil
 	})
 	if err != nil && !errors.Is(err, context.Canceled) {
-		// Operational error, not input format; return as an error
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Grep: traversal error: %v", err)))
 		return nil, err
 	}
 
 	if len(matches) == 0 {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("Grep: no matches"))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Grep: done for '%s'", pattern)))
 		return &GrepOutput{
 			Title:  pattern,
 			Output: "No files found",
@@ -341,6 +370,9 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 		outLines = append(outLines, "")
 		outLines = append(outLines, "(Results are truncated. Consider using a more specific path or pattern.)")
 	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Grep: matched %d item(s)%s", len(matches), map[bool]string{true: " (truncated)", false: ""}[truncated])))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Grep: done for '%s'", pattern)))
 
 	return &GrepOutput{
 		Title:  pattern,

@@ -2,8 +2,10 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"narrabyte/internal/events"
 	"narrabyte/internal/llm/tools"
 	"narrabyte/internal/utils"
 	"os"
@@ -21,12 +23,15 @@ import (
 )
 
 type OpenAIClient struct {
-	ChatModel openai.ChatModel
-	//GitToolsService tools.GitToolsService
+	ChatModel       openai.ChatModel
 	Key             string
 	fileHistoryMu   sync.Mutex
 	fileOpenHistory []string
 	baseRoot        string
+
+	mu      sync.Mutex
+	running bool
+	cancel  context.CancelFunc
 }
 
 func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
@@ -41,6 +46,31 @@ func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 	}
 
 	return &OpenAIClient{ChatModel: *model, Key: key}, err
+}
+
+// watch out pour le contexte ici
+func (o *OpenAIClient) StartStream(ctx context.Context) context.Context {
+	o.mu.Lock()
+	if o.running {
+		o.mu.Unlock()
+		return ctx
+	}
+	o.running = true
+	ctx, cancel := context.WithCancel(ctx)
+	o.cancel = cancel
+	o.mu.Unlock()
+	return ctx
+}
+
+func (o *OpenAIClient) StopStream() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	cancel := o.cancel
+	if cancel != nil {
+		cancel()
+	}
+	o.running = false
+	o.cancel = nil
 }
 
 // SetListDirectoryBaseRoot binds the list-directory tools to a specific base directory.
@@ -75,32 +105,34 @@ func (o *OpenAIClient) loadSystemPrompt() (string, error) {
 }
 
 func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath string) (string, error) {
-	// Initialize tools for this session
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ExploreCodebaseDemo: starting"))
+
+	// Initialize tools
 	allTools, err := o.initTools()
 	if err != nil {
-		log.Printf("Error initializing tools: %v", err)
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: init tools error: %v", err)))
 		return "", err
 	}
 
 	o.SetListDirectoryBaseRoot(codebasePath)
 
-	// Load system prompt from demo.txt
+	// Load system prompt
 	systemPrompt, err := o.loadSystemPrompt()
 	if err != nil {
-		log.Printf("Error loading system prompt: %v", err)
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: load system prompt error: %v", err)))
 		return "", err
 	}
+	events.Emit(ctx, events.LLMEventTool, events.NewDebug("ExploreCodebaseDemo: system prompt loaded"))
 
-	// Create an initial preview of the repo tree for context (textual)
-	preview, err := tools.ListDirectory(ctx, &tools.ListLSInput{
-		Path: codebasePath,
-	})
+	// Repo preview
+	preview, err := tools.ListDirectory(ctx, &tools.ListLSInput{Path: codebasePath})
 	if err != nil {
-		log.Printf("Error listing tree JSON: %v", err)
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: preview error: %v", err)))
 		return "", err
 	}
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ExploreCodebaseDemo: repository preview generated"))
 
-	// Build a ReAct agent with the tool-callable model and tools config
+	// Build agent
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Model: &o.ChatModel,
 		ToolsConfig: adk.ToolsConfig{
@@ -112,11 +144,11 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 		Description: "An agent that helps the user understand a codebase.",
 		Instruction: systemPrompt,
 	})
-
 	if err != nil {
-		log.Printf("Error creating react agent: %v", err)
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: agent creation error: %v", err)))
 		return "", err
 	}
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ExploreCodebaseDemo: agent created"))
 
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
 	iter := runner.Query(ctx, "Here is an initial listing of the project (capped at 100 files):\n\n"+
@@ -130,16 +162,23 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 			break
 		}
 		if event.Err != nil {
-			log.Fatal(event.Err)
+			if errors.Is(event.Err, context.Canceled) {
+				events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing canceled"))
+				return "", context.Canceled
+			}
+			events.Emit(ctx, events.LLMEventDone, events.NewError("LLM processing error"))
+			return "", event.Err
 		}
 		msg, err := event.Output.MessageOutput.GetMessage()
 		if err != nil {
-			log.Fatal(err)
+			events.Emit(ctx, events.LLMEventDone, events.NewError(fmt.Sprintf("LLM message error: %v", err)))
+			continue
 		}
 		lastMessage = msg.Content
 	}
 
-	log.Printf("Last event message: %s", lastMessage)
+	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
+
 	return lastMessage, nil
 }
 
@@ -304,25 +343,36 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 		writeDesc = "write or create a file within the project"
 	}
 	writeWithPolicy := func(ctx context.Context, in *tools.WriteFileInput) (*tools.WriteFileOutput, error) {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("WriteFile(policy): starting"))
+
 		if in == nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): input is required"))
 			return &tools.WriteFileOutput{
-				Title:    "",
-				Output:   "Format error: input is required",
-				Metadata: map[string]string{"error": "format_error"},
+				Title:  "",
+				Output: "Format error: input is required",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
 			}, nil
 		}
+
 		p := strings.TrimSpace(in.FilePath)
 		if p == "" {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): file_path is required"))
 			return &tools.WriteFileOutput{
-				Title:    "",
-				Output:   "Format error: file_path is required",
-				Metadata: map[string]string{"error": "format_error"},
+				Title:  "",
+				Output: "Format error: file_path is required",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
 			}, nil
 		}
-		// Resolve absolute path and ensure it is under base
+
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("WriteFile(policy): resolving '%s'", p)))
 		absCandidate, rerr := o.resolveAbsWithinBase(p)
 		if rerr != nil {
 			if rerr.Error() == "project root not set" {
+				events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): project root not set"))
 				return &tools.WriteFileOutput{
 					Title:    "",
 					Output:   "Format error: project root not set",
@@ -330,17 +380,21 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 				}, nil
 			}
 			if strings.Contains(rerr.Error(), "escapes") {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): path escapes the configured project root"))
 				return &tools.WriteFileOutput{
 					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Format error: path escapes the configured project root",
 					Metadata: map[string]string{"error": "format_error"},
 				}, nil
 			}
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): resolve error: %v", rerr)))
 			return nil, rerr
 		}
+
 		// If file exists, enforce prior read
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
 			if !o.hasRead(absCandidate) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): policy violation - must read before write"))
 				return &tools.WriteFileOutput{
 					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Policy error: must read the file before writing",
@@ -348,7 +402,24 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 				}, nil
 			}
 		}
-		return tools.WriteFile(ctx, in)
+
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): invoking underlying WriteFile for '%s'", filepath.ToSlash(absCandidate))))
+		out, err := tools.WriteFile(ctx, in)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): underlying error: %v", err)))
+			return out, err
+		}
+		title := ""
+		if out != nil && strings.TrimSpace(out.Title) != "" {
+			title = filepath.ToSlash(out.Title)
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): done%s", func() string {
+			if title == "" {
+				return ""
+			}
+			return " for '" + title + "'"
+		}())))
+		return out, nil
 	}
 	writeTool, err := einoUtils.InferTool("write_file_tool", writeDesc, writeWithPolicy)
 	if err != nil {
@@ -360,8 +431,13 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 	if strings.TrimSpace(editDesc) == "" {
 		editDesc = "edit a file using context-aware string replacement"
 	}
+
 	editWithPolicy := func(ctx context.Context, in *tools.EditInput) (*tools.EditOutput, error) {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("EditFile(policy): starting"))
+
+		// Validate input
 		if in == nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): input is required"))
 			return &tools.EditOutput{
 				Title:    "",
 				Output:   "Format error: input is required",
@@ -370,16 +446,20 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 		}
 		p := strings.TrimSpace(in.FilePath)
 		if p == "" {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): file_path is required"))
 			return &tools.EditOutput{
 				Title:    "",
 				Output:   "Format error: file_path is required",
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
+
 		// Resolve absolute path and ensure it is under base
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("EditFile(policy): resolving '%s'", p)))
 		absCandidate, rerr := o.resolveAbsWithinBase(p)
 		if rerr != nil {
 			if rerr.Error() == "project root not set" {
+				events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): project root not set"))
 				return &tools.EditOutput{
 					Title:    "",
 					Output:   "Format error: project root not set",
@@ -387,17 +467,21 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 				}, nil
 			}
 			if strings.Contains(rerr.Error(), "escapes") {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): path escapes the configured project root"))
 				return &tools.EditOutput{
 					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Format error: path escapes the configured project root",
 					Metadata: map[string]string{"error": "format_error"},
 				}, nil
 			}
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): resolve error: %v", rerr)))
 			return nil, rerr
 		}
+
 		// If file exists, enforce prior read
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
 			if !o.hasRead(absCandidate) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): policy violation - must read before edit"))
 				return &tools.EditOutput{
 					Title:    filepath.ToSlash(absCandidate),
 					Output:   "Policy error: must read the file before editing",
@@ -405,8 +489,28 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 				}, nil
 			}
 		}
-		return tools.Edit(ctx, in)
+
+		// Invoke underlying Edit tool
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("EditFile(policy): invoking underlying Edit for '%s'", filepath.ToSlash(absCandidate))))
+		out, err := tools.Edit(ctx, in)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): underlying error: %v", err)))
+			return out, err
+		}
+
+		title := ""
+		if out != nil && strings.TrimSpace(out.Title) != "" {
+			title = filepath.ToSlash(out.Title)
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(func() string {
+			if title == "" {
+				return "EditFile(policy): done"
+			}
+			return "EditFile(policy): done for '" + title + "'"
+		}()))
+		return out, nil
 	}
+
 	editTool, err := einoUtils.InferTool("edit_tool", editDesc, editWithPolicy)
 	if err != nil {
 		return nil, err

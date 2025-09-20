@@ -1,13 +1,12 @@
-package tools
+package services
 
 import (
 	"log"
-	"narrabyte/internal/services"
 	"strings"
 )
 
 type FilePermissionsUtil struct {
-	RepoLinks services.RepoLinkService
+	RepoLinks RepoLinkService
 }
 
 func (f *FilePermissionsUtil) CheckReadPermissions(repoId uint, filePath string) (bool, error) {

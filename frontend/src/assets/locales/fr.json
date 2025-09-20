@@ -1,5 +1,6 @@
 {
   "common": {
+    "appName": "Narrabyte",
     "settings": "Paramètres",
     "greet": "Saluer",
     "selectDirectory": "Sélectionner un répertoire",

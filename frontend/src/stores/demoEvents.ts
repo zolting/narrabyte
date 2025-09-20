@@ -1,6 +1,9 @@
-import { StartDemoEvents, StopDemoEvents } from "@go/main/App";
 import { create } from "zustand";
 import { type DemoEvent, demoEventSchema } from "@/types/events";
+import {
+	ExploreDemo,
+	StopStream,
+} from "../../wailsjs/go/services/ClientService";
 import { EventsOn } from "../../wailsjs/runtime";
 
 type State = {
@@ -29,7 +32,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 		unsubscribeEvents?.();
 		unsubscribeDone?.();
 
-		unsubscribeEvents = EventsOn("events:demo", (payload) => {
+		unsubscribeEvents = EventsOn("event:llm:tool", (payload) => {
 			try {
 				const evt = demoEventSchema.parse(payload);
 				set((s) => ({ events: [...s.events, evt] }));
@@ -38,7 +41,14 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 			}
 		});
 
-		unsubscribeDone = EventsOn("events:demo:done", () => {
+		unsubscribeDone = EventsOn("events:llm:done", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				set((s) => ({ events: [...s.events, evt] }));
+			} catch (error) {
+				console.error("Invalid demo event payload:", error, payload);
+			}
+
 			set({ isListening: false });
 			unsubscribeEvents?.();
 			unsubscribeEvents = null;
@@ -48,7 +58,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 
 		set({ isListening: true });
 		try {
-			await StartDemoEvents();
+			await ExploreDemo();
 		} catch (e) {
 			console.error("Failed to start demo event", e);
 			set({ isListening: false });
@@ -57,7 +67,7 @@ export const useDemoEventsStore = create<State>((set, get) => ({
 
 	stop: async () => {
 		try {
-			await StopDemoEvents();
+			await StopStream();
 		} catch (e) {
 			console.error("Failed to stop dem event", e);
 		}
