@@ -1,5 +1,3 @@
-// go
-// file: internal/llm/tools/write_file_tool.go
 package tools
 
 import (
