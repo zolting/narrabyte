@@ -1,7 +1,10 @@
 import type { models } from "@go/models";
 import { create } from "zustand";
 import { type DemoEvent, demoEventSchema } from "@/types/events";
-import { CommitDocs, GenerateDocs } from "../../wailsjs/go/services/ClientService";
+import {
+	CommitDocs,
+	GenerateDocs,
+} from "../../wailsjs/go/services/ClientService";
 import { EventsOn } from "../../wailsjs/runtime";
 
 export type DocGenerationStatus =
@@ -46,7 +49,10 @@ const messageFromError = (error: unknown) => {
 	return "An unknown error occurred while generating documentation.";
 };
 
-const createLocalEvent = (type: DemoEvent["type"], message: string): DemoEvent => ({
+const createLocalEvent = (
+	type: DemoEvent["type"],
+	message: string
+): DemoEvent => ({
 	id:
 		typeof crypto !== "undefined" && "randomUUID" in crypto
 			? crypto.randomUUID()
@@ -120,7 +126,7 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 				...state.events,
 				createLocalEvent(
 					"info",
-					`Committing documentation updates to ${branch}`,
+					`Committing documentation updates to ${branch}`
 				),
 			],
 		}));
@@ -134,7 +140,7 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 					...state.events,
 					createLocalEvent(
 						"info",
-						`Committed documentation changes for ${branch}`,
+						`Committed documentation changes for ${branch}`
 					),
 				],
 				result: state.result,
@@ -147,7 +153,7 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 					...state.events,
 					createLocalEvent(
 						"error",
-						`Failed to commit documentation changes: ${messageFromError(error)}`,
+						`Failed to commit documentation changes: ${messageFromError(error)}`
 					),
 				],
 			}));

@@ -143,7 +143,7 @@ function ProjectDetailPage() {
 	);
 
 	const canCommit = useMemo(() => {
-		if (!project || !docResult) {
+		if (!(project && docResult)) {
 			return false;
 		}
 		const files = docResult.files ?? [];
@@ -178,7 +178,9 @@ function ProjectDetailPage() {
 		}
 		const files = (docResult.files ?? [])
 			.map((file) => file.path)
-			.filter((path): path is string => Boolean(path && path.trim().length > 0));
+			.filter((path): path is string =>
+				Boolean(path && path.trim().length > 0)
+			);
 		if (files.length === 0) {
 			return;
 		}
@@ -210,7 +212,7 @@ function ProjectDetailPage() {
 		setActiveTab("review");
 		const node = containerRef.current;
 		if (node) {
-			node.scrollIntoView({ behavior: "smooth", block: "start" });
+			node.scrollIntoView({ behavior: "smooth", block: "nearest" });
 		}
 	}, [docResult]);
 
@@ -238,7 +240,7 @@ function ProjectDetailPage() {
 				{project.ProjectName}
 			</h1>
 			<section
-				className="flex flex-1 min-h-0 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4"
+				className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4"
 				ref={containerRef}
 			>
 				<header className="shrink-0 space-y-2">
@@ -250,7 +252,7 @@ function ProjectDetailPage() {
 					</p>
 				</header>
 
-				<div className="flex flex-1 min-h-0 flex-col gap-6 overflow-hidden">
+				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
 					<div className="grid shrink-0 gap-2">
 						<Label className="mb-1 text-foreground" htmlFor={projectInputId}>
 							{t("common.project")}
@@ -426,7 +428,7 @@ function ProjectDetailPage() {
 					</div>
 
 					{hasGenerationAttempt && (
-						<div className="flex flex-1 min-h-0 flex-col gap-4 overflow-hidden">
+						<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
 							<div className="flex shrink-0 flex-wrap gap-2">
 								<Button
 									aria-pressed={activeTab === "activity"}
@@ -438,7 +440,7 @@ function ProjectDetailPage() {
 								>
 									{t("common.recentActivity", "Recent activity")}
 								</Button>
-									<Button
+								<Button
 									aria-pressed={activeTab === "review"}
 									className="sm:w-auto"
 									onClick={() => setActiveTab("review")}
@@ -449,7 +451,7 @@ function ProjectDetailPage() {
 									{t("common.review", "Review")}
 								</Button>
 							</div>
-							<div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+							<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 								{(() => {
 									if (activeTab === "activity") {
 										return (

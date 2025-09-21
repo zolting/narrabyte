@@ -63,7 +63,7 @@ export function DocGenerationResultPanel({
 				const key = normalizeDiffPath(
 					file.newPath && file.newPath !== "/dev/null"
 						? file.newPath
-						: file.oldPath,
+						: file.oldPath
 				);
 				return {
 					diff: file,
@@ -71,7 +71,7 @@ export function DocGenerationResultPanel({
 					status: statusMap.get(key) ?? "changed",
 				};
 			}),
-		[parsedDiff, statusMap],
+		[parsedDiff, statusMap]
 	);
 
 	const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -87,7 +87,7 @@ export function DocGenerationResultPanel({
 
 	const activeEntry = useMemo(
 		() => entries.find((entry) => entry.path === selectedPath),
-		[entries, selectedPath],
+		[entries, selectedPath]
 	);
 
 	if (!result) {
@@ -128,12 +128,12 @@ export function DocGenerationResultPanel({
 				</p>
 			)} */}
 			{hasDiff ? (
-				<div className="flex flex-1 min-h-0 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[220px_1fr]">
+				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[220px_1fr]">
 					<div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
 						<div className="text-muted-foreground text-xs uppercase tracking-wide">
 							{t("common.files", "Files")}
 						</div>
-						<ul className="flex-1 min-h-0 space-y-1 overflow-y-auto pr-1">
+						<ul className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
 							{entries.map((entry) => (
 								<li key={entry.path}>
 									<button
@@ -141,7 +141,7 @@ export function DocGenerationResultPanel({
 											"w-full rounded-md border border-transparent px-3 py-2 text-left transition-colors",
 											selectedPath === entry.path
 												? "bg-accent text-accent-foreground"
-												: "hover:bg-muted",
+												: "hover:bg-muted"
 										)}
 										onClick={() => setSelectedPath(entry.path)}
 										type="button"
@@ -150,7 +150,7 @@ export function DocGenerationResultPanel({
 											className={cn(
 												"font-medium text-xs",
 												statusClassMap[entry.status.toLowerCase()] ??
-													"text-foreground/70",
+													"text-foreground/70"
 											)}
 										>
 											{entry.status}
@@ -163,7 +163,7 @@ export function DocGenerationResultPanel({
 							))}
 						</ul>
 					</div>
-					<div className="flex-1 min-h-0 overflow-hidden rounded-md border border-border text-xs">
+					<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border text-xs">
 						<div className="h-full overflow-y-auto">
 							{activeEntry ? (
 								<Diff
@@ -189,7 +189,7 @@ export function DocGenerationResultPanel({
 				<div className="rounded-md border border-border border-dashed p-4 text-muted-foreground text-sm">
 					{t(
 						"common.noDocumentationChanges",
-						"No documentation changes were produced for this diff.",
+						"No documentation changes were produced for this diff."
 					)}
 				</div>
 			)}

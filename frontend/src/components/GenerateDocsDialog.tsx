@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { DocGenerationStatus } from "@/stores/docGeneration";
@@ -13,26 +13,69 @@ export function DocGenerationProgressLog({
 }) {
 	const { t } = useTranslation();
 	const containerRef = useRef<HTMLDivElement | null>(null);
+	const previousEventCountRef = useRef(0);
+	const [visibleEvents, setVisibleEvents] = useState<string[]>([]);
+
+	useEffect(() => {
+		const newEvents = events.slice(previousEventCountRef.current);
+		previousEventCountRef.current = events.length;
+
+		if (newEvents.length === 0) {
+			return;
+		}
+
+		const timeouts = newEvents.map((event, index) =>
+			window.setTimeout(() => {
+				setVisibleEvents((prev) => {
+					if (prev.includes(event.id)) {
+						return prev;
+					}
+					return [...prev, event.id];
+				});
+			}, index * 100),
+		);
+
+		return () => {
+			for (const timeout of timeouts) {
+				window.clearTimeout(timeout);
+			}
+		};
+	}, [events]);
+
+	useEffect(() => {
+		setVisibleEvents(events.map((e) => e.id));
+	}, [events]);
 
 	useEffect(() => {
 		const el = containerRef.current;
 		if (!el) {
 			return;
 		}
-		el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-	}, [events]);
+		const scrollToBottom = () => {
+			el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+		};
+		const frameId = window.requestAnimationFrame(scrollToBottom);
+		const timeoutId = window.setTimeout(scrollToBottom, 200);
+		return () => {
+			window.cancelAnimationFrame(frameId);
+			window.clearTimeout(timeoutId);
+		};
+	}, [visibleEvents]);
 
 	const isRunning = status === "running";
 	const isCommitting = status === "committing";
 	const inProgress = isRunning || isCommitting;
-	const heading = isRunning
-		? t("common.generatingDocs", "Generating documentation…")
-		: isCommitting
-			? t("common.committingDocs", "Committing documentation…")
-			: t("common.recentActivity", "Recent activity");
+	let heading: string;
+	if (isRunning) {
+		heading = t("common.generatingDocs", "Generating documentation…");
+	} else if (isCommitting) {
+		heading = t("common.committingDocs", "Committing documentation…");
+	} else {
+		heading = t("common.recentActivity", "Recent activity");
+	}
 
 	return (
-		<div className="space-y-2">
+		<div className="flex min-h-0 flex-1 flex-col gap-2">
 			<div className="flex items-center justify-between">
 				<span className="font-medium text-foreground text-sm">{heading}</span>
 				{inProgress && (
@@ -41,42 +84,63 @@ export function DocGenerationProgressLog({
 					</span>
 				)}
 			</div>
-			<div
-				className="max-h-48 overflow-y-auto rounded-md border border-border bg-muted/40 p-3 text-xs"
-				ref={containerRef}
-			>
-				{events.length === 0 ? (
-					<div className="text-muted-foreground">
-						{t("common.noEvents", "No tool activity yet.")}
-					</div>
-				) : (
-					<ol className="space-y-1">
-						{events.map((event) => (
-							<li className="flex items-start gap-2" key={event.id}>
-								<span
-									className={cn(
-										"rounded px-1.5 py-0.5 font-medium uppercase tracking-wide",
-										"text-[10px]",
-										{
-											error: "bg-red-500/10 text-red-600",
-											warn: "bg-yellow-500/15 text-yellow-700",
-											debug: "bg-blue-500/15 text-blue-700",
-											info: "bg-emerald-500/15 text-emerald-700",
-										}[event.type] ?? "bg-muted text-foreground/80"
-									)}
-								>
-									{event.type}
-								</span>
-								<span className="flex-1 text-foreground/90">
-									{event.message}
-								</span>
-								<span className="text-[10px] text-muted-foreground">
-									{event.timestamp.toLocaleTimeString()}
-								</span>
-							</li>
-						))}
-					</ol>
-				)}
+			<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-muted/30">
+				<div
+					aria-live="polite"
+					className="h-full w-full overflow-auto overflow-x-hidden px-3 pt-3 pb-6 text-sm"
+					ref={containerRef}
+				>
+					{events.length === 0 ? (
+						<div className="text-muted-foreground">
+							{t("common.noEvents", "No tool activity yet.")}
+						</div>
+					) : (
+						<ul className="space-y-1">
+							{events.map((event) => {
+								const isVisible = visibleEvents.includes(event.id);
+								return (
+									<li
+										className={`flex items-start gap-2 transition-all duration-300 ${
+											isVisible
+												? "translate-y-0 opacity-100"
+												: "translate-y-2 opacity-0"
+										}`}
+										key={event.id}
+									>
+										<span
+											className={cn(
+												"inline-flex shrink-0 items-center rounded px-2 py-0.5 font-medium text-xs",
+												{
+													error: "bg-red-500/15 text-red-600",
+													warn: "bg-yellow-500/15 text-yellow-700",
+													debug: "bg-blue-500/15 text-blue-700",
+													info: "bg-emerald-500/15 text-emerald-700",
+												}[event.type] || "bg-emerald-500/15 text-emerald-700",
+											)}
+										>
+											{event.type}
+										</span>
+										<span className="min-w-0 flex-1 break-words text-foreground/90">
+											{event.message}
+										</span>
+										<span className="ml-auto shrink-0 text-muted-foreground text-xs">
+											{event.timestamp.toLocaleTimeString()}
+										</span>
+									</li>
+								);
+							})}
+						</ul>
+					)}
+					{inProgress && (
+						<div className="mt-4 flex items-center justify-center py-4">
+							<div className="flex space-x-1">
+								<div className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]" />
+								<div className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:-0.15s]" />
+								<div className="h-2 w-2 animate-bounce rounded-full bg-primary" />
+							</div>
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	);
