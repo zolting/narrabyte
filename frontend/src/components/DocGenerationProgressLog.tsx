@@ -47,6 +47,8 @@ export function DocGenerationProgressLog({
 	}, [events]);
 
 	useEffect(() => {
+		if (events.length === 0) return;
+
 		const el = containerRef.current;
 		if (!el) {
 			return;
@@ -60,30 +62,26 @@ export function DocGenerationProgressLog({
 			window.cancelAnimationFrame(frameId);
 			window.clearTimeout(timeoutId);
 		};
-	}, [visibleEvents]);
+	}, [events.length]);
 
 	const isRunning = status === "running";
 	const isCommitting = status === "committing";
 	const inProgress = isRunning || isCommitting;
-	let heading: string;
-	if (isRunning) {
-		heading = t("common.generatingDocs", "Generating documentation…");
-	} else if (isCommitting) {
-		heading = t("common.committingDocs", "Committing documentation…");
-	} else {
-		heading = t("common.recentActivity", "Recent activity");
-	}
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-2">
-			<div className="flex items-center justify-between">
-				<span className="font-medium text-foreground text-sm">{heading}</span>
-				{inProgress && (
+			{inProgress && (
+				<div className="flex items-center justify-between">
+					<span className="font-medium text-foreground text-sm">
+						{isRunning
+							? t("common.generatingDocs", "Generating documentation…")
+							: t("common.committingDocs", "Committing documentation…")}
+					</span>
 					<span className="text-muted-foreground text-xs">
 						{t("common.inProgress", "In progress")}
 					</span>
-				)}
-			</div>
+				</div>
+			)}
 			<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-muted/30">
 				<div
 					aria-live="polite"

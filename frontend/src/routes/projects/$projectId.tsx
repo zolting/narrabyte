@@ -253,179 +253,199 @@ function ProjectDetailPage() {
 				</header>
 
 				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
-					<div className="grid shrink-0 gap-2">
-						<Label className="mb-1 text-foreground" htmlFor={projectInputId}>
-							{t("common.project")}
-						</Label>
-						<div
-							className={cn(
-								"h-10 w-full rounded-md border border-border bg-card text-card-foreground",
-								"flex items-center px-3",
-							)}
-							id={projectInputId}
-						>
-							{project.ProjectName}
-						</div>
-					</div>
-
-					<div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-end gap-4">
-						<div className="grid gap-2">
-							<Label
-								className="mb-1 text-foreground"
-								htmlFor={sourceBranchComboboxId}
-							>
-								{t("common.sourceBranch")}
-							</Label>
-							<Popover
-								modal={true}
-								onOpenChange={setSourceOpen}
-								open={sourceOpen}
-							>
-								<PopoverTrigger asChild>
-									<Button
-										aria-controls={sourceBranchListId}
-										aria-expanded={sourceOpen}
-										className={cn(
-											"w-full justify-between hover:text-foreground",
-											twTrigger,
-										)}
-										disabled={disableControls}
-										id={sourceBranchComboboxId}
-										role="combobox"
-										type="button"
-										variant="outline"
-									>
-										{sourceBranch ?? t("common.sourceBranch")}
-										<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-									</Button>
-								</PopoverTrigger>
-								<PopoverContent
-									className={cn(
-										"w-[var(--radix-popover-trigger-width)] p-0",
-										twContent,
-									)}
+					{!hasGenerationAttempt ? (
+						<>
+							<div className="grid shrink-0 gap-2">
+								<Label
+									className="mb-1 text-foreground"
+									htmlFor={projectInputId}
 								>
-									<Command>
-										<CommandInput placeholder="Search branch..." />
-										<CommandList
-											className="max-h-[200px]"
-											id={sourceBranchListId}
-										>
-											<CommandEmpty>No branch found.</CommandEmpty>
-											<CommandGroup>
-												{branches
-													.filter((b) => b.name !== targetBranch)
-													.map((b) => (
-														<CommandItem
-															key={b.name}
-															onSelect={(currentValue) => {
-																setSourceBranch(currentValue);
-																setSourceOpen(false);
-															}}
-															value={b.name}
-														>
-															<CheckIcon
-																className={cn(
-																	"mr-2 h-4 w-4",
-																	sourceBranch === b.name
-																		? "opacity-100"
-																		: "opacity-0",
-																)}
-															/>
-															{b.name}
-														</CommandItem>
-													))}
-											</CommandGroup>
-										</CommandList>
-									</Command>
-								</PopoverContent>
-							</Popover>
-						</div>
-
-						<Button
-							aria-label={t("common.swapBranches")}
-							className="h-10 w-10 p-1 hover:bg-accent"
-							disabled={disableControls || branches.length < 2}
-							onClick={swapBranches}
-							type="button"
-							variant="secondary"
-						>
-							<ArrowRightLeft className="h-4 w-4" />
-						</Button>
-
-						<div className="grid gap-2">
-							<Label
-								className="mb-1 text-foreground"
-								htmlFor={targetBranchComboboxId}
-							>
-								{t("common.targetBranch")}
-							</Label>
-							<Popover
-								modal={true}
-								onOpenChange={setTargetOpen}
-								open={targetOpen}
-							>
-								<PopoverTrigger asChild>
-									<Button
-										aria-controls={targetBranchListId}
-										aria-expanded={targetOpen}
-										className={cn(
-											"w-full justify-between hover:text-foreground",
-											twTrigger,
-										)}
-										disabled={disableControls}
-										id={targetBranchComboboxId}
-										role="combobox"
-										type="button"
-										variant="outline"
-									>
-										{targetBranch ?? t("common.targetBranch")}
-										<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-									</Button>
-								</PopoverTrigger>
-								<PopoverContent
+									{t("common.project")}
+								</Label>
+								<div
 									className={cn(
-										"w-[var(--radix-popover-trigger-width)] p-0",
-										twContent,
+										"h-10 w-full rounded-md border border-border bg-card text-card-foreground",
+										"flex items-center px-3",
 									)}
+									id={projectInputId}
 								>
-									<Command>
-										<CommandInput placeholder="Search branch..." />
-										<CommandList
-											className="max-h-[200px]"
-											id={targetBranchListId}
+									{project.ProjectName}
+								</div>
+							</div>
+
+							<div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-end gap-4">
+								<div className="grid gap-2">
+									<Label
+										className="mb-1 text-foreground"
+										htmlFor={sourceBranchComboboxId}
+									>
+										{t("common.sourceBranch")}
+									</Label>
+									<Popover
+										modal={true}
+										onOpenChange={setSourceOpen}
+										open={sourceOpen}
+									>
+										<PopoverTrigger asChild>
+											<Button
+												aria-controls={sourceBranchListId}
+												aria-expanded={sourceOpen}
+												className={cn(
+													"w-full justify-between hover:text-foreground",
+													twTrigger,
+												)}
+												disabled={disableControls}
+												id={sourceBranchComboboxId}
+												role="combobox"
+												type="button"
+												variant="outline"
+											>
+												{sourceBranch ?? t("common.sourceBranch")}
+												<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent
+											className={cn(
+												"w-[var(--radix-popover-trigger-width)] p-0",
+												twContent,
+											)}
 										>
-											<CommandEmpty>No branch found.</CommandEmpty>
-											<CommandGroup>
-												{branches
-													.filter((b) => b.name !== sourceBranch)
-													.map((b) => (
-														<CommandItem
-															key={b.name}
-															onSelect={(currentValue) => {
-																setTargetBranch(currentValue);
-																setTargetOpen(false);
-															}}
-															value={b.name}
-														>
-															<CheckIcon
-																className={cn(
-																	"mr-2 h-4 w-4",
-																	targetBranch === b.name
-																		? "opacity-100"
-																		: "opacity-0",
-																)}
-															/>
-															{b.name}
-														</CommandItem>
-													))}
-											</CommandGroup>
-										</CommandList>
-									</Command>
-								</PopoverContent>
-							</Popover>
+											<Command>
+												<CommandInput placeholder="Search branch..." />
+												<CommandList
+													className="max-h-[200px]"
+													id={sourceBranchListId}
+												>
+													<CommandEmpty>No branch found.</CommandEmpty>
+													<CommandGroup>
+														{branches
+															.filter((b) => b.name !== targetBranch)
+															.map((b) => (
+																<CommandItem
+																	key={b.name}
+																	onSelect={(currentValue) => {
+																		setSourceBranch(currentValue);
+																		setSourceOpen(false);
+																	}}
+																	value={b.name}
+																>
+																	<CheckIcon
+																		className={cn(
+																			"mr-2 h-4 w-4",
+																			sourceBranch === b.name
+																				? "opacity-100"
+																				: "opacity-0",
+																		)}
+																	/>
+																	{b.name}
+																</CommandItem>
+															))}
+													</CommandGroup>
+												</CommandList>
+											</Command>
+										</PopoverContent>
+									</Popover>
+								</div>
+
+								<Button
+									aria-label={t("common.swapBranches")}
+									className="h-10 w-10 p-1 hover:bg-accent"
+									disabled={disableControls || branches.length < 2}
+									onClick={swapBranches}
+									type="button"
+									variant="secondary"
+								>
+									<ArrowRightLeft className="h-4 w-4" />
+								</Button>
+
+								<div className="grid gap-2">
+									<Label
+										className="mb-1 text-foreground"
+										htmlFor={targetBranchComboboxId}
+									>
+										{t("common.targetBranch")}
+									</Label>
+									<Popover
+										modal={true}
+										onOpenChange={setTargetOpen}
+										open={targetOpen}
+									>
+										<PopoverTrigger asChild>
+											<Button
+												aria-controls={targetBranchListId}
+												aria-expanded={targetOpen}
+												className={cn(
+													"w-full justify-between hover:text-foreground",
+													twTrigger,
+												)}
+												disabled={disableControls}
+												id={targetBranchComboboxId}
+												role="combobox"
+												type="button"
+												variant="outline"
+											>
+												{targetBranch ?? t("common.targetBranch")}
+												<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent
+											className={cn(
+												"w-[var(--radix-popover-trigger-width)] p-0",
+												twContent,
+											)}
+										>
+											<Command>
+												<CommandInput placeholder="Search branch..." />
+												<CommandList
+													className="max-h-[200px]"
+													id={targetBranchListId}
+												>
+													<CommandEmpty>No branch found.</CommandEmpty>
+													<CommandGroup>
+														{branches
+															.filter((b) => b.name !== sourceBranch)
+															.map((b) => (
+																<CommandItem
+																	key={b.name}
+																	onSelect={(currentValue) => {
+																		setTargetBranch(currentValue);
+																		setTargetOpen(false);
+																	}}
+																	value={b.name}
+																>
+																	<CheckIcon
+																		className={cn(
+																			"mr-2 h-4 w-4",
+																			targetBranch === b.name
+																				? "opacity-100"
+																				: "opacity-0",
+																		)}
+																	/>
+																	{b.name}
+																</CommandItem>
+															))}
+													</CommandGroup>
+												</CommandList>
+											</Command>
+										</PopoverContent>
+									</Popover>
+								</div>
+							</div>
+						</>
+					) : (
+						<div className="flex shrink-0 items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+							<span className="text-muted-foreground">
+								{t("common.comparing", "Comparing")}:
+							</span>
+							<code className="rounded bg-background px-2 py-1 font-mono text-foreground text-xs">
+								{sourceBranch}
+							</code>
+							<ArrowRight className="h-3 w-3 text-muted-foreground" />
+							<code className="rounded bg-background px-2 py-1 font-mono text-foreground text-xs">
+								{targetBranch}
+							</code>
 						</div>
-					</div>
+					)}
 
 					{hasGenerationAttempt && (
 						<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
@@ -440,16 +460,18 @@ function ProjectDetailPage() {
 								>
 									{t("common.recentActivity", "Recent activity")}
 								</Button>
-								<Button
-									aria-pressed={activeTab === "review"}
-									className="sm:w-auto"
-									onClick={() => setActiveTab("review")}
-									size="sm"
-									type="button"
-									variant={activeTab === "review" ? "default" : "outline"}
-								>
-									{t("common.review", "Review")}
-								</Button>
+								{docResult && (
+									<Button
+										aria-pressed={activeTab === "review"}
+										className="sm:w-auto"
+										onClick={() => setActiveTab("review")}
+										size="sm"
+										type="button"
+										variant={activeTab === "review" ? "default" : "outline"}
+									>
+										{t("common.review", "Review")}
+									</Button>
+								)}
 							</div>
 							<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 								{(() => {
