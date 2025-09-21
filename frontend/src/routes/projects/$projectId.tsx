@@ -72,7 +72,9 @@ function ProjectDetailPage() {
 	const [sourceOpen, setSourceOpen] = useState(false);
 	const [targetOpen, setTargetOpen] = useState(false);
 	const repoPath = project?.CodebaseRepo;
-	const [activeTab, setActiveTab] = useState<"activity" | "review">("activity");
+	const [activeTab, setActiveTab] = useState<"activity" | "review" | "summary">(
+		"activity",
+	);
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const projectInputId = useId();
@@ -210,6 +212,7 @@ function ProjectDetailPage() {
 		if (!docResult) {
 			return;
 		}
+		// Switch to review tab when LLM completes
 		setActiveTab("review");
 		const node = containerRef.current;
 		if (node) {
@@ -436,7 +439,7 @@ function ProjectDetailPage() {
 					) : (
 						<div className="flex shrink-0 items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
 							<span className="text-muted-foreground">
-								{t("common.comparing", "Comparing")}:
+								{t("common.comparing")}:
 							</span>
 							<code className="rounded bg-background px-2 py-1 font-mono text-foreground text-xs">
 								{sourceBranch}
@@ -452,14 +455,18 @@ function ProjectDetailPage() {
 						<Tabs
 							className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
 							onValueChange={(value) =>
-								setActiveTab(value as "activity" | "review")
+								setActiveTab(value as "activity" | "review" | "summary")
 							}
 							value={activeTab}
 						>
 							<TabsList
 								className={cn(
 									"grid w-full bg-muted h-auto p-1",
-									docResult ? "grid-cols-2" : "grid-cols-1",
+									docResult?.summary
+										? "grid-cols-3"
+										: docResult
+											? "grid-cols-2"
+											: "grid-cols-1",
 								)}
 							>
 								<TabsTrigger
@@ -471,7 +478,7 @@ function ProjectDetailPage() {
 									)}
 									value="activity"
 								>
-									{t("common.recentActivity", "Recent activity")}
+									{t("common.recentActivity")}
 								</TabsTrigger>
 								{docResult && (
 									<TabsTrigger
@@ -483,7 +490,20 @@ function ProjectDetailPage() {
 										)}
 										value="review"
 									>
-										{t("common.review", "Review")}
+										{t("common.review")}
+									</TabsTrigger>
+								)}
+								{docResult?.summary && (
+									<TabsTrigger
+										className={cn(
+											"transition-all",
+											activeTab === "summary"
+												? "!bg-accent !text-accent-foreground shadow-sm"
+												: "hover:bg-muted-foreground/10",
+										)}
+										value="summary"
+									>
+										{t("common.summary")}
 									</TabsTrigger>
 								)}
 							</TabsList>
@@ -501,6 +521,28 @@ function ProjectDetailPage() {
 									<DocGenerationResultPanel result={docResult} />
 								</TabsContent>
 							)}
+							{docResult?.summary && (
+								<TabsContent
+									className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+									value="summary"
+								>
+									<div className="flex h-full flex-col gap-4 overflow-hidden rounded-lg border border-border bg-card p-6">
+										<header>
+											<h2 className="font-semibold text-foreground text-lg">
+												{t("common.summary")}
+											</h2>
+											<p className="text-muted-foreground text-sm">
+												{t("common.branch")}: {docResult.branch}
+											</p>
+										</header>
+										<div className="min-h-0 flex-1 overflow-y-auto">
+											<div className="rounded-md border border-border bg-muted/40 p-4 text-foreground/90 leading-relaxed">
+												{docResult.summary}
+											</div>
+										</div>
+									</div>
+								</TabsContent>
+							)}
 						</Tabs>
 					)}
 				</div>
@@ -516,7 +558,7 @@ function ProjectDetailPage() {
 							onClick={handleReset}
 							variant="outline"
 						>
-							{t("common.reset", "Reset")}
+							{t("common.reset")}
 						</Button>
 						{docResult ? (
 							<Button
@@ -524,7 +566,7 @@ function ProjectDetailPage() {
 								disabled={!canCommit}
 								onClick={handleCommit}
 							>
-								{t("common.commit", "Commit")}
+								{t("common.commit")}
 								<ArrowRight className="h-4 w-4" />
 							</Button>
 						) : (
@@ -533,7 +575,7 @@ function ProjectDetailPage() {
 								disabled={!canGenerate}
 								onClick={handleGenerate}
 							>
-								{t("common.generateDocs", "Generate docs")}
+								{t("common.generateDocs")}
 								<ArrowRight className="h-4 w-4" />
 							</Button>
 						)}

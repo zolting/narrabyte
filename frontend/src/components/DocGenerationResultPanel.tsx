@@ -122,11 +122,6 @@ export function DocGenerationResultPanel({
 					</Button>
 				)}
 			</header>
-			{/* {result.summary && (
-				<p className="rounded-md border border-border bg-muted/40 p-3 text-foreground/90 text-sm">
-					{result.summary}
-				</p>
-			)} */}
 			{hasDiff ? (
 				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[220px_1fr]">
 					<div className="flex min-h-0 flex-col gap-2 overflow-hidden lg:h-full max-h-48 lg:max-h-none">
