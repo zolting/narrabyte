@@ -328,7 +328,10 @@ func prepareDocumentationBranch(repo *git.Repository, wt *git.Worktree, branch s
 }
 
 func runGitDiff(repoPath string) (string, error) {
-	cmd := exec.Command("git", "diff", "--no-color")
+	var diffOutput strings.Builder
+
+	// Get diff for tracked files (staged and unstaged changes)
+	cmd := exec.Command("git", "diff", "--no-color", "HEAD")
 	cmd.Dir = repoPath
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -341,7 +344,55 @@ func runGitDiff(repoPath string) (string, error) {
 		}
 		return "", fmt.Errorf("git diff error: %w", err)
 	}
-	return stdout.String(), nil
+	diffOutput.WriteString(stdout.String())
+
+	// Get diff for untracked files
+	cmd = exec.Command("git", "ls-files", "--others", "--exclude-standard")
+	cmd.Dir = repoPath
+	stdout.Reset()
+	stderr.Reset()
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		errMsg := strings.TrimSpace(stderr.String())
+		if errMsg != "" {
+			return "", fmt.Errorf("git ls-files error: %s", errMsg)
+		}
+		return "", fmt.Errorf("git ls-files error: %w", err)
+	}
+
+	// Create diff entries for untracked files
+	untrackedFiles := strings.Fields(stdout.String())
+	for _, file := range untrackedFiles {
+		if file == "" {
+			continue
+		}
+		diffOutput.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", file, file))
+		diffOutput.WriteString("new file mode 100644\n")
+		diffOutput.WriteString("index 0000000..0000000\n")
+		diffOutput.WriteString(fmt.Sprintf("--- /dev/null\n"))
+		diffOutput.WriteString(fmt.Sprintf("+++ b/%s\n", file))
+
+		// Read file content to include in diff
+		filePath := filepath.Join(repoPath, file)
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			// If we can't read the file, just mark it as added without content
+			diffOutput.WriteString("@@ -0,0 +1,1 @@\n")
+			diffOutput.WriteString("+[Binary file or unreadable content]\n")
+		} else {
+			lines := strings.Split(string(content), "\n")
+			if len(lines) > 0 && lines[len(lines)-1] == "" {
+				lines = lines[:len(lines)-1] // Remove empty last line
+			}
+			diffOutput.WriteString(fmt.Sprintf("@@ -0,0 +1,%d @@\n", len(lines)))
+			for _, line := range lines {
+				diffOutput.WriteString(fmt.Sprintf("+%s\n", line))
+			}
+		}
+	}
+
+	return diffOutput.String(), nil
 }
 
 func describeStatus(st git.FileStatus) string {

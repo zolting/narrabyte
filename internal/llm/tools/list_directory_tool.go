@@ -28,6 +28,7 @@ var DefaultIgnorePatterns = []string{
 	".idea/",
 	".vscode/",
 	".zig-cache/",
+	".gocache/",
 	"zig-out",
 	".coverage",
 	"coverage/",
