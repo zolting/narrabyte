@@ -23,7 +23,7 @@ Brief tool call logic (you already know each tool’s details)
 - Update:
   - Prefer Edit to change existing files (docs and nav files). Read first, then edit with an exact, uniquely identifiable oldString; expand context or use replaceAll if needed. Keep diffs minimal.
 - Create (only with explicit authorization):
-  - If a topic is missing, propose a new file path and content. Use the Write tool for this.
+  - If a topic is missing, you can create a new file. Use the Write tool for this.
 - You may issue multiple tool calls in one step; batch related searches/reads/edits for efficiency.
 
 Workflow

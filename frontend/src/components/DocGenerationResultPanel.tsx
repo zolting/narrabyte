@@ -63,7 +63,7 @@ export function DocGenerationResultPanel({
 				const key = normalizeDiffPath(
 					file.newPath && file.newPath !== "/dev/null"
 						? file.newPath
-						: file.oldPath
+						: file.oldPath,
 				);
 				return {
 					diff: file,
@@ -71,7 +71,7 @@ export function DocGenerationResultPanel({
 					status: statusMap.get(key) ?? "changed",
 				};
 			}),
-		[parsedDiff, statusMap]
+		[parsedDiff, statusMap],
 	);
 
 	const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -87,7 +87,7 @@ export function DocGenerationResultPanel({
 
 	const activeEntry = useMemo(
 		() => entries.find((entry) => entry.path === selectedPath),
-		[entries, selectedPath]
+		[entries, selectedPath],
 	);
 
 	if (!result) {
@@ -97,8 +97,8 @@ export function DocGenerationResultPanel({
 	const hasDiff = entries.length > 0 && result.diff.trim().length > 0;
 
 	return (
-		<section className="space-y-4 rounded-lg border border-border bg-card p-4">
-			<header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+		<section className="flex h-full flex-col gap-4 overflow-hidden rounded-lg border border-border bg-card p-4">
+			<header className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 				<div>
 					<h2 className="font-semibold text-foreground text-lg">
 						{t("common.documentationUpdates", "Documentation Updates")}
@@ -122,18 +122,18 @@ export function DocGenerationResultPanel({
 					</Button>
 				)}
 			</header>
-			{result.summary && (
+			{/* {result.summary && (
 				<p className="rounded-md border border-border bg-muted/40 p-3 text-foreground/90 text-sm">
 					{result.summary}
 				</p>
-			)}
+			)} */}
 			{hasDiff ? (
-				<div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-					<div className="space-y-2">
+				<div className="flex flex-1 min-h-0 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[220px_1fr]">
+					<div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
 						<div className="text-muted-foreground text-xs uppercase tracking-wide">
 							{t("common.files", "Files")}
 						</div>
-						<ul className="space-y-1">
+						<ul className="flex-1 min-h-0 space-y-1 overflow-y-auto pr-1">
 							{entries.map((entry) => (
 								<li key={entry.path}>
 									<button
@@ -141,7 +141,7 @@ export function DocGenerationResultPanel({
 											"w-full rounded-md border border-transparent px-3 py-2 text-left transition-colors",
 											selectedPath === entry.path
 												? "bg-accent text-accent-foreground"
-												: "hover:bg-muted"
+												: "hover:bg-muted",
 										)}
 										onClick={() => setSelectedPath(entry.path)}
 										type="button"
@@ -150,7 +150,7 @@ export function DocGenerationResultPanel({
 											className={cn(
 												"font-medium text-xs",
 												statusClassMap[entry.status.toLowerCase()] ??
-													"text-foreground/70"
+													"text-foreground/70",
 											)}
 										>
 											{entry.status}
@@ -163,31 +163,33 @@ export function DocGenerationResultPanel({
 							))}
 						</ul>
 					</div>
-					<div className="overflow-hidden rounded-md border border-border">
-						{activeEntry ? (
-							<Diff
-								className="text-foreground"
-								diffType={activeEntry.diff.type}
-								hunks={activeEntry.diff.hunks}
-								optimizeSelection={false}
-								viewType={viewType}
-							>
-								{(hunks) =>
-									hunks.map((hunk) => <Hunk hunk={hunk} key={hunk.content} />)
-								}
-							</Diff>
-						) : (
-							<div className="p-4 text-muted-foreground text-sm">
-								{t("common.selectFile", "Select a file to preview the diff.")}
-							</div>
-						)}
+					<div className="flex-1 min-h-0 overflow-hidden rounded-md border border-border text-xs">
+						<div className="h-full overflow-y-auto">
+							{activeEntry ? (
+								<Diff
+									className="text-foreground"
+									diffType={activeEntry.diff.type}
+									hunks={activeEntry.diff.hunks}
+									optimizeSelection={false}
+									viewType={viewType}
+								>
+									{(hunks) =>
+										hunks.map((hunk) => <Hunk hunk={hunk} key={hunk.content} />)
+									}
+								</Diff>
+							) : (
+								<div className="p-4 text-muted-foreground text-sm">
+									{t("common.selectFile", "Select a file to preview the diff.")}
+								</div>
+							)}
+						</div>
 					</div>
 				</div>
 			) : (
 				<div className="rounded-md border border-border border-dashed p-4 text-muted-foreground text-sm">
 					{t(
 						"common.noDocumentationChanges",
-						"No documentation changes were produced for this diff."
+						"No documentation changes were produced for this diff.",
 					)}
 				</div>
 			)}

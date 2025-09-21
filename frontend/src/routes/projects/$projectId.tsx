@@ -2,7 +2,12 @@ import type { models } from "@go/models";
 import { ListBranchesByPath } from "@go/services/GitService";
 import { Get } from "@go/services/repoLinkService";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowRight, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
+import {
+	ArrowRight,
+	ArrowRightLeft,
+	CheckIcon,
+	ChevronsUpDownIcon,
+} from "lucide-react";
 import {
 	useCallback,
 	useEffect,
@@ -199,15 +204,15 @@ function ProjectDetailPage() {
 	}
 
 	return (
-		<div className="space-y-6">
-			<h1 className="text-center font-semibold text-foreground text-xl">
+		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
+			<h1 className="shrink-0 text-center font-semibold text-foreground text-xl">
 				{project.ProjectName}
 			</h1>
 			<section
-				className="space-y-6 rounded-lg border border-border bg-card p-4"
+				className="flex flex-1 min-h-0 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4"
 				ref={containerRef}
 			>
-				<header className="space-y-2">
+				<header className="shrink-0 space-y-2">
 					<h2 className="font-semibold text-foreground text-lg">
 						{t("common.generateDocs")}
 					</h2>
@@ -216,8 +221,8 @@ function ProjectDetailPage() {
 					</p>
 				</header>
 
-				<div className="space-y-6">
-					<div className="grid gap-2">
+				<div className="flex flex-1 min-h-0 flex-col gap-6 overflow-hidden">
+					<div className="grid shrink-0 gap-2">
 						<Label className="mb-1 text-foreground" htmlFor={projectInputId}>
 							{t("common.project")}
 						</Label>
@@ -232,26 +237,14 @@ function ProjectDetailPage() {
 						</div>
 					</div>
 
-					<div className="grid gap-4 sm:grid-cols-2">
+					<div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-end gap-4">
 						<div className="grid gap-2">
-							<div className="flex items-center justify-between">
-								<Label
-									className="mb-1 text-foreground"
-									htmlFor={sourceBranchComboboxId}
-								>
-									{t("common.sourceBranch")}
-								</Label>
-								<Button
-									className="hover:bg-accent"
-									disabled={disableControls || branches.length < 2}
-									onClick={swapBranches}
-									size="sm"
-									type="button"
-									variant="secondary"
-								>
-									{t("common.swapBranches")}
-								</Button>
-							</div>
+							<Label
+								className="mb-1 text-foreground"
+								htmlFor={sourceBranchComboboxId}
+							>
+								{t("common.sourceBranch")}
+							</Label>
 							<Popover
 								modal={true}
 								onOpenChange={setSourceOpen}
@@ -317,6 +310,17 @@ function ProjectDetailPage() {
 								</PopoverContent>
 							</Popover>
 						</div>
+
+						<Button
+							aria-label={t("common.swapBranches")}
+							className="h-10 w-10 p-1 hover:bg-accent"
+							disabled={disableControls || branches.length < 2}
+							onClick={swapBranches}
+							type="button"
+							variant="secondary"
+						>
+							<ArrowRightLeft className="h-4 w-4" />
+						</Button>
 
 						<div className="grid gap-2">
 							<Label
@@ -393,8 +397,8 @@ function ProjectDetailPage() {
 					</div>
 
 					{hasGenerationAttempt && (
-						<div className="space-y-4">
-							<div className="flex flex-wrap gap-2">
+						<div className="flex flex-1 min-h-0 flex-col gap-4 overflow-hidden">
+							<div className="flex shrink-0 flex-wrap gap-2">
 								<Button
 									aria-pressed={activeTab === "activity"}
 									className="sm:w-auto"
@@ -416,7 +420,7 @@ function ProjectDetailPage() {
 									{t("common.review", "Review")}
 								</Button>
 							</div>
-							<div>
+							<div className="flex flex-1 min-h-0 flex-col overflow-hidden">
 								{(() => {
 									if (activeTab === "activity") {
 										return (
@@ -445,7 +449,7 @@ function ProjectDetailPage() {
 					)}
 				</div>
 
-				<footer className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+				<footer className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 					{status === "error" && docGenerationError && (
 						<div className="text-destructive text-xs">{docGenerationError}</div>
 					)}
