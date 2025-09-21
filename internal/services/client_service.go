@@ -243,6 +243,114 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 	}, nil
 }
 
+func (s *ClientService) CommitDocs(projectID uint, branch string, files []string) error {
+	ctx := s.context
+	if ctx == nil {
+		return fmt.Errorf("client service not initialized")
+	}
+	if projectID == 0 {
+		return fmt.Errorf("project id is required")
+	}
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return fmt.Errorf("branch is required")
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("no documentation files to commit")
+	}
+
+	project, err := s.repoLinks.Get(projectID)
+	if err != nil {
+		return err
+	}
+	if project == nil {
+		return fmt.Errorf("project not found")
+	}
+
+	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
+	if docRepoPath == "" {
+		return fmt.Errorf("project documentation repository is not configured")
+	}
+	if !utils.DirectoryExists(docRepoPath) {
+		return fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
+	}
+	if !utils.HasGitRepo(docRepoPath) {
+		return fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
+	}
+
+	docRoot, err := filepath.Abs(docRepoPath)
+	if err != nil {
+		return err
+	}
+
+	repo, err := s.gitService.Open(docRoot)
+	if err != nil {
+		return fmt.Errorf("failed to open documentation repository: %w", err)
+	}
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to load documentation worktree: %w", err)
+	}
+	refName := plumbing.NewBranchReferenceName(branch)
+	headRef, err := repo.Head()
+	if err != nil {
+		return fmt.Errorf("failed to read documentation HEAD: %w", err)
+	}
+	currentRefName := headRef.Name()
+	if currentRefName != refName {
+		if err := worktree.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
+			if errors.Is(err, plumbing.ErrReferenceNotFound) || errors.Is(err, git.ErrBranchNotFound) {
+				return fmt.Errorf("documentation branch '%s' does not exist", branch)
+			}
+			return fmt.Errorf("failed to checkout documentation branch '%s': %w", branch, err)
+		}
+	}
+
+	docStatus, err := worktree.Status()
+	if err != nil {
+		return fmt.Errorf("failed to read documentation repo status: %w", err)
+	}
+	var normalized []string
+	for _, file := range files {
+		trimmed := strings.TrimSpace(file)
+		if trimmed == "" {
+			continue
+		}
+		fsPath := filepath.FromSlash(trimmed)
+		if st, ok := docStatus[fsPath]; ok {
+			if st.Worktree == git.Unmodified && st.Staging == git.Unmodified {
+				continue
+			}
+		}
+		normalized = append(normalized, fsPath)
+	}
+	if len(normalized) == 0 {
+		return fmt.Errorf("no documentation changes found to commit")
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+		"CommitDocs: staging %d documentation file(s) for branch '%s'",
+		len(normalized), branch,
+	)))
+
+	args := append([]string{"add", "--"}, normalized...)
+	if err := runGitCommand(docRoot, args...); err != nil {
+		return fmt.Errorf("failed to stage documentation changes: %w", err)
+	}
+
+	message := fmt.Sprintf("Add documentation for %s", branch)
+	if err := runGitCommand(docRoot, "commit", "-m", message); err != nil {
+		return fmt.Errorf("failed to commit documentation changes: %w", err)
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+		"CommitDocs: committed documentation updates to '%s'",
+		branch,
+	)))
+
+	return nil
+}
+
 func (s *ClientService) StopStream() {
 	s.OpenAIClient.StopStream()
 }
@@ -393,6 +501,26 @@ func runGitDiff(repoPath string) (string, error) {
 	}
 
 	return diffOutput.String(), nil
+}
+
+func runGitCommand(repoPath string, args ...string) error {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = repoPath
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		errMsg := strings.TrimSpace(stderr.String())
+		if errMsg == "" {
+			errMsg = strings.TrimSpace(stdout.String())
+		}
+		if errMsg != "" {
+			return fmt.Errorf(errMsg)
+		}
+		return err
+	}
+	return nil
 }
 
 func describeStatus(st git.FileStatus) string {

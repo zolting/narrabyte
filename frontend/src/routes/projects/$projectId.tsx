@@ -59,8 +59,11 @@ function ProjectDetailPage() {
 	const events = useDocGenerationStore((s) => s.events);
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
 	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
+	const commitDocGeneration = useDocGenerationStore((s) => s.commit);
 	const docGenerationError = useDocGenerationStore((s) => s.error);
 	const isRunning = status === "running";
+	const isCommitting = status === "committing";
+	const isBusy = isRunning || isCommitting;
 
 	const [branches, setBranches] = useState<models.BranchInfo[]>([]);
 	const [sourceBranch, setSourceBranch] = useState<string | undefined>();
@@ -127,17 +130,25 @@ function ProjectDetailPage() {
 		};
 	}, [repoPath]);
 
-	const canContinue = useMemo(
+	const canGenerate = useMemo(
 		() =>
 			Boolean(
 				project &&
 					sourceBranch &&
 					targetBranch &&
 					sourceBranch !== targetBranch &&
-					!isRunning
+					!isBusy
 			),
-		[isRunning, project, sourceBranch, targetBranch]
+		[isBusy, project, sourceBranch, targetBranch]
 	);
+
+	const canCommit = useMemo(() => {
+		if (!project || !docResult) {
+			return false;
+		}
+		const files = docResult.files ?? [];
+		return files.length > 0 && !isBusy;
+	}, [docResult, isBusy, project]);
 
 	const swapBranches = useCallback(() => {
 		setSourceBranch((currentSource) => {
@@ -161,6 +172,24 @@ function ProjectDetailPage() {
 		});
 	}, [project, sourceBranch, startDocGeneration, targetBranch]);
 
+	const handleCommit = useCallback(() => {
+		if (!(project && docResult)) {
+			return;
+		}
+		const files = (docResult.files ?? [])
+			.map((file) => file.path)
+			.filter((path): path is string => Boolean(path && path.trim().length > 0));
+		if (files.length === 0) {
+			return;
+		}
+		setActiveTab("activity");
+		commitDocGeneration({
+			projectId: Number(project.ID),
+			branch: docResult.branch,
+			files,
+		});
+	}, [commitDocGeneration, docResult, project]);
+
 	const handleReset = useCallback(() => {
 		resetDocGeneration();
 		setSourceBranch(undefined);
@@ -170,7 +199,7 @@ function ProjectDetailPage() {
 		setActiveTab("activity");
 	}, [resetDocGeneration]);
 
-	const disableControls = isRunning;
+	const disableControls = isBusy;
 	const hasGenerationAttempt =
 		status !== "idle" || Boolean(docResult) || events.length > 0;
 
@@ -186,7 +215,7 @@ function ProjectDetailPage() {
 	}, [docResult]);
 
 	useEffect(() => {
-		if (status === "running") {
+		if (status === "running" || status === "committing") {
 			setActiveTab("activity");
 		}
 	}, [status]);
@@ -409,7 +438,7 @@ function ProjectDetailPage() {
 								>
 									{t("common.recentActivity", "Recent activity")}
 								</Button>
-								<Button
+									<Button
 									aria-pressed={activeTab === "review"}
 									className="sm:w-auto"
 									onClick={() => setActiveTab("review")}
@@ -426,7 +455,7 @@ function ProjectDetailPage() {
 										return (
 											<DocGenerationProgressLog
 												events={events}
-												isRunning={isRunning}
+												status={status}
 											/>
 										);
 									}
@@ -456,19 +485,31 @@ function ProjectDetailPage() {
 					<div className="flex items-center gap-2 sm:justify-end">
 						<Button
 							className="border-border text-foreground hover:bg-accent"
+							disabled={isBusy}
 							onClick={handleReset}
 							variant="outline"
 						>
 							{t("common.reset", "Reset")}
 						</Button>
-						<Button
-							className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-							disabled={!canContinue}
-							onClick={handleGenerate}
-						>
-							{t("common.continue")}
-							<ArrowRight className="h-4 w-4" />
-						</Button>
+						{docResult ? (
+							<Button
+								className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+								disabled={!canCommit}
+								onClick={handleCommit}
+							>
+								{t("common.commit", "Commit")}
+								<ArrowRight className="h-4 w-4" />
+							</Button>
+						) : (
+							<Button
+								className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+								disabled={!canGenerate}
+								onClick={handleGenerate}
+							>
+								{t("common.generateDocs", "Generate docs")}
+								<ArrowRight className="h-4 w-4" />
+							</Button>
+						)}
 					</div>
 				</footer>
 			</section>

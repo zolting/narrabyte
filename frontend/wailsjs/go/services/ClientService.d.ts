@@ -3,6 +3,8 @@
 import {models} from '../models';
 import {context} from '../models';
 
+export function CommitDocs(arg1:number,arg2:string,arg3:Array<string>):Promise<void>;
+
 export function ExploreDemo():Promise<string>;
 
 export function GenerateDocs(arg1:number,arg2:string,arg3:string):Promise<models.DocGenerationResult>;

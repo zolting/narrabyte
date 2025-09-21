@@ -1,14 +1,15 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import type { DocGenerationStatus } from "@/stores/docGeneration";
 import type { DemoEvent } from "@/types/events";
 
 export function DocGenerationProgressLog({
 	events,
-	isRunning,
+	status,
 }: {
 	events: DemoEvent[];
-	isRunning: boolean;
+	status: DocGenerationStatus;
 }) {
 	const { t } = useTranslation();
 	const containerRef = useRef<HTMLDivElement | null>(null);
@@ -21,15 +22,20 @@ export function DocGenerationProgressLog({
 		el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
 	}, [events]);
 
+	const isRunning = status === "running";
+	const isCommitting = status === "committing";
+	const inProgress = isRunning || isCommitting;
+	const heading = isRunning
+		? t("common.generatingDocs", "Generating documentation…")
+		: isCommitting
+			? t("common.committingDocs", "Committing documentation…")
+			: t("common.recentActivity", "Recent activity");
+
 	return (
 		<div className="space-y-2">
 			<div className="flex items-center justify-between">
-				<span className="font-medium text-foreground text-sm">
-					{isRunning
-						? t("common.generatingDocs", "Generating documentation…")
-						: t("common.recentActivity", "Recent activity")}
-				</span>
-				{isRunning && (
+				<span className="font-medium text-foreground text-sm">{heading}</span>
+				{inProgress && (
 					<span className="text-muted-foreground text-xs">
 						{t("common.inProgress", "In progress")}
 					</span>
