@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"narrabyte/internal/events"
 	"narrabyte/internal/llm/tools"
@@ -20,6 +21,9 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	einoUtils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 type OpenAIClient struct {
@@ -30,6 +34,10 @@ type OpenAIClient struct {
 	baseRoot        string
 	docRoot         string
 	codeRoot        string
+	sourceBranch    string
+	targetBranch    string
+	sourceCommit    string
+	targetCommit    string
 
 	mu      sync.Mutex
 	running bool
@@ -42,6 +50,7 @@ type DocGenerationRequest struct {
 	DocumentationPath string
 	SourceBranch      string
 	TargetBranch      string
+	SourceCommit      string
 	Diff              string
 	ChangedFiles      []string
 }
@@ -226,6 +235,10 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	}
 	o.docRoot = docRoot
 	o.codeRoot = codeRoot
+	o.sourceBranch = strings.TrimSpace(req.SourceBranch)
+	o.targetBranch = strings.TrimSpace(req.TargetBranch)
+	o.sourceCommit = strings.TrimSpace(req.SourceCommit)
+	o.targetCommit = ""
 	o.SetListDirectoryBaseRoot(docRoot)
 
 	docListing, err := o.captureListing(ctx, docRoot)
@@ -276,6 +289,9 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	var promptBuilder strings.Builder
 	promptBuilder.WriteString(fmt.Sprintf("Project: %s\n", strings.TrimSpace(req.ProjectName)))
 	promptBuilder.WriteString(fmt.Sprintf("Source branch: %s\n", strings.TrimSpace(req.SourceBranch)))
+	if commit := strings.TrimSpace(req.SourceCommit); commit != "" {
+		promptBuilder.WriteString(fmt.Sprintf("Source branch commit: %s\n", commit))
+	}
 	promptBuilder.WriteString(fmt.Sprintf("Target branch: %s\n\n", strings.TrimSpace(req.TargetBranch)))
 	promptBuilder.WriteString("Documentation repository root: \n")
 	promptBuilder.WriteString(filepath.ToSlash(docRoot))
@@ -741,18 +757,22 @@ func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.
 			}, nil
 		}
 		var out *tools.ReadFileOutput
-		err = o.withBaseRoot(root, func() error {
-			res, innerErr := tools.ReadFile(ctx, &tools.ReadFileInput{
-				FilePath: abs,
-				Offset:   in.Offset,
-				Limit:    in.Limit,
+		if pathsEqual(root, o.codeRoot) {
+			out, err = o.readCodeFileFromSourceBranch(ctx, abs, in.Offset, in.Limit)
+		} else {
+			err = o.withBaseRoot(root, func() error {
+				res, innerErr := tools.ReadFile(ctx, &tools.ReadFileInput{
+					FilePath: abs,
+					Offset:   in.Offset,
+					Limit:    in.Limit,
+				})
+				if innerErr != nil {
+					return innerErr
+				}
+				out = res
+				return nil
 			})
-			if innerErr != nil {
-				return innerErr
-			}
-			out = res
-			return nil
-		})
+		}
 		if err != nil {
 			return out, err
 		}
@@ -919,6 +939,154 @@ func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.
 	return []tool.BaseTool{listTool, readTool, writeTool, editTool}, nil
 }
 
+func (o *OpenAIClient) readCodeFileFromSourceBranch(ctx context.Context, abs string, offset, limit int) (*tools.ReadFileOutput, error) {
+	codeRoot := strings.TrimSpace(o.codeRoot)
+	if codeRoot == "" {
+		events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile(go-git): code root not configured"))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: code repository root not configured",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+	sourceCommit := strings.TrimSpace(o.sourceCommit)
+	if sourceCommit == "" {
+		events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile(go-git): source commit not configured"))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: source branch commit not available",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	repo, err := git.PlainOpen(codeRoot)
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): failed to open repo: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   fmt.Sprintf("Format error: failed to open code repository: %v", err),
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	commit, err := repo.CommitObject(plumbing.NewHash(sourceCommit))
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): failed to resolve commit: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   fmt.Sprintf("Format error: failed to resolve source branch commit: %v", err),
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	rel, err := filepath.Rel(codeRoot, abs)
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): rel path error: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: failed to resolve relative path within code repository",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+	if strings.HasPrefix(rel, "..") {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): path escapes code root"))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: path escapes the code repository root",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+	if rel == "." {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): path refers to repository root"))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: path refers to a directory, not a file",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	rel = filepath.ToSlash(rel)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+		"ReadFile(go-git): reading '%s' from source commit %s", filepath.ToSlash(abs), sourceCommit,
+	)))
+
+	file, err := commit.File(rel)
+	if err != nil {
+		if errors.Is(err, object.ErrFileNotFound) {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): file not found in commit"))
+			return &tools.ReadFileOutput{
+				Title:    filepath.ToSlash(abs),
+				Output:   "Format error: file does not exist in the source branch",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): commit lookup error: %v", err)))
+		return nil, err
+	}
+	if file == nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): file lookup returned nil"))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: file does not exist in the source branch",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	if img := imageTypeByExt(abs); img != "" {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile(go-git): unsupported image '%s' (%s)", filepath.ToSlash(abs), img)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   fmt.Sprintf("Binary image detected (%s). Reading skipped.", img),
+			Metadata: map[string]string{"error": "unsupported_image", "type": img},
+		}, nil
+	}
+
+	isBinary, err := file.IsBinary()
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): binary check error: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: failed to check if file is binary",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+	if isBinary {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile(go-git): unsupported binary '%s'", filepath.ToSlash(abs))))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Binary file detected. Reading skipped.",
+			Metadata: map[string]string{"error": "unsupported_binary"},
+		}, nil
+	}
+
+	reader, err := file.Reader()
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): reader error: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   fmt.Sprintf("Format error: failed to open file reader: %v", err),
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+	defer reader.Close()
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): read error: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   fmt.Sprintf("Format error: failed to read file from source branch: %v", err),
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	lines := strings.Split(string(data), "\n")
+	out, readCount, totalLines := tools.BuildReadFileOutput(filepath.ToSlash(abs), lines, offset, limit)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile(go-git): read %d/%d lines from '%s'", readCount, totalLines, filepath.ToSlash(abs))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile(go-git): done (%s)", filepath.ToSlash(abs))))
+	return out, nil
+}
+
 func (o *OpenAIClient) withBaseRoot(root string, fn func() error) error {
 	root = strings.TrimSpace(root)
 	if root == "" {
@@ -989,4 +1157,36 @@ func relOrDot(rel string) string {
 		return "."
 	}
 	return rel
+}
+
+func pathsEqual(a, b string) bool {
+	if strings.TrimSpace(a) == "" || strings.TrimSpace(b) == "" {
+		return false
+	}
+	absA, errA := filepath.Abs(a)
+	if errA != nil {
+		absA = filepath.Clean(a)
+	}
+	absB, errB := filepath.Abs(b)
+	if errB != nil {
+		absB = filepath.Clean(b)
+	}
+	return absA == absB
+}
+
+func imageTypeByExt(p string) string {
+	switch strings.ToLower(filepath.Ext(p)) {
+	case ".jpg", ".jpeg":
+		return "JPEG"
+	case ".png":
+		return "PNG"
+	case ".gif":
+		return "GIF"
+	case ".bmp":
+		return "BMP"
+	case ".webp":
+		return "WebP"
+	default:
+		return ""
+	}
 }

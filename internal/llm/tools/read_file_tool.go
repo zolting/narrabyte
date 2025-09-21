@@ -211,28 +211,36 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 			},
 		}, nil
 	}
-	text := string(data)
-	lines := strings.Split(text, "\n")
+	lines := strings.Split(string(data), "\n")
+	out, readCount, totalLines := BuildReadFileOutput(filepath.ToSlash(absPath), lines, input.Offset, input.Limit)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s'", readCount, totalLines, filepath.ToSlash(absPath))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s)", filepath.ToSlash(absPath))))
+	return out, nil
+}
 
-	// Bounds and defaults
-	limit := input.Limit
-	if limit <= 0 {
-		limit = defaultReadLimit
+// BuildReadFileOutput formats the provided lines into the standard numbered payload
+// returned by the read file tool. It applies offset/limit paging, truncates long
+// lines, and produces metadata (offset, limit, preview). The function returns the
+// constructed output along with the number of lines emitted and the total number
+// of lines available.
+func BuildReadFileOutput(title string, lines []string, offset, limit int) (*ReadFileOutput, int, int) {
+	limitNormalized := limit
+	if limitNormalized <= 0 {
+		limitNormalized = defaultReadLimit
 	}
-	offset := input.Offset
-	if offset < 0 {
-		offset = 0
+	offsetNormalized := offset
+	if offsetNormalized < 0 {
+		offsetNormalized = 0
 	}
-	start := offset
+	start := offsetNormalized
 	if start > len(lines) {
 		start = len(lines)
 	}
-	end := start + limit
+	end := start + limitNormalized
 	if end > len(lines) {
 		end = len(lines)
 	}
 
-	// Prepare output raw lines with truncation of very long lines
 	raw := make([]string, 0, end-start)
 	for i := start; i < end; i++ {
 		line := lines[i]
@@ -242,36 +250,33 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 		raw = append(raw, line)
 	}
 
-	// Build numbered content
 	var b strings.Builder
 	b.WriteString("<file>\n")
 	for i, line := range raw {
-		// 1-based line numbering in the excerpt
 		b.WriteString(fmt.Sprintf("%6d: %s\n", start+i+1, line))
 	}
-	if len(lines) > offset+len(raw) {
+	if len(lines) > offsetNormalized+len(raw) {
 		b.WriteString("... (truncated)\n")
 	}
 	b.WriteString("</file>")
 
-	// Compute preview (first 20 raw lines)
 	previewCount := 20
 	if previewCount > len(raw) {
 		previewCount = len(raw)
 	}
 	preview := strings.Join(raw[:previewCount], "\n")
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s'", len(raw), len(lines), filepath.ToSlash(absPath))))
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s)", filepath.ToSlash(absPath))))
+	meta := map[string]string{
+		"offset":  fmt.Sprintf("%d", offsetNormalized),
+		"limit":   fmt.Sprintf("%d", limitNormalized),
+		"preview": preview,
+	}
+
 	return &ReadFileOutput{
-		Title:  filepath.ToSlash(absPath),
-		Output: b.String(),
-		Metadata: map[string]string{
-			"offset":  fmt.Sprintf("%d", offset),
-			"limit":   fmt.Sprintf("%d", limit),
-			"preview": preview,
-		},
-	}, nil
+		Title:    title,
+		Output:   b.String(),
+		Metadata: meta,
+	}, len(raw), len(lines)
 }
 
 // imageTypeByExt returns a human-readable image type for common image extensions, else "".

@@ -198,6 +198,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 		DocumentationPath: docRoot,
 		SourceBranch:      sourceBranch,
 		TargetBranch:      targetBranch,
+		SourceCommit:      sourceHash.String(),
 		Diff:              diffText,
 		ChangedFiles:      changedFiles,
 	})
@@ -381,9 +382,8 @@ func extractPathsFromDiff(diff string) []string {
 			if path == "+" {
 				continue
 			}
-			if strings.HasPrefix(path, "b/") {
-				path = strings.TrimPrefix(path, "b/")
-			}
+			path = strings.TrimPrefix(path, "b/")
+
 			if path == "/dev/null" || path == "" {
 				continue
 			}
@@ -478,7 +478,7 @@ func runGitDiff(repoPath string) (string, error) {
 		diffOutput.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", file, file))
 		diffOutput.WriteString("new file mode 100644\n")
 		diffOutput.WriteString("index 0000000..0000000\n")
-		diffOutput.WriteString(fmt.Sprintf("--- /dev/null\n"))
+		diffOutput.WriteString("--- /dev/null\n")
 		diffOutput.WriteString(fmt.Sprintf("+++ b/%s\n", file))
 
 		// Read file content to include in diff
