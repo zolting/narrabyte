@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import DemoEvents from "../components/DemoEvents";
 
 export const Route = createFileRoute("/")({
 	component: Home,
@@ -19,9 +18,7 @@ function Home() {
 							{t("common.appName")}
 						</CardTitle>
 					</CardHeader>
-					<CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-4 pb-4">
-						<DemoEvents />
-					</CardContent>
+					<CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-4 pb-4"></CardContent>
 				</Card>
 			</div>
 		</div>

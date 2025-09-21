@@ -17,8 +17,8 @@ import {
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { DocGenerationProgressLog } from "@/components/DocGenerationProgressLog";
 import { DocGenerationResultPanel } from "@/components/DocGenerationResultPanel";
-import { DocGenerationProgressLog } from "@/components/GenerateDocsDialog";
 import { Button } from "@/components/ui/button";
 import {
 	Command,
@@ -119,8 +119,8 @@ function ProjectDetailPage() {
 					[...arr].sort(
 						(a, b) =>
 							new Date(b.lastCommitDate as unknown as string).getTime() -
-							new Date(a.lastCommitDate as unknown as string).getTime()
-					)
+							new Date(a.lastCommitDate as unknown as string).getTime(),
+					),
 				);
 			})
 			.catch((err) => console.error("failed to fetch branches:", err));
@@ -137,9 +137,9 @@ function ProjectDetailPage() {
 					sourceBranch &&
 					targetBranch &&
 					sourceBranch !== targetBranch &&
-					!isBusy
+					!isBusy,
 			),
-		[isBusy, project, sourceBranch, targetBranch]
+		[isBusy, project, sourceBranch, targetBranch],
 	);
 
 	const canCommit = useMemo(() => {
@@ -179,7 +179,7 @@ function ProjectDetailPage() {
 		const files = (docResult.files ?? [])
 			.map((file) => file.path)
 			.filter((path): path is string =>
-				Boolean(path && path.trim().length > 0)
+				Boolean(path && path.trim().length > 0),
 			);
 		if (files.length === 0) {
 			return;
@@ -260,7 +260,7 @@ function ProjectDetailPage() {
 						<div
 							className={cn(
 								"h-10 w-full rounded-md border border-border bg-card text-card-foreground",
-								"flex items-center px-3"
+								"flex items-center px-3",
 							)}
 							id={projectInputId}
 						>
@@ -287,7 +287,7 @@ function ProjectDetailPage() {
 										aria-expanded={sourceOpen}
 										className={cn(
 											"w-full justify-between hover:text-foreground",
-											twTrigger
+											twTrigger,
 										)}
 										disabled={disableControls}
 										id={sourceBranchComboboxId}
@@ -302,7 +302,7 @@ function ProjectDetailPage() {
 								<PopoverContent
 									className={cn(
 										"w-[var(--radix-popover-trigger-width)] p-0",
-										twContent
+										twContent,
 									)}
 								>
 									<Command>
@@ -329,7 +329,7 @@ function ProjectDetailPage() {
 																	"mr-2 h-4 w-4",
 																	sourceBranch === b.name
 																		? "opacity-100"
-																		: "opacity-0"
+																		: "opacity-0",
 																)}
 															/>
 															{b.name}
@@ -371,7 +371,7 @@ function ProjectDetailPage() {
 										aria-expanded={targetOpen}
 										className={cn(
 											"w-full justify-between hover:text-foreground",
-											twTrigger
+											twTrigger,
 										)}
 										disabled={disableControls}
 										id={targetBranchComboboxId}
@@ -386,7 +386,7 @@ function ProjectDetailPage() {
 								<PopoverContent
 									className={cn(
 										"w-[var(--radix-popover-trigger-width)] p-0",
-										twContent
+										twContent,
 									)}
 								>
 									<Command>
@@ -413,7 +413,7 @@ function ProjectDetailPage() {
 																	"mr-2 h-4 w-4",
 																	targetBranch === b.name
 																		? "opacity-100"
-																		: "opacity-0"
+																		: "opacity-0",
 																)}
 															/>
 															{b.name}
@@ -470,7 +470,7 @@ function ProjectDetailPage() {
 										<div className="rounded-md border border-border border-dashed p-4 text-muted-foreground text-sm">
 											{t(
 												"common.noDocumentationChanges",
-												"No documentation changes were produced for this diff."
+												"No documentation changes were produced for this diff.",
 											)}
 										</div>
 									);
