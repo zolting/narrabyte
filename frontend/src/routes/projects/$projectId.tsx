@@ -34,6 +34,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 
@@ -448,57 +449,59 @@ function ProjectDetailPage() {
 					)}
 
 					{hasGenerationAttempt && (
-						<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-							<div className="flex shrink-0 flex-wrap gap-2">
-								<Button
-									aria-pressed={activeTab === "activity"}
-									className="sm:w-auto"
-									onClick={() => setActiveTab("activity")}
-									size="sm"
-									type="button"
-									variant={activeTab === "activity" ? "default" : "outline"}
+						<Tabs
+							className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+							onValueChange={(value) =>
+								setActiveTab(value as "activity" | "review")
+							}
+							value={activeTab}
+						>
+							<TabsList
+								className={cn(
+									"grid w-full bg-muted h-auto p-1",
+									docResult ? "grid-cols-2" : "grid-cols-1",
+								)}
+							>
+								<TabsTrigger
+									className={cn(
+										"transition-all",
+										activeTab === "activity"
+											? "!bg-accent !text-accent-foreground shadow-sm"
+											: "hover:bg-muted-foreground/10",
+									)}
+									value="activity"
 								>
 									{t("common.recentActivity", "Recent activity")}
-								</Button>
+								</TabsTrigger>
 								{docResult && (
-									<Button
-										aria-pressed={activeTab === "review"}
-										className="sm:w-auto"
-										onClick={() => setActiveTab("review")}
-										size="sm"
-										type="button"
-										variant={activeTab === "review" ? "default" : "outline"}
+									<TabsTrigger
+										className={cn(
+											"transition-all",
+											activeTab === "review"
+												? "!bg-accent !text-accent-foreground shadow-sm"
+												: "hover:bg-muted-foreground/10",
+										)}
+										value="review"
 									>
 										{t("common.review", "Review")}
-									</Button>
+									</TabsTrigger>
 								)}
-							</div>
-							<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-								{(() => {
-									if (activeTab === "activity") {
-										return (
-											<DocGenerationProgressLog
-												events={events}
-												status={status}
-											/>
-										);
-									}
-
-									if (docResult) {
-										return <DocGenerationResultPanel result={docResult} />;
-									}
-
-									return (
-										<div className="rounded-md border border-border border-dashed p-4 text-muted-foreground text-sm">
-											{t(
-												"common.noDocumentationChanges",
-												"No documentation changes were produced for this diff.",
-											)}
-										</div>
-									);
-								})()}
-							</div>
-						</div>
+							</TabsList>
+							<TabsContent
+								className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+								value="activity"
+							>
+								<DocGenerationProgressLog events={events} status={status} />
+							</TabsContent>
+							{docResult && (
+								<TabsContent
+									className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+									value="review"
+								>
+									<DocGenerationResultPanel result={docResult} />
+								</TabsContent>
+							)}
+						</Tabs>
 					)}
 				</div>
 
