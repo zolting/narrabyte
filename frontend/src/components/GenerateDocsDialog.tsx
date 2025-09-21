@@ -24,7 +24,7 @@ export function DocGenerationProgressLog({
 	return (
 		<div className="space-y-2">
 			<div className="flex items-center justify-between">
-				<span className="text-sm font-medium text-foreground">
+				<span className="font-medium text-foreground text-sm">
 					{isRunning
 						? t("common.generatingDocs", "Generating documentation…")
 						: t("common.recentActivity", "Recent activity")}
@@ -56,7 +56,7 @@ export function DocGenerationProgressLog({
 											warn: "bg-yellow-500/15 text-yellow-700",
 											debug: "bg-blue-500/15 text-blue-700",
 											info: "bg-emerald-500/15 text-emerald-700",
-										}[event.type] ?? "bg-muted text-foreground/80",
+										}[event.type] ?? "bg-muted text-foreground/80"
 									)}
 								>
 									{event.type}
@@ -64,7 +64,7 @@ export function DocGenerationProgressLog({
 								<span className="flex-1 text-foreground/90">
 									{event.message}
 								</span>
-								<span className="text-muted-foreground text-[10px]">
+								<span className="text-[10px] text-muted-foreground">
 									{event.timestamp.toLocaleTimeString()}
 								</span>
 							</li>

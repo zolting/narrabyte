@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
 import type { models } from "@go/models";
+import { useEffect, useMemo, useState } from "react";
 import { Diff, Hunk, parseDiff } from "react-diff-view";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -7,11 +7,16 @@ import { cn } from "@/lib/utils";
 import "react-diff-view/style/index.css";
 import "./GitDiffDialog/diff-view-theme.css";
 
+const STARTS_WITH_A_SLASH_REGEX = /^a\//;
+const STARTS_WITH_B_SLASH_REGEX = /^b\//;
+
 function normalizeDiffPath(path?: string | null): string {
 	if (!path) {
 		return "";
 	}
-	return path.replace(/^a\//, "").replace(/^b\//, "");
+	return path
+		.replace(STARTS_WITH_A_SLASH_REGEX, "")
+		.replace(STARTS_WITH_B_SLASH_REGEX, "");
 }
 
 const statusClassMap: Record<string, string> = {
@@ -44,9 +49,11 @@ export function DocGenerationResultPanel({
 
 	const statusMap = useMemo(() => {
 		const map = new Map<string, string>();
-		result?.files?.forEach((file: models.DocChangedFile) => {
-			map.set(normalizeDiffPath(file.path), file.status);
-		});
+		if (result?.files) {
+			for (const file of result.files) {
+				map.set(normalizeDiffPath(file.path), file.status);
+			}
+		}
 		return map;
 	}, [result?.files]);
 
@@ -56,7 +63,7 @@ export function DocGenerationResultPanel({
 				const key = normalizeDiffPath(
 					file.newPath && file.newPath !== "/dev/null"
 						? file.newPath
-						: file.oldPath,
+						: file.oldPath
 				);
 				return {
 					diff: file,
@@ -64,7 +71,7 @@ export function DocGenerationResultPanel({
 					status: statusMap.get(key) ?? "changed",
 				};
 			}),
-		[parsedDiff, statusMap],
+		[parsedDiff, statusMap]
 	);
 
 	const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -74,13 +81,13 @@ export function DocGenerationResultPanel({
 			setSelectedPath(null);
 			return;
 		}
-			const firstPath = entries[0]?.path ?? result.files?.[0]?.path ?? null;
-			setSelectedPath(firstPath ? normalizeDiffPath(firstPath) : null);
+		const firstPath = entries[0]?.path ?? result.files?.[0]?.path ?? null;
+		setSelectedPath(firstPath ? normalizeDiffPath(firstPath) : null);
 	}, [entries, result]);
 
 	const activeEntry = useMemo(
 		() => entries.find((entry) => entry.path === selectedPath),
-		[entries, selectedPath],
+		[entries, selectedPath]
 	);
 
 	if (!result) {
@@ -96,8 +103,8 @@ export function DocGenerationResultPanel({
 					<h2 className="font-semibold text-foreground text-lg">
 						{t("common.documentationUpdates", "Documentation Updates")}
 					</h2>
-						<p className="text-muted-foreground text-sm">
-							{t("common.branch", "Branch")}: {result.branch}
+					<p className="text-muted-foreground text-sm">
+						{t("common.branch", "Branch")}: {result.branch}
 					</p>
 				</div>
 				{hasDiff && (
@@ -115,11 +122,11 @@ export function DocGenerationResultPanel({
 					</Button>
 				)}
 			</header>
-				{result.summary && (
-					<p className="rounded-md border border-border bg-muted/40 p-3 text-sm text-foreground/90">
-						{result.summary}
-					</p>
-				)}
+			{result.summary && (
+				<p className="rounded-md border border-border bg-muted/40 p-3 text-foreground/90 text-sm">
+					{result.summary}
+				</p>
+			)}
 			{hasDiff ? (
 				<div className="grid gap-4 lg:grid-cols-[220px_1fr]">
 					<div className="space-y-2">
@@ -141,13 +148,14 @@ export function DocGenerationResultPanel({
 									>
 										<div
 											className={cn(
-												"text-xs font-medium",
-												statusClassMap[entry.status.toLowerCase()] ?? "text-foreground/70",
+												"font-medium text-xs",
+												statusClassMap[entry.status.toLowerCase()] ??
+													"text-foreground/70"
 											)}
 										>
 											{entry.status}
 										</div>
-										<div className="truncate text-sm font-mono text-foreground/90">
+										<div className="truncate font-mono text-foreground/90 text-sm">
 											{entry.path}
 										</div>
 									</button>
@@ -169,15 +177,18 @@ export function DocGenerationResultPanel({
 								}
 							</Diff>
 						) : (
-							<div className="p-4 text-sm text-muted-foreground">
+							<div className="p-4 text-muted-foreground text-sm">
 								{t("common.selectFile", "Select a file to preview the diff.")}
 							</div>
 						)}
 					</div>
 				</div>
 			) : (
-				<div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-					{t("common.noDocumentationChanges", "No documentation changes were produced for this diff.")}
+				<div className="rounded-md border border-border border-dashed p-4 text-muted-foreground text-sm">
+					{t(
+						"common.noDocumentationChanges",
+						"No documentation changes were produced for this diff."
+					)}
 				</div>
 			)}
 		</section>

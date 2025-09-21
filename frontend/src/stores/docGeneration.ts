@@ -1,8 +1,8 @@
-import { create } from "zustand";
 import type { models } from "@go/models";
+import { create } from "zustand";
+import { type DemoEvent, demoEventSchema } from "@/types/events";
 import { GenerateDocs } from "../../wailsjs/go/services/ClientService";
 import { EventsOn } from "../../wailsjs/runtime";
-import { demoEventSchema, type DemoEvent } from "@/types/events";
 
 export type DocGenerationStatus = "idle" | "running" | "success" | "error";
 

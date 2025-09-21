@@ -2,11 +2,18 @@ import type { models } from "@go/models";
 import { ListBranchesByPath } from "@go/services/GitService";
 import { Get } from "@go/services/repoLinkService";
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { ArrowRight, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
-import { DocGenerationProgressLog } from "@/components/GenerateDocsDialog";
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { useTranslation } from "react-i18next";
 import { DocGenerationResultPanel } from "@/components/DocGenerationResultPanel";
+import { DocGenerationProgressLog } from "@/components/GenerateDocsDialog";
 import { Button } from "@/components/ui/button";
 import {
 	Command,
@@ -17,7 +24,11 @@ import {
 	CommandList,
 } from "@/components/ui/command";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 
@@ -55,6 +66,12 @@ function ProjectDetailPage() {
 	const [activeTab, setActiveTab] = useState<"activity" | "review">("activity");
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
+	const projectInputId = useId();
+	const sourceBranchComboboxId = useId();
+	const sourceBranchListId = useId();
+	const targetBranchComboboxId = useId();
+	const targetBranchListId = useId();
+
 	useEffect(() => {
 		setLoading(true);
 		Promise.resolve(Get(Number(projectId)))
@@ -74,7 +91,7 @@ function ProjectDetailPage() {
 		setSourceBranch(undefined);
 		setTargetBranch(undefined);
 		setActiveTab("activity");
-	}, [projectId, resetDocGeneration]);
+	}, [resetDocGeneration]);
 
 	useEffect(() => {
 		if (!repoPath) {
@@ -94,8 +111,8 @@ function ProjectDetailPage() {
 					[...arr].sort(
 						(a, b) =>
 							new Date(b.lastCommitDate as unknown as string).getTime() -
-							new Date(a.lastCommitDate as unknown as string).getTime(),
-					),
+							new Date(a.lastCommitDate as unknown as string).getTime()
+					)
 				);
 			})
 			.catch((err) => console.error("failed to fetch branches:", err));
@@ -112,9 +129,9 @@ function ProjectDetailPage() {
 					sourceBranch &&
 					targetBranch &&
 					sourceBranch !== targetBranch &&
-					!isRunning,
+					!isRunning
 			),
-		[isRunning, project, sourceBranch, targetBranch],
+		[isRunning, project, sourceBranch, targetBranch]
 	);
 
 	const swapBranches = useCallback(() => {
@@ -126,13 +143,13 @@ function ProjectDetailPage() {
 	}, [targetBranch]);
 
 	const handleGenerate = useCallback(() => {
-		if (!project || !sourceBranch || !targetBranch) {
+		if (!(project && sourceBranch && targetBranch)) {
 			return;
 		}
 		setSourceOpen(false);
 		setTargetOpen(false);
 		setActiveTab("activity");
-		void startDocGeneration({
+		startDocGeneration({
 			projectId: Number(project.ID),
 			sourceBranch,
 			targetBranch,
@@ -149,7 +166,8 @@ function ProjectDetailPage() {
 	}, [resetDocGeneration]);
 
 	const disableControls = isRunning;
-	const hasGenerationAttempt = status !== "idle" || Boolean(docResult) || events.length > 0;
+	const hasGenerationAttempt =
+		status !== "idle" || Boolean(docResult) || events.length > 0;
 
 	useEffect(() => {
 		if (!docResult) {
@@ -200,15 +218,15 @@ function ProjectDetailPage() {
 
 				<div className="space-y-6">
 					<div className="grid gap-2">
-						<Label className="mb-1 text-foreground" htmlFor="project-readonly">
+						<Label className="mb-1 text-foreground" htmlFor={projectInputId}>
 							{t("common.project")}
 						</Label>
 						<div
 							className={cn(
 								"h-10 w-full rounded-md border border-border bg-card text-card-foreground",
-								"flex items-center px-3",
+								"flex items-center px-3"
 							)}
-							id="project-readonly"
+							id={projectInputId}
 						>
 							{project.ProjectName}
 						</div>
@@ -219,7 +237,7 @@ function ProjectDetailPage() {
 							<div className="flex items-center justify-between">
 								<Label
 									className="mb-1 text-foreground"
-									htmlFor="source-branch-combobox"
+									htmlFor={sourceBranchComboboxId}
 								>
 									{t("common.sourceBranch")}
 								</Label>
@@ -241,16 +259,16 @@ function ProjectDetailPage() {
 							>
 								<PopoverTrigger asChild>
 									<Button
-										aria-controls="source-branch-list"
+										aria-controls={sourceBranchListId}
 										aria-expanded={sourceOpen}
 										className={cn(
 											"w-full justify-between hover:text-foreground",
-											twTrigger,
+											twTrigger
 										)}
-										id="source-branch-combobox"
+										disabled={disableControls}
+										id={sourceBranchComboboxId}
 										role="combobox"
 										type="button"
-										disabled={disableControls}
 										variant="outline"
 									>
 										{sourceBranch ?? t("common.sourceBranch")}
@@ -260,14 +278,14 @@ function ProjectDetailPage() {
 								<PopoverContent
 									className={cn(
 										"w-[var(--radix-popover-trigger-width)] p-0",
-										twContent,
+										twContent
 									)}
 								>
 									<Command>
 										<CommandInput placeholder="Search branch..." />
 										<CommandList
 											className="max-h-[200px]"
-											id="source-branch-list"
+											id={sourceBranchListId}
 										>
 											<CommandEmpty>No branch found.</CommandEmpty>
 											<CommandGroup>
@@ -287,7 +305,7 @@ function ProjectDetailPage() {
 																	"mr-2 h-4 w-4",
 																	sourceBranch === b.name
 																		? "opacity-100"
-																		: "opacity-0",
+																		: "opacity-0"
 																)}
 															/>
 															{b.name}
@@ -303,7 +321,7 @@ function ProjectDetailPage() {
 						<div className="grid gap-2">
 							<Label
 								className="mb-1 text-foreground"
-								htmlFor="target-branch-combobox"
+								htmlFor={targetBranchComboboxId}
 							>
 								{t("common.targetBranch")}
 							</Label>
@@ -314,16 +332,16 @@ function ProjectDetailPage() {
 							>
 								<PopoverTrigger asChild>
 									<Button
-										aria-controls="target-branch-list"
+										aria-controls={targetBranchListId}
 										aria-expanded={targetOpen}
 										className={cn(
 											"w-full justify-between hover:text-foreground",
-											twTrigger,
+											twTrigger
 										)}
-										id="target-branch-combobox"
+										disabled={disableControls}
+										id={targetBranchComboboxId}
 										role="combobox"
 										type="button"
-										disabled={disableControls}
 										variant="outline"
 									>
 										{targetBranch ?? t("common.targetBranch")}
@@ -333,14 +351,14 @@ function ProjectDetailPage() {
 								<PopoverContent
 									className={cn(
 										"w-[var(--radix-popover-trigger-width)] p-0",
-										twContent,
+										twContent
 									)}
 								>
 									<Command>
 										<CommandInput placeholder="Search branch..." />
 										<CommandList
 											className="max-h-[200px]"
-											id="target-branch-list"
+											id={targetBranchListId}
 										>
 											<CommandEmpty>No branch found.</CommandEmpty>
 											<CommandGroup>
@@ -360,7 +378,7 @@ function ProjectDetailPage() {
 																	"mr-2 h-4 w-4",
 																	targetBranch === b.name
 																		? "opacity-100"
-																		: "opacity-0",
+																		: "opacity-0"
 																)}
 															/>
 															{b.name}
@@ -399,15 +417,29 @@ function ProjectDetailPage() {
 								</Button>
 							</div>
 							<div>
-								{activeTab === "activity" ? (
-									<DocGenerationProgressLog events={events} isRunning={isRunning} />
-								) : docResult ? (
-									<DocGenerationResultPanel result={docResult} />
-								) : (
-									<div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-										{t("common.noDocumentationChanges", "No documentation changes were produced for this diff.")}
-									</div>
-								)}
+								{(() => {
+									if (activeTab === "activity") {
+										return (
+											<DocGenerationProgressLog
+												events={events}
+												isRunning={isRunning}
+											/>
+										);
+									}
+
+									if (docResult) {
+										return <DocGenerationResultPanel result={docResult} />;
+									}
+
+									return (
+										<div className="rounded-md border border-border border-dashed p-4 text-muted-foreground text-sm">
+											{t(
+												"common.noDocumentationChanges",
+												"No documentation changes were produced for this diff."
+											)}
+										</div>
+									);
+								})()}
 							</div>
 						</div>
 					)}
