@@ -23,7 +23,7 @@ import (
 // On pourrait lowkey rendre ca plus generique pour n'importe quel client
 // Interface pour clients?
 type ClientService struct {
-	OpenAIClient client.OpenAIClient
+	OpenAIClient *client.OpenAIClient
 	context      context.Context
 	repoLinks    RepoLinkService
 	gitService   *GitService
@@ -50,7 +50,7 @@ func (s *ClientService) Startup(ctx context.Context) error {
 		return err
 	}
 
-	s.OpenAIClient = *temp
+	s.OpenAIClient = temp
 
 	return nil
 }
@@ -516,7 +516,7 @@ func runGitCommand(repoPath string, args ...string) error {
 			errMsg = strings.TrimSpace(stdout.String())
 		}
 		if errMsg != "" {
-			return fmt.Errorf(errMsg)
+			return errors.New(errMsg)
 		}
 		return err
 	}

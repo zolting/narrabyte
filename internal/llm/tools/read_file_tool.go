@@ -143,9 +143,20 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 	fileInfo, statErr := os.Stat(absPath)
 	if statErr != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: stat error: %v", statErr)))
+
+		// Get similar file suggestions
+		dir := filepath.Dir(absPath)
+		baseName := filepath.Base(absPath)
+		suggestions := similarEntries(dir, baseName)
+
+		output := fmt.Sprintf("Format error: file does not exist or is not accessible: %s", filepath.ToSlash(absPath))
+		if len(suggestions) > 0 {
+			output += fmt.Sprintf("\n\nDid you mean one of these files?\n- %s", strings.Join(suggestions, "\n- "))
+		}
+
 		return &ReadFileOutput{
 			Title:  filepath.ToSlash(absPath),
-			Output: fmt.Sprintf("Format error: file does not exist or is not accessible: %s", filepath.ToSlash(absPath)),
+			Output: output,
 			Metadata: map[string]string{
 				"error": "format_error",
 			},
@@ -253,10 +264,10 @@ func BuildReadFileOutput(title string, lines []string, offset, limit int) (*Read
 	var b strings.Builder
 	b.WriteString("<file>\n")
 	for i, line := range raw {
-		b.WriteString(fmt.Sprintf("%6d: %s\n", start+i+1, line))
+		b.WriteString(fmt.Sprintf("%05d| %s\n", start+i+1, line))
 	}
 	if len(lines) > offsetNormalized+len(raw) {
-		b.WriteString("... (truncated)\n")
+		b.WriteString("File has more lines\n")
 	}
 	b.WriteString("</file>")
 
@@ -267,9 +278,11 @@ func BuildReadFileOutput(title string, lines []string, offset, limit int) (*Read
 	preview := strings.Join(raw[:previewCount], "\n")
 
 	meta := map[string]string{
-		"offset":  fmt.Sprintf("%d", offsetNormalized),
-		"limit":   fmt.Sprintf("%d", limitNormalized),
-		"preview": preview,
+		"filepath": title,
+		"error":    "",
+		"offset":   fmt.Sprintf("%d", offsetNormalized),
+		"limit":    fmt.Sprintf("%d", limitNormalized),
+		"preview":  preview,
 	}
 
 	return &ReadFileOutput{
