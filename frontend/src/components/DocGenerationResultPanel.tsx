@@ -129,7 +129,7 @@ export function DocGenerationResultPanel({
 			)} */}
 			{hasDiff ? (
 				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[220px_1fr]">
-					<div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
+					<div className="flex min-h-0 flex-col gap-2 overflow-hidden lg:h-full max-h-48 lg:max-h-none">
 						<div className="text-muted-foreground text-xs uppercase tracking-wide">
 							{t("common.files", "Files")}
 						</div>
