@@ -36,7 +36,11 @@
 		"noEvents": "No tool activity yet.",
 		"files": "Files",
 		"selectFile": "Select a file to preview the diff.",
-		"noDocumentationChanges": "No documentation changes were produced for this diff."
+		"noDocumentationChanges": "No documentation changes were produced for this diff.",
+		"commitSuccess": "Documentation Committed Successfully!",
+		"commitSuccessDescription": "Your documentation changes have been successfully committed to the documentation branch.",
+		"documentationAvailable": "Documentation is now available in branch",
+		"startNewTask": "Start New Documentation Task"
 	},
 	"projectManager": {
 		"addProject": "Add Project",

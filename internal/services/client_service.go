@@ -181,7 +181,10 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 	if err != nil {
 		return nil, err
 	}
-	if err := prepareDocumentationBranch(docRepo, docWorktree, sourceBranch, baseHash); err != nil {
+
+	docsBranch := "docs-" + sourceBranch
+
+	if err := prepareDocumentationBranch(docRepo, docWorktree, docsBranch, baseHash); err != nil {
 		return nil, err
 	}
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
@@ -252,7 +255,7 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 	if projectID == 0 {
 		return fmt.Errorf("project id is required")
 	}
-	branch = strings.TrimSpace(branch)
+	branch = "docs-" + strings.TrimSpace(branch)
 	if branch == "" {
 		return fmt.Errorf("branch is required")
 	}

@@ -77,6 +77,11 @@ function ProjectDetailPage() {
 		"activity",
 	);
 	const containerRef = useRef<HTMLDivElement | null>(null);
+	const [commitCompleted, setCommitCompleted] = useState(false);
+	const [completedCommitInfo, setCompletedCommitInfo] = useState<{
+		sourceBranch: string;
+		targetBranch: string;
+	} | null>(null);
 
 	const projectInputId = useId();
 	const sourceBranchComboboxId = useId();
@@ -103,6 +108,8 @@ function ProjectDetailPage() {
 		setSourceBranch(undefined);
 		setTargetBranch(undefined);
 		setActiveTab("activity");
+		setCommitCompleted(false);
+		setCompletedCommitInfo(null);
 	}, [resetDocGeneration]);
 
 	useEffect(() => {
@@ -203,7 +210,13 @@ function ProjectDetailPage() {
 		setSourceOpen(false);
 		setTargetOpen(false);
 		setActiveTab("activity");
+		setCommitCompleted(false);
+		setCompletedCommitInfo(null);
 	}, [resetDocGeneration]);
+
+	const handleStartNewTask = useCallback(() => {
+		handleReset();
+	}, [handleReset]);
 
 	const handleCancel = useCallback(() => {
 		void cancelDocGeneration();
@@ -229,7 +242,38 @@ function ProjectDetailPage() {
 		if (status === "running" || status === "committing") {
 			setActiveTab("activity");
 		}
-	}, [status]);
+		// Don't auto-switch tabs when commit completes - let the confirmation UI handle it
+		if (status === "success" && commitCompleted) {
+			// Keep current tab, don't auto-switch
+			return;
+		}
+	}, [status, commitCompleted]);
+
+	// Detect successful commit completion
+	const prevStatusRef = useRef(status);
+	useEffect(() => {
+		console.log("Status changed:", {
+			prev: prevStatusRef.current,
+			current: status,
+			hasDocResult: !!docResult,
+			commitCompleted,
+		});
+
+		if (
+			prevStatusRef.current === "committing" &&
+			status === "success" &&
+			docResult
+		) {
+			// Commit completed successfully
+			console.log("Setting commit completed to true");
+			setCommitCompleted(true);
+			setCompletedCommitInfo({
+				sourceBranch: sourceBranch || "",
+				targetBranch: targetBranch || "",
+			});
+		}
+		prevStatusRef.current = status;
+	}, [status, docResult, sourceBranch, targetBranch, commitCompleted]);
 
 	if (loading) {
 		return <div className="p-2 text-muted-foreground text-sm">Loading…</div>;
@@ -262,7 +306,45 @@ function ProjectDetailPage() {
 				</header>
 
 				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
-					{!hasGenerationAttempt ? (
+					{(() => {
+						console.log("Render decision:", {
+							commitCompleted,
+							hasGenerationAttempt,
+							status,
+							docResult: !!docResult,
+						});
+						return null;
+					})()}
+					{commitCompleted ? (
+						<div className="flex flex-col gap-6 rounded-lg border border-green-200 bg-green-50/50 p-6 dark:border-green-800 dark:bg-green-950/30">
+							<div className="text-center">
+								<h3 className="mb-2 font-semibold text-green-800 text-lg dark:text-green-200">
+									{t("common.commitSuccess")}
+								</h3>
+								<p className="text-green-700 text-sm dark:text-green-300">
+									{t("common.commitSuccessDescription")}
+								</p>
+							</div>
+							<div className="text-center">
+								<p className="mb-2 text-foreground text-sm">
+									{t("common.documentationAvailable")}:
+								</p>
+								<code className="rounded bg-background px-3 py-2 font-mono text-foreground text-sm shadow-sm">
+									docs-{completedCommitInfo?.sourceBranch || sourceBranch}
+								</code>
+							</div>
+							<div className="text-center">
+								<Button
+									className="gap-2 font-semibold"
+									onClick={handleStartNewTask}
+									type="button"
+								>
+									{t("common.startNewTask")}
+									<ArrowRight className="h-4 w-4" />
+								</Button>
+							</div>
+						</div>
+					) : !hasGenerationAttempt ? (
 						<>
 							<div className="grid shrink-0 gap-2">
 								<Label
@@ -552,50 +634,54 @@ function ProjectDetailPage() {
 					)}
 				</div>
 
-				<footer className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-					{status === "error" && docGenerationError && (
-						<div className="text-destructive text-xs">{docGenerationError}</div>
-					)}
-					<div className="flex items-center gap-2 sm:justify-end">
-						{isRunning && (
-							<Button
-								className="font-semibold"
-								onClick={handleCancel}
-								type="button"
-								variant="destructive"
-							>
-								{t("common.cancel")}
-							</Button>
+				{!commitCompleted && (
+					<footer className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+						{status === "error" && docGenerationError && (
+							<div className="text-destructive text-xs">
+								{docGenerationError}
+							</div>
 						)}
-						<Button
-							className="border-border text-foreground hover:bg-accent"
-							disabled={isBusy}
-							onClick={handleReset}
-							variant="outline"
-						>
-							{t("common.reset")}
-						</Button>
-						{docResult ? (
+						<div className="flex items-center gap-2 sm:justify-end">
+							{isRunning && (
+								<Button
+									className="font-semibold"
+									onClick={handleCancel}
+									type="button"
+									variant="destructive"
+								>
+									{t("common.cancel")}
+								</Button>
+							)}
 							<Button
-								className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-								disabled={!canCommit}
-								onClick={handleCommit}
+								className="border-border text-foreground hover:bg-accent"
+								disabled={isBusy}
+								onClick={handleReset}
+								variant="outline"
 							>
-								{t("common.commit")}
-								<ArrowRight className="h-4 w-4" />
+								{t("common.reset")}
 							</Button>
-						) : (
-							<Button
-								className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-								disabled={!canGenerate}
-								onClick={handleGenerate}
-							>
-								{t("common.generateDocs")}
-								<ArrowRight className="h-4 w-4" />
-							</Button>
-						)}
-					</div>
-				</footer>
+							{docResult ? (
+								<Button
+									className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+									disabled={!canCommit}
+									onClick={handleCommit}
+								>
+									{t("common.commit")}
+									<ArrowRight className="h-4 w-4" />
+								</Button>
+							) : (
+								<Button
+									className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+									disabled={!canGenerate}
+									onClick={handleGenerate}
+								>
+									{t("common.generateDocs")}
+									<ArrowRight className="h-4 w-4" />
+								</Button>
+							)}
+						</div>
+					</footer>
+				)}
 			</section>
 		</div>
 	);

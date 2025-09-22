@@ -36,7 +36,11 @@
 		"noEvents": "Aucune activité d'outil pour le moment.",
 		"files": "Fichiers",
 		"selectFile": "Sélectionnez un fichier pour afficher le diff.",
-		"noDocumentationChanges": "Aucun changement de documentation n'a été produit pour ce diff."
+		"noDocumentationChanges": "Aucun changement de documentation n'a été produit pour ce diff.",
+		"commitSuccess": "Documentation validée avec succès !",
+		"commitSuccessDescription": "Vos modifications de documentation ont été validées avec succès dans la branche de documentation.",
+		"documentationAvailable": "La documentation est maintenant disponible dans la branche",
+		"startNewTask": "Commencer une nouvelle tâche de documentation"
 	},
 	"projectManager": {
 		"addProject": "Ajouter un projet",
