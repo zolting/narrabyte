@@ -353,7 +353,14 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 }
 
 func (s *ClientService) StopStream() {
+	if s == nil || s.OpenAIClient == nil {
+		return
+	}
+	wasRunning := s.OpenAIClient.IsRunning()
 	s.OpenAIClient.StopStream()
+	if wasRunning && s.context != nil {
+		events.Emit(s.context, events.LLMEventTool, events.NewWarn("Cancel requested: stopping LLM session"))
+	}
 }
 
 func resolveBranchHash(repo *git.Repository, branch string) (plumbing.Hash, error) {

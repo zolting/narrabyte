@@ -61,6 +61,7 @@ function ProjectDetailPage() {
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
 	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
 	const commitDocGeneration = useDocGenerationStore((s) => s.commit);
+	const cancelDocGeneration = useDocGenerationStore((s) => s.cancel);
 	const docGenerationError = useDocGenerationStore((s) => s.error);
 	const isRunning = status === "running";
 	const isCommitting = status === "committing";
@@ -203,6 +204,10 @@ function ProjectDetailPage() {
 		setTargetOpen(false);
 		setActiveTab("activity");
 	}, [resetDocGeneration]);
+
+	const handleCancel = useCallback(() => {
+		void cancelDocGeneration();
+	}, [cancelDocGeneration]);
 
 	const disableControls = isBusy;
 	const hasGenerationAttempt =
@@ -552,6 +557,16 @@ function ProjectDetailPage() {
 						<div className="text-destructive text-xs">{docGenerationError}</div>
 					)}
 					<div className="flex items-center gap-2 sm:justify-end">
+						{isRunning && (
+							<Button
+								className="font-semibold"
+								onClick={handleCancel}
+								type="button"
+								variant="destructive"
+							>
+								{t("common.cancel")}
+							</Button>
+						)}
 						<Button
 							className="border-border text-foreground hover:bg-accent"
 							disabled={isBusy}

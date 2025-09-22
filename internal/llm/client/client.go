@@ -103,6 +103,13 @@ func (o *OpenAIClient) StopStream() {
 	o.cancel = nil
 }
 
+// IsRunning reports whether a session is currently active.
+func (o *OpenAIClient) IsRunning() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.running
+}
+
 // SetListDirectoryBaseRoot binds the list-directory tools to a specific base directory.
 // Example: SetListDirectoryBaseRoot("/path/to/project") then tool input "frontend"
 // resolves to "/path/to/project/frontend".

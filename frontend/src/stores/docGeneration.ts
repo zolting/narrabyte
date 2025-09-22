@@ -4,6 +4,7 @@ import { type DemoEvent, demoEventSchema } from "@/types/events";
 import {
 	CommitDocs,
 	GenerateDocs,
+	StopStream,
 } from "../../wailsjs/go/services/ClientService";
 import { EventsOn } from "../../wailsjs/runtime";
 
@@ -12,7 +13,8 @@ export type DocGenerationStatus =
 	| "running"
 	| "success"
 	| "error"
-	| "committing";
+	| "committing"
+	| "canceled";
 
 type StartArgs = {
 	projectId: number;
@@ -31,9 +33,11 @@ type State = {
 	status: DocGenerationStatus;
 	result: models.DocGenerationResult | null;
 	error: string | null;
+	cancellationRequested: boolean;
 	start: (args: StartArgs) => Promise<void>;
 	reset: () => void;
 	commit: (args: CommitArgs) => Promise<void>;
+	cancel: () => Promise<void>;
 };
 
 let unsubscribeTool: (() => void) | null = null;
@@ -67,6 +71,7 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 	status: "idle",
 	result: null,
 	error: null,
+	cancellationRequested: false,
 
 	start: async ({ projectId, sourceBranch, targetBranch }: StartArgs) => {
 		if (get().status === "running") {
@@ -78,6 +83,7 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 			error: null,
 			result: null,
 			status: "running",
+			cancellationRequested: false,
 		});
 
 		unsubscribeTool?.();
@@ -103,14 +109,71 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 
 		try {
 			const result = await GenerateDocs(projectId, sourceBranch, targetBranch);
-			set({ result, status: "success" });
+			set({ result, status: "success", cancellationRequested: false });
 		} catch (error) {
-			set({ error: messageFromError(error), status: "error" });
+			const message = messageFromError(error);
+			const normalized = message.toLowerCase();
+			const canceled =
+				get().cancellationRequested ||
+				normalized.includes("context canceled") ||
+				normalized.includes("context cancelled") ||
+				normalized.includes("cancelled") ||
+				normalized.includes("canceled");
+			if (canceled) {
+				set((state) => ({
+					error: null,
+					result: null,
+					status: "canceled",
+					cancellationRequested: false,
+					events: [
+						...state.events,
+						createLocalEvent(
+							"warn",
+							"Documentation generation canceled by user."
+						),
+					],
+				}));
+			} else {
+				set({
+					error: message,
+					status: "error",
+					cancellationRequested: false,
+					result: null,
+				});
+			}
 		} finally {
 			unsubscribeTool?.();
 			unsubscribeTool = null;
 			unsubscribeDone?.();
 			unsubscribeDone = null;
+			set({ cancellationRequested: false });
+		}
+	},
+
+	cancel: async () => {
+		if (get().status !== "running") {
+			return;
+		}
+
+		set({ cancellationRequested: true });
+		try {
+			await StopStream();
+		} catch (error) {
+			const message = messageFromError(error);
+			console.error("Failed to cancel doc generation", error);
+			set((state) => ({
+				cancellationRequested: false,
+				error: message,
+				status: "error",
+				result: null,
+				events: [
+					...state.events,
+					createLocalEvent(
+						"error",
+						`Failed to cancel documentation generation: ${message}`
+					),
+				],
+			}));
 		}
 	},
 
@@ -170,6 +233,7 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 			error: null,
 			result: null,
 			status: "idle",
+			cancellationRequested: false,
 		});
 	},
 }));
