@@ -319,8 +319,6 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	promptBuilder.WriteString(req.Diff)
 	promptBuilder.WriteString("\n</git_diff>")
 
-	println(docListing)
-
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
 	iter := runner.Query(ctx, promptBuilder.String())
 	var lastMessage string
