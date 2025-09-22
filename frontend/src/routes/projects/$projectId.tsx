@@ -1,49 +1,15 @@
 import type { models } from "@go/models";
-import { ListBranchesByPath } from "@go/services/GitService";
 import { Get } from "@go/services/repoLinkService";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	ArrowRight,
-	ArrowRightLeft,
-	CheckIcon,
-	ChevronsUpDownIcon,
-} from "lucide-react";
-import {
-	useCallback,
-	useEffect,
-	useId,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { DocGenerationProgressLog } from "@/components/DocGenerationProgressLog";
-import { DocGenerationResultPanel } from "@/components/DocGenerationResultPanel";
-import { Button } from "@/components/ui/button";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
-import { Label } from "@/components/ui/label";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
-import { useDocGenerationStore } from "@/stores/docGeneration";
-
-const twTrigger =
-	"h-10 w-full bg-card text-card-foreground border border-border " +
-	"hover:bg-muted data-[state=open]:bg-muted " +
-	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
-const twContent =
-	"bg-popover text-popover-foreground border border-border shadow-md";
+import { ActionButtons } from "@/components/ActionButtons";
+import { BranchSelector } from "@/components/BranchSelector";
+import { ComparisonDisplay } from "@/components/ComparisonDisplay";
+import { GenerationTabs } from "@/components/GenerationTabs";
+import { SuccessPanel } from "@/components/SuccessPanel";
+import { useBranchManager } from "@/hooks/useBranchManager";
+import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 
 export const Route = createFileRoute("/projects/$projectId")({
 	component: ProjectDetailPage,
@@ -54,41 +20,13 @@ function ProjectDetailPage() {
 	const { projectId } = Route.useParams();
 	const [project, setProject] = useState<models.RepoLink | null>(null);
 	const [loading, setLoading] = useState(false);
-	const docResult = useDocGenerationStore((s) => s.result);
-
-	const status = useDocGenerationStore((s) => s.status);
-	const events = useDocGenerationStore((s) => s.events);
-	const startDocGeneration = useDocGenerationStore((s) => s.start);
-	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
-	const commitDocGeneration = useDocGenerationStore((s) => s.commit);
-	const cancelDocGeneration = useDocGenerationStore((s) => s.cancel);
-	const docGenerationError = useDocGenerationStore((s) => s.error);
-	const isRunning = status === "running";
-	const isCommitting = status === "committing";
-	const isBusy = isRunning || isCommitting;
-
-	const [branches, setBranches] = useState<models.BranchInfo[]>([]);
-	const [sourceBranch, setSourceBranch] = useState<string | undefined>();
-	const [targetBranch, setTargetBranch] = useState<string | undefined>();
-	const [sourceOpen, setSourceOpen] = useState(false);
-	const [targetOpen, setTargetOpen] = useState(false);
-	const repoPath = project?.CodebaseRepo;
-	const [activeTab, setActiveTab] = useState<"activity" | "review" | "summary">(
-		"activity",
-	);
 	const containerRef = useRef<HTMLDivElement | null>(null);
-	const [commitCompleted, setCommitCompleted] = useState(false);
-	const [completedCommitInfo, setCompletedCommitInfo] = useState<{
-		sourceBranch: string;
-		targetBranch: string;
-	} | null>(null);
 
-	const projectInputId = useId();
-	const sourceBranchComboboxId = useId();
-	const sourceBranchListId = useId();
-	const targetBranchComboboxId = useId();
-	const targetBranchListId = useId();
+	const repoPath = project?.CodebaseRepo;
+	const branchManager = useBranchManager(repoPath);
+	const docManager = useDocGenerationManager();
 
+	// Load project data
 	useEffect(() => {
 		setLoading(true);
 		Promise.resolve(Get(Number(projectId)))
@@ -103,177 +41,109 @@ function ProjectDetailPage() {
 			});
 	}, [projectId]);
 
+	// Reset everything when component mounts
 	useEffect(() => {
-		resetDocGeneration();
-		setSourceBranch(undefined);
-		setTargetBranch(undefined);
-		setActiveTab("activity");
-		setCommitCompleted(false);
-		setCompletedCommitInfo(null);
-	}, [resetDocGeneration]);
+		docManager.reset();
+		branchManager.resetBranches();
+	}, [docManager.reset, branchManager.resetBranches]);
 
+	// Scroll to container when doc generation completes
 	useEffect(() => {
-		if (!repoPath) {
-			setBranches([]);
-			setSourceBranch(undefined);
-			setTargetBranch(undefined);
-			return;
+		if (docManager.docResult) {
+			const node = containerRef.current;
+			if (node) {
+				node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+			}
 		}
+	}, [docManager.docResult]);
 
-		let isActive = true;
-		ListBranchesByPath(repoPath)
-			.then((arr) => {
-				if (!isActive) {
-					return;
-				}
-				setBranches(
-					[...arr].sort(
-						(a, b) =>
-							new Date(b.lastCommitDate as unknown as string).getTime() -
-							new Date(a.lastCommitDate as unknown as string).getTime(),
-					),
-				);
-			})
-			.catch((err) => console.error("failed to fetch branches:", err));
-
-		return () => {
-			isActive = false;
-		};
-	}, [repoPath]);
+	// Set completed commit info when commit succeeds
+	useEffect(() => {
+		if (docManager.status === "success" && docManager.commitCompleted) {
+			docManager.setCompletedCommit(
+				branchManager.sourceBranch || "",
+				branchManager.targetBranch || ""
+			);
+		}
+	}, [
+		docManager.status,
+		docManager.commitCompleted,
+		branchManager.sourceBranch,
+		branchManager.targetBranch,
+		docManager.setCompletedCommit,
+	]);
 
 	const canGenerate = useMemo(
 		() =>
 			Boolean(
 				project &&
-					sourceBranch &&
-					targetBranch &&
-					sourceBranch !== targetBranch &&
-					!isBusy,
+					branchManager.sourceBranch &&
+					branchManager.targetBranch &&
+					branchManager.sourceBranch !== branchManager.targetBranch &&
+					!docManager.isBusy
 			),
-		[isBusy, project, sourceBranch, targetBranch],
+		[
+			docManager.isBusy,
+			project,
+			branchManager.sourceBranch,
+			branchManager.targetBranch,
+		]
 	);
 
 	const canCommit = useMemo(() => {
-		if (!(project && docResult)) {
+		if (!(project && docManager.docResult)) {
 			return false;
 		}
-		const files = docResult.files ?? [];
-		return files.length > 0 && !isBusy;
-	}, [docResult, isBusy, project]);
-
-	const swapBranches = useCallback(() => {
-		setSourceBranch((currentSource) => {
-			const next = targetBranch;
-			setTargetBranch(currentSource);
-			return next;
-		});
-	}, [targetBranch]);
+		const files = docManager.docResult.files ?? [];
+		return files.length > 0 && !docManager.isBusy;
+	}, [docManager.docResult, docManager.isBusy, project]);
 
 	const handleGenerate = useCallback(() => {
-		if (!(project && sourceBranch && targetBranch)) {
+		if (
+			!(project && branchManager.sourceBranch && branchManager.targetBranch)
+		) {
 			return;
 		}
-		setSourceOpen(false);
-		setTargetOpen(false);
-		setActiveTab("activity");
-		startDocGeneration({
+		branchManager.setSourceOpen(false);
+		branchManager.setTargetOpen(false);
+		docManager.setActiveTab("activity");
+		docManager.startDocGeneration({
 			projectId: Number(project.ID),
-			sourceBranch,
-			targetBranch,
+			sourceBranch: branchManager.sourceBranch,
+			targetBranch: branchManager.targetBranch,
 		});
-	}, [project, sourceBranch, startDocGeneration, targetBranch]);
+	}, [project, branchManager, docManager]);
 
 	const handleCommit = useCallback(() => {
-		if (!(project && docResult)) {
+		if (!(project && docManager.docResult)) {
 			return;
 		}
-		const files = (docResult.files ?? [])
+		const files = (docManager.docResult.files ?? [])
 			.map((file) => file.path)
 			.filter((path): path is string =>
-				Boolean(path && path.trim().length > 0),
+				Boolean(path && path.trim().length > 0)
 			);
 		if (files.length === 0) {
 			return;
 		}
-		setActiveTab("activity");
-		commitDocGeneration({
+		docManager.setActiveTab("activity");
+		docManager.commitDocGeneration({
 			projectId: Number(project.ID),
-			branch: docResult.branch,
+			branch: docManager.docResult.branch,
 			files,
 		});
-	}, [commitDocGeneration, docResult, project]);
+	}, [docManager, project]);
 
 	const handleReset = useCallback(() => {
-		resetDocGeneration();
-		setSourceBranch(undefined);
-		setTargetBranch(undefined);
-		setSourceOpen(false);
-		setTargetOpen(false);
-		setActiveTab("activity");
-		setCommitCompleted(false);
-		setCompletedCommitInfo(null);
-	}, [resetDocGeneration]);
+		docManager.reset();
+		branchManager.resetBranches();
+	}, [docManager, branchManager]);
 
 	const handleStartNewTask = useCallback(() => {
 		handleReset();
 	}, [handleReset]);
 
-	const handleCancel = useCallback(() => {
-		void cancelDocGeneration();
-	}, [cancelDocGeneration]);
-
-	const disableControls = isBusy;
-	const hasGenerationAttempt =
-		status !== "idle" || Boolean(docResult) || events.length > 0;
-
-	useEffect(() => {
-		if (!docResult) {
-			return;
-		}
-		// Switch to review tab when LLM completes
-		setActiveTab("review");
-		const node = containerRef.current;
-		if (node) {
-			node.scrollIntoView({ behavior: "smooth", block: "nearest" });
-		}
-	}, [docResult]);
-
-	useEffect(() => {
-		if (status === "running" || status === "committing") {
-			setActiveTab("activity");
-		}
-		// Don't auto-switch tabs when commit completes - let the confirmation UI handle it
-		if (status === "success" && commitCompleted) {
-			// Keep current tab, don't auto-switch
-			return;
-		}
-	}, [status, commitCompleted]);
-
-	// Detect successful commit completion
-	const prevStatusRef = useRef(status);
-	useEffect(() => {
-		console.log("Status changed:", {
-			prev: prevStatusRef.current,
-			current: status,
-			hasDocResult: !!docResult,
-			commitCompleted,
-		});
-
-		if (
-			prevStatusRef.current === "committing" &&
-			status === "success" &&
-			docResult
-		) {
-			// Commit completed successfully
-			console.log("Setting commit completed to true");
-			setCommitCompleted(true);
-			setCompletedCommitInfo({
-				sourceBranch: sourceBranch || "",
-				targetBranch: targetBranch || "",
-			});
-		}
-		prevStatusRef.current = status;
-	}, [status, docResult, sourceBranch, targetBranch, commitCompleted]);
+	const disableControls = docManager.isBusy;
 
 	if (loading) {
 		return <div className="p-2 text-muted-foreground text-sm">Loading…</div>;
@@ -307,380 +177,67 @@ function ProjectDetailPage() {
 
 				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
 					{(() => {
-						console.log("Render decision:", {
-							commitCompleted,
-							hasGenerationAttempt,
-							status,
-							docResult: !!docResult,
-						});
-						return null;
+						if (docManager.commitCompleted) {
+							return (
+								<SuccessPanel
+									completedCommitInfo={docManager.completedCommitInfo}
+									onStartNewTask={handleStartNewTask}
+									sourceBranch={branchManager.sourceBranch}
+								/>
+							);
+						}
+
+						if (docManager.hasGenerationAttempt) {
+							return (
+								<ComparisonDisplay
+									sourceBranch={branchManager.sourceBranch}
+									targetBranch={branchManager.targetBranch}
+								/>
+							);
+						}
+
+						return (
+							<BranchSelector
+								branches={branchManager.branches}
+								disableControls={disableControls}
+								project={project}
+								setSourceBranch={branchManager.setSourceBranch}
+								setSourceOpen={branchManager.setSourceOpen}
+								setTargetBranch={branchManager.setTargetBranch}
+								setTargetOpen={branchManager.setTargetOpen}
+								sourceBranch={branchManager.sourceBranch}
+								sourceOpen={branchManager.sourceOpen}
+								swapBranches={branchManager.swapBranches}
+								targetBranch={branchManager.targetBranch}
+								targetOpen={branchManager.targetOpen}
+							/>
+						);
 					})()}
-					{commitCompleted ? (
-						<div className="flex flex-col gap-6 rounded-lg border border-green-200 bg-green-50/50 p-6 dark:border-green-800 dark:bg-green-950/30">
-							<div className="text-center">
-								<h3 className="mb-2 font-semibold text-green-800 text-lg dark:text-green-200">
-									{t("common.commitSuccess")}
-								</h3>
-								<p className="text-green-700 text-sm dark:text-green-300">
-									{t("common.commitSuccessDescription")}
-								</p>
-							</div>
-							<div className="text-center">
-								<p className="mb-2 text-foreground text-sm">
-									{t("common.documentationAvailable")}:
-								</p>
-								<code className="rounded bg-background px-3 py-2 font-mono text-foreground text-sm shadow-sm">
-									docs-{completedCommitInfo?.sourceBranch || sourceBranch}
-								</code>
-							</div>
-							<div className="text-center">
-								<Button
-									className="gap-2 font-semibold"
-									onClick={handleStartNewTask}
-									type="button"
-								>
-									{t("common.startNewTask")}
-									<ArrowRight className="h-4 w-4" />
-								</Button>
-							</div>
-						</div>
-					) : !hasGenerationAttempt ? (
-						<>
-							<div className="grid shrink-0 gap-2">
-								<Label
-									className="mb-1 text-foreground"
-									htmlFor={projectInputId}
-								>
-									{t("common.project")}
-								</Label>
-								<div
-									className={cn(
-										"h-10 w-full rounded-md border border-border bg-card text-card-foreground",
-										"flex items-center px-3",
-									)}
-									id={projectInputId}
-								>
-									{project.ProjectName}
-								</div>
-							</div>
 
-							<div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-end gap-4">
-								<div className="grid gap-2">
-									<Label
-										className="mb-1 text-foreground"
-										htmlFor={sourceBranchComboboxId}
-									>
-										{t("common.sourceBranch")}
-									</Label>
-									<Popover
-										modal={true}
-										onOpenChange={setSourceOpen}
-										open={sourceOpen}
-									>
-										<PopoverTrigger asChild>
-											<Button
-												aria-controls={sourceBranchListId}
-												aria-expanded={sourceOpen}
-												className={cn(
-													"w-full justify-between hover:text-foreground",
-													twTrigger,
-												)}
-												disabled={disableControls}
-												id={sourceBranchComboboxId}
-												role="combobox"
-												type="button"
-												variant="outline"
-											>
-												{sourceBranch ?? t("common.sourceBranch")}
-												<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-											</Button>
-										</PopoverTrigger>
-										<PopoverContent
-											className={cn(
-												"w-[var(--radix-popover-trigger-width)] p-0",
-												twContent,
-											)}
-										>
-											<Command>
-												<CommandInput placeholder="Search branch..." />
-												<CommandList
-													className="max-h-[200px]"
-													id={sourceBranchListId}
-												>
-													<CommandEmpty>No branch found.</CommandEmpty>
-													<CommandGroup>
-														{branches
-															.filter((b) => b.name !== targetBranch)
-															.map((b) => (
-																<CommandItem
-																	key={b.name}
-																	onSelect={(currentValue) => {
-																		setSourceBranch(currentValue);
-																		setSourceOpen(false);
-																	}}
-																	value={b.name}
-																>
-																	<CheckIcon
-																		className={cn(
-																			"mr-2 h-4 w-4",
-																			sourceBranch === b.name
-																				? "opacity-100"
-																				: "opacity-0",
-																		)}
-																	/>
-																	{b.name}
-																</CommandItem>
-															))}
-													</CommandGroup>
-												</CommandList>
-											</Command>
-										</PopoverContent>
-									</Popover>
-								</div>
-
-								<Button
-									aria-label={t("common.swapBranches")}
-									className="h-10 w-10 p-1 hover:bg-accent"
-									disabled={disableControls || branches.length < 2}
-									onClick={swapBranches}
-									type="button"
-									variant="secondary"
-								>
-									<ArrowRightLeft className="h-4 w-4" />
-								</Button>
-
-								<div className="grid gap-2">
-									<Label
-										className="mb-1 text-foreground"
-										htmlFor={targetBranchComboboxId}
-									>
-										{t("common.targetBranch")}
-									</Label>
-									<Popover
-										modal={true}
-										onOpenChange={setTargetOpen}
-										open={targetOpen}
-									>
-										<PopoverTrigger asChild>
-											<Button
-												aria-controls={targetBranchListId}
-												aria-expanded={targetOpen}
-												className={cn(
-													"w-full justify-between hover:text-foreground",
-													twTrigger,
-												)}
-												disabled={disableControls}
-												id={targetBranchComboboxId}
-												role="combobox"
-												type="button"
-												variant="outline"
-											>
-												{targetBranch ?? t("common.targetBranch")}
-												<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-											</Button>
-										</PopoverTrigger>
-										<PopoverContent
-											className={cn(
-												"w-[var(--radix-popover-trigger-width)] p-0",
-												twContent,
-											)}
-										>
-											<Command>
-												<CommandInput placeholder="Search branch..." />
-												<CommandList
-													className="max-h-[200px]"
-													id={targetBranchListId}
-												>
-													<CommandEmpty>No branch found.</CommandEmpty>
-													<CommandGroup>
-														{branches
-															.filter((b) => b.name !== sourceBranch)
-															.map((b) => (
-																<CommandItem
-																	key={b.name}
-																	onSelect={(currentValue) => {
-																		setTargetBranch(currentValue);
-																		setTargetOpen(false);
-																	}}
-																	value={b.name}
-																>
-																	<CheckIcon
-																		className={cn(
-																			"mr-2 h-4 w-4",
-																			targetBranch === b.name
-																				? "opacity-100"
-																				: "opacity-0",
-																		)}
-																	/>
-																	{b.name}
-																</CommandItem>
-															))}
-													</CommandGroup>
-												</CommandList>
-											</Command>
-										</PopoverContent>
-									</Popover>
-								</div>
-							</div>
-						</>
-					) : (
-						<div className="flex shrink-0 items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
-							<span className="text-muted-foreground">
-								{t("common.comparing")}:
-							</span>
-							<code className="rounded bg-background px-2 py-1 font-mono text-foreground text-xs">
-								{sourceBranch}
-							</code>
-							<ArrowRight className="h-3 w-3 text-muted-foreground" />
-							<code className="rounded bg-background px-2 py-1 font-mono text-foreground text-xs">
-								{targetBranch}
-							</code>
-						</div>
-					)}
-
-					{hasGenerationAttempt && (
-						<Tabs
-							className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
-							onValueChange={(value) =>
-								setActiveTab(value as "activity" | "review" | "summary")
-							}
-							value={activeTab}
-						>
-							<TabsList
-								className={cn(
-									"grid w-full bg-muted h-auto p-1",
-									docResult?.summary
-										? "grid-cols-3"
-										: docResult
-											? "grid-cols-2"
-											: "grid-cols-1",
-								)}
-							>
-								<TabsTrigger
-									className={cn(
-										"transition-all",
-										activeTab === "activity"
-											? "!bg-accent !text-accent-foreground shadow-sm"
-											: "hover:bg-muted-foreground/10",
-									)}
-									value="activity"
-								>
-									{t("common.recentActivity")}
-								</TabsTrigger>
-								{docResult && (
-									<TabsTrigger
-										className={cn(
-											"transition-all",
-											activeTab === "review"
-												? "!bg-accent !text-accent-foreground shadow-sm"
-												: "hover:bg-muted-foreground/10",
-										)}
-										value="review"
-									>
-										{t("common.review")}
-									</TabsTrigger>
-								)}
-								{docResult?.summary && (
-									<TabsTrigger
-										className={cn(
-											"transition-all",
-											activeTab === "summary"
-												? "!bg-accent !text-accent-foreground shadow-sm"
-												: "hover:bg-muted-foreground/10",
-										)}
-										value="summary"
-									>
-										{t("common.summary")}
-									</TabsTrigger>
-								)}
-							</TabsList>
-							<TabsContent
-								className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
-								value="activity"
-							>
-								<DocGenerationProgressLog events={events} status={status} />
-							</TabsContent>
-							{docResult && (
-								<TabsContent
-									className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
-									value="review"
-								>
-									<DocGenerationResultPanel result={docResult} />
-								</TabsContent>
-							)}
-							{docResult?.summary && (
-								<TabsContent
-									className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
-									value="summary"
-								>
-									<div className="flex h-full flex-col gap-4 overflow-hidden rounded-lg border border-border bg-card p-6">
-										<header>
-											<h2 className="font-semibold text-foreground text-lg">
-												{t("common.summary")}
-											</h2>
-											<p className="text-muted-foreground text-sm">
-												{t("common.branch")}: {docResult.branch}
-											</p>
-										</header>
-										<div className="min-h-0 flex-1 overflow-y-auto">
-											<div className="rounded-md border border-border bg-muted/40 p-4 text-foreground/90 leading-relaxed">
-												{docResult.summary}
-											</div>
-										</div>
-									</div>
-								</TabsContent>
-							)}
-						</Tabs>
+					{docManager.hasGenerationAttempt && (
+						<GenerationTabs
+							activeTab={docManager.activeTab}
+							docResult={docManager.docResult}
+							events={docManager.events}
+							setActiveTab={docManager.setActiveTab}
+							status={docManager.status}
+						/>
 					)}
 				</div>
 
-				{!commitCompleted && (
-					<footer className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-						{status === "error" && docGenerationError && (
-							<div className="text-destructive text-xs">
-								{docGenerationError}
-							</div>
-						)}
-						<div className="flex items-center gap-2 sm:justify-end">
-							{isRunning && (
-								<Button
-									className="font-semibold"
-									onClick={handleCancel}
-									type="button"
-									variant="destructive"
-								>
-									{t("common.cancel")}
-								</Button>
-							)}
-							<Button
-								className="border-border text-foreground hover:bg-accent"
-								disabled={isBusy}
-								onClick={handleReset}
-								variant="outline"
-							>
-								{t("common.reset")}
-							</Button>
-							{docResult ? (
-								<Button
-									className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-									disabled={!canCommit}
-									onClick={handleCommit}
-								>
-									{t("common.commit")}
-									<ArrowRight className="h-4 w-4" />
-								</Button>
-							) : (
-								<Button
-									className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-									disabled={!canGenerate}
-									onClick={handleGenerate}
-								>
-									{t("common.generateDocs")}
-									<ArrowRight className="h-4 w-4" />
-								</Button>
-							)}
-						</div>
-					</footer>
+				{!docManager.commitCompleted && (
+					<ActionButtons
+						canCommit={canCommit}
+						canGenerate={canGenerate}
+						docGenerationError={docManager.docGenerationError}
+						docResult={docManager.docResult}
+						isBusy={docManager.isBusy}
+						isRunning={docManager.isRunning}
+						onCancel={docManager.cancelDocGeneration}
+						onCommit={handleCommit}
+						onGenerate={handleGenerate}
+						onReset={handleReset}
+					/>
 				)}
 			</section>
 		</div>

@@ -1,11 +1,7 @@
-import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
+import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
-import { GitBranch, Settings } from "lucide-react";
 import { useEffect } from "react";
-import { useTranslation } from "react-i18next";
-import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { AppSidebar } from "@/components/Sidebar";
-import { Button } from "@/components/ui/button";
 import {
 	SidebarInset,
 	SidebarProvider,
@@ -53,8 +49,6 @@ function ThemeSync() {
 }
 
 function RootLayout() {
-	const { t } = useTranslation();
-
 	return (
 		<SidebarProvider>
 			<ThemeSync />
