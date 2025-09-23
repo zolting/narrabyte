@@ -63,12 +63,11 @@ type DocGenerationResponse struct {
 func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 	// temperature := float32(0)
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		APIKey: key,
-		Model:  "gpt-5-mini",
-		// APIKey:      "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",
-		// Model:       "x-ai/grok-4-fast:free",
-		// BaseURL:     "https://openrouter.ai/api/v1",
-		// Temperature: &temperature,
+		// APIKey: key,
+		// Model:  "gpt-5-mini",
+		APIKey:  "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",
+		Model:   "x-ai/grok-4-fast:free",
+		BaseURL: "https://openrouter.ai/api/v1",
 	})
 
 	if err != nil {
@@ -356,6 +355,7 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 func (o *OpenAIClient) prepareSnapshots(ctx context.Context) error {
 	codeRoot := strings.TrimSpace(o.codeRoot)
 	sourceCommit := strings.TrimSpace(o.sourceCommit)
+	sourceBranch := strings.TrimSpace(o.sourceBranch)
 	if codeRoot != "" && sourceCommit != "" {
 		repo, err := git.PlainOpen(codeRoot)
 		if err != nil {
@@ -365,14 +365,14 @@ func (o *OpenAIClient) prepareSnapshots(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to resolve source commit '%s': %w", sourceCommit, err)
 		}
-		snapshot, err := tools.NewGitSnapshot(repo, commit, codeRoot)
+		snapshot, err := tools.NewGitSnapshot(repo, commit, codeRoot, sourceBranch)
 		if err != nil {
 			return fmt.Errorf("failed to build code repository snapshot: %w", err)
 		}
 		o.codeSnapshot = snapshot
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
-			"Snapshots: configured code snapshot at commit %s",
-			sourceCommit,
+			"Snapshots: configured code snapshot for branch '%s' at commit %s",
+			sourceBranch, sourceCommit,
 		)))
 	} else {
 		o.codeSnapshot = nil
@@ -388,7 +388,7 @@ func (o *OpenAIClient) prepareSnapshots(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to resolve documentation branch for snapshot: %w", err)
 		}
-		snapshot, err := tools.NewGitSnapshot(repo, commit, docRoot)
+		snapshot, err := tools.NewGitSnapshot(repo, commit, docRoot, branch)
 		if err != nil {
 			return fmt.Errorf("failed to build documentation repository snapshot: %w", err)
 		}
@@ -531,7 +531,9 @@ func (o *OpenAIClient) FileOpenHistory() []string {
 
 func (o *OpenAIClient) captureListing(ctx context.Context, root string) (string, error) {
 	var listing string
-	err := o.withBaseRoot(root, o.snapshotForRoot(root), func() error {
+	snapshot := o.snapshotForRoot(root)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("CaptureListing: . [%s]", snapshotInfo(snapshot))))
+	err := o.withBaseRoot(root, snapshot, func() error {
 		out, err := tools.ListDirectory(ctx, &tools.ListLSInput{Path: "."})
 		if err != nil {
 			return err
@@ -818,7 +820,9 @@ func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.
 			return "", err
 		}
 		var output string
-		err = o.withBaseRoot(root, o.snapshotForRoot(root), func() error {
+		snapshot := o.snapshotForRoot(root)
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: %s [%s]", rel, snapshotInfo(snapshot))))
+		err = o.withBaseRoot(root, snapshot, func() error {
 			res, innerErr := tools.ListDirectory(ctx, &tools.ListLSInput{Path: rel, Ignore: ignore})
 			if innerErr != nil {
 				return innerErr
@@ -845,7 +849,7 @@ func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
-		root, _, abs, err := o.resolveToolPath(in.FilePath, true)
+		root, rel, abs, err := o.resolveToolPath(in.FilePath, true)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(policy): %v", err)))
 			return &tools.ReadFileOutput{
@@ -855,7 +859,9 @@ func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.
 			}, nil
 		}
 		var out *tools.ReadFileOutput
-		err = o.withBaseRoot(root, o.snapshotForRoot(root), func() error {
+		snapshot := o.snapshotForRoot(root)
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: %s [%s]", rel, snapshotInfo(snapshot))))
+		err = o.withBaseRoot(root, snapshot, func() error {
 			res, innerErr := tools.ReadFile(ctx, &tools.ReadFileInput{
 				FilePath: abs,
 				Offset:   in.Offset,
@@ -1106,6 +1112,21 @@ func relOrDot(rel string) string {
 		return "."
 	}
 	return rel
+}
+
+func snapshotInfo(snapshot *tools.GitSnapshot) string {
+	if snapshot == nil {
+		return "no-snapshot"
+	}
+	branch := snapshot.Branch()
+	commit := snapshot.CommitHash().String()
+	if len(commit) > 8 {
+		commit = commit[:8]
+	}
+	if branch != "" {
+		return fmt.Sprintf("%s@%s", branch, commit)
+	}
+	return commit
 }
 
 func pathsEqual(a, b string) bool {

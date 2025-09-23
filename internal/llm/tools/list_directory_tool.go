@@ -59,7 +59,9 @@ type ListDirectoryOutput struct {
 
 // ListDirectory produces a simple textual tree listing similar to the TS tool.
 func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, error) {
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ListDirectory: starting"))
+	snapshot := CurrentGitSnapshot()
+	snapshotInfo := formatSnapshotInfo(snapshot)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: starting [%s]", snapshotInfo)))
 
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
@@ -140,7 +142,7 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 		}
 		searchPath = abs
 	}
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: listing '%s'", filepath.ToSlash(searchPath))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: listing '%s' [%s]", filepath.ToSlash(searchPath), snapshotInfo)))
 
 	// Compose ignore patterns
 	patterns := append([]string{}, DefaultIgnorePatterns...)
@@ -355,7 +357,7 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 	b.WriteByte('\n')
 	b.WriteString(renderDir(".", 0))
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: done, %d files listed for '%s'", len(files), filepath.ToSlash(searchPath))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: done, %d files listed for '%s' [%s]", len(files), filepath.ToSlash(searchPath), snapshotInfo)))
 	return &ListDirectoryOutput{
 		Title:  filepath.ToSlash(searchPath),
 		Output: b.String(),

@@ -28,6 +28,7 @@ type GitSnapshot struct {
 	tree   *object.Tree
 	root   string
 	hash   plumbing.Hash
+	branch string
 }
 
 type GitTreeEntry struct {
@@ -49,7 +50,7 @@ func (e GitTreeEntry) IsFile() bool {
 	}
 }
 
-func NewGitSnapshot(repo *git.Repository, commit *object.Commit, root string) (*GitSnapshot, error) {
+func NewGitSnapshot(repo *git.Repository, commit *object.Commit, root, branch string) (*GitSnapshot, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("repo is required")
 	}
@@ -72,6 +73,7 @@ func NewGitSnapshot(repo *git.Repository, commit *object.Commit, root string) (*
 		tree:   tree,
 		root:   cleaned,
 		hash:   commit.Hash,
+		branch: strings.TrimSpace(branch),
 	}, nil
 }
 
@@ -87,6 +89,13 @@ func (s *GitSnapshot) CommitHash() plumbing.Hash {
 		return plumbing.Hash{}
 	}
 	return s.hash
+}
+
+func (s *GitSnapshot) Branch() string {
+	if s == nil {
+		return ""
+	}
+	return s.branch
 }
 
 func (s *GitSnapshot) relativeFromAbs(absPath string) (string, error) {

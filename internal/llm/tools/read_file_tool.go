@@ -39,7 +39,9 @@ type ReadFileOutput struct {
 // ReadFile reads a text file within the project root with paging and safety checks.
 func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error) {
 	// Start
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ReadFile: starting"))
+	snapshot := CurrentGitSnapshot()
+	snapshotInfo := formatSnapshotInfo(snapshot)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: starting [%s]", snapshotInfo)))
 
 	if input == nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile: input is required"))
@@ -139,7 +141,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 	}
 
 	// Progress: resolved path
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: reading '%s'", filepath.ToSlash(absPath))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: reading '%s' [%s]", filepath.ToSlash(absPath), snapshotInfo)))
 
 	if snapshot := CurrentGitSnapshot(); snapshot != nil {
 		rel, relErr := snapshot.relativeFromAbs(absPath)
@@ -216,11 +218,8 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 
 		lines := strings.Split(string(data), "\n")
 		out, readCount, totalLines := BuildReadFileOutput(filepath.ToSlash(absPath), lines, input.Offset, input.Limit)
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
-			"ReadFile: read %d/%d lines from '%s' (commit %s)",
-			readCount, totalLines, filepath.ToSlash(absPath), snapshot.CommitHash().String(),
-		)))
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s)", filepath.ToSlash(absPath))))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s' [%s]", readCount, totalLines, filepath.ToSlash(absPath), snapshotInfo)))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s) [%s]", filepath.ToSlash(absPath), snapshotInfo)))
 		return out, nil
 	}
 
@@ -309,8 +308,8 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 	}
 	lines := strings.Split(string(data), "\n")
 	out, readCount, totalLines := BuildReadFileOutput(filepath.ToSlash(absPath), lines, input.Offset, input.Limit)
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s'", readCount, totalLines, filepath.ToSlash(absPath))))
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s)", filepath.ToSlash(absPath))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s' [%s]", readCount, totalLines, filepath.ToSlash(absPath), snapshotInfo)))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s) [%s]", filepath.ToSlash(absPath), snapshotInfo)))
 	return out, nil
 }
 

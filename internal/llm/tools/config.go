@@ -2,6 +2,7 @@ package tools
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -80,4 +81,19 @@ func safeJoinUnderBase(base, p string) (abs string, ok bool) {
 		return "", false
 	}
 	return absCandidate, true
+}
+
+func formatSnapshotInfo(snapshot *GitSnapshot) string {
+	if snapshot == nil {
+		return "no-snapshot"
+	}
+	branch := snapshot.Branch()
+	commit := snapshot.CommitHash().String()
+	if len(commit) > 8 {
+		commit = commit[:8]
+	}
+	if branch != "" {
+		return fmt.Sprintf("%s@%s", branch, commit)
+	}
+	return commit
 }
