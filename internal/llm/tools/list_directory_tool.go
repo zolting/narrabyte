@@ -28,6 +28,7 @@ var DefaultIgnorePatterns = []string{
 	".idea/",
 	".vscode/",
 	".zig-cache/",
+	".gocache/",
 	"zig-out",
 	".coverage",
 	"coverage/",
@@ -50,14 +51,26 @@ type ListLSInput struct {
 	Ignore []string `json:"ignore,omitempty" jsonschema:"description=List of glob-like patterns to ignore"`
 }
 
+type ListDirectoryOutput struct {
+	Title    string            `json:"title"`
+	Output   string            `json:"output"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
 // ListDirectory produces a simple textual tree listing similar to the TS tool.
-func ListDirectory(ctx context.Context, in *ListLSInput) (string, error) {
+func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, error) {
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ListDirectory: starting"))
 
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: base root error: %v", err)))
-		return "", err
+		return &ListDirectoryOutput{
+			Title:  "",
+			Output: "Format error: project root not set",
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 
 	req := "."
@@ -72,28 +85,58 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (string, error) {
 		absBase, err := filepath.Abs(base)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: abs base resolve error: %v", err)))
-			return "", err
+			return &ListDirectoryOutput{
+				Title:  filepath.ToSlash(req),
+				Output: "Format error: failed to resolve base directory",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 		absReq, err := filepath.Abs(req)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: abs req resolve error: %v", err)))
-			return "", err
+			return &ListDirectoryOutput{
+				Title:  filepath.ToSlash(req),
+				Output: "Format error: failed to resolve directory path",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 		relToBase, err := filepath.Rel(absBase, absReq)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: rel error: %v", err)))
-			return "", err
+			return &ListDirectoryOutput{
+				Title:  filepath.ToSlash(absReq),
+				Output: "Format error: failed to resolve relative path",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 		if strings.HasPrefix(relToBase, "..") {
 			events.Emit(ctx, events.LLMEventTool, events.NewWarn("ListDirectory: path escapes configured base root"))
-			return "", fmt.Errorf("path escapes the configured base root")
+			return &ListDirectoryOutput{
+				Title:  filepath.ToSlash(absReq),
+				Output: "Format error: path escapes the configured base root",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 		searchPath = absReq
 	} else {
 		abs, ok := safeJoinUnderBase(base, req)
 		if !ok {
 			events.Emit(ctx, events.LLMEventTool, events.NewWarn("ListDirectory: path escapes configured base root"))
-			return "", fmt.Errorf("path escapes the configured base root")
+			return &ListDirectoryOutput{
+				Title:  filepath.ToSlash(filepath.Join(base, req)),
+				Output: "Format error: path escapes the configured base root",
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 		searchPath = abs
 	}
@@ -103,11 +146,23 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (string, error) {
 	info, err := os.Stat(searchPath)
 	if err != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: stat error: %v", err)))
-		return "", err
+		return &ListDirectoryOutput{
+			Title:  filepath.ToSlash(searchPath),
+			Output: fmt.Sprintf("Format error: directory does not exist or is not accessible: %s", filepath.ToSlash(searchPath)),
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 	if !info.IsDir() {
 		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: not a directory: %s", filepath.ToSlash(searchPath))))
-		return "", fmt.Errorf("not a directory: %s", searchPath)
+		return &ListDirectoryOutput{
+			Title:  filepath.ToSlash(searchPath),
+			Output: fmt.Sprintf("Format error: path is not a directory: %s", filepath.ToSlash(searchPath)),
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 
 	// Compose ignore patterns
@@ -159,7 +214,13 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (string, error) {
 	if err != nil {
 		if err.Error() != "__LIST_LIMIT_REACHED__" {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: traversal error: %v", err)))
-			return "", err
+			return &ListDirectoryOutput{
+				Title:  filepath.ToSlash(searchPath),
+				Output: fmt.Sprintf("Format error: failed to traverse directory: %v", err),
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
 		}
 	}
 
@@ -250,7 +311,14 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (string, error) {
 	b.WriteString(renderDir(".", 0))
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: done, %d files listed for '%s'", len(files), filepath.ToSlash(searchPath))))
-	return b.String(), nil
+	return &ListDirectoryOutput{
+		Title:  filepath.ToSlash(searchPath),
+		Output: b.String(),
+		Metadata: map[string]string{
+			"files_count": fmt.Sprintf("%d", len(files)),
+			"limited":     fmt.Sprintf("%v", len(files) >= listLimit),
+		},
+	}, nil
 }
 
 // matchIgnoredDir returns true if the directory (slash-separated under the root) should be ignored.

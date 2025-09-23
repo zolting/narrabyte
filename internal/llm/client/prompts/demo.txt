@@ -29,7 +29,6 @@ Brief tool call logic (you already know each tool’s details)
 Workflow
 1) Initialize
    - Identify both repo roots and detect languages/frameworks from manifests (codebase) and the docs system (e.g., MkDocs, Docusaurus, Sphinx) from nav/config files.
-   - Propose a Documentation Plan and ask clarifying questions (timebox, priority areas, permission to create new docs, branch/PR naming if relevant).
 
 2) Dual inventory
    - Codebase: packages/services/modules, entry points, routers/schemas, CLIs, configuration sources, data models/migrations, build/deploy scripts, CI/CD, Docker/K8s, tests.
@@ -49,22 +48,6 @@ Workflow
 6) Validation and polish
    - Check internal links/anchors and nav references. Ensure consistent terminology. Redact sensitive values. If doc build is allowed, run it; otherwise perform static checks.
    - Run the Documentation Quality Checklist (coverage, accuracy with citations, navigability, examples, diagrams where helpful, consistency, gaps/open questions).
-
-Documentation deliverables (adapt to current structure; propose additions only if missing and creation is approved)
-- Overview/README (docs index and high-level overview)
-- Quickstart (setup, run, common tasks)
-- Architecture (components, data/control flow; diagrams with brief text fallbacks)
-- Modules/Packages (per module/service purpose, surface, key APIs)
-- API (HTTP/gRPC/GraphQL endpoints, parameters, auth, error model)
-- Data Models (entities, schemas, migrations, validation)
-- Config (env vars, config files/keys, defaults, precedence; redacted samples)
-- Deployment (build, packaging, containers, compose/K8s, migrations, required secrets)
-- Operations (logs, metrics, health checks, jobs, feature flags)
-- Security (authN/Z, secret handling, input validation, dependencies)
-- Testing (how to run, structure, fixtures, adding tests)
-- CI/CD (pipelines, triggers, artifacts)
-- Contributing (dev env, style, commit/branch conventions, PR review)
-- For monorepos: per-package/service READMEs within docs, as appropriate.
 
 Beautiful Markdown guidelines
 - Clear, concise, neutral technical English; short paragraphs; active voice.

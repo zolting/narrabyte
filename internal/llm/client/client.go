@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"narrabyte/internal/events"
 	"narrabyte/internal/llm/tools"
@@ -20,6 +21,9 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	einoUtils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 type OpenAIClient struct {
@@ -28,16 +32,42 @@ type OpenAIClient struct {
 	fileHistoryMu   sync.Mutex
 	fileOpenHistory []string
 	baseRoot        string
+	docRoot         string
+	codeRoot        string
+	sourceBranch    string
+	targetBranch    string
+	sourceCommit    string
+	targetCommit    string
 
 	mu      sync.Mutex
 	running bool
 	cancel  context.CancelFunc
 }
 
+type DocGenerationRequest struct {
+	ProjectName       string
+	CodebasePath      string
+	DocumentationPath string
+	SourceBranch      string
+	TargetBranch      string
+	SourceCommit      string
+	Diff              string
+	ChangedFiles      []string
+}
+
+type DocGenerationResponse struct {
+	Summary string
+}
+
 func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
+	// temperature := float32(0)
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		APIKey: key,
 		Model:  "gpt-5-mini",
+		// APIKey:      "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",
+		// Model:       "x-ai/grok-4-fast:free",
+		// BaseURL:     "https://openrouter.ai/api/v1",
+		// Temperature: &temperature,
 	})
 
 	if err != nil {
@@ -73,6 +103,13 @@ func (o *OpenAIClient) StopStream() {
 	o.cancel = nil
 }
 
+// IsRunning reports whether a session is currently active.
+func (o *OpenAIClient) IsRunning() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.running
+}
+
 // SetListDirectoryBaseRoot binds the list-directory tools to a specific base directory.
 // Example: SetListDirectoryBaseRoot("/path/to/project") then tool input "frontend"
 // resolves to "/path/to/project/frontend".
@@ -89,14 +126,16 @@ func (o *OpenAIClient) SetListDirectoryBaseRoot(root string) {
 }
 
 // loadSystemPrompt loads the system instruction from the demo.txt file
-func (o *OpenAIClient) loadSystemPrompt() (string, error) {
-	// Get the project root by finding go.mod
+func (o *OpenAIClient) loadPrompt(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("prompt name is required")
+	}
 	projectRoot, err := utils.FindProjectRoot()
 	if err != nil {
 		return "", err
 	}
-
-	promptPath := filepath.Join(projectRoot, "internal", "llm", "client", "prompts", "demo.txt")
+	promptPath := filepath.Join(projectRoot, "internal", "llm", "client", "prompts", name)
 	data, err := os.ReadFile(promptPath)
 	if err != nil {
 		return "", err
@@ -117,7 +156,7 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 	o.SetListDirectoryBaseRoot(codebasePath)
 
 	// Load system prompt
-	systemPrompt, err := o.loadSystemPrompt()
+	systemPrompt, err := o.loadPrompt("demo.txt")
 	if err != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: load system prompt error: %v", err)))
 		return "", err
@@ -152,7 +191,7 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
 	iter := runner.Query(ctx, "Here is an initial listing of the project (capped at 100 files):\n\n"+
-		preview+
+		preview.Output+
 		"\n\nHow does the git diff frontend component work? Add your explanation by editing the explanations.md file, between App Settings and Repo Linking. You must use the edit tool to edit the file, not the write tool. Keep the current content. End by creating a file called haiku.txt in the same directory as the explanations. The haiku should be a short poem about the git diff frontend component.")
 
 	var lastMessage string
@@ -180,6 +219,132 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
 
 	return lastMessage, nil
+}
+
+func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest) (*DocGenerationResponse, error) {
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocs: initializing"))
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if strings.TrimSpace(req.DocumentationPath) == "" {
+		return nil, fmt.Errorf("documentation path is required")
+	}
+	if strings.TrimSpace(req.CodebasePath) == "" {
+		return nil, fmt.Errorf("codebase path is required")
+	}
+	docRoot, err := filepath.Abs(req.DocumentationPath)
+	if err != nil {
+		return nil, err
+	}
+	codeRoot, err := filepath.Abs(req.CodebasePath)
+	if err != nil {
+		return nil, err
+	}
+	o.docRoot = docRoot
+	o.codeRoot = codeRoot
+	o.sourceBranch = strings.TrimSpace(req.SourceBranch)
+	o.targetBranch = strings.TrimSpace(req.TargetBranch)
+	o.sourceCommit = strings.TrimSpace(req.SourceCommit)
+	o.targetCommit = ""
+	o.SetListDirectoryBaseRoot(docRoot)
+
+	docListing, err := o.captureListing(ctx, docRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list documentation root: %w", err)
+	}
+	codeListing, err := o.captureListing(ctx, codeRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list codebase root: %w", err)
+	}
+
+	toolsForSession, err := o.initDocumentationTools(docRoot, codeRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	systemPrompt, err := o.loadPrompt("generate_docs.txt")
+	if err != nil {
+		return nil, err
+	}
+
+	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+		Model: &o.ChatModel,
+		ToolsConfig: adk.ToolsConfig{
+			ToolsNodeConfig: compose.ToolsNodeConfig{
+				Tools: toolsForSession,
+			},
+		},
+		Name:        "Documentation Assistant",
+		Description: "Analyzes code diffs and proposes documentation updates",
+		Instruction: systemPrompt,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	changedList := "(none)"
+	if len(req.ChangedFiles) > 0 {
+		var b strings.Builder
+		for _, f := range req.ChangedFiles {
+			b.WriteString("- ")
+			b.WriteString(filepath.ToSlash(f))
+			b.WriteString("\n")
+		}
+		changedList = strings.TrimSpace(b.String())
+	}
+
+	var promptBuilder strings.Builder
+	promptBuilder.WriteString(fmt.Sprintf("Project: %s\n", strings.TrimSpace(req.ProjectName)))
+	promptBuilder.WriteString(fmt.Sprintf("Source branch: %s\n", strings.TrimSpace(req.SourceBranch)))
+	if commit := strings.TrimSpace(req.SourceCommit); commit != "" {
+		promptBuilder.WriteString(fmt.Sprintf("Source branch commit: %s\n", commit))
+	}
+	promptBuilder.WriteString(fmt.Sprintf("Target branch: %s\n\n", strings.TrimSpace(req.TargetBranch)))
+	promptBuilder.WriteString("Documentation repository root: \n")
+	promptBuilder.WriteString(filepath.ToSlash(docRoot))
+	promptBuilder.WriteString("\n\n")
+	promptBuilder.WriteString("Codebase repository root: \n")
+	promptBuilder.WriteString(filepath.ToSlash(codeRoot))
+	promptBuilder.WriteString("\n\n")
+	promptBuilder.WriteString("Changed source files (relative to codebase root):\n")
+	promptBuilder.WriteString(changedList)
+	promptBuilder.WriteString("\n\n")
+	promptBuilder.WriteString("<documentation_repo_listing>\n")
+	promptBuilder.WriteString(docListing)
+	promptBuilder.WriteString("\n</documentation_repo_listing>\n\n")
+	promptBuilder.WriteString("<codebase_repo_listing>\n")
+	promptBuilder.WriteString(codeListing)
+	promptBuilder.WriteString("\n</codebase_repo_listing>\n\n")
+	promptBuilder.WriteString("<git_diff>\n")
+	promptBuilder.WriteString(req.Diff)
+	promptBuilder.WriteString("\n</git_diff>")
+
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
+	iter := runner.Query(ctx, promptBuilder.String())
+	var lastMessage string
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if event.Err != nil {
+			if errors.Is(event.Err, context.Canceled) {
+				events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing canceled"))
+				return nil, context.Canceled
+			}
+			events.Emit(ctx, events.LLMEventDone, events.NewError("LLM processing error"))
+			return nil, event.Err
+		}
+		msg, err := event.Output.MessageOutput.GetMessage()
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("GenerateDocs: message error: %v", err)))
+			continue
+		}
+		lastMessage = msg.Content
+	}
+
+	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
+	return &DocGenerationResponse{Summary: strings.TrimSpace(lastMessage)}, nil
 }
 
 // recordOpenedFile appends a file path to the session history if not already present.
@@ -279,6 +444,22 @@ func (o *OpenAIClient) FileOpenHistory() []string {
 	out := make([]string, len(o.fileOpenHistory))
 	copy(out, o.fileOpenHistory)
 	return out
+}
+
+func (o *OpenAIClient) captureListing(ctx context.Context, root string) (string, error) {
+	var listing string
+	err := o.withBaseRoot(root, func() error {
+		out, err := tools.ListDirectory(ctx, &tools.ListLSInput{Path: "."})
+		if err != nil {
+			return err
+		}
+		listing = out.Output
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return listing, nil
 }
 
 // initTools initializes and returns all available tools for the current session.
@@ -517,4 +698,500 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 	}
 
 	return []tool.BaseTool{listDirectoryTool, readFileTool, globTool, grepTool, writeTool, editTool}, nil
+}
+
+func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.BaseTool, error) {
+	o.ResetFileOpenHistory()
+	o.docRoot = docRoot
+	o.codeRoot = codeRoot
+	o.SetListDirectoryBaseRoot(docRoot)
+
+	listDesc := tools.ToolDescription("list_directory_tool")
+	if strings.TrimSpace(listDesc) == "" {
+		listDesc = "lists the contents of a directory"
+	}
+	listWithPolicy := func(ctx context.Context, in *tools.ListLSInput) (string, error) {
+		requested := "."
+		var ignore []string
+		if in != nil {
+			if strings.TrimSpace(in.Path) != "" {
+				requested = strings.TrimSpace(in.Path)
+			}
+			ignore = in.Ignore
+		}
+		root, rel, _, err := o.resolveToolPath(requested, true)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory(policy): %v", err)))
+			return "", err
+		}
+		var output string
+		err = o.withBaseRoot(root, func() error {
+			res, innerErr := tools.ListDirectory(ctx, &tools.ListLSInput{Path: rel, Ignore: ignore})
+			if innerErr != nil {
+				return innerErr
+			}
+			output = res.Output
+			return nil
+		})
+		return output, err
+	}
+	listTool, err := einoUtils.InferTool("list_directory_tool", listDesc, listWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	readDesc := tools.ToolDescription("read_file_tool")
+	if strings.TrimSpace(readDesc) == "" {
+		readDesc = "reads the contents of a file"
+	}
+	readWithPolicy := func(ctx context.Context, in *tools.ReadFileInput) (*tools.ReadFileOutput, error) {
+		if in == nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile(policy): input is required"))
+			return &tools.ReadFileOutput{
+				Output:   "Format error: input is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		root, _, abs, err := o.resolveToolPath(in.FilePath, true)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(policy): %v", err)))
+			return &tools.ReadFileOutput{
+				Title:    "",
+				Output:   fmt.Sprintf("Policy error: %v", err),
+				Metadata: map[string]string{"error": "policy_violation"},
+			}, nil
+		}
+		var out *tools.ReadFileOutput
+		if pathsEqual(root, o.codeRoot) {
+			out, err = o.readCodeFileFromSourceBranch(ctx, abs, in.Offset, in.Limit)
+		} else {
+			err = o.withBaseRoot(root, func() error {
+				res, innerErr := tools.ReadFile(ctx, &tools.ReadFileInput{
+					FilePath: abs,
+					Offset:   in.Offset,
+					Limit:    in.Limit,
+				})
+				if innerErr != nil {
+					return innerErr
+				}
+				out = res
+				return nil
+			})
+		}
+		if err != nil {
+			return out, err
+		}
+		if out != nil && (out.Metadata == nil || out.Metadata["error"] == "") {
+			o.recordOpenedFile(abs)
+		}
+		return out, nil
+	}
+	readTool, err := einoUtils.InferTool("read_file_tool", readDesc, readWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	writeDesc := tools.ToolDescription("write_file_tool")
+	if strings.TrimSpace(writeDesc) == "" {
+		writeDesc = "write or create a file within the documentation repository"
+	}
+	writeWithPolicy := func(ctx context.Context, in *tools.WriteFileInput) (*tools.WriteFileOutput, error) {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("WriteFile(policy): starting"))
+		if in == nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): input is required"))
+			return &tools.WriteFileOutput{
+				Output:   "Format error: input is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		p := strings.TrimSpace(in.FilePath)
+		if p == "" {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): file_path is required"))
+			return &tools.WriteFileOutput{
+				Output:   "Format error: file_path is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("WriteFile(policy): resolving '%s'", p)))
+		absCandidate, rerr := o.resolveAbsWithinBase(p)
+		if rerr != nil {
+			if rerr.Error() == "project root not set" {
+				events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): documentation root not set"))
+				return &tools.WriteFileOutput{
+					Output:   "Format error: project root not set",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			if strings.Contains(rerr.Error(), "escapes") {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): path escapes the documentation root"))
+				return &tools.WriteFileOutput{
+					Title:    filepath.ToSlash(absCandidate),
+					Output:   "Format error: path escapes the documentation root",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): resolve error: %v", rerr)))
+			return nil, rerr
+		}
+		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
+			if !o.hasRead(absCandidate) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): policy violation - must read before write"))
+				return &tools.WriteFileOutput{
+					Title:    filepath.ToSlash(absCandidate),
+					Output:   "Policy error: must read the file before writing",
+					Metadata: map[string]string{"error": "policy_violation"},
+				}, nil
+			}
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): invoking underlying WriteFile for '%s'", filepath.ToSlash(absCandidate))))
+		out, err := tools.WriteFile(ctx, in)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): underlying error: %v", err)))
+			return out, err
+		}
+		title := ""
+		if out != nil && strings.TrimSpace(out.Title) != "" {
+			title = filepath.ToSlash(out.Title)
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(func() string {
+			if title == "" {
+				return "WriteFile(policy): done"
+			}
+			return "WriteFile(policy): done for '" + title + "'"
+		}()))
+		return out, nil
+	}
+	writeTool, err := einoUtils.InferTool("write_file_tool", writeDesc, writeWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	editDesc := tools.ToolDescription("edit_file_tool")
+	if strings.TrimSpace(editDesc) == "" {
+		editDesc = "edit a file using context-aware string replacement"
+	}
+	editWithPolicy := func(ctx context.Context, in *tools.EditInput) (*tools.EditOutput, error) {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("EditFile(policy): starting"))
+		if in == nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): input is required"))
+			return &tools.EditOutput{
+				Output:   "Format error: input is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		p := strings.TrimSpace(in.FilePath)
+		if p == "" {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): file_path is required"))
+			return &tools.EditOutput{
+				Output:   "Format error: file_path is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("EditFile(policy): resolving '%s'", p)))
+		absCandidate, rerr := o.resolveAbsWithinBase(p)
+		if rerr != nil {
+			if rerr.Error() == "project root not set" {
+				events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): documentation root not set"))
+				return &tools.EditOutput{
+					Output:   "Format error: project root not set",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			if strings.Contains(rerr.Error(), "escapes") {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): path escapes the documentation root"))
+				return &tools.EditOutput{
+					Title:    filepath.ToSlash(absCandidate),
+					Output:   "Format error: path escapes the documentation root",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): resolve error: %v", rerr)))
+			return nil, rerr
+		}
+		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
+			if !o.hasRead(absCandidate) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): policy violation - must read before edit"))
+				return &tools.EditOutput{
+					Title:    filepath.ToSlash(absCandidate),
+					Output:   "Policy error: must read the file before editing",
+					Metadata: map[string]string{"error": "policy_violation"},
+				}, nil
+			}
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("EditFile(policy): invoking underlying Edit for '%s'", filepath.ToSlash(absCandidate))))
+		out, err := tools.Edit(ctx, in)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): underlying error: %v", err)))
+			return out, err
+		}
+		title := ""
+		if out != nil && strings.TrimSpace(out.Title) != "" {
+			title = filepath.ToSlash(out.Title)
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(func() string {
+			if title == "" {
+				return "EditFile(policy): done"
+			}
+			return "EditFile(policy): done for '" + title + "'"
+		}()))
+		return out, nil
+	}
+	editTool, err := einoUtils.InferTool("edit_tool", editDesc, editWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	return []tool.BaseTool{listTool, readTool, writeTool, editTool}, nil
+}
+
+func (o *OpenAIClient) readCodeFileFromSourceBranch(ctx context.Context, abs string, offset, limit int) (*tools.ReadFileOutput, error) {
+	codeRoot := strings.TrimSpace(o.codeRoot)
+	if codeRoot == "" {
+		events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile(go-git): code root not configured"))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: code repository root not configured",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+	sourceCommit := strings.TrimSpace(o.sourceCommit)
+	if sourceCommit == "" {
+		events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile(go-git): source commit not configured"))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: source branch commit not available",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	repo, err := git.PlainOpen(codeRoot)
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): failed to open repo: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   fmt.Sprintf("Format error: failed to open code repository: %v", err),
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	commit, err := repo.CommitObject(plumbing.NewHash(sourceCommit))
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): failed to resolve commit: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   fmt.Sprintf("Format error: failed to resolve source branch commit: %v", err),
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	rel, err := filepath.Rel(codeRoot, abs)
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): rel path error: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: failed to resolve relative path within code repository",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+	if strings.HasPrefix(rel, "..") {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): path escapes code root"))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: path escapes the code repository root",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+	if rel == "." {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): path refers to repository root"))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: path refers to a directory, not a file",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	rel = filepath.ToSlash(rel)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+		"ReadFile(go-git): reading '%s' from source commit %s", filepath.ToSlash(abs), sourceCommit,
+	)))
+
+	file, err := commit.File(rel)
+	if err != nil {
+		if errors.Is(err, object.ErrFileNotFound) {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): file not found in commit"))
+			return &tools.ReadFileOutput{
+				Title:    filepath.ToSlash(abs),
+				Output:   "Format error: file does not exist in the source branch",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): commit lookup error: %v", err)))
+		return nil, err
+	}
+	if file == nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): file lookup returned nil"))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: file does not exist in the source branch",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	if img := imageTypeByExt(abs); img != "" {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile(go-git): unsupported image '%s' (%s)", filepath.ToSlash(abs), img)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   fmt.Sprintf("Binary image detected (%s). Reading skipped.", img),
+			Metadata: map[string]string{"error": "unsupported_image", "type": img},
+		}, nil
+	}
+
+	isBinary, err := file.IsBinary()
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): binary check error: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Format error: failed to check if file is binary",
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+	if isBinary {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile(go-git): unsupported binary '%s'", filepath.ToSlash(abs))))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   "Binary file detected. Reading skipped.",
+			Metadata: map[string]string{"error": "unsupported_binary"},
+		}, nil
+	}
+
+	reader, err := file.Reader()
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): reader error: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   fmt.Sprintf("Format error: failed to open file reader: %v", err),
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+	defer reader.Close()
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): read error: %v", err)))
+		return &tools.ReadFileOutput{
+			Title:    filepath.ToSlash(abs),
+			Output:   fmt.Sprintf("Format error: failed to read file from source branch: %v", err),
+			Metadata: map[string]string{"error": "format_error"},
+		}, nil
+	}
+
+	lines := strings.Split(string(data), "\n")
+	out, readCount, totalLines := tools.BuildReadFileOutput(filepath.ToSlash(abs), lines, offset, limit)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile(go-git): read %d/%d lines from '%s'", readCount, totalLines, filepath.ToSlash(abs))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile(go-git): done (%s)", filepath.ToSlash(abs))))
+	return out, nil
+}
+
+func (o *OpenAIClient) withBaseRoot(root string, fn func() error) error {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return fmt.Errorf("base root not set")
+	}
+	prev := o.baseRoot
+	tools.SetListDirectoryBaseRoot(root)
+	o.baseRoot = root
+	defer func() {
+		tools.SetListDirectoryBaseRoot(prev)
+		o.baseRoot = prev
+	}()
+	return fn()
+}
+
+func (o *OpenAIClient) resolveToolPath(input string, allowCode bool) (root string, rel string, abs string, err error) {
+	in := strings.TrimSpace(input)
+	if in == "" || in == "." {
+		return o.docRoot, ".", o.docRoot, nil
+	}
+	if filepath.IsAbs(in) {
+		absInput, err := filepath.Abs(in)
+		if err != nil {
+			return "", "", "", err
+		}
+		if rel, full, ok := pathWithin(o.docRoot, absInput); ok {
+			return o.docRoot, relOrDot(rel), full, nil
+		}
+		if allowCode {
+			if rel, full, ok := pathWithin(o.codeRoot, absInput); ok {
+				return o.codeRoot, relOrDot(rel), full, nil
+			}
+		}
+		return "", "", "", fmt.Errorf("path '%s' is not within the allowed repositories", input)
+	}
+	candidate := filepath.Join(o.docRoot, in)
+	if rel, full, ok := pathWithin(o.docRoot, candidate); ok {
+		return o.docRoot, relOrDot(rel), full, nil
+	}
+	return "", "", "", fmt.Errorf("path '%s' escapes the documentation repository", input)
+}
+
+func pathWithin(base, candidate string) (rel string, abs string, ok bool) {
+	if strings.TrimSpace(base) == "" {
+		return "", "", false
+	}
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return "", "", false
+	}
+	absCandidate, err := filepath.Abs(candidate)
+	if err != nil {
+		return "", "", false
+	}
+	relative, err := filepath.Rel(absBase, absCandidate)
+	if err != nil {
+		return "", "", false
+	}
+	if strings.HasPrefix(relative, "..") {
+		return "", "", false
+	}
+	return relative, absCandidate, true
+}
+
+func relOrDot(rel string) string {
+	rel = strings.TrimSpace(rel)
+	if rel == "" {
+		return "."
+	}
+	return rel
+}
+
+func pathsEqual(a, b string) bool {
+	if strings.TrimSpace(a) == "" || strings.TrimSpace(b) == "" {
+		return false
+	}
+	absA, errA := filepath.Abs(a)
+	if errA != nil {
+		absA = filepath.Clean(a)
+	}
+	absB, errB := filepath.Abs(b)
+	if errB != nil {
+		absB = filepath.Clean(b)
+	}
+	return absA == absB
+}
+
+func imageTypeByExt(p string) string {
+	switch strings.ToLower(filepath.Ext(p)) {
+	case ".jpg", ".jpeg":
+		return "JPEG"
+	case ".png":
+		return "PNG"
+	case ".gif":
+		return "GIF"
+	case ".bmp":
+		return "BMP"
+	case ".webp":
+		return "WebP"
+	default:
+		return ""
+	}
 }
