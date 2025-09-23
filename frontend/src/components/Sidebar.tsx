@@ -5,6 +5,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { Folder, Folders, Home, Plus, Settings } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import AddProjectDialog from "@/components/AddProjectDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,52 +54,50 @@ function AppSidebarContent() {
 		name: string;
 		docDirectory: string;
 		codebaseDirectory: string;
+		initFumaDocs: boolean;
 	}) => {
-		if (!(data.docDirectory && data.codebaseDirectory)) {
-			alert(t("home.selectBothDirectories"));
-			return;
-		}
-		if (!data.name) {
-			alert(t("home.projectNameRequired"));
-			return;
-		}
-
 		try {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
-				data.codebaseDirectory
+				data.codebaseDirectory,
+				data.initFumaDocs
 			);
-			alert(t("home.linkSuccess"));
+
+			toast(t("home.linkSuccess"));
 			setIsAddProjectOpen(false);
 			loadProjects();
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			if (errorMsg.startsWith("missing_git_repo")) {
-				const dir = errorMsg.endsWith("documentation")
+				const missingDocRepo = errorMsg.endsWith("documentation");
+				const dir = missingDocRepo
 					? t("projectManager.docDirectory")
 					: t("projectManager.codebaseDirectory");
 				if (window.confirm(`${dir} + ${t("home.unexistantGitRepoCreate")}`)) {
 					try {
-						await Init(dir);
+						await Init(
+							missingDocRepo ? data.docDirectory : data.codebaseDirectory
+						);
 						await LinkRepositories(
 							data.name,
 							data.docDirectory,
-							data.codebaseDirectory
+							data.codebaseDirectory,
+							data.initFumaDocs
 						);
-						alert(t("home.linkSuccess"));
+						toast(t("home.linkSuccess"));
 						setIsAddProjectOpen(false);
 						loadProjects();
 					} catch (initError) {
 						console.error("Error initializing git repo:", initError);
-						alert(t("home.initGitError"));
+						toast(t("home.initGitError"));
 					}
 					return;
 				}
 				return;
 			}
 			console.error("Error linking repositories:", error);
-			alert(t("home.linkError"));
+			toast(t("home.linkError"));
 			return;
 		}
 	};

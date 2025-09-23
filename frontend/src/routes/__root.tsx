@@ -11,6 +11,7 @@ import {
 	SidebarProvider,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/sonner";
 import { useAppSettingsStore } from "@/stores/appSettings";
 
 function ThemeSync() {
@@ -57,6 +58,7 @@ function RootLayout() {
 
 	return (
 		<SidebarProvider>
+			<Toaster />
 			<ThemeSync />
 			<AppSidebar />
 			<SidebarInset className="flex flex-col">

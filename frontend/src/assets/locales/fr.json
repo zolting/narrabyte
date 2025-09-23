@@ -32,7 +32,11 @@
     "cancel": "Annuler",
     "enterProjectName": "Entrer le nom du projet",
     "selectDocDirectory": "Selectionner le répertoire de documentation",
-    "selectCodebaseDirectory": "Selectionner le répertoire du code source"
+    "selectCodebaseDirectory": "Selectionner le répertoire du code source",
+    "existingDocumentationRepository": "Dépôt de documentation existant",
+    "newDocumentationRepository": "Nouveau dépôt Fumadocs",
+    "creationPath": "Chemin de création",
+    "chooseNewOrExisitingDoc": "Choisir si vous voulez créer un nouveau dépôt de documentation ou lier un existant."
   },
   "home": {
     "greeting": "Veuillez entrer votre nom ci-dessous 👇",

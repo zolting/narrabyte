@@ -41,7 +41,7 @@ func main() {
 	clientService := services.NewClientService()
 
 	//Create repositories
-	dbService := services.NewDbServices(db, *fumadocsService)
+	dbService := services.NewDbServices(db, *fumadocsService, *gitService)
 
 	// Create application with options
 	err = wails.Run(&options.App{
