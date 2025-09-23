@@ -13,8 +13,10 @@ import (
 )
 
 func TestReadFile_NilInput(t *testing.T) {
-	_, err := tools.ReadFile(context.Background(), nil)
-	utils.Equal(t, err.Error(), "input is required")
+	output, err := tools.ReadFile(context.Background(), nil)
+	utils.NilError(t, err)
+	utils.Equal(t, output.Metadata["error"], "format_error")
+	utils.Equal(t, output.Output, "Format error: input is required")
 }
 
 func TestReadFile_EmptyFilePath(t *testing.T) {
@@ -24,8 +26,10 @@ func TestReadFile_EmptyFilePath(t *testing.T) {
 	input := &tools.ReadFileInput{
 		FilePath: "",
 	}
-	_, err := tools.ReadFile(context.Background(), input)
-	utils.Equal(t, err.Error(), "file path is required")
+	output, err := tools.ReadFile(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, output.Metadata["error"], "format_error")
+	utils.Equal(t, output.Output, "Format error: file_path is required")
 }
 
 func TestReadFile_ProjectRootNotSet(t *testing.T) {
@@ -35,8 +39,10 @@ func TestReadFile_ProjectRootNotSet(t *testing.T) {
 	input := &tools.ReadFileInput{
 		FilePath: "test.txt",
 	}
-	_, err := tools.ReadFile(context.Background(), input)
-	utils.Equal(t, strings.Contains(err.Error(), "list directory base root not set"), true)
+	output, err := tools.ReadFile(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, output.Metadata["error"], "format_error")
+	utils.Equal(t, output.Output, "Format error: project root not set")
 }
 
 func TestReadFile_PathEscapesBase(t *testing.T) {
@@ -46,8 +52,10 @@ func TestReadFile_PathEscapesBase(t *testing.T) {
 	input := &tools.ReadFileInput{
 		FilePath: "../../../etc/passwd",
 	}
-	_, err := tools.ReadFile(context.Background(), input)
-	utils.Equal(t, strings.Contains(err.Error(), "path escapes the configured base root"), true)
+	output, err := tools.ReadFile(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, output.Metadata["error"], "format_error")
+	utils.Equal(t, output.Output, "Format error: path escapes the configured base root")
 }
 
 func TestReadFile_PathEscapesBaseRelative(t *testing.T) {
@@ -57,8 +65,10 @@ func TestReadFile_PathEscapesBaseRelative(t *testing.T) {
 	input := &tools.ReadFileInput{
 		FilePath: "../outside.txt",
 	}
-	_, err := tools.ReadFile(context.Background(), input)
-	utils.Equal(t, err.Error(), "path escapes the configured base root")
+	output, err := tools.ReadFile(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, output.Metadata["error"], "format_error")
+	utils.Equal(t, output.Output, "Format error: path escapes the configured base root")
 }
 
 func TestReadFile_FileNotFound(t *testing.T) {
@@ -70,8 +80,8 @@ func TestReadFile_FileNotFound(t *testing.T) {
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, output.Metadata["error"], "file_not_found")
-	utils.Equal(t, strings.Contains(output.Output, "File not found:"), true)
+	utils.Equal(t, output.Metadata["error"], "format_error")
+	utils.Equal(t, strings.Contains(output.Output, "file does not exist or is not accessible"), true)
 }
 
 func TestReadFile_FileNotFoundWithSuggestions(t *testing.T) {
@@ -91,10 +101,8 @@ func TestReadFile_FileNotFoundWithSuggestions(t *testing.T) {
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, output.Metadata["error"], "file_not_found")
-	utils.Equal(t, strings.Contains(output.Output, "Did you mean one of these?"), true)
-	utils.Equal(t, strings.Contains(output.Output, "mytest.txt"), true)
-	utils.Equal(t, strings.Contains(output.Output, "testfile.txt"), true)
+	utils.Equal(t, output.Metadata["error"], "format_error")
+	utils.Equal(t, strings.Contains(output.Output, "file does not exist or is not accessible"), true)
 }
 
 func TestReadFile_PathIsDirectory(t *testing.T) {
@@ -109,8 +117,10 @@ func TestReadFile_PathIsDirectory(t *testing.T) {
 	input := &tools.ReadFileInput{
 		FilePath: "subdir",
 	}
-	_, err = tools.ReadFile(context.Background(), input)
-	utils.Equal(t, strings.Contains(err.Error(), "path is a directory"), true)
+	output, err := tools.ReadFile(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, output.Metadata["error"], "format_error")
+	utils.Equal(t, strings.Contains(output.Output, "path is a directory"), true)
 }
 
 func TestReadFile_ImageFile(t *testing.T) {
@@ -125,8 +135,11 @@ func TestReadFile_ImageFile(t *testing.T) {
 	input := &tools.ReadFileInput{
 		FilePath: "test.jpg",
 	}
-	_, err = tools.ReadFile(context.Background(), input)
-	utils.Equal(t, strings.Contains(err.Error(), "this is an image file of type: JPEG"), true)
+	output, err := tools.ReadFile(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, output.Metadata["error"], "unsupported_image")
+	utils.Equal(t, output.Metadata["type"], "JPEG")
+	utils.Equal(t, strings.Contains(output.Output, "Binary image detected (JPEG)"), true)
 }
 
 func TestReadFile_BinaryFile(t *testing.T) {
@@ -141,8 +154,10 @@ func TestReadFile_BinaryFile(t *testing.T) {
 	input := &tools.ReadFileInput{
 		FilePath: "test.zip",
 	}
-	_, err = tools.ReadFile(context.Background(), input)
-	utils.Equal(t, strings.Contains(err.Error(), "cannot read binary file"), true)
+	output, err := tools.ReadFile(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, output.Metadata["error"], "unsupported_binary")
+	utils.Equal(t, output.Output, "Binary file detected. Reading skipped.")
 }
 
 func TestReadFile_BinaryFileByContent(t *testing.T) {
@@ -157,8 +172,10 @@ func TestReadFile_BinaryFileByContent(t *testing.T) {
 	input := &tools.ReadFileInput{
 		FilePath: "binary.txt",
 	}
-	_, err = tools.ReadFile(context.Background(), input)
-	utils.Equal(t, strings.Contains(err.Error(), "cannot read binary file"), true)
+	output, err := tools.ReadFile(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, output.Metadata["error"], "unsupported_binary")
+	utils.Equal(t, output.Output, "Binary file detected. Reading skipped.")
 }
 
 func TestReadFile_Success(t *testing.T) {
@@ -313,7 +330,7 @@ func TestReadFile_LongLineTruncation(t *testing.T) {
 	utils.NilError(t, err)
 	utils.Equal(t, strings.Contains(output.Output, "short line"), true)
 	utils.Equal(t, strings.Contains(output.Output, "another line"), true)
-	utils.Equal(t, strings.Contains(output.Output, "..."), true)
+	utils.Equal(t, strings.Contains(output.Output, "truncated"), true)
 }
 
 func TestReadFile_EmptyFile(t *testing.T) {

@@ -50,55 +50,105 @@ function AppSidebarContent() {
 		loadProjects();
 	}, [loadProjects]);
 
+	// Helper function to validate project data
+	const validateProjectData = (data: {
+		name: string;
+		docDirectory: string;
+		codebaseDirectory: string;
+	}) => {
+		if (!(data.docDirectory && data.codebaseDirectory)) {
+            toast(t("home.selectBothDirectories"));
+			return false;
+		}
+		if (!data.name) {
+            toast(t("home.projectNameRequired"));
+			return false;
+		}
+		return true;
+	};
+
+	// Helper function to handle successful project linking
+	const handleSuccess = () => {
+        toast(t("home.linkSuccess"));
+		setIsAddProjectOpen(false);
+		loadProjects();
+	};
+
+	// Helper function to handle missing git repository error
+	const handleMissingGitRepo = async (
+		error: unknown,
+		data: {
+			name: string;
+			docDirectory: string;
+			codebaseDirectory: string;
+            initFumaDocs: boolean;
+		}
+	) => {
+		const errorMsg = error instanceof Error ? error.message : String(error);
+
+		if (!errorMsg.startsWith("missing_git_repo")) {
+			throw error;
+		}
+
+		const missingDocRepo = errorMsg.endsWith("documentation");
+		const dir = missingDocRepo
+			? t("projectManager.docDirectory")
+			: t("projectManager.codebaseDirectory");
+
+		const shouldCreate = window.confirm(
+			`${dir} + ${t("home.unexistantGitRepoCreate")}`
+		);
+		if (!shouldCreate) {
+			return false;
+		}
+
+		try {
+			await Init(missingDocRepo ? data.docDirectory : data.codebaseDirectory);
+			await LinkRepositories(
+				data.name,
+				data.docDirectory,
+				data.codebaseDirectory,
+                data.initFumaDocs
+			);
+			return true;
+		} catch (initError) {
+			console.error("Error initializing git repo:", initError);
+            toast(t("home.initGitError"));
+			return false;
+		}
+	};
+
+	// Helper function to handle general errors
+	const handleError = (error: unknown) => {
+		console.error("Error linking repositories:", error);
+        toast(t("home.linkError"));
+	};
+
 	const handleAddProject = async (data: {
 		name: string;
 		docDirectory: string;
 		codebaseDirectory: string;
-		initFumaDocs: boolean;
+        initFumaDocs: boolean;
 	}) => {
+		if (!validateProjectData(data)) {
+			return;
+		}
+
 		try {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
 				data.codebaseDirectory,
-				data.initFumaDocs
+                data.initFumaDocs
 			);
-
-			toast(t("home.linkSuccess"));
-			setIsAddProjectOpen(false);
-			loadProjects();
+			handleSuccess();
 		} catch (error) {
-			const errorMsg = error instanceof Error ? error.message : String(error);
-			if (errorMsg.startsWith("missing_git_repo")) {
-				const missingDocRepo = errorMsg.endsWith("documentation");
-				const dir = missingDocRepo
-					? t("projectManager.docDirectory")
-					: t("projectManager.codebaseDirectory");
-				if (window.confirm(`${dir} + ${t("home.unexistantGitRepoCreate")}`)) {
-					try {
-						await Init(
-							missingDocRepo ? data.docDirectory : data.codebaseDirectory
-						);
-						await LinkRepositories(
-							data.name,
-							data.docDirectory,
-							data.codebaseDirectory,
-							data.initFumaDocs
-						);
-						toast(t("home.linkSuccess"));
-						setIsAddProjectOpen(false);
-						loadProjects();
-					} catch (initError) {
-						console.error("Error initializing git repo:", initError);
-						toast(t("home.initGitError"));
-					}
-					return;
-				}
-				return;
+			const success = await handleMissingGitRepo(error, data);
+			if (success) {
+				handleSuccess();
+			} else {
+				handleError(error);
 			}
-			console.error("Error linking repositories:", error);
-			toast(t("home.linkError"));
-			return;
 		}
 	};
 

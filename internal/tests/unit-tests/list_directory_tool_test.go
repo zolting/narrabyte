@@ -18,7 +18,7 @@ func TestListDirectory_NilInput(t *testing.T) {
 
 	result, err := tools.ListDirectory(context.Background(), nil)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, tempDir), true)
+	utils.Equal(t, strings.Contains(result.Output, tempDir), true)
 }
 
 func TestListDirectory_EmptyPath(t *testing.T) {
@@ -30,7 +30,7 @@ func TestListDirectory_EmptyPath(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, tempDir), true)
+	utils.Equal(t, strings.Contains(result.Output, tempDir), true)
 }
 
 func TestListDirectory_ProjectRootNotSet(t *testing.T) {
@@ -40,8 +40,10 @@ func TestListDirectory_ProjectRootNotSet(t *testing.T) {
 	input := &tools.ListLSInput{
 		Path: ".",
 	}
-	_, err := tools.ListDirectory(context.Background(), input)
-	utils.Equal(t, strings.Contains(err.Error(), "list directory base root not set"), true)
+	result, err := tools.ListDirectory(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, strings.Contains(result.Output, "project root not set"), true)
+	utils.Equal(t, result.Metadata["error"], "format_error")
 }
 
 func TestListDirectory_PathEscapesBase(t *testing.T) {
@@ -51,8 +53,10 @@ func TestListDirectory_PathEscapesBase(t *testing.T) {
 	input := &tools.ListLSInput{
 		Path: "../../../etc",
 	}
-	_, err := tools.ListDirectory(context.Background(), input)
-	utils.Equal(t, err.Error(), "path escapes the configured base root")
+	result, err := tools.ListDirectory(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, strings.Contains(result.Output, "path escapes the configured base root"), true)
+	utils.Equal(t, result.Metadata["error"], "format_error")
 }
 
 func TestListDirectory_PathEscapesBaseAbsolute(t *testing.T) {
@@ -64,8 +68,10 @@ func TestListDirectory_PathEscapesBaseAbsolute(t *testing.T) {
 	input := &tools.ListLSInput{
 		Path: outsidePath,
 	}
-	_, err := tools.ListDirectory(context.Background(), input)
-	utils.Equal(t, err.Error(), "path escapes the configured base root")
+	result, err := tools.ListDirectory(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, strings.Contains(result.Output, "path escapes the configured base root"), true)
+	utils.Equal(t, result.Metadata["error"], "format_error")
 }
 
 func TestListDirectory_PathIsFile(t *testing.T) {
@@ -80,8 +86,10 @@ func TestListDirectory_PathIsFile(t *testing.T) {
 	input := &tools.ListLSInput{
 		Path: "test.txt",
 	}
-	_, err = tools.ListDirectory(context.Background(), input)
-	utils.Equal(t, strings.Contains(err.Error(), "not a directory"), true)
+	result, err := tools.ListDirectory(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, strings.Contains(result.Output, "not a directory"), true)
+	utils.Equal(t, result.Metadata["error"], "format_error")
 }
 
 func TestListDirectory_PathDoesNotExist(t *testing.T) {
@@ -91,8 +99,10 @@ func TestListDirectory_PathDoesNotExist(t *testing.T) {
 	input := &tools.ListLSInput{
 		Path: "nonexistent",
 	}
-	_, err := tools.ListDirectory(context.Background(), input)
-	utils.Equal(t, strings.Contains(err.Error(), "no such file or directory"), true)
+	result, err := tools.ListDirectory(context.Background(), input)
+	utils.NilError(t, err)
+	utils.Equal(t, strings.Contains(result.Output, "does not exist or is not accessible"), true)
+	utils.Equal(t, result.Metadata["error"], "format_error")
 }
 
 func TestListDirectory_EmptyDirectory(t *testing.T) {
@@ -104,9 +114,9 @@ func TestListDirectory_EmptyDirectory(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, tempDir), true)
+	utils.Equal(t, strings.Contains(result.Output, tempDir), true)
 	// Should not contain any files or subdirectories other than the header
-	lines := strings.Split(result, "\n")
+	lines := strings.Split(result.Output, "\n")
 	hasContent := false
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -133,8 +143,8 @@ func TestListDirectory_WithFiles(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "file1.txt"), true)
-	utils.Equal(t, strings.Contains(result, "file2.go"), true)
+	utils.Equal(t, strings.Contains(result.Output, "file1.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "file2.go"), true)
 }
 
 func TestListDirectory_WithSubdirectories(t *testing.T) {
@@ -154,8 +164,8 @@ func TestListDirectory_WithSubdirectories(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "subdir/"), true)
-	utils.Equal(t, strings.Contains(result, "nested.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "subdir/"), true)
+	utils.Equal(t, strings.Contains(result.Output, "nested.txt"), true)
 }
 
 func TestListDirectory_NestedStructure(t *testing.T) {
@@ -179,9 +189,9 @@ func TestListDirectory_NestedStructure(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "level1/"), true)
-	utils.Equal(t, strings.Contains(result, "level2/"), true)
-	utils.Equal(t, strings.Contains(result, "deep.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "level1/"), true)
+	utils.Equal(t, strings.Contains(result.Output, "level2/"), true)
+	utils.Equal(t, strings.Contains(result.Output, "deep.txt"), true)
 }
 
 func TestListDirectory_IgnoreDefaultPatterns(t *testing.T) {
@@ -205,9 +215,9 @@ func TestListDirectory_IgnoreDefaultPatterns(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "normal.txt"), true)
-	utils.Equal(t, strings.Contains(result, "node_modules"), false)
-	utils.Equal(t, strings.Contains(result, "package.json"), false)
+	utils.Equal(t, strings.Contains(result.Output, "normal.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "node_modules"), false)
+	utils.Equal(t, strings.Contains(result.Output, "package.json"), false)
 }
 
 func TestListDirectory_CustomIgnorePatterns(t *testing.T) {
@@ -226,8 +236,8 @@ func TestListDirectory_CustomIgnorePatterns(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "important.txt"), true)
-	utils.Equal(t, strings.Contains(result, "temp.log"), false)
+	utils.Equal(t, strings.Contains(result.Output, "important.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "temp.log"), false)
 }
 
 func TestListDirectory_IgnoreDirectoryWithCustomPattern(t *testing.T) {
@@ -252,9 +262,9 @@ func TestListDirectory_IgnoreDirectoryWithCustomPattern(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "normal.txt"), true)
-	utils.Equal(t, strings.Contains(result, "custom_ignore"), false)
-	utils.Equal(t, strings.Contains(result, "file.txt"), false)
+	utils.Equal(t, strings.Contains(result.Output, "normal.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "custom_ignore"), false)
+	utils.Equal(t, strings.Contains(result.Output, "file.txt"), false)
 }
 
 func TestListDirectory_LimitReached(t *testing.T) {
@@ -275,10 +285,10 @@ func TestListDirectory_LimitReached(t *testing.T) {
 	utils.NilError(t, err)
 
 	// Should contain the directory header
-	utils.Equal(t, strings.Contains(result, tempDir), true)
+	utils.Equal(t, strings.Contains(result.Output, tempDir), true)
 
 	// Count the number of file entries in the result
-	lines := strings.Split(result, "\n")
+	lines := strings.Split(result.Output, "\n")
 	fileCount := 0
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -314,9 +324,9 @@ func TestListDirectory_SpecificSubdirectory(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "file1.txt"), true)
-	utils.Equal(t, strings.Contains(result, "file2.txt"), true)
-	utils.Equal(t, strings.Contains(result, "root.txt"), false)
+	utils.Equal(t, strings.Contains(result.Output, "file1.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "file2.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "root.txt"), false)
 }
 
 func TestListDirectory_RelativePath(t *testing.T) {
@@ -336,7 +346,7 @@ func TestListDirectory_RelativePath(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "test.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "test.txt"), true)
 }
 
 func TestListDirectory_ComplexIgnorePatterns(t *testing.T) {
@@ -379,9 +389,9 @@ func TestListDirectory_ComplexIgnorePatterns(t *testing.T) {
 
 	for _, tc := range testCases {
 		if tc.shouldIgnore {
-			utils.Equal(t, strings.Contains(result, filepath.Base(tc.path)), false)
+			utils.Equal(t, strings.Contains(result.Output, filepath.Base(tc.path)), false)
 		} else {
-			utils.Equal(t, strings.Contains(result, filepath.Base(tc.path)), true)
+			utils.Equal(t, strings.Contains(result.Output, filepath.Base(tc.path)), true)
 		}
 	}
 }
@@ -403,8 +413,8 @@ func TestListDirectory_EmptyIgnorePatterns(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "file1.txt"), true)
-	utils.Equal(t, strings.Contains(result, "file2.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "file1.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "file2.txt"), true)
 }
 
 func TestListDirectory_UnicodeNames(t *testing.T) {
@@ -422,8 +432,8 @@ func TestListDirectory_UnicodeNames(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "文件.txt"), true)
-	utils.Equal(t, strings.Contains(result, "файл.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "文件.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "файл.txt"), true)
 }
 
 func TestListDirectory_Symlinks(t *testing.T) {
@@ -444,6 +454,6 @@ func TestListDirectory_Symlinks(t *testing.T) {
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
-	utils.Equal(t, strings.Contains(result, "real.txt"), true)
-	utils.Equal(t, strings.Contains(result, "link.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "real.txt"), true)
+	utils.Equal(t, strings.Contains(result.Output, "link.txt"), true)
 }

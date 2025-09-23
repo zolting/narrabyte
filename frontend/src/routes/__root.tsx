@@ -1,11 +1,7 @@
-import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
+import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
-import { GitBranch, Settings } from "lucide-react";
 import { useEffect } from "react";
-import { useTranslation } from "react-i18next";
-import { GitDiffDialog } from "@/components/GitDiffDialog/GitDiffDialog";
 import { AppSidebar } from "@/components/Sidebar";
-import { Button } from "@/components/ui/button";
 import {
 	SidebarInset,
 	SidebarProvider,
@@ -54,8 +50,6 @@ function ThemeSync() {
 }
 
 function RootLayout() {
-	const { t } = useTranslation();
-
 	return (
 		<SidebarProvider>
 			<Toaster />
@@ -64,25 +58,6 @@ function RootLayout() {
 			<SidebarInset className="flex flex-col">
 				<header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4">
 					<SidebarTrigger className="-ml-1" />
-					<div className="flex gap-2">
-						<GitDiffDialog>
-							<Button className="text-foreground" size="icon" variant="outline">
-								<GitBranch className="h-4 w-4 text-foreground" />
-								<span className="sr-only">{t("common.viewDiff")}</span>
-							</Button>
-						</GitDiffDialog>
-						<Button
-							asChild
-							className="text-foreground"
-							size="icon"
-							variant="outline"
-						>
-							<Link to="/settings">
-								<Settings className="h-4 w-4 text-foreground" />
-								<span className="sr-only">{t("common.settings")}</span>
-							</Link>
-						</Button>
-					</div>
 				</header>
 				<main>
 					<Outlet />
