@@ -3,10 +3,12 @@ package tools
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"narrabyte/internal/events"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -139,7 +141,90 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 	// Progress: resolved path
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: reading '%s'", filepath.ToSlash(absPath))))
 
-	// Ensure file exists
+	if snapshot := CurrentGitSnapshot(); snapshot != nil {
+		rel, relErr := snapshot.relativeFromAbs(absPath)
+		if relErr != nil {
+			if errors.Is(relErr, ErrSnapshotEscapes) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile: path escapes git snapshot root"))
+				return &ReadFileOutput{
+					Title:    filepath.ToSlash(absPath),
+					Output:   "Format error: path escapes the configured project root",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: snapshot rel path error: %v", relErr)))
+			return &ReadFileOutput{
+				Title:    filepath.ToSlash(absPath),
+				Output:   "Format error: failed to resolve path within repository snapshot",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+
+		data, isBinary, readErr := snapshot.readFile(rel)
+		if readErr != nil {
+			switch {
+			case errors.Is(readErr, ErrSnapshotDirectory):
+				events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile: snapshot path is a directory"))
+				return &ReadFileOutput{
+					Title:    filepath.ToSlash(absPath),
+					Output:   fmt.Sprintf("Format error: path is a directory: %s", filepath.ToSlash(absPath)),
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			case errors.Is(readErr, ErrSnapshotNotFound):
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile: snapshot file not found"))
+				dirRel := path.Dir(rel)
+				if dirRel == "." {
+					dirRel = ""
+				}
+				suggestions := snapshot.suggestions(dirRel, path.Base(rel), 3)
+				output := fmt.Sprintf("Format error: file does not exist in the repository snapshot: %s", filepath.ToSlash(absPath))
+				if len(suggestions) > 0 {
+					output += fmt.Sprintf("\n\nDid you mean one of these files?\n- %s", strings.Join(suggestions, "\n- "))
+				}
+				return &ReadFileOutput{
+					Title:    filepath.ToSlash(absPath),
+					Output:   output,
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			default:
+				events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: snapshot read error: %v", readErr)))
+				return nil, readErr
+			}
+		}
+
+		if img := imageTypeByExt(absPath); img != "" {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile: unsupported image '%s' (%s) in snapshot", filepath.ToSlash(absPath), img)))
+			return &ReadFileOutput{
+				Title:  filepath.ToSlash(absPath),
+				Output: fmt.Sprintf("Binary image detected (%s). Reading skipped.", img),
+				Metadata: map[string]string{
+					"error": "unsupported_image",
+					"type":  img,
+				},
+			}, nil
+		}
+		if isBinary {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile: unsupported binary '%s' in snapshot", filepath.ToSlash(absPath))))
+			return &ReadFileOutput{
+				Title:  filepath.ToSlash(absPath),
+				Output: "Binary file detected. Reading skipped.",
+				Metadata: map[string]string{
+					"error": "unsupported_binary",
+				},
+			}, nil
+		}
+
+		lines := strings.Split(string(data), "\n")
+		out, readCount, totalLines := BuildReadFileOutput(filepath.ToSlash(absPath), lines, input.Offset, input.Limit)
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+			"ReadFile: read %d/%d lines from '%s' (commit %s)",
+			readCount, totalLines, filepath.ToSlash(absPath), snapshot.CommitHash().String(),
+		)))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s)", filepath.ToSlash(absPath))))
+		return out, nil
+	}
+
+	// Ensure file exists on filesystem (fallback when no snapshot configured)
 	fileInfo, statErr := os.Stat(absPath)
 	if statErr != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: stat error: %v", statErr)))

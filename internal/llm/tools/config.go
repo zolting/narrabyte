@@ -6,9 +6,12 @@ import (
 	"strings"
 )
 
-// listDirBaseRoot holds an optional base directory for the list directory tools.
-// If unset, we fall back to environment or project root discovery.
-var listDirBaseRoot string
+type baseContext struct {
+	root     string
+	snapshot *GitSnapshot
+}
+
+var currentBaseContext baseContext
 
 // SetListDirectoryBaseRoot sets the base directory that ListDirectory tools
 // will treat as the root for resolving paths.
@@ -16,25 +19,33 @@ var listDirBaseRoot string
 func SetListDirectoryBaseRoot(root string) {
 	// Normalize and store an absolute, cleaned base root
 	if strings.TrimSpace(root) == "" {
-		listDirBaseRoot = ""
+		currentBaseContext.root = ""
 		return
 	}
 	if abs, err := filepath.Abs(root); err == nil {
-		listDirBaseRoot = abs
+		currentBaseContext.root = abs
 		return
 	}
 	// Fallback to raw value if Abs fails (should be rare)
-	listDirBaseRoot = root
+	currentBaseContext.root = root
 }
 
 // getListDirectoryBaseRoot returns the configured base directory for list tools.
 // Resolution: value set via SetListDirectoryBaseRoot.
 func getListDirectoryBaseRoot() (string, error) {
-	if listDirBaseRoot != "" {
-		return listDirBaseRoot, nil
+	if currentBaseContext.root != "" {
+		return currentBaseContext.root, nil
 	}
 
 	return "", errors.New("list directory base root not set")
+}
+
+func SetGitSnapshot(snapshot *GitSnapshot) {
+	currentBaseContext.snapshot = snapshot
+}
+
+func CurrentGitSnapshot() *GitSnapshot {
+	return currentBaseContext.snapshot
 }
 
 // safeJoinUnderBase resolves a path under base, returning an absolute path that
