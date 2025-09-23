@@ -107,9 +107,23 @@ export function DocGenerationResultPanel({
 						{t("common.branch", "Branch")}: {result.branch}
 					</p>
 				</div>
-				{hasDiff && (
+				<div>
+					{hasDiff && (
+						<Button
+							className="border-border text-foreground hover:bg-accent"
+							onClick={() =>
+								setViewType((prev) => (prev === "split" ? "unified" : "split"))
+							}
+							size="sm"
+							variant="outline"
+						>
+							{viewType === "split"
+								? t("common.inlineView", "Inline view")
+								: t("common.splitView", "Split view")}
+						</Button>
+					)}
 					<Button
-						className="border-border text-foreground hover:bg-accent"
+						className="ml-2 border-border text-foreground hover:bg-accent"
 						onClick={() =>
 							setViewType((prev) => (prev === "split" ? "unified" : "split"))
 						}
@@ -120,7 +134,7 @@ export function DocGenerationResultPanel({
 							? t("common.inlineView", "Inline view")
 							: t("common.splitView", "Split view")}
 					</Button>
-				)}
+				</div>
 			</header>
 			{hasDiff ? (
 				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[220px_1fr]">
