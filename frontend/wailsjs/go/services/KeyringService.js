@@ -14,6 +14,6 @@ export function Startup() {
   return window['go']['services']['KeyringService']['Startup']();
 }
 
-export function StoreApiKey(arg1, arg2, arg3) {
-  return window['go']['services']['KeyringService']['StoreApiKey'](arg1, arg2, arg3);
+export function StoreApiKey(arg1, arg2) {
+  return window['go']['services']['KeyringService']['StoreApiKey'](arg1, arg2);
 }

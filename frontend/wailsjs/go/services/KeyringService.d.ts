@@ -8,4 +8,4 @@ export function GetApiKey(arg1:keyring.Keyring,arg2:string):Promise<string>;
 
 export function Startup():Promise<void>;
 
-export function StoreApiKey(arg1:keyring.Keyring,arg2:string,arg3:Array<number>):Promise<void>;
+export function StoreApiKey(arg1:string,arg2:Array<number>):Promise<void>;

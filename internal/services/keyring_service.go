@@ -41,8 +41,8 @@ func OpenKeyring() (keyring.Keyring, error) {
 	})
 }
 
-func (s *KeyringService) StoreApiKey(r keyring.Keyring, provider string, apiKey []byte) error {
-	if r == nil {
+func (s *KeyringService) StoreApiKey(provider string, apiKey []byte) error {
+	if s.ring == nil {
 		return errors.New("keyring is not initialized")
 	}
 	if len(apiKey) == 0 {
@@ -60,11 +60,11 @@ func (s *KeyringService) StoreApiKey(r keyring.Keyring, provider string, apiKey 
 		Label:       provider + "API key",
 		Description: "API key for " + provider + "used by Narrabyte",
 	}
-	return r.Set(item)
+	return s.ring.Set(item)
 }
 
-func (s *KeyringService) GetApiKey(r keyring.Keyring, provider string) (string, error) {
-	if r == nil {
+func (s *KeyringService) GetApiKey(provider string) (string, error) {
+	if s.ring == nil {
 		return "", errors.New("keyring is not initialized")
 	}
 	if provider == "" {
@@ -78,13 +78,13 @@ func (s *KeyringService) GetApiKey(r keyring.Keyring, provider string) (string, 
 	return string(item.Data), nil
 }
 
-func (s *KeyringService) DeleteApiKey(r keyring.Keyring, provider string) error {
-	if r == nil {
+func (s *KeyringService) DeleteApiKey(provider string) error {
+	if s.ring == nil {
 		return errors.New("keyring is not initialized")
 	}
 	if provider == "" {
 		return errors.New("provider is required")
 	}
 
-	return r.Remove("narrabyte:" + provider + ":apiKey")
+	return s.ring.Remove("narrabyte:" + provider + ":apiKey")
 }
