@@ -20,7 +20,8 @@ func TestRepoLinkService_Register_Success(t *testing.T) {
 		},
 	}
 	fumaTest := services.FumadocsService{}
-	service := services.NewRepoLinkService(mockRepo, fumaTest)
+	gitSvc := services.GitService{}
+	service := services.NewRepoLinkService(mockRepo, fumaTest, gitSvc)
 
 	ctx := context.Background()
 	service.Startup(ctx)
@@ -45,8 +46,9 @@ func TestRepoLinkService_Register_Success(t *testing.T) {
 
 func TestRepoLinkService_Register_MissingGitRepo(t *testing.T) {
 	fumaTest := services.FumadocsService{}
+	gitSvc := services.GitService{}
 	mockRepo := &mocks.RepoLinkRepositoryMock{}
-	service := services.NewRepoLinkService(mockRepo, fumaTest)
+	service := services.NewRepoLinkService(mockRepo, fumaTest, gitSvc)
 
 	ctx := context.Background()
 	service.Startup(ctx)
@@ -59,8 +61,9 @@ func TestRepoLinkService_Register_MissingGitRepo(t *testing.T) {
 
 func TestRepoLinkService_Register_MissingDocumentationRepo(t *testing.T) {
 	fumaTest := services.FumadocsService{}
+	gitSvc := services.GitService{}
 	mockRepo := &mocks.RepoLinkRepositoryMock{}
-	service := services.NewRepoLinkService(mockRepo, fumaTest)
+	service := services.NewRepoLinkService(mockRepo, fumaTest, gitSvc)
 
 	ctx := context.Background()
 	service.Startup(ctx)
@@ -74,7 +77,8 @@ func TestRepoLinkService_Register_MissingDocumentationRepo(t *testing.T) {
 func TestRepoLinkService_Register_MissingCodebaseRepo(t *testing.T) {
 	mockRepo := &mocks.RepoLinkRepositoryMock{}
 	fumaTest := services.FumadocsService{}
-	service := services.NewRepoLinkService(mockRepo, fumaTest)
+	gitSvc := services.GitService{}
+	service := services.NewRepoLinkService(mockRepo, fumaTest, gitSvc)
 
 	ctx := context.Background()
 	service.Startup(ctx)
@@ -88,7 +92,8 @@ func TestRepoLinkService_Register_MissingCodebaseRepo(t *testing.T) {
 func TestRepoLinkService_Register_MissingProjectName(t *testing.T) {
 	mockRepo := &mocks.RepoLinkRepositoryMock{}
 	fumaTest := services.FumadocsService{}
-	service := services.NewRepoLinkService(mockRepo, fumaTest)
+	gitSvc := services.GitService{}
+	service := services.NewRepoLinkService(mockRepo, fumaTest, gitSvc)
 
 	ctx := context.Background()
 	service.Startup(ctx)
