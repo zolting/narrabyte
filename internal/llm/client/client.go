@@ -22,7 +22,6 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 type OpenAIClient struct {
@@ -38,7 +37,6 @@ type OpenAIClient struct {
 	sourceCommit    string
 	targetCommit    string
 	codeSnapshot    *tools.GitSnapshot
-	docSnapshot     *tools.GitSnapshot
 
 	mu      sync.Mutex
 	running bool
@@ -378,56 +376,9 @@ func (o *OpenAIClient) prepareSnapshots(ctx context.Context) error {
 		o.codeSnapshot = nil
 	}
 
-	docRoot := strings.TrimSpace(o.docRoot)
-	if docRoot != "" {
-		repo, err := git.PlainOpen(docRoot)
-		if err != nil {
-			return fmt.Errorf("failed to open documentation repository for snapshot: %w", err)
-		}
-		commit, branch, err := resolvePreferredBranchCommit(repo, "main", "master")
-		if err != nil {
-			return fmt.Errorf("failed to resolve documentation branch for snapshot: %w", err)
-		}
-		snapshot, err := tools.NewGitSnapshot(repo, commit, docRoot, branch)
-		if err != nil {
-			return fmt.Errorf("failed to build documentation repository snapshot: %w", err)
-		}
-		o.docSnapshot = snapshot
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
-			"Snapshots: using documentation branch '%s' at commit %s",
-			branch, commit.Hash.String(),
-		)))
-	} else {
-		o.docSnapshot = nil
-	}
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Snapshots: documentation tools will use the live workspace"))
 
 	return nil
-}
-
-func resolvePreferredBranchCommit(repo *git.Repository, preferred ...string) (*object.Commit, string, error) {
-	for _, name := range preferred {
-		ref, err := repo.Reference(plumbing.NewBranchReferenceName(name), true)
-		if err != nil {
-			if errors.Is(err, plumbing.ErrReferenceNotFound) || errors.Is(err, git.ErrBranchNotFound) {
-				continue
-			}
-			return nil, "", err
-		}
-		commit, err := repo.CommitObject(ref.Hash())
-		if err != nil {
-			return nil, "", err
-		}
-		return commit, name, nil
-	}
-	headRef, err := repo.Head()
-	if err != nil {
-		return nil, "", err
-	}
-	commit, err := repo.CommitObject(headRef.Hash())
-	if err != nil {
-		return nil, "", err
-	}
-	return commit, headRef.Name().Short(), nil
 }
 
 // recordOpenedFile appends a file path to the session history if not already present.
@@ -550,9 +501,6 @@ func (o *OpenAIClient) captureListing(ctx context.Context, root string) (string,
 func (o *OpenAIClient) snapshotForRoot(root string) *tools.GitSnapshot {
 	if pathsEqual(root, o.codeRoot) {
 		return o.codeSnapshot
-	}
-	if pathsEqual(root, o.docRoot) {
-		return o.docSnapshot
 	}
 	return nil
 }
