@@ -5,6 +5,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { Folder, Folders, Home, Plus, Settings } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import AddProjectDialog from "@/components/AddProjectDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,11 +57,11 @@ function AppSidebarContent() {
 		codebaseDirectory: string;
 	}) => {
 		if (!(data.docDirectory && data.codebaseDirectory)) {
-			alert(t("home.selectBothDirectories"));
+            toast(t("home.selectBothDirectories"));
 			return false;
 		}
 		if (!data.name) {
-			alert(t("home.projectNameRequired"));
+            toast(t("home.projectNameRequired"));
 			return false;
 		}
 		return true;
@@ -68,7 +69,7 @@ function AppSidebarContent() {
 
 	// Helper function to handle successful project linking
 	const handleSuccess = () => {
-		alert(t("home.linkSuccess"));
+        toast(t("home.linkSuccess"));
 		setIsAddProjectOpen(false);
 		loadProjects();
 	};
@@ -80,6 +81,7 @@ function AppSidebarContent() {
 			name: string;
 			docDirectory: string;
 			codebaseDirectory: string;
+            initFumaDocs: boolean;
 		}
 	) => {
 		const errorMsg = error instanceof Error ? error.message : String(error);
@@ -105,12 +107,13 @@ function AppSidebarContent() {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
-				data.codebaseDirectory
+				data.codebaseDirectory,
+                data.initFumaDocs
 			);
 			return true;
 		} catch (initError) {
 			console.error("Error initializing git repo:", initError);
-			alert(t("home.initGitError"));
+            toast(t("home.initGitError"));
 			return false;
 		}
 	};
@@ -118,13 +121,14 @@ function AppSidebarContent() {
 	// Helper function to handle general errors
 	const handleError = (error: unknown) => {
 		console.error("Error linking repositories:", error);
-		alert(t("home.linkError"));
+        toast(t("home.linkError"));
 	};
 
 	const handleAddProject = async (data: {
 		name: string;
 		docDirectory: string;
 		codebaseDirectory: string;
+        initFumaDocs: boolean;
 	}) => {
 		if (!validateProjectData(data)) {
 			return;
@@ -134,7 +138,8 @@ function AppSidebarContent() {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
-				data.codebaseDirectory
+				data.codebaseDirectory,
+                data.initFumaDocs
 			);
 			handleSuccess();
 		} catch (error) {
