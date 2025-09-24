@@ -38,8 +38,13 @@ func main() {
 	//Create each service
 	fumadocsService := services.NewFumadocsService()
 	gitService := services.NewGitService()
-	dbService := services.NewDbServices(db, *fumadocsService, *gitService)
-	clientService := services.NewClientService(dbService.RepoLinks, gitService)
+	clientService := services.NewClientService()
+
+	//Create the keyring (à valider!!!!)
+	keyringService := services.NewKeyringService()
+
+	//Create repositories
+	dbService := services.NewDbServices(db, *fumadocsService)
 
 	// Create application with options
 	err = wails.Run(&options.App{
@@ -55,6 +60,8 @@ func main() {
 			dbService.StartDbServices(ctx)
 			fumadocsService.Startup(ctx)
 			gitService.Startup(ctx)
+			//Pas besoin du context pour le keyring, propre a l'OS de l'utilisateur
+			keyringService.Startup()
 
 			//will have to check for this lowkey
 			err := clientService.Startup(ctx)
@@ -70,6 +77,7 @@ func main() {
 			fumadocsService,
 			gitService,
 			clientService,
+			keyringService,
 		},
 	})
 

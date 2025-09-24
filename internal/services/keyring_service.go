@@ -11,6 +11,23 @@ func GetOS() string {
 	return runtime.GOOS
 }
 
+type KeyringService struct {
+	ring keyring.Keyring
+}
+
+func NewKeyringService() *KeyringService {
+	return &KeyringService{}
+}
+
+func (s *KeyringService) Startup() {
+	r, err := OpenKeyring()
+	if err != nil {
+		//Panic ou erreur?
+		panic("failed to open keyring: " + err.Error())
+	}
+	s.ring = r
+}
+
 func OpenKeyring() (keyring.Keyring, error) {
 	return keyring.Open(keyring.Config{
 		ServiceName: "narrabyte",
@@ -24,15 +41,15 @@ func OpenKeyring() (keyring.Keyring, error) {
 	})
 }
 
-func StoreApiKey(r keyring.Keyring, provider string, apiKey []byte) error {
+func (s *KeyringService) StoreApiKey(r keyring.Keyring, provider string, apiKey []byte) error {
 	if r == nil {
-		return errors.New("Keyring is not initialized")
+		return errors.New("keyring is not initialized")
 	}
 	if len(apiKey) == 0 {
 		return errors.New("API key is empty")
 	}
 	if provider == "" {
-		return errors.New("Provider is required")
+		return errors.New("provider is required")
 	}
 
 	item := keyring.Item{
@@ -46,12 +63,12 @@ func StoreApiKey(r keyring.Keyring, provider string, apiKey []byte) error {
 	return r.Set(item)
 }
 
-func GetApiKey(r keyring.Keyring, provider string) (string, error) {
+func (s *KeyringService) GetApiKey(r keyring.Keyring, provider string) (string, error) {
 	if r == nil {
-		return "", errors.New("Keyring is not initialized")
+		return "", errors.New("keyring is not initialized")
 	}
 	if provider == "" {
-		return "", errors.New("Provider is required")
+		return "", errors.New("provider is required")
 	}
 	//Be sure to match the key format used in StoreApiKey
 	item, err := r.Get("narrabyte:" + provider + ":apiKey")
@@ -61,12 +78,12 @@ func GetApiKey(r keyring.Keyring, provider string) (string, error) {
 	return string(item.Data), nil
 }
 
-func DeleteApiKey(r keyring.Keyring, provider string) error {
+func (s *KeyringService) DeleteApiKey(r keyring.Keyring, provider string) error {
 	if r == nil {
-		return errors.New("Keyring is not initialized")
+		return errors.New("keyring is not initialized")
 	}
 	if provider == "" {
-		return errors.New("Provider is required")
+		return errors.New("provider is required")
 	}
 
 	return r.Remove("narrabyte:" + provider + ":apiKey")
