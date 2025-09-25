@@ -21,6 +21,7 @@ type RepoLinkService interface {
 type repoLinkService struct {
 	repoLinks       repositories.RepoLinkRepository
 	fumadocsService FumadocsService
+	gitService      GitService
 	context         context.Context
 }
 
@@ -28,8 +29,8 @@ func (s *repoLinkService) Startup(ctx context.Context) {
 	s.context = ctx
 }
 
-func NewRepoLinkService(repoLinks repositories.RepoLinkRepository, fumaDocsService FumadocsService) RepoLinkService {
-	return &repoLinkService{repoLinks: repoLinks, fumadocsService: fumaDocsService}
+func NewRepoLinkService(repoLinks repositories.RepoLinkRepository, fumaDocsService FumadocsService, gitService GitService) RepoLinkService {
+	return &repoLinkService{repoLinks: repoLinks, fumadocsService: fumaDocsService, gitService: gitService}
 }
 
 func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error) {
@@ -81,9 +82,20 @@ func (s *repoLinkService) List(limit, offset int) ([]models.RepoLink, error) {
 }
 
 // LinkRepositories links the given repositories
-func (s *repoLinkService) LinkRepositories(projectName, docRepo, codebaseRepo string) error {
+func (s *repoLinkService) LinkRepositories(projectName string, docRepo string, codebaseRepo string, initFumaDocs bool) error {
 	if s == nil {
 		return fmt.Errorf("repo link service not available")
+	}
+
+	if initFumaDocs {
+		x, err := s.fumadocsService.CreateFumadocsProject(docRepo)
+		if err != nil {
+			runtime.LogError(s.context, fmt.Sprintf("failed to create fumadocs project: %v", err))
+			return fmt.Errorf("failed to create fumadocs project: %w", err)
+		}
+		runtime.LogInfo(s.context, x)
+
+		s.gitService.Init(docRepo)
 	}
 
 	_, err := s.Register(projectName, docRepo, codebaseRepo)
@@ -91,13 +103,6 @@ func (s *repoLinkService) LinkRepositories(projectName, docRepo, codebaseRepo st
 		runtime.LogError(s.context, fmt.Sprintf("failed to link repositories: %v", err))
 		return err
 	}
-
-	x, err := s.fumadocsService.CreateFumadocsProject(docRepo)
-	if err != nil {
-		runtime.LogError(s.context, fmt.Sprintf("failed to create fumadocs project: %v", err))
-		return fmt.Errorf("failed to create fumadocs project: %w", err)
-	}
-	runtime.LogInfo(s.context, x)
 
 	runtime.LogInfo(s.context, fmt.Sprintf("Successfully linked project: %s, doc: %s with codebase: %s", projectName, docRepo, codebaseRepo))
 	return nil

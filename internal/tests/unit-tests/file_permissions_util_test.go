@@ -15,7 +15,8 @@ func newFileServiceWithRepoMock(findFunc func(ctx context.Context, id uint) (*mo
 		FindByIDFunc: findFunc,
 	}
 	fumaTest := services.FumadocsService{}
-	service := services.NewRepoLinkService(repoMock, fumaTest)
+	gitSvc := services.GitService{}
+	service := services.NewRepoLinkService(repoMock, fumaTest, gitSvc)
 	return &services.FilePermissionsUtil{RepoLinks: service}
 }
 

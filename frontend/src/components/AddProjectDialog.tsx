@@ -18,6 +18,7 @@ type AddProjectDialogProps = {
 		name: string;
 		docDirectory: string;
 		codebaseDirectory: string;
+		initFumaDocs: boolean;
 	}) => void;
 };
 
@@ -30,10 +31,25 @@ export default function AddProjectDialog({
 	const [name, setName] = useState("");
 	const [docDirectory, setDocDirectory] = useState("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState("");
+	const [initFumaDocs, setInitFumaDocs] = useState<boolean>(false);
+
+	const computedDocDirectory = () => {
+		if (!initFumaDocs) {
+			return docDirectory;
+		}
+
+		const sep = docDirectory.endsWith("/") ? "" : "/";
+		return `${docDirectory}${sep}${name}`;
+	};
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
-		onSubmit({ name, docDirectory, codebaseDirectory });
+		onSubmit({
+			name,
+			docDirectory: computedDocDirectory(),
+			codebaseDirectory,
+			initFumaDocs,
+		});
 	};
 
 	useEffect(() => {
@@ -41,19 +57,20 @@ export default function AddProjectDialog({
 			setName("");
 			setDocDirectory("");
 			setCodebaseDirectory("");
+			setInitFumaDocs(false);
 		}
 	}, [open]);
 
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
-			<DialogContent className="sm:max-w-[520px]">
+			<DialogContent className="sm:max-w-[580px]">
 				<DialogHeader>
 					<DialogTitle className="font-semibold text-foreground text-lg">
 						{t("projectManager.addProject")}
 					</DialogTitle>
 				</DialogHeader>
 
-				<form className="space-y-4" onSubmit={handleSubmit}>
+				<form className="space-y-6" onSubmit={handleSubmit}>
 					<div>
 						<label
 							className="mb-1 block font-medium text-foreground"
@@ -71,15 +88,44 @@ export default function AddProjectDialog({
 						/>
 					</div>
 
-					<div>
-						<label
-							className="mb-1 block from-foreground font-medium text-foreground"
-							htmlFor="doc-directory"
-						>
-							{t("projectManager.docDirectory")}
-						</label>
-						<DirectoryPicker onDirectorySelected={setDocDirectory} />
-						{docDirectory && <div className="mt-1 text-xs">{docDirectory}</div>}
+					<div className="space-y-3">
+						<div className="font-medium text-foreground">
+							{t("projectManager.chooseNewOrExisitingDoc")}
+						</div>
+						<div className="flex gap-2">
+							<Button
+								onClick={() => setInitFumaDocs(false)}
+								type="button"
+								variant={initFumaDocs ? "outline" : "default"}
+							>
+								{t("projectManager.existingDocumentationRepository")}
+							</Button>
+							<Button
+								onClick={() => setInitFumaDocs(true)}
+								type="button"
+								variant={initFumaDocs ? "default" : "outline"}
+							>
+								{t("projectManager.newDocumentationRepository")}
+							</Button>
+						</div>
+
+						<div className="space-y-2">
+							<label
+								className="mb-1 block font-medium text-foreground"
+								htmlFor="doc-directory"
+							>
+								{initFumaDocs
+									? t("projectManager.creationPath")
+									: t("projectManager.docDirectory")}
+							</label>
+							<DirectoryPicker
+								id="doc-directory"
+								onDirectorySelected={setDocDirectory}
+							/>
+							{docDirectory && (
+								<div className="mt-1 text-xs">{computedDocDirectory()}</div>
+							)}
+						</div>
 					</div>
 
 					<div>
@@ -89,7 +135,10 @@ export default function AddProjectDialog({
 						>
 							{t("projectManager.codebaseDirectory")}
 						</label>
-						<DirectoryPicker onDirectorySelected={setCodebaseDirectory} />
+						<DirectoryPicker
+							id="codebase-directory"
+							onDirectorySelected={setCodebaseDirectory}
+						/>
 						{codebaseDirectory && (
 							<div className="mt-1 text-xs">{codebaseDirectory}</div>
 						)}
