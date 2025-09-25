@@ -179,7 +179,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 		events.Emit(ctx, events.LLMEventTool, events.NewWarn("Documentation repository has uncommitted changes - these will be preserved"))
 	}
 
-	baseHash, err := ensureBaseBranch(docRepo, docWorktree, targetBranch)
+	baseHash, err := ensureBaseBranch(docRepo, targetBranch)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +426,7 @@ func extractPathsFromDiff(diff string) []string {
 	return paths
 }
 
-func ensureBaseBranch(repo *git.Repository, wt *git.Worktree, targetBranch string) (plumbing.Hash, error) {
+func ensureBaseBranch(repo *git.Repository, targetBranch string) (plumbing.Hash, error) {
 	head, err := repo.Head()
 	if err != nil {
 		return plumbing.Hash{}, fmt.Errorf("failed to read documentation HEAD: %w", err)
@@ -446,18 +446,6 @@ func ensureBaseBranch(repo *git.Repository, wt *git.Worktree, targetBranch strin
 		return plumbing.Hash{}, fmt.Errorf("failed to resolve documentation branch '%s': %w", targetBranch, err)
 	}
 	return ref.Hash(), nil
-}
-
-func prepareDocumentationBranch(repo *git.Repository, wt *git.Worktree, branch string, baseHash plumbing.Hash) error {
-	refName := plumbing.NewBranchReferenceName(branch)
-	ref := plumbing.NewHashReference(refName, baseHash)
-	if err := repo.Storer.SetReference(ref); err != nil {
-		return fmt.Errorf("failed to update documentation branch '%s': %w", branch, err)
-	}
-	if err := wt.Checkout(&git.CheckoutOptions{Branch: refName, Force: true}); err != nil {
-		return fmt.Errorf("failed to checkout documentation branch '%s': %w", branch, err)
-	}
-	return nil
 }
 
 // generateUniqueID creates a unique identifier for temporary directories
