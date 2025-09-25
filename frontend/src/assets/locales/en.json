@@ -51,7 +51,11 @@
     "cancel": "Cancel",
     "enterProjectName": "Enter project name",
     "selectDocDirectory": "Select documentation directory",
-    "selectCodebaseDirectory": "Select codebase directory"
+    "selectCodebaseDirectory": "Select codebase directory",
+    "existingDocumentationRepository": "Existing documentation repository",
+    "newDocumentationRepository": "New Fumadocs repository",
+    "creationPath": "Creation Path",
+    "chooseNewOrExisitingDoc": "Choose if you want to create a new documentation repository or link an existing one."
   },
   "home": {
     "greeting": "Please enter your name below 👇",

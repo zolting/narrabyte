@@ -38,7 +38,7 @@ func main() {
 	//Create each service
 	fumadocsService := services.NewFumadocsService()
 	gitService := services.NewGitService()
-	dbService := services.NewDbServices(db, *fumadocsService)
+	dbService := services.NewDbServices(db, *fumadocsService, *gitService)
 	clientService := services.NewClientService(dbService.RepoLinks, gitService)
 
 	// Create application with options

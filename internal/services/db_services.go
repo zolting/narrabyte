@@ -16,12 +16,12 @@ type DbServices struct {
 }
 
 // NewDbServices constructs the service container using repositories backed by db.
-func NewDbServices(db *gorm.DB, fumaDocService FumadocsService) *DbServices {
+func NewDbServices(db *gorm.DB, fumaDocService FumadocsService, gitService GitService) *DbServices {
 	repoLinkRepo := repositories.NewRepoLinkRepository(db)
 	appSettingsRepo := repositories.NewAppSettingsRepository(db)
 
 	return &DbServices{
-		RepoLinks:   NewRepoLinkService(repoLinkRepo, fumaDocService),
+		RepoLinks:   NewRepoLinkService(repoLinkRepo, fumaDocService, gitService),
 		AppSettings: NewAppSettingsService(appSettingsRepo),
 	}
 }
