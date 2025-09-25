@@ -3,6 +3,8 @@ package integration_tests
 import (
 	"narrabyte/internal/services"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/go-git/go-git/v5"
@@ -119,11 +121,6 @@ func TestDiffBetweenBranches(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	// Get head commit of feature branch
-	featureHead, err := repo.Head()
-	assert.NoError(t, err)
-	featureCommitHash := featureHead.Hash().String()
-
 	// Checkout back to main
 	err = w.Checkout(&git.CheckoutOptions{
 		Branch: plumbing.NewBranchReferenceName("master"),
@@ -145,19 +142,84 @@ func TestDiffBetweenBranches(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	// Get head commit of main branch
-	mainHead, err := repo.Head()
-	assert.NoError(t, err)
-	mainCommitHash := mainHead.Hash().String()
-
-	// Diff between the two branch heads
-	diff, err := gs.DiffBetweenCommits(repo, mainCommitHash, featureCommitHash)
+	// Diff between the two branch heads using branch names
+	diff, err := gs.DiffBetweenBranches(repo, "master", branchName)
 	assert.NoError(t, err)
 	t.Log(diff)
 
 	// Assert the differences
 	assert.Contains(t, diff, "+feature change")
 	assert.Contains(t, diff, "-main change")
+}
+
+func TestDiffBetweenBranches_ReturnsErrorForMissingBranch(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	gs := services.NewGitService()
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+
+	// Seed the repository with an initial commit so the base branch exists.
+	w, err := repo.Worktree()
+	assert.NoError(t, err)
+
+	file1 := filepath.Join(dir, "seed.txt")
+	assert.NoError(t, os.WriteFile(file1, []byte("seed"), 0644))
+	_, err = w.Add("seed.txt")
+	assert.NoError(t, err)
+	_, err = w.Commit("seed", &git.CommitOptions{
+		Author: &object.Signature{Name: "Test", Email: "test@example.com"},
+	})
+	assert.NoError(t, err)
+
+	_, err = gs.DiffBetweenBranches(repo, "master", "missing-branch")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "branch 'missing-branch' not found")
+}
+
+func TestStageFilesAndCommit_UsesDefaultSignature(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	restoreAuthor := unsetEnvForTest("GIT_AUTHOR_NAME")
+	defer restoreAuthor()
+	restoreEmail := unsetEnvForTest("GIT_AUTHOR_EMAIL")
+	defer restoreEmail()
+	restoreCommitter := unsetEnvForTest("GIT_COMMITTER_NAME")
+	defer restoreCommitter()
+	restoreCommitterEmail := unsetEnvForTest("GIT_COMMITTER_EMAIL")
+	defer restoreCommitterEmail()
+
+	gs := services.NewGitService()
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+
+	// Create the file to stage.
+	filePath := filepath.Join(dir, "docs", "guide.md")
+	assert.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0755))
+	assert.NoError(t, os.WriteFile(filePath, []byte("hello docs\n"), 0644))
+
+	winStylePath := strings.ReplaceAll(filepath.Join("docs", "guide.md"), string(filepath.Separator), "\\")
+	err = gs.StageFiles(repo, []string{"   ", winStylePath})
+	assert.NoError(t, err)
+
+	commitHash, err := gs.Commit(repo, "Add documentation guide")
+	assert.NoError(t, err)
+
+	commit, err := repo.CommitObject(commitHash)
+	assert.NoError(t, err)
+	assert.Equal(t, "Add documentation guide", commit.Message)
+	assert.Equal(t, "Narrabyte Documentation Generator", commit.Author.Name)
+	assert.Equal(t, "docs@narrabyte.ai", commit.Author.Email)
+
+	tree, err := commit.Tree()
+	assert.NoError(t, err)
+	entry, err := tree.FindEntry("docs/guide.md")
+	assert.NoError(t, err)
+	assert.Equal(t, "guide.md", entry.Name)
 }
 
 // Test that Init properly creates a git repository
@@ -396,6 +458,18 @@ func TestListBranchesByPath_ReturnsSortedShortNames(t *testing.T) {
 	}
 	expected := []string{"feature/x", "master"}
 	assert.Equal(t, expected, names)
+}
+
+func unsetEnvForTest(key string) func() {
+	value, ok := os.LookupEnv(key)
+	_ = os.Unsetenv(key)
+	return func() {
+		if !ok {
+			_ = os.Unsetenv(key)
+			return
+		}
+		_ = os.Setenv(key, value)
+	}
 }
 
 func TestListBranchesByPath_EmptyPath_ReturnsError(t *testing.T) {

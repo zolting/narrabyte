@@ -269,7 +269,8 @@ func (g *GitService) StageFiles(repo *git.Repository, paths []string) error {
 		if clean == "" {
 			continue
 		}
-		if _, err := wt.Add(filepath.ToSlash(clean)); err != nil {
+		normalized := filepath.ToSlash(strings.ReplaceAll(clean, "\\", "/"))
+		if _, err := wt.Add(normalized); err != nil {
 			return fmt.Errorf("failed to stage '%s': %w", path, err)
 		}
 	}
