@@ -2,7 +2,6 @@ package services
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
@@ -12,7 +11,6 @@ import (
 	"narrabyte/internal/models"
 	"narrabyte/internal/utils"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -252,7 +250,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 
 	// Generate diff between the new docs branch and its base branch
-	docDiff, err := runGitBranchDiff(docRoot, docsBranch, targetBranch)
+	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, targetBranch, docsBranch)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
 	}
@@ -356,13 +354,12 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 		len(normalized), branch,
 	)))
 
-	args := append([]string{"add", "--"}, normalized...)
-	if err := runGitCommand(docRoot, args...); err != nil {
+	if err := s.gitService.StageFiles(repo, normalized); err != nil {
 		return fmt.Errorf("failed to stage documentation changes: %w", err)
 	}
 
 	message := fmt.Sprintf("Add documentation for %s", branch)
-	if err := runGitCommand(docRoot, "commit", "-m", message); err != nil {
+	if _, err := s.gitService.Commit(repo, message); err != nil {
 		return fmt.Errorf("failed to commit documentation changes: %w", err)
 	}
 
@@ -688,117 +685,6 @@ func objectExists(repo *git.Repository, hash plumbing.Hash) (bool, error) {
 		return false, err
 	}
 	return true, nil
-}
-
-// runGitBranchDiff generates a diff between two branches in the repository
-func runGitBranchDiff(repoPath, sourceBranch, targetBranch string) (string, error) {
-	// Generate diff between target branch and source branch
-	// This shows what changed from targetBranch to sourceBranch
-	cmd := exec.Command("git", "diff", "--no-color", targetBranch+".."+sourceBranch)
-	cmd.Dir = repoPath
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		errMsg := strings.TrimSpace(stderr.String())
-		if errMsg != "" {
-			return "", fmt.Errorf("git branch diff error: %s", errMsg)
-		}
-		return "", fmt.Errorf("git branch diff error: %w", err)
-	}
-
-	return stdout.String(), nil
-}
-
-func runGitDiff(repoPath string) (string, error) {
-	var diffOutput strings.Builder
-
-	// Get diff for tracked files (staged and unstaged changes)
-	cmd := exec.Command("git", "diff", "--no-color", "HEAD")
-	cmd.Dir = repoPath
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		errMsg := strings.TrimSpace(stderr.String())
-		if errMsg != "" {
-			return "", fmt.Errorf("git diff error: %s", errMsg)
-		}
-		return "", fmt.Errorf("git diff error: %w", err)
-	}
-	diffOutput.WriteString(stdout.String())
-
-	// Get diff for untracked files
-	cmd = exec.Command("git", "ls-files", "--others", "--exclude-standard")
-	cmd.Dir = repoPath
-	stdout.Reset()
-	stderr.Reset()
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		errMsg := strings.TrimSpace(stderr.String())
-		if errMsg != "" {
-			return "", fmt.Errorf("git ls-files error: %s", errMsg)
-		}
-		return "", fmt.Errorf("git ls-files error: %w", err)
-	}
-
-	// Create diff entries for untracked files
-	untrackedFiles := strings.Fields(stdout.String())
-	for _, file := range untrackedFiles {
-		if file == "" {
-			continue
-		}
-		diffOutput.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", file, file))
-		diffOutput.WriteString("new file mode 100644\n")
-		diffOutput.WriteString("index 0000000..0000000\n")
-		diffOutput.WriteString("--- /dev/null\n")
-		diffOutput.WriteString(fmt.Sprintf("+++ b/%s\n", file))
-
-		// Read file content to include in diff
-		filePath := filepath.Join(repoPath, file)
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			// If we can't read the file, just mark it as added without content
-			diffOutput.WriteString("@@ -0,0 +1,1 @@\n")
-			diffOutput.WriteString("+[Binary file or unreadable content]\n")
-		} else {
-			lines := strings.Split(string(content), "\n")
-			if len(lines) > 0 && lines[len(lines)-1] == "" {
-				lines = lines[:len(lines)-1] // Remove empty last line
-			}
-			diffOutput.WriteString(fmt.Sprintf("@@ -0,0 +1,%d @@\n", len(lines)))
-			for _, line := range lines {
-				diffOutput.WriteString(fmt.Sprintf("+%s\n", line))
-			}
-		}
-	}
-
-	return diffOutput.String(), nil
-}
-
-func runGitCommand(repoPath string, args ...string) error {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = repoPath
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		errMsg := strings.TrimSpace(stderr.String())
-		if errMsg == "" {
-			errMsg = strings.TrimSpace(stdout.String())
-		}
-		if errMsg != "" {
-			return errors.New(errMsg)
-		}
-		return err
-	}
-	return nil
 }
 
 func describeStatus(st git.FileStatus) string {

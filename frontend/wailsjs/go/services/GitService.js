@@ -10,6 +10,14 @@ export function Clone(arg1, arg2) {
   return window['go']['services']['GitService']['Clone'](arg1, arg2);
 }
 
+export function Commit(arg1, arg2) {
+  return window['go']['services']['GitService']['Commit'](arg1, arg2);
+}
+
+export function DiffBetweenBranches(arg1, arg2, arg3) {
+  return window['go']['services']['GitService']['DiffBetweenBranches'](arg1, arg2, arg3);
+}
+
 export function DiffBetweenCommits(arg1, arg2, arg3) {
   return window['go']['services']['GitService']['DiffBetweenCommits'](arg1, arg2, arg3);
 }
@@ -40,6 +48,10 @@ export function Pull(arg1) {
 
 export function Push(arg1) {
   return window['go']['services']['GitService']['Push'](arg1);
+}
+
+export function StageFiles(arg1, arg2) {
+  return window['go']['services']['GitService']['StageFiles'](arg1, arg2);
 }
 
 export function Startup(arg1) {
