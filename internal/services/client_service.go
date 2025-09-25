@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"narrabyte/internal/events"
@@ -15,9 +16,12 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
+	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 // On pourrait lowkey rendre ca plus generique pour n'importe quel client
@@ -174,7 +178,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 		return nil, fmt.Errorf("failed to read documentation repo status: %w", err)
 	}
 	if !status.IsClean() {
-		return nil, fmt.Errorf("documentation repository has uncommitted changes; please commit or stash them before generating docs")
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn("Documentation repository has uncommitted changes - these will be preserved"))
 	}
 
 	baseHash, err := ensureBaseBranch(docRepo, docWorktree, targetBranch)
@@ -184,21 +188,26 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 
 	docsBranch := "docs-" + sourceBranch
 
-	if err := prepareDocumentationBranch(docRepo, docWorktree, docsBranch, baseHash); err != nil {
-		return nil, err
+	// Create temporary documentation repository (isolated from working directory)
+	tempDocRoot, cleanup, err := createTempDocRepo(ctx, docRoot, docsBranch, baseHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temporary documentation workspace: %w", err)
 	}
+	defer cleanup() // Always cleanup temp directory
+
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
-		"GenerateDocs: documentation branch '%s' ready",
-		sourceBranch,
+		"GenerateDocs: temporary documentation workspace ready for branch '%s'",
+		docsBranch,
 	)))
 
 	streamCtx := s.OpenAIClient.StartStream(ctx)
 	defer s.OpenAIClient.StopStream()
 
+	// Use temporary documentation root for LLM operations
 	llmResult, err := s.OpenAIClient.GenerateDocs(streamCtx, &client.DocGenerationRequest{
 		ProjectName:       project.ProjectName,
 		CodebasePath:      codeRoot,
-		DocumentationPath: docRoot,
+		DocumentationPath: tempDocRoot, // Use temporary workspace
 		SourceBranch:      sourceBranch,
 		TargetBranch:      targetBranch,
 		SourceCommit:      sourceHash.String(),
@@ -209,7 +218,21 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 		return nil, err
 	}
 
-	docStatus, err := docWorktree.Status()
+	// Propagate changes from temporary repository back to main repository
+	if err := propagateDocChanges(ctx, tempDocRoot, docRepo, docsBranch); err != nil {
+		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
+	}
+
+	// Get status from temporary repository to report changed files
+	tempRepo, err := git.PlainOpen(tempDocRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open temp repository for status: %w", err)
+	}
+	tempWT, err := tempRepo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get temp repository worktree for status: %w", err)
+	}
+	docStatus, err := tempWT.Status()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read documentation repo status after generation: %w", err)
 	}
@@ -228,9 +251,10 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 
-	docDiff, err := runGitDiff(docRoot)
+	// Generate diff between the new docs branch and its base branch
+	docDiff, err := runGitBranchDiff(docRoot, docsBranch, targetBranch)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
 	}
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocs: completed"))
@@ -296,18 +320,13 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 		return fmt.Errorf("failed to load documentation worktree: %w", err)
 	}
 	refName := plumbing.NewBranchReferenceName(branch)
-	headRef, err := repo.Head()
-	if err != nil {
-		return fmt.Errorf("failed to read documentation HEAD: %w", err)
-	}
-	currentRefName := headRef.Name()
-	if currentRefName != refName {
-		if err := worktree.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
-			if errors.Is(err, plumbing.ErrReferenceNotFound) || errors.Is(err, git.ErrBranchNotFound) {
-				return fmt.Errorf("documentation branch '%s' does not exist", branch)
-			}
-			return fmt.Errorf("failed to checkout documentation branch '%s': %w", branch, err)
+
+	// Validate that the branch exists without checking out
+	if _, err := repo.Reference(refName, true); err != nil {
+		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			return fmt.Errorf("documentation branch '%s' does not exist", branch)
 		}
+		return fmt.Errorf("failed to resolve documentation branch '%s': %w", branch, err)
 	}
 
 	docStatus, err := worktree.Status()
@@ -419,18 +438,17 @@ func ensureBaseBranch(repo *git.Repository, wt *git.Worktree, targetBranch strin
 	if targetBranch == "" {
 		return baseHash, nil
 	}
+
+	// Resolve target branch reference without checking out
 	refName := plumbing.NewBranchReferenceName(targetBranch)
-	if err := wt.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
-		if errors.Is(err, plumbing.ErrReferenceNotFound) || errors.Is(err, git.ErrBranchNotFound) {
-			return baseHash, nil
-		}
-		return plumbing.Hash{}, fmt.Errorf("failed to checkout documentation branch '%s': %w", targetBranch, err)
-	}
-	head, err = repo.Head()
+	ref, err := repo.Reference(refName, true)
 	if err != nil {
-		return plumbing.Hash{}, fmt.Errorf("failed to read documentation HEAD: %w", err)
+		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			return baseHash, nil // Target branch doesn't exist, use current HEAD
+		}
+		return plumbing.Hash{}, fmt.Errorf("failed to resolve documentation branch '%s': %w", targetBranch, err)
 	}
-	return head.Hash(), nil
+	return ref.Hash(), nil
 }
 
 func prepareDocumentationBranch(repo *git.Repository, wt *git.Worktree, branch string, baseHash plumbing.Hash) error {
@@ -443,6 +461,256 @@ func prepareDocumentationBranch(repo *git.Repository, wt *git.Worktree, branch s
 		return fmt.Errorf("failed to checkout documentation branch '%s': %w", branch, err)
 	}
 	return nil
+}
+
+// generateUniqueID creates a unique identifier for temporary directories
+func generateUniqueID() string {
+	bytes := make([]byte, 8)
+	rand.Read(bytes)
+	return fmt.Sprintf("%x", bytes)
+}
+
+// createTempDocRepo creates a temporary clone of the documentation repository
+// checked out to the specified branch. Returns the temp path and cleanup function.
+func createTempDocRepo(ctx context.Context, sourceRepoPath, branch string, baseHash plumbing.Hash) (tempPath string, cleanup func(), err error) {
+	// Create unique temporary directory
+	tempID := generateUniqueID()
+	tempPath = filepath.Join(os.TempDir(), fmt.Sprintf("narrabyte-docs-%s", tempID))
+
+	// Cleanup function that always removes temp directory
+	cleanup = func() {
+		if err := os.RemoveAll(tempPath); err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Failed to cleanup temp directory %s: %v", tempPath, err)))
+		}
+	}
+
+	// Clone source repository to temporary location
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Creating temporary docs workspace at %s", tempPath)))
+
+	tempRepo, err := git.PlainClone(tempPath, false, &git.CloneOptions{
+		URL:      sourceRepoPath,
+		Progress: nil, // Suppress clone progress output
+	})
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("failed to clone repository to temp location: %w", err)
+	}
+
+	// Get worktree for checkout operations
+	tempWT, err := tempRepo.Worktree()
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("failed to get temp repository worktree: %w", err)
+	}
+
+	// Create and checkout the documentation branch at the specified commit
+	refName := plumbing.NewBranchReferenceName(branch)
+	ref := plumbing.NewHashReference(refName, baseHash)
+	if err := tempRepo.Storer.SetReference(ref); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("failed to create branch '%s' in temp repo: %w", branch, err)
+	}
+
+	if err := tempWT.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Temporary docs workspace ready: branch '%s' at %s", branch, tempPath)))
+	return tempPath, cleanup, nil
+}
+
+// propagateDocChanges commits all changes in the temp repository and updates
+// the branch reference in the main repository to point to the new commit
+func propagateDocChanges(ctx context.Context, tempRepoPath string, mainRepo *git.Repository, branch string) error {
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Propagating documentation changes back to main repository"))
+
+	// Open temporary repository
+	tempRepo, err := git.PlainOpen(tempRepoPath)
+	if err != nil {
+		return fmt.Errorf("failed to open temp repository: %w", err)
+	}
+
+	// Get temp repository worktree
+	tempWT, err := tempRepo.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to get temp repository worktree: %w", err)
+	}
+
+	// Check if there are any changes to commit
+	status, err := tempWT.Status()
+	if err != nil {
+		return fmt.Errorf("failed to get temp repository status: %w", err)
+	}
+
+	if status.IsClean() {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("No documentation changes to propagate"))
+		return nil
+	}
+
+	// Add all changes
+	if _, err := tempWT.Add("."); err != nil {
+		return fmt.Errorf("failed to add changes in temp repository: %w", err)
+	}
+
+	// Create commit with generated documentation
+	commitHash, err := tempWT.Commit("Generated documentation updates", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Narrabyte Documentation Generator",
+			Email: "docs@narrabyte.ai",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to commit changes in temp repository: %w", err)
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Created documentation commit: %s", commitHash.String()[:8])))
+
+	// Transfer git objects from temp repository to main repository
+	if err := transferGitObjects(ctx, tempRepo, mainRepo, commitHash); err != nil {
+		return fmt.Errorf("failed to transfer git objects to main repository: %w", err)
+	}
+
+	// Update the branch reference in main repository to point to new commit
+	refName := plumbing.NewBranchReferenceName(branch)
+	ref := plumbing.NewHashReference(refName, commitHash)
+	if err := mainRepo.Storer.SetReference(ref); err != nil {
+		return fmt.Errorf("failed to update branch '%s' in main repository: %w", branch, err)
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Updated branch '%s' to commit %s", branch, commitHash.String()[:8])))
+	return nil
+}
+
+// transferGitObjects transfers all git objects (commit, tree, blobs) from source to target repository
+// This ensures the target repository has all objects needed to checkout the commit
+func transferGitObjects(ctx context.Context, sourceRepo, targetRepo *git.Repository, commitHash plumbing.Hash) error {
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Transferring git objects to main repository"))
+
+	// Get the commit object from source repository
+	commit, err := sourceRepo.CommitObject(commitHash)
+	if err != nil {
+		return fmt.Errorf("failed to get commit object: %w", err)
+	}
+
+	// Transfer the commit object
+	if err := transferObject(sourceRepo, targetRepo, commitHash, plumbing.CommitObject); err != nil {
+		return fmt.Errorf("failed to transfer commit object: %w", err)
+	}
+
+	// Get and transfer the tree object
+	tree, err := commit.Tree()
+	if err != nil {
+		return fmt.Errorf("failed to get tree from commit: %w", err)
+	}
+
+	if err := transferTreeRecursively(sourceRepo, targetRepo, tree.Hash); err != nil {
+		return fmt.Errorf("failed to transfer tree objects: %w", err)
+	}
+
+	// Transfer parent commits if they don't exist in target
+	for _, parentHash := range commit.ParentHashes {
+		if exists, _ := objectExists(targetRepo, parentHash); !exists {
+			if err := transferGitObjects(ctx, sourceRepo, targetRepo, parentHash); err != nil {
+				// Log warning but continue - parent might be from a different branch
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Could not transfer parent commit %s: %v", parentHash.String()[:8], err)))
+			}
+		}
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Git objects transfer completed"))
+	return nil
+}
+
+// transferObject transfers a single git object from source to target repository
+func transferObject(sourceRepo, targetRepo *git.Repository, hash plumbing.Hash, objType plumbing.ObjectType) error {
+	// Check if object already exists in target
+	if exists, _ := objectExists(targetRepo, hash); exists {
+		return nil
+	}
+
+	// Get encoded object from source
+	encodedObj, err := sourceRepo.Storer.EncodedObject(objType, hash)
+	if err != nil {
+		return fmt.Errorf("failed to get encoded object %s: %w", hash.String(), err)
+	}
+
+	// Store encoded object in target
+	_, err = targetRepo.Storer.SetEncodedObject(encodedObj)
+	return err
+}
+
+// transferTreeRecursively transfers a tree and all its contents (blobs and subtrees)
+func transferTreeRecursively(sourceRepo, targetRepo *git.Repository, treeHash plumbing.Hash) error {
+	// Check if tree already exists
+	if exists, _ := objectExists(targetRepo, treeHash); exists {
+		return nil
+	}
+
+	// Transfer the tree object itself
+	if err := transferObject(sourceRepo, targetRepo, treeHash, plumbing.TreeObject); err != nil {
+		return err
+	}
+
+	// Get tree to iterate through entries
+	tree, err := sourceRepo.TreeObject(treeHash)
+	if err != nil {
+		return fmt.Errorf("failed to get tree object: %w", err)
+	}
+
+	// Transfer all entries (blobs and subtrees)
+	for _, entry := range tree.Entries {
+		switch entry.Mode {
+		case filemode.Regular, filemode.Executable, filemode.Symlink:
+			// Transfer blob
+			if err := transferObject(sourceRepo, targetRepo, entry.Hash, plumbing.BlobObject); err != nil {
+				return fmt.Errorf("failed to transfer blob %s: %w", entry.Hash.String(), err)
+			}
+		case filemode.Dir:
+			// Recursively transfer subtree
+			if err := transferTreeRecursively(sourceRepo, targetRepo, entry.Hash); err != nil {
+				return fmt.Errorf("failed to transfer subtree %s: %w", entry.Hash.String(), err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// objectExists checks if an object exists in the repository
+func objectExists(repo *git.Repository, hash plumbing.Hash) (bool, error) {
+	_, err := repo.Object(plumbing.AnyObject, hash)
+	if err != nil {
+		if err == plumbing.ErrObjectNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// runGitBranchDiff generates a diff between two branches in the repository
+func runGitBranchDiff(repoPath, sourceBranch, targetBranch string) (string, error) {
+	// Generate diff between target branch and source branch
+	// This shows what changed from targetBranch to sourceBranch
+	cmd := exec.Command("git", "diff", "--no-color", targetBranch+".."+sourceBranch)
+	cmd.Dir = repoPath
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		errMsg := strings.TrimSpace(stderr.String())
+		if errMsg != "" {
+			return "", fmt.Errorf("git branch diff error: %s", errMsg)
+		}
+		return "", fmt.Errorf("git branch diff error: %w", err)
+	}
+
+	return stdout.String(), nil
 }
 
 func runGitDiff(repoPath string) (string, error) {
