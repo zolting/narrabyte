@@ -104,7 +104,9 @@
 		"expandSidebar": "Déplier la barre latérale"
 	},
 	"apiDialog": {
-		"keySaved": "API key saved successfully!",
-		"errSavingKey": "Error saving key"
+		"keySaved": "Clé API sauvegardée avec succès!",
+		"errSavingKey": "Erreur lors de la sauvegarde de la clé",
+		"addApiKey": "Ajouter une clé API",
+		"existingKeys": "Clés déjà ajoutées"
 	}
 }

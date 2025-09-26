@@ -105,6 +105,8 @@
 	},
 	"apiDialog": {
 		"keySaved": "API key saved successfully!",
-		"errSavingKey": "Error saving key"
+		"errSavingKey": "Error saving key",
+		"addApiKey": "Add API key",
+		"existingKeys": "Existing Keys"
 	}
 }
