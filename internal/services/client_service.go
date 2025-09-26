@@ -18,6 +18,8 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+
+	"github.com/cloudwego/eino/schema"
 )
 
 // On pourrait lowkey rendre ca plus generique pour n'importe quel client
@@ -196,6 +198,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 	defer s.OpenAIClient.StopStream()
 
 	llmResult, err := s.OpenAIClient.GenerateDocs(streamCtx, &client.DocGenerationRequest{
+		ProjectID:         projectID,
 		ProjectName:       project.ProjectName,
 		CodebasePath:      codeRoot,
 		DocumentationPath: docRoot,
@@ -235,15 +238,132 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocs: completed"))
 
-	summary := ""
+	var (
+		summary      string
+		conversation []models.DocConversationMessage
+	)
 	if llmResult != nil {
 		summary = llmResult.Summary
+		conversation = convertConversation(llmResult.Messages)
 	}
 	return &models.DocGenerationResult{
-		Branch:  sourceBranch,
-		Files:   files,
-		Diff:    docDiff,
-		Summary: summary,
+		Branch:       sourceBranch,
+		Files:        files,
+		Diff:         docDiff,
+		Summary:      summary,
+		Conversation: conversation,
+	}, nil
+}
+
+func (s *ClientService) RequestDocChanges(projectID uint, feedback string) (*models.DocGenerationResult, error) {
+	ctx := s.context
+	if ctx == nil {
+		return nil, fmt.Errorf("client service not initialized")
+	}
+	if projectID == 0 {
+		return nil, fmt.Errorf("project id is required")
+	}
+	feedback = strings.TrimSpace(feedback)
+	if feedback == "" {
+		return nil, fmt.Errorf("feedback is required")
+	}
+
+	sessionReq := s.OpenAIClient.DocSessionRequest()
+	if sessionReq == nil {
+		return nil, fmt.Errorf("no documentation generation session available")
+	}
+	if sessionReq.ProjectID != projectID {
+		return nil, fmt.Errorf("documentation session does not match the requested project")
+	}
+
+	docRoot := strings.TrimSpace(sessionReq.DocumentationPath)
+	if docRoot == "" {
+		return nil, fmt.Errorf("documentation repository path is not available")
+	}
+	if !utils.DirectoryExists(docRoot) {
+		return nil, fmt.Errorf("documentation repository path does not exist: %s", docRoot)
+	}
+	if !utils.HasGitRepo(docRoot) {
+		return nil, fmt.Errorf("documentation repository is not a git repository: %s", docRoot)
+	}
+
+	repo, err := s.gitService.Open(docRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open documentation repository: %w", err)
+	}
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load documentation worktree: %w", err)
+	}
+
+	sourceBranch := strings.TrimSpace(sessionReq.SourceBranch)
+	if sourceBranch == "" {
+		return nil, fmt.Errorf("documentation session source branch is not available")
+	}
+	docsBranch := "docs-" + sourceBranch
+	refName := plumbing.NewBranchReferenceName(docsBranch)
+	headRef, err := repo.Head()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read documentation HEAD: %w", err)
+	}
+	if headRef.Name() != refName {
+		if err := worktree.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
+			return nil, fmt.Errorf("failed to checkout documentation branch '%s': %w", docsBranch, err)
+		}
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("RequestDocChanges: starting refinement"))
+
+	streamCtx := s.OpenAIClient.StartStream(ctx)
+	defer s.OpenAIClient.StopStream()
+
+	llmResult, err := s.OpenAIClient.ApplyDocFeedback(streamCtx, feedback)
+	if err != nil {
+		return nil, err
+	}
+
+	docStatus, err := worktree.Status()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read documentation repo status: %w", err)
+	}
+
+	var files []models.DocChangedFile
+	for path, st := range docStatus {
+		if st == nil {
+			continue
+		}
+		if st.Staging == git.Unmodified && st.Worktree == git.Unmodified {
+			continue
+		}
+		files = append(files, models.DocChangedFile{
+			Path:   filepath.ToSlash(path),
+			Status: describeStatus(*st),
+		})
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+
+	docDiff, err := runGitDiff(docRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		summary      string
+		conversation []models.DocConversationMessage
+	)
+	if llmResult != nil {
+		summary = llmResult.Summary
+		conversation = convertConversation(llmResult.Messages)
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("RequestDocChanges: completed"))
+
+	return &models.DocGenerationResult{
+		Branch:       sourceBranch,
+		Files:        files,
+		Diff:         docDiff,
+		Summary:      summary,
+		Conversation: conversation,
 	}, nil
 }
 
@@ -511,6 +631,34 @@ func runGitDiff(repoPath string) (string, error) {
 	}
 
 	return diffOutput.String(), nil
+}
+
+func convertConversation(messages []*schema.Message) []models.DocConversationMessage {
+	if len(messages) == 0 {
+		return nil
+	}
+	result := make([]models.DocConversationMessage, 0, len(messages))
+	for idx, msg := range messages {
+		if msg == nil {
+			continue
+		}
+		if msg.Role == schema.Tool {
+			continue
+		}
+		content := strings.TrimSpace(msg.Content)
+		if content == "" {
+			continue
+		}
+		role := string(msg.Role)
+		if idx == 0 && msg.Role == schema.User {
+			role = "context"
+		}
+		result = append(result, models.DocConversationMessage{
+			Role:    role,
+			Content: content,
+		})
+	}
+	return result
 }
 
 func runGitCommand(repoPath string, args ...string) error {

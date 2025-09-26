@@ -40,7 +40,15 @@
     "commitSuccess": "Documentation validée avec succès !",
     "commitSuccessDescription": "Vos modifications de documentation ont été validées avec succès dans la branche de documentation.",
     "documentationAvailable": "La documentation est maintenant disponible dans la branche",
-    "startNewTask": "Commencer une nouvelle tâche de documentation"
+    "startNewTask": "Commencer une nouvelle tâche de documentation",
+    "conversation": "Conversation",
+    "feedbackPlaceholder": "Décrivez les ajustements que vous souhaitez que l'assistant effectue",
+    "send": "Envoyer",
+    "you": "Vous",
+    "assistant": "Assistant",
+    "contextProvided": "Contexte fourni à l’assistant",
+    "noConversation": "Aucune conversation pour le moment. Demandez à l’assistant d’ajuster la documentation.",
+    "awaitingResponse": "En attente de la réponse de l’assistant…"
   },
   "projectManager": {
     "addProject": "Ajouter un projet",

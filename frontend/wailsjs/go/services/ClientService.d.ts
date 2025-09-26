@@ -9,6 +9,8 @@ export function ExploreDemo():Promise<string>;
 
 export function GenerateDocs(arg1:number,arg2:string,arg3:string):Promise<models.DocGenerationResult>;
 
+export function RequestDocChanges(arg1:number,arg2:string):Promise<models.DocGenerationResult>;
+
 export function Startup(arg1:context.Context):Promise<void>;
 
 export function StopStream():Promise<void>;

@@ -21,6 +21,7 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	einoUtils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
+	"github.com/cloudwego/eino/schema"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -42,9 +43,13 @@ type OpenAIClient struct {
 	mu      sync.Mutex
 	running bool
 	cancel  context.CancelFunc
+
+	docSessionMu    sync.Mutex
+	docSessionState *docSessionState
 }
 
 type DocGenerationRequest struct {
+	ProjectID         uint
 	ProjectName       string
 	CodebasePath      string
 	DocumentationPath string
@@ -56,7 +61,128 @@ type DocGenerationRequest struct {
 }
 
 type DocGenerationResponse struct {
-	Summary string
+	Summary  string
+	Messages []*schema.Message
+}
+
+type docSessionState struct {
+	request      *DocGenerationRequest
+	systemPrompt string
+	messages     []*schema.Message
+}
+
+func (s *docSessionState) clone() *docSessionState {
+	if s == nil {
+		return nil
+	}
+	return &docSessionState{
+		request:      cloneDocGenerationRequest(s.request, "", ""),
+		systemPrompt: s.systemPrompt,
+		messages:     cloneMessages(s.messages),
+	}
+}
+
+func cloneDocGenerationRequest(req *DocGenerationRequest, docRoot, codeRoot string) *DocGenerationRequest {
+	if req == nil {
+		return nil
+	}
+	copyReq := *req
+	if docRoot != "" {
+		copyReq.DocumentationPath = docRoot
+	}
+	if codeRoot != "" {
+		copyReq.CodebasePath = codeRoot
+	}
+	if len(req.ChangedFiles) > 0 {
+		copyReq.ChangedFiles = append([]string(nil), req.ChangedFiles...)
+	} else {
+		copyReq.ChangedFiles = nil
+	}
+	return &copyReq
+}
+
+func cloneMessage(msg *schema.Message) *schema.Message {
+	if msg == nil {
+		return nil
+	}
+	cloned := &schema.Message{
+		Role:             msg.Role,
+		Content:          msg.Content,
+		Name:             msg.Name,
+		ToolCallID:       msg.ToolCallID,
+		ToolName:         msg.ToolName,
+		ReasoningContent: msg.ReasoningContent,
+	}
+	if len(msg.MultiContent) > 0 {
+		cloned.MultiContent = make([]schema.ChatMessagePart, len(msg.MultiContent))
+		copy(cloned.MultiContent, msg.MultiContent)
+	}
+	if len(msg.ToolCalls) > 0 {
+		cloned.ToolCalls = make([]schema.ToolCall, len(msg.ToolCalls))
+		copy(cloned.ToolCalls, msg.ToolCalls)
+	}
+	if msg.Extra != nil {
+		extra := make(map[string]any, len(msg.Extra))
+		for k, v := range msg.Extra {
+			extra[k] = v
+		}
+		cloned.Extra = extra
+	}
+	return cloned
+}
+
+func cloneMessages(messages []*schema.Message) []*schema.Message {
+	if len(messages) == 0 {
+		return nil
+	}
+	cloned := make([]*schema.Message, 0, len(messages))
+	for _, msg := range messages {
+		cloned = append(cloned, cloneMessage(msg))
+	}
+	return cloned
+}
+
+func (o *OpenAIClient) storeDocSession(session *docSessionState) {
+	if o == nil {
+		return
+	}
+	o.docSessionMu.Lock()
+	defer o.docSessionMu.Unlock()
+	if session == nil {
+		o.docSessionState = nil
+		return
+	}
+	o.docSessionState = session.clone()
+}
+
+func (o *OpenAIClient) docSessionSnapshot() *docSessionState {
+	if o == nil {
+		return nil
+	}
+	o.docSessionMu.Lock()
+	defer o.docSessionMu.Unlock()
+	if o.docSessionState == nil {
+		return nil
+	}
+	return o.docSessionState.clone()
+}
+
+// DocSessionRequest returns a copy of the most recent documentation generation request, if any.
+func (o *OpenAIClient) DocSessionRequest() *DocGenerationRequest {
+	snapshot := o.docSessionSnapshot()
+	if snapshot == nil {
+		return nil
+	}
+	return cloneDocGenerationRequest(snapshot.request, "", "")
+}
+
+// DocConversationMessages returns a copy of the stored conversation history for the latest documentation session.
+func (o *OpenAIClient) DocConversationMessages() []*schema.Message {
+	snapshot := o.docSessionSnapshot()
+	if snapshot == nil {
+		return nil
+	}
+	return cloneMessages(snapshot.messages)
 }
 
 func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
@@ -319,9 +445,17 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	promptBuilder.WriteString(req.Diff)
 	promptBuilder.WriteString("\n</git_diff>")
 
+	initialMessages := []*schema.Message{schema.UserMessage(promptBuilder.String())}
+	session := &docSessionState{
+		request:      cloneDocGenerationRequest(req, docRoot, codeRoot),
+		systemPrompt: systemPrompt,
+		messages:     cloneMessages(initialMessages),
+	}
+
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
-	iter := runner.Query(ctx, promptBuilder.String())
+	iter := runner.Run(ctx, initialMessages)
 	var lastMessage string
+	conversation := cloneMessages(initialMessages)
 	for {
 		event, ok := iter.Next()
 		if !ok {
@@ -340,11 +474,117 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("GenerateDocs: message error: %v", err)))
 			continue
 		}
-		lastMessage = msg.Content
+		cloned := cloneMessage(msg)
+		if cloned != nil {
+			conversation = append(conversation, cloned)
+			lastMessage = cloned.Content
+		}
 	}
 
 	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
-	return &DocGenerationResponse{Summary: strings.TrimSpace(lastMessage)}, nil
+	session.messages = conversation
+	o.storeDocSession(session)
+	return &DocGenerationResponse{
+		Summary:  strings.TrimSpace(lastMessage),
+		Messages: cloneMessages(conversation),
+	}, nil
+}
+
+func (o *OpenAIClient) ApplyDocFeedback(ctx context.Context, feedback string) (*DocGenerationResponse, error) {
+	feedback = strings.TrimSpace(feedback)
+	if feedback == "" {
+		return nil, fmt.Errorf("feedback is required")
+	}
+
+	session := o.docSessionSnapshot()
+	if session == nil || session.request == nil {
+		return nil, fmt.Errorf("no documentation session available to continue")
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ApplyDocFeedback: continuing documentation session"))
+
+	docRoot := strings.TrimSpace(session.request.DocumentationPath)
+	codeRoot := strings.TrimSpace(session.request.CodebasePath)
+	if docRoot == "" || codeRoot == "" {
+		return nil, fmt.Errorf("documentation session paths are not available")
+	}
+
+	toolsForSession, err := o.initDocumentationTools(docRoot, codeRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	systemPrompt := session.systemPrompt
+	if strings.TrimSpace(systemPrompt) == "" {
+		systemPrompt, err = o.loadPrompt("generate_docs.txt")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+		Model: &o.ChatModel,
+		ToolsConfig: adk.ToolsConfig{
+			ToolsNodeConfig: compose.ToolsNodeConfig{
+				Tools: toolsForSession,
+			},
+		},
+		Name:        "Documentation Assistant",
+		Description: "Analyzes code diffs and proposes documentation updates",
+		Instruction: systemPrompt,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	history := cloneMessages(session.messages)
+	if len(history) == 0 {
+		history = []*schema.Message{}
+	}
+	history = append(history, schema.UserMessage(feedback))
+
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
+	iter := runner.Run(ctx, history)
+	conversation := cloneMessages(history)
+	var lastMessage string
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if event.Err != nil {
+			if errors.Is(event.Err, context.Canceled) {
+				events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing canceled"))
+				return nil, context.Canceled
+			}
+			events.Emit(ctx, events.LLMEventDone, events.NewError("LLM processing error"))
+			return nil, event.Err
+		}
+		msg, err := event.Output.MessageOutput.GetMessage()
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ApplyDocFeedback: message error: %v", err)))
+			continue
+		}
+		cloned := cloneMessage(msg)
+		if cloned != nil {
+			conversation = append(conversation, cloned)
+			lastMessage = cloned.Content
+		}
+	}
+
+	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
+
+	updatedSession := &docSessionState{
+		request:      cloneDocGenerationRequest(session.request, docRoot, codeRoot),
+		systemPrompt: systemPrompt,
+		messages:     conversation,
+	}
+	o.storeDocSession(updatedSession)
+
+	return &DocGenerationResponse{
+		Summary:  strings.TrimSpace(lastMessage),
+		Messages: cloneMessages(conversation),
+	}, nil
 }
 
 // recordOpenedFile appends a file path to the session history if not already present.

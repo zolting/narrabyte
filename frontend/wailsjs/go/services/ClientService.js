@@ -14,6 +14,10 @@ export function GenerateDocs(arg1, arg2, arg3) {
   return window['go']['services']['ClientService']['GenerateDocs'](arg1, arg2, arg3);
 }
 
+export function RequestDocChanges(arg1, arg2) {
+  return window['go']['services']['ClientService']['RequestDocChanges'](arg1, arg2);
+}
+
 export function Startup(arg1) {
   return window['go']['services']['ClientService']['Startup'](arg1);
 }

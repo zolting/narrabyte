@@ -40,7 +40,15 @@
     "commitSuccess": "Documentation Committed Successfully!",
     "commitSuccessDescription": "Your documentation changes have been successfully committed to the documentation branch.",
     "documentationAvailable": "Documentation is now available in branch",
-    "startNewTask": "Start New Documentation Task"
+    "startNewTask": "Start New Documentation Task",
+    "conversation": "Conversation",
+    "feedbackPlaceholder": "Describe the adjustments you would like the assistant to make",
+    "send": "Send",
+    "you": "You",
+    "assistant": "Assistant",
+    "contextProvided": "Context provided to the assistant",
+    "noConversation": "No conversation yet. Ask the assistant to adjust the documentation.",
+    "awaitingResponse": "Awaiting assistant response…"
   },
   "projectManager": {
     "addProject": "Add Project",

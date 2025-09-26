@@ -5,10 +5,11 @@ export const useDocGenerationManager = () => {
 	const docResult = useDocGenerationStore((s) => s.result);
 	const status = useDocGenerationStore((s) => s.status);
 	const events = useDocGenerationStore((s) => s.events);
-	const startDocGeneration = useDocGenerationStore((s) => s.start);
-	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
-	const commitDocGeneration = useDocGenerationStore((s) => s.commit);
-	const cancelDocGeneration = useDocGenerationStore((s) => s.cancel);
+        const startDocGeneration = useDocGenerationStore((s) => s.start);
+        const resetDocGeneration = useDocGenerationStore((s) => s.reset);
+        const commitDocGeneration = useDocGenerationStore((s) => s.commit);
+        const cancelDocGeneration = useDocGenerationStore((s) => s.cancel);
+        const requestDocChanges = useDocGenerationStore((s) => s.requestChanges);
 	const docGenerationError = useDocGenerationStore((s) => s.error);
 
 	const [activeTab, setActiveTab] = useState<"activity" | "review" | "summary">(
@@ -84,9 +85,10 @@ export const useDocGenerationManager = () => {
 		isBusy,
 		hasGenerationAttempt,
 		startDocGeneration,
-		commitDocGeneration,
-		cancelDocGeneration,
-		reset,
-		setCompletedCommit,
-	};
+                commitDocGeneration,
+                cancelDocGeneration,
+                requestDocChanges,
+                reset,
+                setCompletedCommit,
+        };
 };
