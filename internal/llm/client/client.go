@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"narrabyte/internal/events"
 	"narrabyte/internal/llm/tools"
@@ -23,7 +22,6 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 type OpenAIClient struct {
@@ -38,6 +36,7 @@ type OpenAIClient struct {
 	targetBranch    string
 	sourceCommit    string
 	targetCommit    string
+	codeSnapshot    *tools.GitSnapshot
 
 	mu      sync.Mutex
 	running bool
@@ -64,10 +63,9 @@ func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		APIKey: key,
 		Model:  "gpt-5-mini",
-		// APIKey:      "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",
-		// Model:       "x-ai/grok-4-fast:free",
-		// BaseURL:     "https://openrouter.ai/api/v1",
-		// Temperature: &temperature,
+		// APIKey:  "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",
+		// Model:   "x-ai/grok-4-fast:free",
+		// BaseURL: "https://openrouter.ai/api/v1",
 	})
 
 	if err != nil {
@@ -122,6 +120,7 @@ func (o *OpenAIClient) SetListDirectoryBaseRoot(root string) {
 		}
 	}
 	o.baseRoot = abs
+	tools.SetGitSnapshot(nil)
 	tools.SetListDirectoryBaseRoot(abs)
 }
 
@@ -248,6 +247,10 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	o.targetCommit = ""
 	o.SetListDirectoryBaseRoot(docRoot)
 
+	if err := o.prepareSnapshots(ctx); err != nil {
+		return nil, err
+	}
+
 	docListing, err := o.captureListing(ctx, docRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list documentation root: %w", err)
@@ -345,6 +348,37 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 
 	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
 	return &DocGenerationResponse{Summary: strings.TrimSpace(lastMessage)}, nil
+}
+
+func (o *OpenAIClient) prepareSnapshots(ctx context.Context) error {
+	codeRoot := strings.TrimSpace(o.codeRoot)
+	sourceCommit := strings.TrimSpace(o.sourceCommit)
+	sourceBranch := strings.TrimSpace(o.sourceBranch)
+	if codeRoot != "" && sourceCommit != "" {
+		repo, err := git.PlainOpen(codeRoot)
+		if err != nil {
+			return fmt.Errorf("failed to open code repository for snapshot: %w", err)
+		}
+		commit, err := repo.CommitObject(plumbing.NewHash(sourceCommit))
+		if err != nil {
+			return fmt.Errorf("failed to resolve source commit '%s': %w", sourceCommit, err)
+		}
+		snapshot, err := tools.NewGitSnapshot(repo, commit, codeRoot, sourceBranch)
+		if err != nil {
+			return fmt.Errorf("failed to build code repository snapshot: %w", err)
+		}
+		o.codeSnapshot = snapshot
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+			"Snapshots: configured code snapshot for branch '%s' at commit %s",
+			sourceBranch, sourceCommit,
+		)))
+	} else {
+		o.codeSnapshot = nil
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Snapshots: documentation tools will use the live workspace"))
+
+	return nil
 }
 
 // recordOpenedFile appends a file path to the session history if not already present.
@@ -448,7 +482,9 @@ func (o *OpenAIClient) FileOpenHistory() []string {
 
 func (o *OpenAIClient) captureListing(ctx context.Context, root string) (string, error) {
 	var listing string
-	err := o.withBaseRoot(root, func() error {
+	snapshot := o.snapshotForRoot(root)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("CaptureListing: . [%s]", snapshotInfo(snapshot))))
+	err := o.withBaseRoot(root, snapshot, func() error {
 		out, err := tools.ListDirectory(ctx, &tools.ListLSInput{Path: "."})
 		if err != nil {
 			return err
@@ -460,6 +496,13 @@ func (o *OpenAIClient) captureListing(ctx context.Context, root string) (string,
 		return "", err
 	}
 	return listing, nil
+}
+
+func (o *OpenAIClient) snapshotForRoot(root string) *tools.GitSnapshot {
+	if pathsEqual(root, o.codeRoot) {
+		return o.codeSnapshot
+	}
+	return nil
 }
 
 // initTools initializes and returns all available tools for the current session.
@@ -725,7 +768,9 @@ func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.
 			return "", err
 		}
 		var output string
-		err = o.withBaseRoot(root, func() error {
+		snapshot := o.snapshotForRoot(root)
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: %s [%s]", rel, snapshotInfo(snapshot))))
+		err = o.withBaseRoot(root, snapshot, func() error {
 			res, innerErr := tools.ListDirectory(ctx, &tools.ListLSInput{Path: rel, Ignore: ignore})
 			if innerErr != nil {
 				return innerErr
@@ -752,7 +797,7 @@ func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
-		root, _, abs, err := o.resolveToolPath(in.FilePath, true)
+		root, rel, abs, err := o.resolveToolPath(in.FilePath, true)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(policy): %v", err)))
 			return &tools.ReadFileOutput{
@@ -762,22 +807,20 @@ func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.
 			}, nil
 		}
 		var out *tools.ReadFileOutput
-		if pathsEqual(root, o.codeRoot) {
-			out, err = o.readCodeFileFromSourceBranch(ctx, abs, in.Offset, in.Limit)
-		} else {
-			err = o.withBaseRoot(root, func() error {
-				res, innerErr := tools.ReadFile(ctx, &tools.ReadFileInput{
-					FilePath: abs,
-					Offset:   in.Offset,
-					Limit:    in.Limit,
-				})
-				if innerErr != nil {
-					return innerErr
-				}
-				out = res
-				return nil
+		snapshot := o.snapshotForRoot(root)
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: %s [%s]", rel, snapshotInfo(snapshot))))
+		err = o.withBaseRoot(root, snapshot, func() error {
+			res, innerErr := tools.ReadFile(ctx, &tools.ReadFileInput{
+				FilePath: abs,
+				Offset:   in.Offset,
+				Limit:    in.Limit,
 			})
-		}
+			if innerErr != nil {
+				return innerErr
+			}
+			out = res
+			return nil
+		})
 		if err != nil {
 			return out, err
 		}
@@ -944,165 +987,20 @@ func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.
 	return []tool.BaseTool{listTool, readTool, writeTool, editTool}, nil
 }
 
-func (o *OpenAIClient) readCodeFileFromSourceBranch(ctx context.Context, abs string, offset, limit int) (*tools.ReadFileOutput, error) {
-	codeRoot := strings.TrimSpace(o.codeRoot)
-	if codeRoot == "" {
-		events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile(go-git): code root not configured"))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   "Format error: code repository root not configured",
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-	sourceCommit := strings.TrimSpace(o.sourceCommit)
-	if sourceCommit == "" {
-		events.Emit(ctx, events.LLMEventTool, events.NewError("ReadFile(go-git): source commit not configured"))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   "Format error: source branch commit not available",
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-
-	repo, err := git.PlainOpen(codeRoot)
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): failed to open repo: %v", err)))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   fmt.Sprintf("Format error: failed to open code repository: %v", err),
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-
-	commit, err := repo.CommitObject(plumbing.NewHash(sourceCommit))
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): failed to resolve commit: %v", err)))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   fmt.Sprintf("Format error: failed to resolve source branch commit: %v", err),
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-
-	rel, err := filepath.Rel(codeRoot, abs)
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): rel path error: %v", err)))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   "Format error: failed to resolve relative path within code repository",
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-	if strings.HasPrefix(rel, "..") {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): path escapes code root"))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   "Format error: path escapes the code repository root",
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-	if rel == "." {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): path refers to repository root"))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   "Format error: path refers to a directory, not a file",
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-
-	rel = filepath.ToSlash(rel)
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
-		"ReadFile(go-git): reading '%s' from source commit %s", filepath.ToSlash(abs), sourceCommit,
-	)))
-
-	file, err := commit.File(rel)
-	if err != nil {
-		if errors.Is(err, object.ErrFileNotFound) {
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): file not found in commit"))
-			return &tools.ReadFileOutput{
-				Title:    filepath.ToSlash(abs),
-				Output:   "Format error: file does not exist in the source branch",
-				Metadata: map[string]string{"error": "format_error"},
-			}, nil
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): commit lookup error: %v", err)))
-		return nil, err
-	}
-	if file == nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn("ReadFile(go-git): file lookup returned nil"))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   "Format error: file does not exist in the source branch",
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-
-	if img := imageTypeByExt(abs); img != "" {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile(go-git): unsupported image '%s' (%s)", filepath.ToSlash(abs), img)))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   fmt.Sprintf("Binary image detected (%s). Reading skipped.", img),
-			Metadata: map[string]string{"error": "unsupported_image", "type": img},
-		}, nil
-	}
-
-	isBinary, err := file.IsBinary()
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): binary check error: %v", err)))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   "Format error: failed to check if file is binary",
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-	if isBinary {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ReadFile(go-git): unsupported binary '%s'", filepath.ToSlash(abs))))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   "Binary file detected. Reading skipped.",
-			Metadata: map[string]string{"error": "unsupported_binary"},
-		}, nil
-	}
-
-	reader, err := file.Reader()
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): reader error: %v", err)))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   fmt.Sprintf("Format error: failed to open file reader: %v", err),
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-	defer reader.Close()
-
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(go-git): read error: %v", err)))
-		return &tools.ReadFileOutput{
-			Title:    filepath.ToSlash(abs),
-			Output:   fmt.Sprintf("Format error: failed to read file from source branch: %v", err),
-			Metadata: map[string]string{"error": "format_error"},
-		}, nil
-	}
-
-	lines := strings.Split(string(data), "\n")
-	out, readCount, totalLines := tools.BuildReadFileOutput(filepath.ToSlash(abs), lines, offset, limit)
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile(go-git): read %d/%d lines from '%s'", readCount, totalLines, filepath.ToSlash(abs))))
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile(go-git): done (%s)", filepath.ToSlash(abs))))
-	return out, nil
-}
-
-func (o *OpenAIClient) withBaseRoot(root string, fn func() error) error {
+func (o *OpenAIClient) withBaseRoot(root string, snapshot *tools.GitSnapshot, fn func() error) error {
 	root = strings.TrimSpace(root)
 	if root == "" {
 		return fmt.Errorf("base root not set")
 	}
-	prev := o.baseRoot
+	prevRoot := o.baseRoot
+	prevSnapshot := tools.CurrentGitSnapshot()
 	tools.SetListDirectoryBaseRoot(root)
+	tools.SetGitSnapshot(snapshot)
 	o.baseRoot = root
 	defer func() {
-		tools.SetListDirectoryBaseRoot(prev)
-		o.baseRoot = prev
+		tools.SetListDirectoryBaseRoot(prevRoot)
+		tools.SetGitSnapshot(prevSnapshot)
+		o.baseRoot = prevRoot
 	}()
 	return fn()
 }
@@ -1162,6 +1060,21 @@ func relOrDot(rel string) string {
 		return "."
 	}
 	return rel
+}
+
+func snapshotInfo(snapshot *tools.GitSnapshot) string {
+	if snapshot == nil {
+		return "no-snapshot"
+	}
+	branch := snapshot.Branch()
+	commit := snapshot.CommitHash().String()
+	if len(commit) > 8 {
+		commit = commit[:8]
+	}
+	if branch != "" {
+		return fmt.Sprintf("%s@%s", branch, commit)
+	}
+	return commit
 }
 
 func pathsEqual(a, b string) bool {

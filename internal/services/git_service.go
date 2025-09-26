@@ -1,16 +1,21 @@
 package services
 
 import (
-	"context"
-	"fmt"
-
 	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
+	"time"
 
 	"narrabyte/internal/models"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 type GitService struct {
@@ -127,6 +132,34 @@ func (g *GitService) DiffBetweenCommits(repo *git.Repository, hash1, hash2 strin
 	return buf.String(), nil
 }
 
+// DiffBetweenBranches returns the patch (diff) between two branches by name.
+func (g *GitService) DiffBetweenBranches(repo *git.Repository, baseBranch, compareBranch string) (string, error) {
+	if repo == nil {
+		return "", fmt.Errorf("repo cannot be nil")
+	}
+	if baseBranch == "" || compareBranch == "" {
+		return "", fmt.Errorf("branch names are required")
+	}
+
+	baseRef, err := repo.Reference(plumbing.NewBranchReferenceName(baseBranch), true)
+	if err != nil {
+		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			return "", fmt.Errorf("branch '%s' not found", baseBranch)
+		}
+		return "", fmt.Errorf("failed to resolve branch '%s': %w", baseBranch, err)
+	}
+
+	compareRef, err := repo.Reference(plumbing.NewBranchReferenceName(compareBranch), true)
+	if err != nil {
+		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			return "", fmt.Errorf("branch '%s' not found", compareBranch)
+		}
+		return "", fmt.Errorf("failed to resolve branch '%s': %w", compareBranch, err)
+	}
+
+	return g.DiffBetweenCommits(repo, baseRef.Hash().String(), compareRef.Hash().String())
+}
+
 // LatestCommit returns the latest commit hash for the given repository path
 func (g *GitService) LatestCommit(repoPath string) (string, error) {
 	if repoPath == "" {
@@ -215,4 +248,82 @@ func (g *GitService) ListBranchesByPath(repoPath string) ([]models.BranchInfo, e
 		return nil, fmt.Errorf("failed to open repository at %s: %w", repoPath, err)
 	}
 	return g.ListBranches(repo)
+}
+
+// StageFiles adds the provided file paths to the index of the repository.
+func (g *GitService) StageFiles(repo *git.Repository, paths []string) error {
+	if repo == nil {
+		return fmt.Errorf("repo cannot be nil")
+	}
+	if len(paths) == 0 {
+		return nil
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	for _, path := range paths {
+		clean := strings.TrimSpace(path)
+		if clean == "" {
+			continue
+		}
+		normalized := filepath.ToSlash(strings.ReplaceAll(clean, "\\", "/"))
+		if _, err := wt.Add(normalized); err != nil {
+			return fmt.Errorf("failed to stage '%s': %w", path, err)
+		}
+	}
+
+	return nil
+}
+
+// Commit creates a commit with the provided message using the staged changes.
+func (g *GitService) Commit(repo *git.Repository, message string) (plumbing.Hash, error) {
+	if repo == nil {
+		return plumbing.ZeroHash, fmt.Errorf("repo cannot be nil")
+	}
+	if strings.TrimSpace(message) == "" {
+		return plumbing.ZeroHash, fmt.Errorf("commit message cannot be empty")
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return plumbing.ZeroHash, fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	sig := signatureFromEnv()
+	hash, err := wt.Commit(message, &git.CommitOptions{
+		Author:    sig,
+		Committer: sig,
+	})
+	if err != nil {
+		return plumbing.ZeroHash, fmt.Errorf("failed to create commit: %w", err)
+	}
+
+	return hash, nil
+}
+
+func signatureFromEnv() *object.Signature {
+	name := os.Getenv("GIT_AUTHOR_NAME")
+	if name == "" {
+		name = os.Getenv("GIT_COMMITTER_NAME")
+	}
+	if name == "" {
+		name = "Narrabyte Documentation Generator"
+	}
+
+	email := os.Getenv("GIT_AUTHOR_EMAIL")
+	if email == "" {
+		email = os.Getenv("GIT_COMMITTER_EMAIL")
+	}
+	if email == "" {
+		email = "docs@narrabyte.ai"
+	}
+
+	return &object.Signature{
+		Name:  name,
+		Email: email,
+		When:  time.Now(),
+	}
 }
