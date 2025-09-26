@@ -1,5 +1,7 @@
+import { ListApiKeys, StoreApiKey } from "@go/services/KeyringService";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -75,17 +77,19 @@ export default function AddApiKeyDialog({
 			//API key needs to be converted to byte array
 			const apiKeyBytes = stringToByteArray(apiKey);
 			await StoreApiKey(provider, apiKeyBytes);
-			alert(t("apiDialog.keySaved"));
+			toast(t("apiDialog.keySaved"));
 			onClose();
 		} catch (error) {
-			alert(t("apiDialog.errSavingKey") + error);
+			toast(t("apiDialog.errSavingKey") + error);
 		}
 	};
 
-	if (!open) return null;
+	if (!open) {
+		return null;
+	}
 
 	return (
-		<Dialog open={open} onOpenChange={onClose}>
+		<Dialog onOpenChange={onClose} open={open}>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>{t("apiDialog.addApiKey")}</DialogTitle>
@@ -103,7 +107,7 @@ export default function AddApiKeyDialog({
 					</div>
 				)}
 
-				<form onSubmit={handleSubmit} className="space-y-4">
+				<form className="space-y-4" onSubmit={handleSubmit}>
 					<div className="space-y-2">
 						<Label htmlFor={providerId}>Provider</Label>
 						<Select value={provider} onValueChange={setProvider}>
@@ -123,14 +127,14 @@ export default function AddApiKeyDialog({
 						<Label htmlFor={apiKeyId}>API Key</Label>
 						<Input
 							id={apiKeyId}
-							type="text"
-							value={apiKey}
 							onChange={(e) => setApiKey(e.target.value)}
 							required
+							type="text"
+							value={apiKey}
 						/>
 					</div>
 					<DialogFooter>
-						<Button type="button" variant="outline" onClick={onClose}>
+						<Button onClick={onClose} type="button" variant="outline">
 							{t("common.cancel")}
 						</Button>
 						<Button type="submit">{"Save"}</Button>
