@@ -5,7 +5,7 @@ import {context} from '../models';
 
 export function Get(arg1:number):Promise<models.RepoLink>;
 
-export function LinkRepositories(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<void>;
+export function LinkRepositories(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:string):Promise<void>;
 
 export function List(arg1:number,arg2:number):Promise<Array<models.RepoLink>>;
 

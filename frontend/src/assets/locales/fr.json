@@ -36,6 +36,7 @@
     "noEvents": "Aucune activité d'outil pour le moment.",
     "files": "Fichiers",
     "selectFile": "Sélectionnez un fichier pour afficher le diff.",
+    "selectFileAction": "Sélectionner un fichier",
     "noDocumentationChanges": "Aucun changement de documentation n'a été produit pour ce diff.",
     "commitSuccess": "Documentation validée avec succès !",
     "commitSuccessDescription": "Vos modifications de documentation ont été validées avec succès dans la branche de documentation.",
@@ -55,7 +56,8 @@
     "existingDocumentationRepository": "Dépôt de documentation existant",
     "newDocumentationRepository": "Nouveau dépôt Fumadocs",
     "creationPath": "Chemin de création",
-    "chooseNewOrExisitingDoc": "Choisir si vous voulez créer un nouveau dépôt de documentation ou lier un existant."
+    "chooseNewOrExisitingDoc": "Choisir si vous voulez créer un nouveau dépôt de documentation ou lier un existant.",
+    "llmInstructions": "Instructions LLM spécifiques à ce projet (optionnel)"
   },
   "home": {
     "greeting": "Veuillez entrer votre nom ci-dessous 👇",
