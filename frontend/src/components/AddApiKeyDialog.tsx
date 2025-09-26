@@ -11,6 +11,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
 	ListApiKeys,
 	StoreApiKey,
 } from "../../wailsjs/go/services/KeyringService";
@@ -53,7 +60,7 @@ export default function AddApiKeyDialog({
 					// Map each object to ApiKeyInfo
 					const apiKeys: ApiKeyInfo[] = keys.map((key) => ({
 						provider: key.provider,
-						label: key.label ?? "foo",
+						label: key.label ?? "N/A",
 						description: key.description,
 					}));
 					setExistingKeys(apiKeys);
@@ -88,7 +95,7 @@ export default function AddApiKeyDialog({
 				{existingKeys.length > 0 && (
 					<div className="mb-4">
 						<p className="text-sm font-medium">{t("apiDialog.existingKeys")}</p>
-						<ul className="list-disc pl-4 text-sm text-muted-foreground">
+						<ul className="list-disc pl-4 text-sm text-gray-700 dark:text-gray-300">
 							{existingKeys.map((k) => (
 								<li key={k.provider}>{k.provider}</li>
 							))}
@@ -99,18 +106,18 @@ export default function AddApiKeyDialog({
 				<form onSubmit={handleSubmit} className="space-y-4">
 					<div className="space-y-2">
 						<Label htmlFor={providerId}>Provider</Label>
-						<select
-							id={providerId}
-							className="w-full rounded-md border px-3 py-2"
-							value={provider}
-							onChange={(e) => setProvider(e.target.value)}
-						>
-							{PROVIDERS.map((p) => (
-								<option key={p.name} value={p.name}>
-									{p.key}
-								</option>
-							))}
-						</select>
+						<Select value={provider} onValueChange={setProvider}>
+							<SelectTrigger>
+								<SelectValue placeholder="Select provider" />
+							</SelectTrigger>
+							<SelectContent>
+								{PROVIDERS.map((p) => (
+									<SelectItem key={p.name} value={p.name}>
+										{p.key}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 					<div className="space-y-2">
 						<Label htmlFor={apiKeyId}>API Key</Label>

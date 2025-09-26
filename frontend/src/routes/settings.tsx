@@ -77,6 +77,11 @@ function Settings() {
 							</section>
 						</div>
 					)}
+					<Button onClick={() => setDialogOpen(true)}>Add an API key</Button>
+					<AddApiKeyDialog
+						open={dialogOpen}
+						onClose={() => setDialogOpen(false)}
+					/>
 
 					<Button
 						className="w-full"
@@ -85,11 +90,6 @@ function Settings() {
 					>
 						{t("common.goBack")}
 					</Button>
-					<Button onClick={() => setDialogOpen(true)}>Add an API key</Button>
-					<AddApiKeyDialog
-						open={dialogOpen}
-						onClose={() => setDialogOpen(false)}
-					/>
 				</CardContent>
 			</Card>
 		</div>
