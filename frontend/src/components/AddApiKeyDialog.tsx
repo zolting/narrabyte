@@ -19,10 +19,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import {
-	ListApiKeys,
-	StoreApiKey,
-} from "../../wailsjs/go/services/KeyringService";
 
 const PROVIDERS = [
 	{ name: "openai", key: "OpenAI" },
