@@ -1,5 +1,7 @@
+import { ListApiKeys, StoreApiKey } from "@go/services/KeyringService";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -10,10 +12,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	ListApiKeys,
-	StoreApiKey,
-} from "../../wailsjs/go/services/KeyringService";
 
 const PROVIDERS = [
 	{ name: "openai", key: "OpenAI" },
@@ -68,17 +66,19 @@ export default function AddApiKeyDialog({
 			//API key needs to be converted to byte array
 			const apiKeyBytes = stringToByteArray(apiKey);
 			await StoreApiKey(provider, apiKeyBytes);
-			alert(t("apiDialog.keySaved"));
+			toast(t("apiDialog.keySaved"));
 			onClose();
 		} catch (error) {
-			alert(t("apiDialog.errSavingKey") + error);
+			toast(t("apiDialog.errSavingKey") + error);
 		}
 	};
 
-	if (!open) return null;
+	if (!open) {
+		return null;
+	}
 
 	return (
-		<Dialog open={open} onOpenChange={onClose}>
+		<Dialog onOpenChange={onClose} open={open}>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>{t("apiDialog.addApiKey")}</DialogTitle>
@@ -87,8 +87,8 @@ export default function AddApiKeyDialog({
 				{/* Existing keys list */}
 				{existingKeys.length > 0 && (
 					<div className="mb-4">
-						<p className="text-sm font-medium">{t("apiDialog.existingKeys")}</p>
-						<ul className="list-disc pl-4 text-sm text-muted-foreground">
+						<p className="font-medium text-sm">{t("apiDialog.existingKeys")}</p>
+						<ul className="list-disc pl-4 text-muted-foreground text-sm">
 							{existingKeys.map((k) => (
 								<li key={k.provider}>{k.provider}</li>
 							))}
@@ -96,14 +96,14 @@ export default function AddApiKeyDialog({
 					</div>
 				)}
 
-				<form onSubmit={handleSubmit} className="space-y-4">
+				<form className="space-y-4" onSubmit={handleSubmit}>
 					<div className="space-y-2">
 						<Label htmlFor={providerId}>Provider</Label>
 						<select
-							id={providerId}
 							className="w-full rounded-md border px-3 py-2"
-							value={provider}
+							id={providerId}
 							onChange={(e) => setProvider(e.target.value)}
+							value={provider}
 						>
 							{PROVIDERS.map((p) => (
 								<option key={p.name} value={p.name}>
@@ -116,14 +116,14 @@ export default function AddApiKeyDialog({
 						<Label htmlFor={apiKeyId}>API Key</Label>
 						<Input
 							id={apiKeyId}
-							type="text"
-							value={apiKey}
 							onChange={(e) => setApiKey(e.target.value)}
 							required
+							type="text"
+							value={apiKey}
 						/>
 					</div>
 					<DialogFooter>
-						<Button type="button" variant="outline" onClick={onClose}>
+						<Button onClick={onClose} type="button" variant="outline">
 							{t("common.cancel")}
 						</Button>
 						<Button type="submit">{"Save"}</Button>
