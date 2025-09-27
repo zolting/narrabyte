@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import AddApiKeyDialog from "@/components/AddApiKeyDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppSettingsStore } from "../stores/appSettings";
@@ -13,6 +15,7 @@ function Settings() {
 	const { settings, initialized, loading, setTheme, setLocale } =
 		useAppSettingsStore();
 
+	const [dialogOpen, setDialogOpen] = useState(false);
 	const theme = settings?.Theme ?? "system";
 	const locale = settings?.Locale ?? "en";
 
@@ -74,6 +77,11 @@ function Settings() {
 							</section>
 						</div>
 					)}
+					<Button onClick={() => setDialogOpen(true)}>Add an API key</Button>
+					<AddApiKeyDialog
+						open={dialogOpen}
+						onClose={() => setDialogOpen(false)}
+					/>
 
 					<Button
 						className="w-full"

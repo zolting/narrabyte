@@ -41,6 +41,9 @@ func main() {
 	dbService := services.NewDbServices(db, *fumadocsService, *gitService)
 	clientService := services.NewClientService(dbService.RepoLinks, gitService)
 
+	//Create the keyring (à valider!!!!)
+	keyringService := services.NewKeyringService()
+
 	// Create application with options
 	err = wails.Run(&options.App{
 		Title:  "narrabyte",
@@ -55,6 +58,8 @@ func main() {
 			dbService.StartDbServices(ctx)
 			fumadocsService.Startup(ctx)
 			gitService.Startup(ctx)
+			//Pas besoin du context pour le keyring, propre a l'OS de l'utilisateur
+			keyringService.Startup()
 
 			//will have to check for this lowkey
 			err := clientService.Startup(ctx)
@@ -70,6 +75,7 @@ func main() {
 			fumadocsService,
 			gitService,
 			clientService,
+			keyringService,
 		},
 	})
 

@@ -104,5 +104,11 @@
     "noProjects": "No projects",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar"
+  },
+  "apiDialog": {
+    "keySaved": "API key saved successfully!",
+    "errSavingKey": "Error saving key",
+    "addApiKey": "Add API key",
+    "existingKeys": "Existing Keys"
   }
 }
