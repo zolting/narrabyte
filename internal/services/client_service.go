@@ -2,7 +2,6 @@ package services
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
@@ -12,7 +11,6 @@ import (
 	"narrabyte/internal/models"
 	"narrabyte/internal/utils"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -207,15 +205,16 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 
 	// Use temporary documentation root for LLM operations
 	llmResult, err := s.OpenAIClient.GenerateDocs(streamCtx, &client.DocGenerationRequest{
-		ProjectID:         projectID,
-		ProjectName:       project.ProjectName,
-		CodebasePath:      codeRoot,
-		DocumentationPath: tempDocRoot, // Use temporary workspace
-		SourceBranch:      sourceBranch,
-		TargetBranch:      targetBranch,
-		SourceCommit:      sourceHash.String(),
-		Diff:              diffText,
-		ChangedFiles:      changedFiles,
+		ProjectID:            projectID,
+		ProjectName:          project.ProjectName,
+		CodebasePath:         codeRoot,
+		DocumentationPath:    tempDocRoot, // Use temporary workspace
+		WorkingDirectoryPath: docRoot,
+		SourceBranch:         sourceBranch,
+		TargetBranch:         targetBranch,
+		SourceCommit:         sourceHash.String(),
+		Diff:                 diffText,
+		ChangedFiles:         changedFiles,
 	})
 	if err != nil {
 		return nil, err
@@ -254,6 +253,13 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 
+	docRepo, err = s.gitService.Open(docRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open documentation repository: %w", err)
+	}
+
+	println("Base Branch" + baseBranch)
+	println("Docs Branch" + docsBranch)
 	// Generate diff between the new docs branch and its base branch
 	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, baseBranch, docsBranch)
 	if err != nil {
@@ -371,6 +377,8 @@ func (s *ClientService) RequestDocChanges(projectID uint, feedback string) (*mod
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 
+	println("Base Branch" + baseBranch)
+	println("Docs Branch" + docsBranch)
 	docDiff, err := s.gitService.DiffBetweenBranches(repo, baseBranch, docsBranch)
 	if err != nil {
 		return nil, err

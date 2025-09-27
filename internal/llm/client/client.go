@@ -48,15 +48,16 @@ type OpenAIClient struct {
 }
 
 type DocGenerationRequest struct {
-	ProjectID         uint
-	ProjectName       string
-	CodebasePath      string
-	DocumentationPath string
-	SourceBranch      string
-	TargetBranch      string
-	SourceCommit      string
-	Diff              string
-	ChangedFiles      []string
+	ProjectID            uint
+	ProjectName          string
+	CodebasePath         string
+	DocumentationPath    string
+	WorkingDirectoryPath string
+	SourceBranch         string
+	TargetBranch         string
+	SourceCommit         string
+	Diff                 string
+	ChangedFiles         []string
 }
 
 type DocGenerationResponse struct {
@@ -185,11 +186,11 @@ func (o *OpenAIClient) DocConversationMessages() []*schema.Message {
 func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 	// temperature := float32(0)
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		APIKey: key,
-		Model:  "gpt-5-mini",
-		// APIKey:  "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",
-		// Model:   "x-ai/grok-4-fast:free",
-		// BaseURL: "https://openrouter.ai/api/v1",
+		//APIKey: key,
+		//Model:  "gpt-5-mini",
+		APIKey:  "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",
+		Model:   "x-ai/grok-4-fast:free",
+		BaseURL: "https://openrouter.ai/api/v1",
 	})
 
 	if err != nil {
@@ -448,7 +449,7 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 
 	initialMessages := []*schema.Message{schema.UserMessage(promptBuilder.String())}
 	session := &DocSessionState{
-		Request:      CloneDocGenerationRequest(req, docRoot, codeRoot),
+		Request:      CloneDocGenerationRequest(req, req.WorkingDirectoryPath, codeRoot),
 		SystemPrompt: systemPrompt,
 		Messages:     CloneMessages(initialMessages),
 	}
