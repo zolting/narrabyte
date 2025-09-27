@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"narrabyte/internal/events"
@@ -752,6 +753,35 @@ func transferTreeRecursively(sourceRepo, targetRepo *git.Repository, treeHash pl
 	if exists, _ := objectExists(targetRepo, treeHash); exists {
 		return nil
 	}
+
+	// Transfer the tree object itself
+	if err := transferObject(sourceRepo, targetRepo, treeHash, plumbing.TreeObject); err != nil {
+		return err
+	}
+
+	// Get tree to iterate through entries
+	tree, err := sourceRepo.TreeObject(treeHash)
+	if err != nil {
+		return fmt.Errorf("failed to get tree object: %w", err)
+	}
+
+	// Transfer all entries (blobs and subtrees)
+	for _, entry := range tree.Entries {
+		switch entry.Mode {
+		case filemode.Regular, filemode.Executable, filemode.Symlink:
+			// Transfer blob
+			if err := transferObject(sourceRepo, targetRepo, entry.Hash, plumbing.BlobObject); err != nil {
+				return fmt.Errorf("failed to transfer blob %s: %w", entry.Hash.String(), err)
+			}
+		case filemode.Dir:
+			// Recursively transfer subtree
+			if err := transferTreeRecursively(sourceRepo, targetRepo, entry.Hash); err != nil {
+				return fmt.Errorf("failed to transfer subtree %s: %w", entry.Hash.String(), err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func ConvertConversation(messages []*schema.Message) []models.DocConversationMessage {
