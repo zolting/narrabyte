@@ -102,5 +102,11 @@
     "noProjects": "Aucun projet",
     "collapseSidebar": "Replier la barre latérale",
     "expandSidebar": "Déplier la barre latérale"
+  },
+  "apiDialog": {
+    "keySaved": "Clé API sauvegardée avec succès!",
+    "errSavingKey": "Erreur lors de la sauvegarde de la clé",
+    "addApiKey": "Ajouter une clé API",
+    "existingKeys": "Clés déjà ajoutées"
   }
 }
