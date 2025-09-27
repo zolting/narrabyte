@@ -104,7 +104,7 @@ func (s *repoLinkService) LinkRepositories(projectName string, docRepo string, c
 		if err != nil {
 			return fmt.Errorf("failed to create fumadocs project: %w", err)
 		}
-		_, err := s.gitService.Init(docRepo)
+		_, err = s.gitService.Init(docRepo)
 		if err != nil {
 			return fmt.Errorf("failed to init git in doc repo: %w", err)
 		}
