@@ -179,7 +179,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 		events.Emit(ctx, events.LLMEventTool, events.NewWarn("Documentation repository has uncommitted changes - these will be preserved"))
 	}
 
-	baseHash, err := ensureBaseBranch(docRepo, targetBranch)
+	baseHash, baseBranch, err := ensureBaseBranch(docRepo)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +250,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 
 	// Generate diff between the new docs branch and its base branch
-	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, targetBranch, docsBranch)
+	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, baseBranch, docsBranch)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
 	}
@@ -426,26 +426,29 @@ func extractPathsFromDiff(diff string) []string {
 	return paths
 }
 
-func ensureBaseBranch(repo *git.Repository, targetBranch string) (plumbing.Hash, error) {
-	head, err := repo.Head()
-	if err != nil {
-		return plumbing.Hash{}, fmt.Errorf("failed to read documentation HEAD: %w", err)
+func ensureBaseBranch(repo *git.Repository) (plumbing.Hash, string, error) {
+	// Try "main" first
+	branchName := "main"
+	refName := plumbing.NewBranchReferenceName(branchName)
+	ref, err := repo.Reference(refName, true)
+	if err == nil {
+		return ref.Hash(), branchName, nil
 	}
-	baseHash := head.Hash()
-	if targetBranch == "" {
-		return baseHash, nil
+	if !errors.Is(err, plumbing.ErrReferenceNotFound) {
+		return plumbing.Hash{}, "", fmt.Errorf("failed to resolve main branch: %w", err)
 	}
 
-	// Resolve target branch reference without checking out
-	refName := plumbing.NewBranchReferenceName(targetBranch)
-	ref, err := repo.Reference(refName, true)
+	// Try "master" if "main" not found
+	branchName = "master"
+	refName = plumbing.NewBranchReferenceName(branchName)
+	ref, err = repo.Reference(refName, true)
 	if err != nil {
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
-			return baseHash, nil // Target branch doesn't exist, use current HEAD
+			return plumbing.Hash{}, "", fmt.Errorf("neither main nor master branch found in documentation repo")
 		}
-		return plumbing.Hash{}, fmt.Errorf("failed to resolve documentation branch '%s': %w", targetBranch, err)
+		return plumbing.Hash{}, "", fmt.Errorf("failed to resolve master branch: %w", err)
 	}
-	return ref.Hash(), nil
+	return ref.Hash(), branchName, nil
 }
 
 // generateUniqueID creates a unique identifier for temporary directories
