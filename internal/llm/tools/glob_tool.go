@@ -3,12 +3,14 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/go-git/go-git/v5/plumbing/object"
 	filepathx "github.com/yargevad/filepathx"
 	"narrabyte/internal/events"
 )
@@ -150,77 +152,179 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Glob: searching in '%s'", filepath.ToSlash(searchPath))))
 
-	// Ensure directory exists
-	info, err := os.Stat(searchPath)
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError("Glob: path does not exist or is not accessible"))
-		return &GlobOutput{
-			Title:  filepath.ToSlash(searchPath),
-			Output: "Format error: path does not exist or is not accessible",
-			Metadata: map[string]string{
-				"error":     "format_error",
-				"count":     "0",
-				"truncated": "false",
-			},
-		}, nil
-	}
-	if !info.IsDir() {
-		events.Emit(ctx, events.LLMEventTool, events.NewError("Glob: not a directory"))
-		return &GlobOutput{
-			Title:  filepath.ToSlash(searchPath),
-			Output: "Format error: not a directory",
-			Metadata: map[string]string{
-				"error":     "format_error",
-				"count":     "0",
-				"truncated": "false",
-			},
-		}, nil
-	}
-
-	// Build absolute pattern rooted at searchPath
-	absPattern := pattern
-	if !filepath.IsAbs(pattern) {
-		absPattern = filepath.Join(searchPath, pattern)
-	}
-	events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Glob: using pattern '%s'", filepath.ToSlash(absPattern))))
-
-	// Expand glob
-	matches, err := filepathx.Glob(absPattern)
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError("Glob: invalid glob pattern"))
-		return &GlobOutput{
-			Title:  filepath.ToSlash(strings.TrimPrefix(searchPath, base+string(os.PathSeparator))),
-			Output: "Format error: invalid glob pattern",
-			Metadata: map[string]string{
-				"error":     "format_error",
-				"count":     "0",
-				"truncated": "false",
-			},
-		}, nil
-	}
-
 	type fileInfo struct {
 		path  string
 		mtime int64
 	}
-	files := make([]fileInfo, 0, len(matches))
-	truncated := false
-	for _, p := range matches {
-		st, err := os.Stat(p)
+	var (
+		files     []fileInfo
+		truncated bool
+	)
+
+	if snapshot := CurrentGitSnapshot(); snapshot != nil {
+		rel, relErr := snapshot.relativeFromAbs(searchPath)
+		if relErr != nil {
+			if errors.Is(relErr, ErrSnapshotEscapes) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("Glob: path escapes git snapshot root"))
+				return &GlobOutput{
+					Title:  filepath.ToSlash(searchPath),
+					Output: "Format error: path escapes the configured project root",
+					Metadata: map[string]string{
+						"error":     "format_error",
+						"count":     "0",
+						"truncated": "false",
+					},
+				}, nil
+			}
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Glob: snapshot rel path error: %v", relErr)))
+			return &GlobOutput{
+				Title:  filepath.ToSlash(searchPath),
+				Output: "Format error: failed to resolve path within repository snapshot",
+				Metadata: map[string]string{
+					"error":     "format_error",
+					"count":     "0",
+					"truncated": "false",
+				},
+			}, nil
+		}
+
+		absPattern := pattern
+		if !filepath.IsAbs(pattern) {
+			absPattern = filepath.Join(searchPath, pattern)
+		}
+		slashPattern := filepath.ToSlash(absPattern)
+		rx, rxErr := globToRegexp(slashPattern)
+		if rxErr != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("Glob: invalid glob pattern"))
+			return &GlobOutput{
+				Title:  filepath.ToSlash(strings.TrimPrefix(searchPath, base+string(os.PathSeparator))),
+				Output: "Format error: invalid glob pattern",
+				Metadata: map[string]string{
+					"error":     "format_error",
+					"count":     "0",
+					"truncated": "false",
+				},
+			}, nil
+		}
+
+		walkErr := snapshot.walkFiles(rel, func(relPath string, entry GitTreeEntry, file *object.File) error {
+			if ctx != nil {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
+			}
+			absCandidate := filepath.Join(searchPath, filepath.FromSlash(relPath))
+			slashCandidate := filepath.ToSlash(absCandidate)
+			if rx.MatchString(slashCandidate) {
+				files = append(files, fileInfo{path: absCandidate, mtime: 0})
+				if len(files) >= globResultLimit {
+					truncated = true
+					return errListLimitReached
+				}
+			}
+			return nil
+		})
+		if walkErr != nil {
+			if errors.Is(walkErr, errListLimitReached) {
+				// limit reached; continue with collected results
+			} else if errors.Is(walkErr, context.Canceled) || errors.Is(walkErr, context.DeadlineExceeded) {
+				return nil, walkErr
+			} else if errors.Is(walkErr, ErrSnapshotNotFound) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("Glob: directory not found in snapshot"))
+				return &GlobOutput{
+					Title:  filepath.ToSlash(searchPath),
+					Output: "Format error: directory does not exist in the repository snapshot",
+					Metadata: map[string]string{
+						"error":     "format_error",
+						"count":     "0",
+						"truncated": "false",
+					},
+				}, nil
+			} else {
+				events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Glob: snapshot traversal error: %v", walkErr)))
+				return &GlobOutput{
+					Title:  filepath.ToSlash(searchPath),
+					Output: fmt.Sprintf("Format error: failed to evaluate glob in snapshot: %v", walkErr),
+					Metadata: map[string]string{
+						"error":     "format_error",
+						"count":     "0",
+						"truncated": "false",
+					},
+				}, nil
+			}
+		}
+	} else {
+		info, err := os.Stat(searchPath)
 		if err != nil {
-			continue
+			events.Emit(ctx, events.LLMEventTool, events.NewError("Glob: path does not exist or is not accessible"))
+			return &GlobOutput{
+				Title:  filepath.ToSlash(searchPath),
+				Output: "Format error: path does not exist or is not accessible",
+				Metadata: map[string]string{
+					"error":     "format_error",
+					"count":     "0",
+					"truncated": "false",
+				},
+			}, nil
 		}
-		if st.IsDir() {
-			continue
+		if !info.IsDir() {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("Glob: not a directory"))
+			return &GlobOutput{
+				Title:  filepath.ToSlash(searchPath),
+				Output: "Format error: not a directory",
+				Metadata: map[string]string{
+					"error":     "format_error",
+					"count":     "0",
+					"truncated": "false",
+				},
+			}, nil
 		}
-		files = append(files, fileInfo{path: p, mtime: st.ModTime().UnixNano()})
-		if len(files) >= globResultLimit {
-			truncated = true
-			break
+
+		absPattern := pattern
+		if !filepath.IsAbs(pattern) {
+			absPattern = filepath.Join(searchPath, pattern)
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Glob: using pattern '%s'", filepath.ToSlash(absPattern))))
+
+		matches, err := filepathx.Glob(absPattern)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("Glob: invalid glob pattern"))
+			return &GlobOutput{
+				Title:  filepath.ToSlash(strings.TrimPrefix(searchPath, base+string(os.PathSeparator))),
+				Output: "Format error: invalid glob pattern",
+				Metadata: map[string]string{
+					"error":     "format_error",
+					"count":     "0",
+					"truncated": "false",
+				},
+			}, nil
+		}
+
+		files = make([]fileInfo, 0, len(matches))
+		for _, p := range matches {
+			st, err := os.Stat(p)
+			if err != nil {
+				continue
+			}
+			if st.IsDir() {
+				continue
+			}
+			files = append(files, fileInfo{path: p, mtime: st.ModTime().UnixNano()})
+			if len(files) >= globResultLimit {
+				truncated = true
+				break
+			}
 		}
 	}
 
-	sort.Slice(files, func(i, j int) bool { return files[i].mtime > files[j].mtime })
+	sort.Slice(files, func(i, j int) bool {
+		if files[i].mtime == files[j].mtime {
+			return files[i].path < files[j].path
+		}
+		return files[i].mtime > files[j].mtime
+	})
 
 	// Build output
 	var lines []string

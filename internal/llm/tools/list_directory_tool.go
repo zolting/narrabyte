@@ -59,7 +59,9 @@ type ListDirectoryOutput struct {
 
 // ListDirectory produces a simple textual tree listing similar to the TS tool.
 func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, error) {
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ListDirectory: starting"))
+	snapshot := CurrentGitSnapshot()
+	snapshotInfo := formatSnapshotInfo(snapshot)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: starting [%s]", snapshotInfo)))
 
 	base, err := getListDirectoryBaseRoot()
 	if err != nil {
@@ -140,30 +142,7 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 		}
 		searchPath = abs
 	}
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: listing '%s'", filepath.ToSlash(searchPath))))
-
-	// Ensure directory exists
-	info, err := os.Stat(searchPath)
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: stat error: %v", err)))
-		return &ListDirectoryOutput{
-			Title:  filepath.ToSlash(searchPath),
-			Output: fmt.Sprintf("Format error: directory does not exist or is not accessible: %s", filepath.ToSlash(searchPath)),
-			Metadata: map[string]string{
-				"error": "format_error",
-			},
-		}, nil
-	}
-	if !info.IsDir() {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: not a directory: %s", filepath.ToSlash(searchPath))))
-		return &ListDirectoryOutput{
-			Title:  filepath.ToSlash(searchPath),
-			Output: fmt.Sprintf("Format error: path is not a directory: %s", filepath.ToSlash(searchPath)),
-			Metadata: map[string]string{
-				"error": "format_error",
-			},
-		}, nil
-	}
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: listing '%s' [%s]", filepath.ToSlash(searchPath), snapshotInfo)))
 
 	// Compose ignore patterns
 	patterns := append([]string{}, DefaultIgnorePatterns...)
@@ -171,48 +150,112 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 		patterns = append(patterns, in.Ignore...)
 	}
 
-	// Collect files up to limit, honoring ignore patterns
-	var files []string // slash-separated paths under searchPath
-	err = filepath.WalkDir(searchPath, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			// skip unreadable entries
-			if d != nil && d.IsDir() {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ListDirectory: skipping unreadable dir '%s'", filepath.ToSlash(p))))
-				return fs.SkipDir
-			}
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ListDirectory: unreadable entry '%s'", filepath.ToSlash(p))))
-			return nil
-		}
-		if p == searchPath {
-			return nil
-		}
-		rel, _ := filepath.Rel(searchPath, p)
-		rel = filepath.ToSlash(rel)
+	var (
+		files   []string
+		limited bool
+	)
 
-		// If directory and ignored, skip subtree
-		if d.IsDir() {
-			if matchIgnoredDir(rel, patterns) {
-				events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("ListDirectory: ignoring dir '%s'", rel)))
-				return fs.SkipDir
+	if snapshot := CurrentGitSnapshot(); snapshot != nil {
+		rel, relErr := snapshot.relativeFromAbs(searchPath)
+		if relErr != nil {
+			if errors.Is(relErr, ErrSnapshotEscapes) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("ListDirectory: path escapes git snapshot root"))
+				return &ListDirectoryOutput{
+					Title:    filepath.ToSlash(searchPath),
+					Output:   "Format error: path escapes the configured project root",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
 			}
-			return nil
-		}
-		// If file is ignored, skip
-		if matchIgnoredFile(rel, patterns) {
-			events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("ListDirectory: ignoring file '%s'", rel)))
-			return nil
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: snapshot rel path error: %v", relErr)))
+			return &ListDirectoryOutput{
+				Title:    filepath.ToSlash(searchPath),
+				Output:   "Format error: failed to resolve path within repository snapshot",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
 		}
 
-		files = append(files, rel)
-		if len(files) >= listLimit {
-			events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: limit reached at %d files", len(files))))
-			// Stop traversal once we've reached the limit
-			return errors.New("__LIST_LIMIT_REACHED__")
+		collected, limitHit, collectErr := collectFilesFromSnapshot(ctx, snapshot, rel, patterns)
+		if collectErr != nil {
+			if errors.Is(collectErr, ErrSnapshotNotFound) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("ListDirectory: directory not found in snapshot"))
+				return &ListDirectoryOutput{
+					Title:    filepath.ToSlash(searchPath),
+					Output:   fmt.Sprintf("Format error: directory does not exist in the repository snapshot: %s", filepath.ToSlash(searchPath)),
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			if errors.Is(collectErr, context.Canceled) || errors.Is(collectErr, context.DeadlineExceeded) {
+				return nil, collectErr
+			}
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: snapshot traversal error: %v", collectErr)))
+			return &ListDirectoryOutput{
+				Title:    filepath.ToSlash(searchPath),
+				Output:   fmt.Sprintf("Format error: failed to traverse directory in snapshot: %v", collectErr),
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
 		}
-		return nil
-	})
-	if err != nil {
-		if err.Error() != "__LIST_LIMIT_REACHED__" {
+		files = collected
+		limited = limitHit
+	} else {
+		info, statErr := os.Stat(searchPath)
+		if statErr != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: stat error: %v", statErr)))
+			return &ListDirectoryOutput{
+				Title:  filepath.ToSlash(searchPath),
+				Output: fmt.Sprintf("Format error: directory does not exist or is not accessible: %s", filepath.ToSlash(searchPath)),
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
+		}
+		if !info.IsDir() {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: not a directory: %s", filepath.ToSlash(searchPath))))
+			return &ListDirectoryOutput{
+				Title:  filepath.ToSlash(searchPath),
+				Output: fmt.Sprintf("Format error: path is not a directory: %s", filepath.ToSlash(searchPath)),
+				Metadata: map[string]string{
+					"error": "format_error",
+				},
+			}, nil
+		}
+
+		err = filepath.WalkDir(searchPath, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				// skip unreadable entries
+				if d != nil && d.IsDir() {
+					events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ListDirectory: skipping unreadable dir '%s'", filepath.ToSlash(p))))
+					return fs.SkipDir
+				}
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("ListDirectory: unreadable entry '%s'", filepath.ToSlash(p))))
+				return nil
+			}
+			if p == searchPath {
+				return nil
+			}
+			rel, _ := filepath.Rel(searchPath, p)
+			rel = filepath.ToSlash(rel)
+
+			if d.IsDir() {
+				if matchIgnoredDir(rel, patterns) {
+					events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("ListDirectory: ignoring dir '%s'", rel)))
+					return fs.SkipDir
+				}
+				return nil
+			}
+			if matchIgnoredFile(rel, patterns) {
+				events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("ListDirectory: ignoring file '%s'", rel)))
+				return nil
+			}
+
+			files = append(files, rel)
+			if len(files) >= listLimit {
+				events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: limit reached at %d files", len(files))))
+				limited = true
+				return errListLimitReached
+			}
+			return nil
+		})
+		if err != nil && !errors.Is(err, errListLimitReached) {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: traversal error: %v", err)))
 			return &ListDirectoryOutput{
 				Title:  filepath.ToSlash(searchPath),
@@ -222,6 +265,10 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 				},
 			}, nil
 		}
+	}
+
+	if !limited && len(files) >= listLimit {
+		limited = true
 	}
 
 	// Build directory structure
@@ -310,13 +357,13 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 	b.WriteByte('\n')
 	b.WriteString(renderDir(".", 0))
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: done, %d files listed for '%s'", len(files), filepath.ToSlash(searchPath))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: done, %d files listed for '%s' [%s]", len(files), filepath.ToSlash(searchPath), snapshotInfo)))
 	return &ListDirectoryOutput{
 		Title:  filepath.ToSlash(searchPath),
 		Output: b.String(),
 		Metadata: map[string]string{
 			"files_count": fmt.Sprintf("%d", len(files)),
-			"limited":     fmt.Sprintf("%v", len(files) >= listLimit),
+			"limited":     fmt.Sprintf("%v", limited),
 		},
 	}, nil
 }
@@ -373,4 +420,71 @@ func matchIgnoredFile(relFile string, patterns []string) bool {
 		}
 	}
 	return false
+}
+
+func collectFilesFromSnapshot(ctx context.Context, snapshot *GitSnapshot, rel string, patterns []string) ([]string, bool, error) {
+	normalized := strings.TrimSpace(rel)
+	if normalized == "" {
+		normalized = "."
+	}
+	if _, err := snapshot.treeFor(normalized); err != nil {
+		return nil, false, err
+	}
+
+	var (
+		files   []string
+		limited bool
+	)
+
+	var walk func(commitPath, displayPath string) error
+	walk = func(commitPath, displayPath string) error {
+		if ctx != nil {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+		}
+		entries, err := snapshot.list(commitPath)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			relPath := joinCommitPath(displayPath, entry.Name)
+			if entry.IsDir() {
+				if matchIgnoredDir(relPath, patterns) {
+					continue
+				}
+				nextCommit := joinCommitPath(commitPath, entry.Name)
+				if err := walk(nextCommit, relPath); err != nil {
+					return err
+				}
+				continue
+			}
+			if !entry.IsFile() {
+				continue
+			}
+			if matchIgnoredFile(relPath, patterns) {
+				continue
+			}
+			files = append(files, relPath)
+			if len(files) >= listLimit {
+				limited = true
+				return errListLimitReached
+			}
+		}
+		return nil
+	}
+
+	commitPath := normalized
+	if commitPath == "." {
+		commitPath = "."
+	}
+	if err := walk(commitPath, ""); err != nil {
+		if errors.Is(err, errListLimitReached) {
+			return files, limited, nil
+		}
+		return nil, false, err
+	}
+	return files, limited, nil
 }

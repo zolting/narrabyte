@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"narrabyte/internal/events"
 )
 
@@ -232,99 +233,249 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 	}
 	var matches []match
 
-	// Walk filesystem
-	err = filepath.WalkDir(searchPath, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			if d != nil && d.IsDir() {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Grep: skipping unreadable dir '%s'", filepath.ToSlash(p))))
-				return fs.SkipDir
+	if snapshot := CurrentGitSnapshot(); snapshot != nil {
+		rel, relErr := snapshot.relativeFromAbs(searchPath)
+		if relErr != nil {
+			if errors.Is(relErr, ErrSnapshotEscapes) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("Grep: path escapes git snapshot root"))
+				return &GrepOutput{
+					Title:  pattern,
+					Output: "Format error: path escapes the configured project root",
+					Metadata: map[string]string{
+						"error":     "format_error",
+						"matches":   "0",
+						"truncated": "false",
+					},
+				}, nil
 			}
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Grep: unreadable entry '%s'", filepath.ToSlash(p))))
-			return nil
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Grep: snapshot rel path error: %v", relErr)))
+			return &GrepOutput{
+				Title:  pattern,
+				Output: "Format error: failed to resolve path within repository snapshot",
+				Metadata: map[string]string{
+					"error":     "format_error",
+					"matches":   "0",
+					"truncated": "false",
+				},
+			}, nil
 		}
 
-		// Compute path under searchPath using forward slashes
-		rel, _ := filepath.Rel(searchPath, p)
-		rel = filepath.ToSlash(rel)
-
-		if d.IsDir() {
-			if rel == "." || rel == "" {
-				return nil
+		if _, treeErr := snapshot.treeFor(rel); treeErr != nil {
+			if errors.Is(treeErr, ErrSnapshotNotFound) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("Grep: not a directory in snapshot"))
+				return &GrepOutput{
+					Title:  pattern,
+					Output: "Format error: path does not refer to a directory in the repository snapshot",
+					Metadata: map[string]string{
+						"error":     "format_error",
+						"matches":   "0",
+						"truncated": "false",
+					},
+				}, nil
 			}
-			// Skip ignored directories using default patterns
-			if matchIgnoredDir(rel, DefaultIgnorePatterns) {
-				// events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: ignoring dir '%s'", rel)))
-				return fs.SkipDir
-			}
-			return nil
+			return nil, treeErr
 		}
 
-		// Optionally filter by include pattern(s)
-		if len(includeMatchers) > 0 {
-			// Try rel path and base name
-			baseName := path.Base(rel)
-			ok := false
-			for _, m := range includeMatchers {
-				if m.MatchString(rel) || m.MatchString(baseName) {
-					ok = true
-					break
-				}
-			}
-			if !ok {
-				return nil
-			}
-		}
-
-		// Skip binary files
-		if bin, berr := isBinaryFile(p); berr == nil && bin {
-			// events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: skipping binary '%s'", filepath.ToSlash(p))))
-			return nil
-		}
-
-		// Stats for mtime
-		st, err := os.Stat(p)
-		if err != nil {
-			return nil
-		}
-
-		// Scan file lines
-		f, err := os.Open(p)
-		if err != nil {
-			return nil
-		}
-
-		scanner := bufio.NewScanner(f)
-		// Raise the scanner buffer limit for long lines
-		buf := make([]byte, 0, 64*1024)
-		scanner.Buffer(buf, 2*1024*1024)
-		lineNum := 0
-		for scanner.Scan() {
+		var walk func(commitPath, displayPath string) error
+		walk = func(commitPath, displayPath string) error {
 			if ctx != nil {
 				select {
 				case <-ctx.Done():
-					f.Close()
 					return ctx.Err()
 				default:
 				}
 			}
-			lineNum++
-			lineText := scanner.Text()
-			if rx.MatchString(lineText) {
-				matches = append(matches, match{
-					path:    p,
-					lineNum: lineNum,
-					line:    lineText,
-					mtime:   st.ModTime().UnixNano(),
-				})
+			entries, listErr := snapshot.list(commitPath)
+			if listErr != nil {
+				return listErr
 			}
+			for _, entry := range entries {
+				relPath := joinCommitPath(displayPath, entry.Name)
+				if entry.IsDir() {
+					if matchIgnoredDir(relPath, DefaultIgnorePatterns) {
+						continue
+					}
+					if err := walk(entry.Path, relPath); err != nil {
+						return err
+					}
+					continue
+				}
+				if !entry.IsFile() {
+					continue
+				}
+				if matchIgnoredFile(relPath, DefaultIgnorePatterns) {
+					continue
+				}
+				if len(includeMatchers) > 0 {
+					baseName := path.Base(relPath)
+					matched := false
+					for _, m := range includeMatchers {
+						if m.MatchString(relPath) || m.MatchString(baseName) {
+							matched = true
+							break
+						}
+					}
+					if !matched {
+						continue
+					}
+				}
+
+				file, fileErr := snapshot.commit.File(entry.Path)
+				if fileErr != nil {
+					if !errors.Is(fileErr, object.ErrFileNotFound) {
+						events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Grep: unable to read '%s' from snapshot: %v", entry.Path, fileErr)))
+					}
+					continue
+				}
+				isBinary, binErr := file.IsBinary()
+				if binErr != nil {
+					events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Grep: binary check failed for '%s': %v", entry.Path, binErr)))
+					continue
+				}
+				if isBinary {
+					continue
+				}
+
+				reader, rdrErr := file.Reader()
+				if rdrErr != nil {
+					events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Grep: reader error for '%s': %v", entry.Path, rdrErr)))
+					continue
+				}
+
+				scanner := bufio.NewScanner(reader)
+				buf := make([]byte, 0, 64*1024)
+				scanner.Buffer(buf, 2*1024*1024)
+				lineNum := 0
+				absCandidate := filepath.Join(searchPath, filepath.FromSlash(relPath))
+				for scanner.Scan() {
+					if ctx != nil {
+						select {
+						case <-ctx.Done():
+							reader.Close()
+							return ctx.Err()
+						default:
+						}
+					}
+					lineNum++
+					lineText := scanner.Text()
+					if rx.MatchString(lineText) {
+						matches = append(matches, match{
+							path:    absCandidate,
+							lineNum: lineNum,
+							line:    lineText,
+							mtime:   0,
+						})
+					}
+				}
+				reader.Close()
+				if scanErr := scanner.Err(); scanErr != nil {
+					events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Grep: scanner error for '%s': %v", absCandidate, scanErr)))
+				}
+			}
+			return nil
 		}
-		f.Close()
-		// ignore scanner errors for now; continue
-		return nil
-	})
-	if err != nil && !errors.Is(err, context.Canceled) {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Grep: traversal error: %v", err)))
-		return nil, err
+
+		if walkErr := walk(rel, ""); walkErr != nil {
+			if errors.Is(walkErr, context.Canceled) || errors.Is(walkErr, context.DeadlineExceeded) {
+				return nil, walkErr
+			}
+			if errors.Is(walkErr, ErrSnapshotNotFound) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("Grep: directory not found in snapshot"))
+				return &GrepOutput{
+					Title:  pattern,
+					Output: "Format error: path does not exist in the repository snapshot",
+					Metadata: map[string]string{
+						"error":     "format_error",
+						"matches":   "0",
+						"truncated": "false",
+					},
+				}, nil
+			}
+			return nil, walkErr
+		}
+	} else {
+		err = filepath.WalkDir(searchPath, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				if d != nil && d.IsDir() {
+					events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Grep: skipping unreadable dir '%s'", filepath.ToSlash(p))))
+					return fs.SkipDir
+				}
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Grep: unreadable entry '%s'", filepath.ToSlash(p))))
+				return nil
+			}
+
+			rel, _ := filepath.Rel(searchPath, p)
+			rel = filepath.ToSlash(rel)
+
+			if d.IsDir() {
+				if rel == "." || rel == "" {
+					return nil
+				}
+				if matchIgnoredDir(rel, DefaultIgnorePatterns) {
+					return fs.SkipDir
+				}
+				return nil
+			}
+
+			if len(includeMatchers) > 0 {
+				baseName := path.Base(rel)
+				ok := false
+				for _, m := range includeMatchers {
+					if m.MatchString(rel) || m.MatchString(baseName) {
+						ok = true
+						break
+					}
+				}
+				if !ok {
+					return nil
+				}
+			}
+
+			if bin, berr := isBinaryFile(p); berr == nil && bin {
+				return nil
+			}
+
+			st, err := os.Stat(p)
+			if err != nil {
+				return nil
+			}
+
+			f, err := os.Open(p)
+			if err != nil {
+				return nil
+			}
+
+			scanner := bufio.NewScanner(f)
+			buf := make([]byte, 0, 64*1024)
+			scanner.Buffer(buf, 2*1024*1024)
+			lineNum := 0
+			for scanner.Scan() {
+				if ctx != nil {
+					select {
+					case <-ctx.Done():
+						f.Close()
+						return ctx.Err()
+					default:
+					}
+				}
+				lineNum++
+				lineText := scanner.Text()
+				if rx.MatchString(lineText) {
+					matches = append(matches, match{
+						path:    p,
+						lineNum: lineNum,
+						line:    lineText,
+						mtime:   st.ModTime().UnixNano(),
+					})
+				}
+			}
+			f.Close()
+			return nil
+		})
+		if err != nil && !errors.Is(err, context.Canceled) {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Grep: traversal error: %v", err)))
+			return nil, err
+		}
 	}
 
 	if len(matches) == 0 {
