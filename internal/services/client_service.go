@@ -179,7 +179,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 		events.Emit(ctx, events.LLMEventTool, events.NewWarn("Documentation repository has uncommitted changes - these will be preserved"))
 	}
 
-	baseHash, err := ensureBaseBranch(docRepo, targetBranch)
+	baseHash, err := ensureBaseBranch(docRepo)
 	if err != nil {
 		return nil, err
 	}
@@ -426,24 +426,25 @@ func extractPathsFromDiff(diff string) []string {
 	return paths
 }
 
-func ensureBaseBranch(repo *git.Repository, targetBranch string) (plumbing.Hash, error) {
-	head, err := repo.Head()
-	if err != nil {
-		return plumbing.Hash{}, fmt.Errorf("failed to read documentation HEAD: %w", err)
+func ensureBaseBranch(repo *git.Repository) (plumbing.Hash, error) {
+	// Try "main" first
+	refName := plumbing.NewBranchReferenceName("main")
+	ref, err := repo.Reference(refName, true)
+	if err == nil {
+		return ref.Hash(), nil
 	}
-	baseHash := head.Hash()
-	if targetBranch == "" {
-		return baseHash, nil
+	if !errors.Is(err, plumbing.ErrReferenceNotFound) {
+		return plumbing.Hash{}, fmt.Errorf("failed to resolve main branch: %w", err)
 	}
 
-	// Resolve target branch reference without checking out
-	refName := plumbing.NewBranchReferenceName(targetBranch)
-	ref, err := repo.Reference(refName, true)
+	// Try "master" if "main" not found
+	refName = plumbing.NewBranchReferenceName("master")
+	ref, err = repo.Reference(refName, true)
 	if err != nil {
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
-			return baseHash, nil // Target branch doesn't exist, use current HEAD
+			return plumbing.Hash{}, fmt.Errorf("neither main nor master branch found in documentation repo")
 		}
-		return plumbing.Hash{}, fmt.Errorf("failed to resolve documentation branch '%s': %w", targetBranch, err)
+		return plumbing.Hash{}, fmt.Errorf("failed to resolve master branch: %w", err)
 	}
 	return ref.Hash(), nil
 }
