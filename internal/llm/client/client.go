@@ -274,7 +274,7 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 
 	if repoInstr, ierr := o.loadRepoLLMInstructions(docRoot); ierr == nil && strings.TrimSpace(repoInstr) != "" {
 		// Prepend repo-specific instructions so they take priority
-		systemPrompt = strings.TrimSpace(repoInstr) + "\n\n" + systemPrompt
+		systemPrompt = systemPrompt + "\n\n# User-provided documentation instructions\n" + strings.TrimSpace(repoInstr)
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo("loaded repo llm instructions"))
 	} else if ierr != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo llm instructions: %v", ierr)))
