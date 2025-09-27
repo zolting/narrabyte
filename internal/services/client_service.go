@@ -207,6 +207,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 
 	// Use temporary documentation root for LLM operations
 	llmResult, err := s.OpenAIClient.GenerateDocs(streamCtx, &client.DocGenerationRequest{
+		ProjectID:         projectID,
 		ProjectName:       project.ProjectName,
 		CodebasePath:      codeRoot,
 		DocumentationPath: tempDocRoot, // Use temporary workspace
@@ -350,6 +351,11 @@ func (s *ClientService) RequestDocChanges(projectID uint, feedback string) (*mod
 		return nil, fmt.Errorf("failed to read documentation repo status: %w", err)
 	}
 
+	_, baseBranch, err := ensureBaseBranch(repo)
+	if err != nil {
+		return nil, err
+	}
+
 	var files []models.DocChangedFile
 	for path, st := range docStatus {
 		if st == nil {
@@ -365,7 +371,7 @@ func (s *ClientService) RequestDocChanges(projectID uint, feedback string) (*mod
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 
-	docDiff, err := runGitDiff(docRoot)
+	docDiff, err := s.gitService.DiffBetweenBranches(repo, baseBranch, docsBranch)
 	if err != nil {
 		return nil, err
 	}
