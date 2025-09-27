@@ -8,23 +8,25 @@ import type { DocGenerationStatus } from "@/stores/docGeneration";
 import type { DemoEvent } from "@/types/events";
 
 interface GenerationTabsProps {
-        activeTab: "activity" | "review" | "summary";
-        setActiveTab: (tab: "activity" | "review" | "summary") => void;
-        events: DemoEvent[];
-        status: DocGenerationStatus;
-        docResult: models.DocGenerationResult | null;
-        isBusy: boolean;
-        onRequestChanges: (message: string) => Promise<void>;
+	activeTab: "activity" | "review" | "summary";
+	setActiveTab: (tab: "activity" | "review" | "summary") => void;
+	events: DemoEvent[];
+	status: DocGenerationStatus;
+	docResult: models.DocGenerationResult | null;
+	isBusy: boolean;
+	onRequestChanges: (message: string) => Promise<void>;
+	pendingUserMessage: models.DocConversationMessage | null;
 }
 
 export const GenerationTabs = ({
-        activeTab,
-        setActiveTab,
-        events,
-        status,
-        docResult,
-        isBusy,
-        onRequestChanges,
+	activeTab,
+	setActiveTab,
+	events,
+	status,
+	docResult,
+	isBusy,
+	onRequestChanges,
+	pendingUserMessage,
 }: GenerationTabsProps) => {
 	const { t } = useTranslation();
 
@@ -93,19 +95,20 @@ export const GenerationTabs = ({
 			>
 				<DocGenerationProgressLog events={events} status={status} />
 			</TabsContent>
-                        {docResult && (
-                                <TabsContent
-                                        className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
-                                        value="review"
-                                >
-                                        <DocGenerationResultPanel
-                                                isBusy={isBusy}
-                                                onRequestChanges={onRequestChanges}
-                                                result={docResult}
-                                                status={status}
-                                        />
-                                </TabsContent>
-                        )}
+			{docResult && (
+				<TabsContent
+					className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+					value="review"
+				>
+					<DocGenerationResultPanel
+						isBusy={isBusy}
+						onRequestChanges={onRequestChanges}
+						pendingUserMessage={pendingUserMessage}
+						result={docResult}
+						status={status}
+					/>
+				</TabsContent>
+			)}
 			{docResult?.summary && (
 				<TabsContent
 					className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"

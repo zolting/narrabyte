@@ -114,11 +114,11 @@ function ProjectDetailPage() {
 		});
 	}, [project, branchManager, docManager]);
 
-        const handleCommit = useCallback(() => {
-                if (!(project && docManager.docResult)) {
-                        return;
-                }
-                const files = (docManager.docResult.files ?? [])
+	const handleCommit = useCallback(() => {
+		if (!(project && docManager.docResult)) {
+			return;
+		}
+		const files = (docManager.docResult.files ?? [])
 			.map((file) => file.path)
 			.filter((path): path is string =>
 				Boolean(path && path.trim().length > 0)
@@ -126,36 +126,36 @@ function ProjectDetailPage() {
 		if (files.length === 0) {
 			return;
 		}
-                docManager.setActiveTab("activity");
-                docManager.commitDocGeneration({
-                        projectId: Number(project.ID),
-                        branch: docManager.docResult.branch,
-                        files,
-                });
-        }, [docManager, project]);
+		docManager.setActiveTab("activity");
+		docManager.commitDocGeneration({
+			projectId: Number(project.ID),
+			branch: docManager.docResult.branch,
+			files,
+		});
+	}, [docManager, project]);
 
-        const handleReset = useCallback(() => {
-                docManager.reset();
-                branchManager.resetBranches();
-        }, [docManager, branchManager]);
+	const handleReset = useCallback(() => {
+		docManager.reset();
+		branchManager.resetBranches();
+	}, [docManager, branchManager]);
 
-        const handleStartNewTask = useCallback(() => {
-                handleReset();
-        }, [handleReset]);
+	const handleStartNewTask = useCallback(() => {
+		handleReset();
+	}, [handleReset]);
 
-        const handleRequestDocChanges = useCallback(
-                async (message: string) => {
-                        if (!project) {
-                                return;
-                        }
-                        docManager.setActiveTab("activity");
-                        await docManager.requestDocChanges({
-                                projectId: Number(project.ID),
-                                message,
-                        });
-                },
-                [docManager, project]
-        );
+	const handleRequestDocChanges = useCallback(
+		async (message: string) => {
+			if (!project) {
+				return;
+			}
+			docManager.setActiveTab("activity");
+			await docManager.requestDocChanges({
+				projectId: Number(project.ID),
+				message,
+			});
+		},
+		[docManager, project]
+	);
 
 	const disableControls = docManager.isBusy;
 
@@ -228,17 +228,18 @@ function ProjectDetailPage() {
 						);
 					})()}
 
-                                        {docManager.hasGenerationAttempt && (
-                                                <GenerationTabs
-                                                        activeTab={docManager.activeTab}
-                                                        isBusy={docManager.isBusy}
-                                                        docResult={docManager.docResult}
-                                                        events={docManager.events}
-                                                        onRequestChanges={handleRequestDocChanges}
-                                                        setActiveTab={docManager.setActiveTab}
-                                                        status={docManager.status}
-                                                />
-                                        )}
+					{docManager.hasGenerationAttempt && (
+						<GenerationTabs
+							activeTab={docManager.activeTab}
+							docResult={docManager.docResult}
+							events={docManager.events}
+							isBusy={docManager.isBusy}
+							onRequestChanges={handleRequestDocChanges}
+							pendingUserMessage={docManager.pendingUserMessage}
+							setActiveTab={docManager.setActiveTab}
+							status={docManager.status}
+						/>
+					)}
 				</div>
 
 				{!docManager.commitCompleted && (

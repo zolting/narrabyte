@@ -45,7 +45,7 @@ type OpenAIClient struct {
 	cancel  context.CancelFunc
 
 	docSessionMu    sync.Mutex
-	docSessionState *docSessionState
+	docSessionState *DocSessionState
 }
 
 type DocGenerationRequest struct {
@@ -65,24 +65,24 @@ type DocGenerationResponse struct {
 	Messages []*schema.Message
 }
 
-type docSessionState struct {
-	request      *DocGenerationRequest
-	systemPrompt string
-	messages     []*schema.Message
+type DocSessionState struct {
+	Request      *DocGenerationRequest
+	SystemPrompt string
+	Messages     []*schema.Message
 }
 
-func (s *docSessionState) clone() *docSessionState {
+func (s *DocSessionState) clone() *DocSessionState {
 	if s == nil {
 		return nil
 	}
-	return &docSessionState{
-		request:      cloneDocGenerationRequest(s.request, "", ""),
-		systemPrompt: s.systemPrompt,
-		messages:     cloneMessages(s.messages),
+	return &DocSessionState{
+		Request:      CloneDocGenerationRequest(s.Request, "", ""),
+		SystemPrompt: s.SystemPrompt,
+		Messages:     CloneMessages(s.Messages),
 	}
 }
 
-func cloneDocGenerationRequest(req *DocGenerationRequest, docRoot, codeRoot string) *DocGenerationRequest {
+func CloneDocGenerationRequest(req *DocGenerationRequest, docRoot, codeRoot string) *DocGenerationRequest {
 	if req == nil {
 		return nil
 	}
@@ -131,7 +131,7 @@ func cloneMessage(msg *schema.Message) *schema.Message {
 	return cloned
 }
 
-func cloneMessages(messages []*schema.Message) []*schema.Message {
+func CloneMessages(messages []*schema.Message) []*schema.Message {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -142,7 +142,7 @@ func cloneMessages(messages []*schema.Message) []*schema.Message {
 	return cloned
 }
 
-func (o *OpenAIClient) storeDocSession(session *docSessionState) {
+func (o *OpenAIClient) StoreDocSession(session *DocSessionState) {
 	if o == nil {
 		return
 	}
@@ -155,7 +155,7 @@ func (o *OpenAIClient) storeDocSession(session *docSessionState) {
 	o.docSessionState = session.clone()
 }
 
-func (o *OpenAIClient) docSessionSnapshot() *docSessionState {
+func (o *OpenAIClient) DocSessionSnapshot() *DocSessionState {
 	if o == nil {
 		return nil
 	}
@@ -167,22 +167,20 @@ func (o *OpenAIClient) docSessionSnapshot() *docSessionState {
 	return o.docSessionState.clone()
 }
 
-// DocSessionRequest returns a copy of the most recent documentation generation request, if any.
 func (o *OpenAIClient) DocSessionRequest() *DocGenerationRequest {
-	snapshot := o.docSessionSnapshot()
+	snapshot := o.DocSessionSnapshot()
 	if snapshot == nil {
 		return nil
 	}
-	return cloneDocGenerationRequest(snapshot.request, "", "")
+	return CloneDocGenerationRequest(snapshot.Request, "", "")
 }
 
-// DocConversationMessages returns a copy of the stored conversation history for the latest documentation session.
 func (o *OpenAIClient) DocConversationMessages() []*schema.Message {
-	snapshot := o.docSessionSnapshot()
+	snapshot := o.DocSessionSnapshot()
 	if snapshot == nil {
 		return nil
 	}
-	return cloneMessages(snapshot.messages)
+	return CloneMessages(snapshot.Messages)
 }
 
 func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
@@ -350,7 +348,7 @@ func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath str
 func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest) (*DocGenerationResponse, error) {
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocs: initializing"))
 	if req == nil {
-		return nil, fmt.Errorf("request is required")
+		return nil, fmt.Errorf("Request is required")
 	}
 	if strings.TrimSpace(req.DocumentationPath) == "" {
 		return nil, fmt.Errorf("documentation path is required")
@@ -446,16 +444,16 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	promptBuilder.WriteString("\n</git_diff>")
 
 	initialMessages := []*schema.Message{schema.UserMessage(promptBuilder.String())}
-	session := &docSessionState{
-		request:      cloneDocGenerationRequest(req, docRoot, codeRoot),
-		systemPrompt: systemPrompt,
-		messages:     cloneMessages(initialMessages),
+	session := &DocSessionState{
+		Request:      CloneDocGenerationRequest(req, docRoot, codeRoot),
+		SystemPrompt: systemPrompt,
+		Messages:     CloneMessages(initialMessages),
 	}
 
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
 	iter := runner.Run(ctx, initialMessages)
 	var lastMessage string
-	conversation := cloneMessages(initialMessages)
+	conversation := CloneMessages(initialMessages)
 	for {
 		event, ok := iter.Next()
 		if !ok {
@@ -482,11 +480,11 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	}
 
 	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
-	session.messages = conversation
-	o.storeDocSession(session)
+	session.Messages = conversation
+	o.StoreDocSession(session)
 	return &DocGenerationResponse{
 		Summary:  strings.TrimSpace(lastMessage),
-		Messages: cloneMessages(conversation),
+		Messages: CloneMessages(conversation),
 	}, nil
 }
 
@@ -496,15 +494,15 @@ func (o *OpenAIClient) ApplyDocFeedback(ctx context.Context, feedback string) (*
 		return nil, fmt.Errorf("feedback is required")
 	}
 
-	session := o.docSessionSnapshot()
-	if session == nil || session.request == nil {
+	session := o.DocSessionSnapshot()
+	if session == nil || session.Request == nil {
 		return nil, fmt.Errorf("no documentation session available to continue")
 	}
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ApplyDocFeedback: continuing documentation session"))
 
-	docRoot := strings.TrimSpace(session.request.DocumentationPath)
-	codeRoot := strings.TrimSpace(session.request.CodebasePath)
+	docRoot := strings.TrimSpace(session.Request.DocumentationPath)
+	codeRoot := strings.TrimSpace(session.Request.CodebasePath)
 	if docRoot == "" || codeRoot == "" {
 		return nil, fmt.Errorf("documentation session paths are not available")
 	}
@@ -514,7 +512,7 @@ func (o *OpenAIClient) ApplyDocFeedback(ctx context.Context, feedback string) (*
 		return nil, err
 	}
 
-	systemPrompt := session.systemPrompt
+	systemPrompt := session.SystemPrompt
 	if strings.TrimSpace(systemPrompt) == "" {
 		systemPrompt, err = o.loadPrompt("generate_docs.txt")
 		if err != nil {
@@ -537,7 +535,7 @@ func (o *OpenAIClient) ApplyDocFeedback(ctx context.Context, feedback string) (*
 		return nil, err
 	}
 
-	history := cloneMessages(session.messages)
+	history := CloneMessages(session.Messages)
 	if len(history) == 0 {
 		history = []*schema.Message{}
 	}
@@ -545,7 +543,7 @@ func (o *OpenAIClient) ApplyDocFeedback(ctx context.Context, feedback string) (*
 
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
 	iter := runner.Run(ctx, history)
-	conversation := cloneMessages(history)
+	conversation := CloneMessages(history)
 	var lastMessage string
 	for {
 		event, ok := iter.Next()
@@ -574,16 +572,16 @@ func (o *OpenAIClient) ApplyDocFeedback(ctx context.Context, feedback string) (*
 
 	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
 
-	updatedSession := &docSessionState{
-		request:      cloneDocGenerationRequest(session.request, docRoot, codeRoot),
-		systemPrompt: systemPrompt,
-		messages:     conversation,
+	updatedSession := &DocSessionState{
+		Request:      CloneDocGenerationRequest(session.Request, docRoot, codeRoot),
+		SystemPrompt: systemPrompt,
+		Messages:     conversation,
 	}
-	o.storeDocSession(updatedSession)
+	o.StoreDocSession(updatedSession)
 
 	return &DocGenerationResponse{
 		Summary:  strings.TrimSpace(lastMessage),
-		Messages: cloneMessages(conversation),
+		Messages: CloneMessages(conversation),
 	}, nil
 }
 
@@ -619,7 +617,7 @@ func (o *OpenAIClient) recordOpenedFile(p string) {
 }
 
 // resolveAbsWithinBase resolves an input path to an absolute path under the configured base root.
-// Returns the absolute candidate even when it escapes base so callers can include it in messages.
+// Returns the absolute candidate even when it escapes base so callers can include it in Messages.
 func (o *OpenAIClient) resolveAbsWithinBase(p string) (abs string, err error) {
 	base := strings.TrimSpace(o.baseRoot)
 	if base == "" {

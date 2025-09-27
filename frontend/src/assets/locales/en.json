@@ -13,6 +13,8 @@
     "viewDiff": "View Diff",
     "inlineView": "Inline View",
     "splitView": "Split View",
+    "showChat": "Show Chat",
+    "hideChat": "Hide Chat",
     "generateDocs": "Generate Documentation",
     "generateDocsDescription": "Generate documentation from source branch to target branch for selected project.",
     "sourceBranch": "Source Branch",

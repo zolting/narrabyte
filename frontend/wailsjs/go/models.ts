@@ -70,57 +70,57 @@ export namespace models {
 		    return a;
 		}
 	}
-        export class DocChangedFile {
-            path: string;
-            status: string;
-
-            static createFrom(source: any = {}) {
-                return new DocChangedFile(source);
-            }
-
-            constructor(source: any = {}) {
-                if ('string' === typeof source) source = JSON.parse(source);
-                this.path = source["path"];
-                this.status = source["status"];
-            }
-        }
-        export class DocConversationMessage {
-            role: string;
-            content: string;
-
-            static createFrom(source: any = {}) {
-                return new DocConversationMessage(source);
-            }
-
-            constructor(source: any = {}) {
-                if ('string' === typeof source) source = JSON.parse(source);
-                this.role = source["role"];
-                this.content = source["content"];
-            }
-        }
-        export class DocGenerationResult {
-            branch: string;
-            files: DocChangedFile[];
-            diff: string;
-            summary: string;
-            conversation: DocConversationMessage[];
-
-            static createFrom(source: any = {}) {
-                return new DocGenerationResult(source);
-            }
-
-            constructor(source: any = {}) {
-                if ('string' === typeof source) source = JSON.parse(source);
-                this.branch = source["branch"];
-                this.files = this.convertValues(source["files"], DocChangedFile);
-                this.diff = source["diff"];
-                this.summary = source["summary"];
-                this.conversation = this.convertValues(source["conversation"], DocConversationMessage);
-            }
-
-                convertValues(a: any, classs: any, asMap: boolean = false): any {
-                    if (!a) {
-                        return a;
+	export class DocChangedFile {
+	    path: string;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocChangedFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.status = source["status"];
+	    }
+	}
+	export class DocConversationMessage {
+	    role: string;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocConversationMessage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.role = source["role"];
+	        this.content = source["content"];
+	    }
+	}
+	export class DocGenerationResult {
+	    branch: string;
+	    files: DocChangedFile[];
+	    diff: string;
+	    summary: string;
+	    conversation: DocConversationMessage[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DocGenerationResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.branch = source["branch"];
+	        this.files = this.convertValues(source["files"], DocChangedFile);
+	        this.diff = source["diff"];
+	        this.summary = source["summary"];
+	        this.conversation = this.convertValues(source["conversation"], DocConversationMessage);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
 		    }
 		    if (a.slice && a.map) {
 		        return (a as any[]).map(elem => this.convertValues(elem, classs));

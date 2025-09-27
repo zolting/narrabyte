@@ -5,12 +5,13 @@ export const useDocGenerationManager = () => {
 	const docResult = useDocGenerationStore((s) => s.result);
 	const status = useDocGenerationStore((s) => s.status);
 	const events = useDocGenerationStore((s) => s.events);
-        const startDocGeneration = useDocGenerationStore((s) => s.start);
-        const resetDocGeneration = useDocGenerationStore((s) => s.reset);
-        const commitDocGeneration = useDocGenerationStore((s) => s.commit);
-        const cancelDocGeneration = useDocGenerationStore((s) => s.cancel);
-        const requestDocChanges = useDocGenerationStore((s) => s.requestChanges);
+	const startDocGeneration = useDocGenerationStore((s) => s.start);
+	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
+	const commitDocGeneration = useDocGenerationStore((s) => s.commit);
+	const cancelDocGeneration = useDocGenerationStore((s) => s.cancel);
+	const requestDocChanges = useDocGenerationStore((s) => s.requestChanges);
 	const docGenerationError = useDocGenerationStore((s) => s.error);
+	const pendingUserMessage = useDocGenerationStore((s) => s.pendingUserMessage);
 
 	const [activeTab, setActiveTab] = useState<"activity" | "review" | "summary">(
 		"activity"
@@ -85,10 +86,11 @@ export const useDocGenerationManager = () => {
 		isBusy,
 		hasGenerationAttempt,
 		startDocGeneration,
-                commitDocGeneration,
-                cancelDocGeneration,
-                requestDocChanges,
-                reset,
-                setCompletedCommit,
-        };
+		commitDocGeneration,
+		cancelDocGeneration,
+		requestDocChanges,
+		reset,
+		setCompletedCommit,
+		pendingUserMessage,
+	};
 };

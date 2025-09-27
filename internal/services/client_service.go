@@ -244,7 +244,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 	)
 	if llmResult != nil {
 		summary = llmResult.Summary
-		conversation = convertConversation(llmResult.Messages)
+		conversation = ConvertConversation(llmResult.Messages)
 	}
 	return &models.DocGenerationResult{
 		Branch:       sourceBranch,
@@ -353,7 +353,7 @@ func (s *ClientService) RequestDocChanges(projectID uint, feedback string) (*mod
 	)
 	if llmResult != nil {
 		summary = llmResult.Summary
-		conversation = convertConversation(llmResult.Messages)
+		conversation = ConvertConversation(llmResult.Messages)
 	}
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("RequestDocChanges: completed"))
@@ -633,7 +633,7 @@ func runGitDiff(repoPath string) (string, error) {
 	return diffOutput.String(), nil
 }
 
-func convertConversation(messages []*schema.Message) []models.DocConversationMessage {
+func ConvertConversation(messages []*schema.Message) []models.DocConversationMessage {
 	if len(messages) == 0 {
 		return nil
 	}

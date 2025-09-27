@@ -2,10 +2,10 @@ import type { models } from "@go/models";
 import { create } from "zustand";
 import { type DemoEvent, demoEventSchema } from "@/types/events";
 import {
-        CommitDocs,
-        GenerateDocs,
-        RequestDocChanges,
-        StopStream,
+	CommitDocs,
+	GenerateDocs,
+	RequestDocChanges,
+	StopStream,
 } from "../../wailsjs/go/services/ClientService";
 import { EventsOn } from "../../wailsjs/runtime";
 
@@ -24,14 +24,14 @@ type StartArgs = {
 };
 
 type CommitArgs = {
-        projectId: number;
-        branch: string;
-        files: string[];
+	projectId: number;
+	branch: string;
+	files: string[];
 };
 
 type RequestChangesArgs = {
-        projectId: number;
-        message: string;
+	projectId: number;
+	message: string;
 };
 
 type State = {
@@ -42,9 +42,10 @@ type State = {
 	cancellationRequested: boolean;
 	start: (args: StartArgs) => Promise<void>;
 	reset: () => void;
-        commit: (args: CommitArgs) => Promise<void>;
-        cancel: () => Promise<void>;
-        requestChanges: (args: RequestChangesArgs) => Promise<void>;
+	commit: (args: CommitArgs) => Promise<void>;
+	cancel: () => Promise<void>;
+	requestChanges: (args: RequestChangesArgs) => Promise<void>;
+	pendingUserMessage: models.DocConversationMessage | null;
 };
 
 let unsubscribeTool: (() => void) | null = null;
@@ -79,6 +80,7 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 	result: null,
 	error: null,
 	cancellationRequested: false,
+	pendingUserMessage: null,
 
 	start: async ({ projectId, sourceBranch, targetBranch }: StartArgs) => {
 		if (get().status === "running") {
@@ -91,6 +93,7 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 			result: null,
 			status: "running",
 			cancellationRequested: false,
+			pendingUserMessage: null,
 		});
 
 		unsubscribeTool?.();
@@ -184,134 +187,138 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 		}
 	},
 
-        commit: async ({ projectId, branch, files }: CommitArgs) => {
-                if (get().status === "committing") {
-                        return;
-                }
+	commit: async ({ projectId, branch, files }: CommitArgs) => {
+		if (get().status === "committing") {
+			return;
+		}
 
-                set((state) => ({
-                        error: null,
-                        status: "committing",
-                        events: [
-                                ...state.events,
-                                createLocalEvent(
-                                        "info",
-                                        `Committing documentation updates to ${branch}`
-                                ),
-                        ],
-                }));
+		set((state) => ({
+			error: null,
+			status: "committing",
+			events: [
+				...state.events,
+				createLocalEvent(
+					"info",
+					`Committing documentation updates to ${branch}`
+				),
+			],
+		}));
 
-                try {
-                        await CommitDocs(projectId, branch, files);
-                        set((state) => ({
-                                error: null,
-                                status: "success",
-                                events: [
-                                        ...state.events,
-                                        createLocalEvent(
-                                                "info",
-                                                `Committed documentation changes for ${branch}`
-                                        ),
-                                ],
-                                result: state.result,
-                        }));
-                } catch (error) {
-                        set((state) => ({
-                                error: messageFromError(error),
-                                status: "error",
-                                events: [
-                                        ...state.events,
-                                        createLocalEvent(
-                                                "error",
-                                                `Failed to commit documentation changes: ${messageFromError(error)}`
-                                        ),
-                                ],
-                        }));
-                }
-        },
+		try {
+			await CommitDocs(projectId, branch, files);
+			set((state) => ({
+				error: null,
+				status: "success",
+				events: [
+					...state.events,
+					createLocalEvent(
+						"info",
+						`Committed documentation changes for ${branch}`
+					),
+				],
+				result: state.result,
+			}));
+		} catch (error) {
+			set((state) => ({
+				error: messageFromError(error),
+				status: "error",
+				events: [
+					...state.events,
+					createLocalEvent(
+						"error",
+						`Failed to commit documentation changes: ${messageFromError(error)}`
+					),
+				],
+			}));
+		}
+	},
 
-        requestChanges: async ({ projectId, message }: RequestChangesArgs) => {
-                const trimmed = message.trim();
-                if (trimmed.length === 0 || get().status === "running") {
-                        return;
-                }
+	requestChanges: async ({ projectId, message }: RequestChangesArgs) => {
+		const trimmed = message.trim();
+		if (trimmed.length === 0 || get().status === "running") {
+			return;
+		}
 
-                set({
-                        error: null,
-                        status: "running",
-                        cancellationRequested: false,
-                });
+		set({
+			error: null,
+			status: "running",
+			cancellationRequested: false,
+			pendingUserMessage: {
+				content: trimmed,
+				role: "user",
+			},
+		});
 
-                unsubscribeTool?.();
-                unsubscribeTool = null;
-                unsubscribeDone?.();
-                unsubscribeDone = null;
+		unsubscribeTool?.();
+		unsubscribeTool = null;
+		unsubscribeDone?.();
+		unsubscribeDone = null;
 
-                unsubscribeTool = EventsOn("event:llm:tool", (payload) => {
-                        try {
-                                const evt = demoEventSchema.parse(payload);
-                                set((state) => ({ events: [...state.events, evt] }));
-                        } catch (error) {
-                                console.error("Invalid doc generation tool event", error, payload);
-                        }
-                });
+		unsubscribeTool = EventsOn("event:llm:tool", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				set((state) => ({ events: [...state.events, evt] }));
+			} catch (error) {
+				console.error("Invalid doc generation tool event", error, payload);
+			}
+		});
 
-                unsubscribeDone = EventsOn("events:llm:done", (payload) => {
-                        try {
-                                const evt = demoEventSchema.parse(payload);
-                                set((state) => ({ events: [...state.events, evt] }));
-                        } catch (error) {
-                                console.error("Invalid doc generation done event", error, payload);
-                        }
-                });
+		unsubscribeDone = EventsOn("events:llm:done", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				set((state) => ({ events: [...state.events, evt] }));
+			} catch (error) {
+				console.error("Invalid doc generation done event", error, payload);
+			}
+		});
 
-                try {
-                        const result = await RequestDocChanges(projectId, trimmed);
-                        set({ result, status: "success", cancellationRequested: false });
-                } catch (error) {
-                        const messageFromErr = messageFromError(error);
-                        const normalized = messageFromErr.toLowerCase();
-                        const canceled =
-                                get().cancellationRequested ||
-                                normalized.includes("context canceled") ||
-                                normalized.includes("context cancelled") ||
-                                normalized.includes("cancelled") ||
-                                normalized.includes("canceled");
-                        if (canceled) {
-                                set((state) => ({
-                                        error: null,
-                                        status: "canceled",
-                                        cancellationRequested: false,
-                                        result: state.result,
-                                        events: [
-                                                ...state.events,
-                                                createLocalEvent(
-                                                        "warn",
-                                                        "Documentation generation canceled by user."
-                                                ),
-                                        ],
-                                }));
-                        } else {
-                                set((state) => ({
-                                        error: messageFromErr,
-                                        status: "error",
-                                        cancellationRequested: false,
-                                        result: state.result,
-                                }));
-                        }
-                } finally {
-                        unsubscribeTool?.();
-                        unsubscribeTool = null;
-                        unsubscribeDone?.();
-                        unsubscribeDone = null;
-                        set({ cancellationRequested: false });
-                }
-        },
+		try {
+			const result = await RequestDocChanges(projectId, trimmed);
+			set({ result, status: "success", cancellationRequested: false });
+		} catch (error) {
+			const messageFromErr = messageFromError(error);
+			const normalized = messageFromErr.toLowerCase();
+			const canceled =
+				get().cancellationRequested ||
+				normalized.includes("context canceled") ||
+				normalized.includes("context cancelled") ||
+				normalized.includes("cancelled") ||
+				normalized.includes("canceled");
+			if (canceled) {
+				set((state) => ({
+					error: null,
+					status: "canceled",
+					cancellationRequested: false,
+					result: state.result,
+					events: [
+						...state.events,
+						createLocalEvent(
+							"warn",
+							"Documentation generation canceled by user."
+						),
+					],
+				}));
+			} else {
+				set((state) => ({
+					error: messageFromErr,
+					status: "error",
+					cancellationRequested: false,
+					result: state.result,
+				}));
+			}
+		} finally {
+			unsubscribeTool?.();
+			unsubscribeTool = null;
+			unsubscribeDone?.();
+			unsubscribeDone = null;
+			set({ cancellationRequested: false, pendingUserMessage: null });
+		}
+	},
 
-        reset: () => {
-                unsubscribeTool?.();
-                unsubscribeTool = null;
-                unsubscribeDone?.();
+	reset: () => {
+		unsubscribeTool?.();
+		unsubscribeTool = null;
+		unsubscribeDone?.();
 		unsubscribeDone = null;
 		set({
 			events: [],
@@ -319,6 +326,7 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 			result: null,
 			status: "idle",
 			cancellationRequested: false,
+			pendingUserMessage: null,
 		});
 	},
 }));
