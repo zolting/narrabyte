@@ -210,7 +210,8 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 		ProjectID:         projectID,
 		ProjectName:       project.ProjectName,
 		CodebasePath:      codeRoot,
-		DocumentationPath: tempDocRoot, // Use temporary workspace
+		DocumentationPath: docRoot,
+		WorkspacePath:     tempDocRoot, // Use temporary workspace for generation
 		SourceBranch:      sourceBranch,
 		TargetBranch:      targetBranch,
 		SourceCommit:      sourceHash.String(),

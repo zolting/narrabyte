@@ -11,6 +11,7 @@ func TestCloneDocGenerationRequestOverridesPaths(t *testing.T) {
 		ProjectID:         42,
 		ProjectName:       "demo",
 		DocumentationPath: "/docs/original",
+		WorkspacePath:     "/docs/workspace",
 		CodebasePath:      "/code/original",
 		SourceBranch:      "main",
 		TargetBranch:      "docs",
@@ -19,7 +20,7 @@ func TestCloneDocGenerationRequestOverridesPaths(t *testing.T) {
 		ChangedFiles:      []string{"a.md", "b.md"},
 	}
 
-	cloned := client.CloneDocGenerationRequest(original, "/docs/override", "/code/override")
+	cloned := client.CloneDocGenerationRequest(original, "/docs/override", "/code/override", "/docs/override")
 	if cloned == original {
 		t.Fatalf("expected clone to produce a new pointer")
 	}
@@ -30,6 +31,9 @@ func TestCloneDocGenerationRequestOverridesPaths(t *testing.T) {
 	if cloned.CodebasePath != "/code/override" {
 		t.Fatalf("expected code path override, got %q", cloned.CodebasePath)
 	}
+	if cloned.WorkspacePath != "/docs/override" {
+		t.Fatalf("expected workspace path override, got %q", cloned.WorkspacePath)
+	}
 
 	// Mutate clone slices to ensure deep copy semantics.
 	cloned.ChangedFiles[0] = "changed.md"
@@ -39,7 +43,7 @@ func TestCloneDocGenerationRequestOverridesPaths(t *testing.T) {
 }
 
 func TestCloneDocGenerationRequestNil(t *testing.T) {
-	if client.CloneDocGenerationRequest(nil, "", "") != nil {
+	if client.CloneDocGenerationRequest(nil, "", "", "") != nil {
 		t.Fatalf("expected nil request to remain nil")
 	}
 }
@@ -88,6 +92,7 @@ func TestOpenAIClientDocSessionIsolation(t *testing.T) {
 		Request: &client.DocGenerationRequest{
 			ProjectID:         7,
 			DocumentationPath: "/docs",
+			WorkspacePath:     "/docs/workspace",
 			CodebasePath:      "/code",
 			SourceBranch:      "feature",
 			TargetBranch:      "main",
@@ -118,6 +123,9 @@ func TestOpenAIClientDocSessionIsolation(t *testing.T) {
 	req := c.DocSessionRequest()
 	if req.DocumentationPath != "/docs" {
 		t.Fatalf("expected stored documentation path to remain '/docs', got %q", req.DocumentationPath)
+	}
+	if req.WorkspacePath != "/docs/workspace" {
+		t.Fatalf("expected stored workspace path to remain '/docs/workspace', got %q", req.WorkspacePath)
 	}
 
 	msgs := c.DocConversationMessages()

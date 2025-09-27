@@ -52,6 +52,7 @@ type DocGenerationRequest struct {
 	ProjectName       string
 	CodebasePath      string
 	DocumentationPath string
+	WorkspacePath     string
 	SourceBranch      string
 	TargetBranch      string
 	SourceCommit      string
@@ -75,13 +76,13 @@ func (s *DocSessionState) clone() *DocSessionState {
 		return nil
 	}
 	return &DocSessionState{
-		Request:      CloneDocGenerationRequest(s.Request, "", ""),
+		Request:      CloneDocGenerationRequest(s.Request, "", "", ""),
 		SystemPrompt: s.SystemPrompt,
 		Messages:     CloneMessages(s.Messages),
 	}
 }
 
-func CloneDocGenerationRequest(req *DocGenerationRequest, docRoot, codeRoot string) *DocGenerationRequest {
+func CloneDocGenerationRequest(req *DocGenerationRequest, docRoot, codeRoot, workspaceRoot string) *DocGenerationRequest {
 	if req == nil {
 		return nil
 	}
@@ -91,6 +92,9 @@ func CloneDocGenerationRequest(req *DocGenerationRequest, docRoot, codeRoot stri
 	}
 	if codeRoot != "" {
 		copyReq.CodebasePath = codeRoot
+	}
+	if workspaceRoot != "" {
+		copyReq.WorkspacePath = workspaceRoot
 	}
 	if len(req.ChangedFiles) > 0 {
 		copyReq.ChangedFiles = append([]string(nil), req.ChangedFiles...)
@@ -171,7 +175,7 @@ func (o *OpenAIClient) DocSessionRequest() *DocGenerationRequest {
 	if snapshot == nil {
 		return nil
 	}
-	return CloneDocGenerationRequest(snapshot.Request, "", "")
+	return CloneDocGenerationRequest(snapshot.Request, "", "", "")
 }
 
 func (o *OpenAIClient) DocConversationMessages() []*schema.Message {
@@ -349,13 +353,25 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	if req == nil {
 		return nil, fmt.Errorf("Request is required")
 	}
-	if strings.TrimSpace(req.DocumentationPath) == "" {
-		return nil, fmt.Errorf("documentation path is required")
+	workspaceRoot := strings.TrimSpace(req.WorkspacePath)
+	if workspaceRoot == "" {
+		workspaceRoot = strings.TrimSpace(req.DocumentationPath)
+	}
+	if workspaceRoot == "" {
+		return nil, fmt.Errorf("documentation workspace path is required")
 	}
 	if strings.TrimSpace(req.CodebasePath) == "" {
 		return nil, fmt.Errorf("codebase path is required")
 	}
-	docRoot, err := filepath.Abs(req.DocumentationPath)
+	workspaceAbs, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	docRootRaw := strings.TrimSpace(req.DocumentationPath)
+	if docRootRaw == "" {
+		docRootRaw = workspaceAbs
+	}
+	docRoot, err := filepath.Abs(docRootRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -363,19 +379,19 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	if err != nil {
 		return nil, err
 	}
-	o.docRoot = docRoot
+	o.docRoot = workspaceAbs
 	o.codeRoot = codeRoot
 	o.sourceBranch = strings.TrimSpace(req.SourceBranch)
 	o.targetBranch = strings.TrimSpace(req.TargetBranch)
 	o.sourceCommit = strings.TrimSpace(req.SourceCommit)
 	o.targetCommit = ""
-	o.SetListDirectoryBaseRoot(docRoot)
+	o.SetListDirectoryBaseRoot(workspaceAbs)
 
 	if err := o.prepareSnapshots(ctx); err != nil {
 		return nil, err
 	}
 
-	docListing, err := o.captureListing(ctx, docRoot)
+	docListing, err := o.captureListing(ctx, workspaceAbs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list documentation root: %w", err)
 	}
@@ -384,7 +400,7 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 		return nil, fmt.Errorf("failed to list codebase root: %w", err)
 	}
 
-	toolsForSession, err := o.initDocumentationTools(docRoot, codeRoot)
+	toolsForSession, err := o.initDocumentationTools(workspaceAbs, codeRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +444,7 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	}
 	promptBuilder.WriteString(fmt.Sprintf("Target branch: %s\n\n", strings.TrimSpace(req.TargetBranch)))
 	promptBuilder.WriteString("Documentation repository root: \n")
-	promptBuilder.WriteString(filepath.ToSlash(docRoot))
+	promptBuilder.WriteString(filepath.ToSlash(workspaceAbs))
 	promptBuilder.WriteString("\n\n")
 	promptBuilder.WriteString("Codebase repository root: \n")
 	promptBuilder.WriteString(filepath.ToSlash(codeRoot))
@@ -448,7 +464,7 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 
 	initialMessages := []*schema.Message{schema.UserMessage(promptBuilder.String())}
 	session := &DocSessionState{
-		Request:      CloneDocGenerationRequest(req, docRoot, codeRoot),
+		Request:      CloneDocGenerationRequest(req, docRoot, codeRoot, docRoot),
 		SystemPrompt: systemPrompt,
 		Messages:     CloneMessages(initialMessages),
 	}
@@ -506,11 +522,28 @@ func (o *OpenAIClient) ApplyDocFeedback(ctx context.Context, feedback string) (*
 
 	docRoot := strings.TrimSpace(session.Request.DocumentationPath)
 	codeRoot := strings.TrimSpace(session.Request.CodebasePath)
-	if docRoot == "" || codeRoot == "" {
+	workspaceRoot := strings.TrimSpace(session.Request.WorkspacePath)
+	if workspaceRoot == "" {
+		workspaceRoot = docRoot
+	}
+	if docRoot == "" || codeRoot == "" || workspaceRoot == "" {
 		return nil, fmt.Errorf("documentation session paths are not available")
 	}
 
-	toolsForSession, err := o.initDocumentationTools(docRoot, codeRoot)
+	docRootAbs, err := filepath.Abs(docRoot)
+	if err != nil {
+		return nil, err
+	}
+	workspaceAbs, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	codeRootAbs, err := filepath.Abs(codeRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	toolsForSession, err := o.initDocumentationTools(workspaceAbs, codeRootAbs)
 	if err != nil {
 		return nil, err
 	}
@@ -576,7 +609,7 @@ func (o *OpenAIClient) ApplyDocFeedback(ctx context.Context, feedback string) (*
 	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
 
 	updatedSession := &DocSessionState{
-		Request:      CloneDocGenerationRequest(session.Request, docRoot, codeRoot),
+		Request:      CloneDocGenerationRequest(session.Request, docRootAbs, codeRootAbs, workspaceAbs),
 		SystemPrompt: systemPrompt,
 		Messages:     conversation,
 	}
