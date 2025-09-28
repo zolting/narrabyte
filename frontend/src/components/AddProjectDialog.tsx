@@ -61,6 +61,7 @@ export default function AddProjectDialog({
 			setName("");
 			setDocDirectory("");
 			setCodebaseDirectory("");
+			setLlmInstructions("");
 			setInitFumaDocs(false);
 		}
 	}, [open]);
