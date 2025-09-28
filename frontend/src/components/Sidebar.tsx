@@ -57,11 +57,11 @@ function AppSidebarContent() {
 		codebaseDirectory: string;
 	}) => {
 		if (!(data.docDirectory && data.codebaseDirectory)) {
-            toast(t("home.selectBothDirectories"));
+			toast(t("home.selectBothDirectories"));
 			return false;
 		}
 		if (!data.name) {
-            toast(t("home.projectNameRequired"));
+			toast(t("home.projectNameRequired"));
 			return false;
 		}
 		return true;
@@ -69,7 +69,7 @@ function AppSidebarContent() {
 
 	// Helper function to handle successful project linking
 	const handleSuccess = () => {
-        toast(t("home.linkSuccess"));
+		toast(t("home.linkSuccess"));
 		setIsAddProjectOpen(false);
 		loadProjects();
 	};
@@ -81,7 +81,8 @@ function AppSidebarContent() {
 			name: string;
 			docDirectory: string;
 			codebaseDirectory: string;
-            initFumaDocs: boolean;
+			initFumaDocs: boolean;
+			llmInstructions?: string;
 		}
 	) => {
 		const errorMsg = error instanceof Error ? error.message : String(error);
@@ -108,12 +109,13 @@ function AppSidebarContent() {
 				data.name,
 				data.docDirectory,
 				data.codebaseDirectory,
-                data.initFumaDocs
+				data.initFumaDocs,
+				data.llmInstructions ?? ""
 			);
 			return true;
 		} catch (initError) {
 			console.error("Error initializing git repo:", initError);
-            toast(t("home.initGitError"));
+			toast(t("home.initGitError"));
 			return false;
 		}
 	};
@@ -121,14 +123,15 @@ function AppSidebarContent() {
 	// Helper function to handle general errors
 	const handleError = (error: unknown) => {
 		console.error("Error linking repositories:", error);
-        toast(t("home.linkError"));
+		toast(t("home.linkError"));
 	};
 
 	const handleAddProject = async (data: {
 		name: string;
 		docDirectory: string;
 		codebaseDirectory: string;
-        initFumaDocs: boolean;
+		initFumaDocs: boolean;
+		llmInstructions?: string;
 	}) => {
 		if (!validateProjectData(data)) {
 			return;
@@ -139,7 +142,8 @@ function AppSidebarContent() {
 				data.name,
 				data.docDirectory,
 				data.codebaseDirectory,
-                data.initFumaDocs
+				data.initFumaDocs,
+				data.llmInstructions ?? ""
 			);
 			handleSuccess();
 		} catch (error) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import DirectoryPicker from "@/components/DirectoryPicker";
+import FilePicker from "@/components/FilePicker";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -19,6 +20,7 @@ type AddProjectDialogProps = {
 		docDirectory: string;
 		codebaseDirectory: string;
 		initFumaDocs: boolean;
+		llmInstructions?: string;
 	}) => void;
 };
 
@@ -31,6 +33,7 @@ export default function AddProjectDialog({
 	const [name, setName] = useState("");
 	const [docDirectory, setDocDirectory] = useState("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState("");
+	const [llmInstructions, setLlmInstructions] = useState("");
 	const [initFumaDocs, setInitFumaDocs] = useState<boolean>(false);
 
 	const computedDocDirectory = () => {
@@ -49,6 +52,7 @@ export default function AddProjectDialog({
 			docDirectory: computedDocDirectory(),
 			codebaseDirectory,
 			initFumaDocs,
+			llmInstructions: llmInstructions?.trim() ? llmInstructions : undefined,
 		});
 	};
 
@@ -57,6 +61,7 @@ export default function AddProjectDialog({
 			setName("");
 			setDocDirectory("");
 			setCodebaseDirectory("");
+			setLlmInstructions("");
 			setInitFumaDocs(false);
 		}
 	}, [open]);
@@ -141,6 +146,34 @@ export default function AddProjectDialog({
 						/>
 						{codebaseDirectory && (
 							<div className="mt-1 text-xs">{codebaseDirectory}</div>
+						)}
+					</div>
+
+					<div>
+						<label
+							className="mb-1 block font-medium text-foreground"
+							htmlFor="llm-instructions"
+						>
+							{t("projectManager.llmInstructions")}
+						</label>
+						<FilePicker
+							accept={{
+								label: "LLM Prompt",
+								extensions: [
+									"md",
+									"mdx",
+									"txt",
+									"json",
+									"yaml",
+									"yml",
+									"prompt",
+								],
+							}}
+							id="llm-instructions"
+							onFileSelected={setLlmInstructions}
+						/>
+						{llmInstructions && (
+							<div className="mt-1 text-xs">{llmInstructions}</div>
 						)}
 					</div>
 

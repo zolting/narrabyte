@@ -6,8 +6,8 @@ export function Get(arg1) {
   return window['go']['services']['repoLinkService']['Get'](arg1);
 }
 
-export function LinkRepositories(arg1, arg2, arg3, arg4) {
-  return window['go']['services']['repoLinkService']['LinkRepositories'](arg1, arg2, arg3, arg4);
+export function LinkRepositories(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['services']['repoLinkService']['LinkRepositories'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function List(arg1, arg2) {
