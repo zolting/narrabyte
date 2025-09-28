@@ -6,6 +6,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"narrabyte/internal/events"
 	"narrabyte/internal/llm/client"
 	"narrabyte/internal/models"
@@ -504,8 +506,100 @@ func createTempDocRepo(ctx context.Context, sourceRepoPath, branch string, baseH
 		return "", nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
 	}
 
+	if err := copyNarrabyteDir(ctx, sourceRepoPath, tempPath); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Temporary docs workspace ready: branch '%s' at %s", branch, tempPath)))
 	return tempPath, cleanup, nil
+}
+
+func copyNarrabyteDir(ctx context.Context, sourceRepoPath, tempPath string) error {
+	sourceDir := filepath.Join(sourceRepoPath, ".narrabyte")
+	info, err := os.Stat(sourceDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read .narrabyte instructions: %w", err)
+	}
+	if !info.IsDir() {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(".narrabyte exists but is not a directory; skipping copy"))
+		return nil
+	}
+
+	destDir := filepath.Join(tempPath, ".narrabyte")
+	if err := os.RemoveAll(destDir); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to reset temp instructions directory: %w", err)
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Copying .narrabyte instructions into temporary docs workspace"))
+
+	if err := filepath.WalkDir(sourceDir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(destDir, rel)
+		entryInfo, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			mode := entryInfo.Mode().Perm()
+			if rel == "." {
+				return os.MkdirAll(destDir, mode)
+			}
+			return os.MkdirAll(target, mode)
+		}
+
+		sourceFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		targetFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		if err != nil {
+			sourceFile.Close()
+			return err
+		}
+		if _, err := io.Copy(targetFile, sourceFile); err != nil {
+			targetFile.Close()
+			sourceFile.Close()
+			return err
+		}
+		if err := targetFile.Close(); err != nil {
+			sourceFile.Close()
+			return err
+		}
+		if err := sourceFile.Close(); err != nil {
+			return err
+		}
+		return os.Chmod(target, entryInfo.Mode())
+	}); err != nil {
+		return fmt.Errorf("failed to copy .narrabyte instructions: %w", err)
+	}
+
+	return nil
+}
+
+func removeNarrabyteDir(ctx context.Context, tempPath string) error {
+	dir := filepath.Join(tempPath, ".narrabyte")
+	if !utils.DirectoryExists(dir) {
+		return nil
+	}
+
+	if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to clean temp instructions directory: %w", err)
+	}
+	if utils.DirectoryExists(dir) {
+		return fmt.Errorf("failed to remove temp instructions directory: %s", dir)
+	}
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Removed temporary .narrabyte instructions"))
+	return nil
 }
 
 // propagateDocChanges commits all changes in the temp repository and updates
@@ -523,6 +617,10 @@ func propagateDocChanges(ctx context.Context, tempRepoPath string, mainRepo *git
 	tempWT, err := tempRepo.Worktree()
 	if err != nil {
 		return fmt.Errorf("failed to get temp repository worktree: %w", err)
+	}
+
+	if err := removeNarrabyteDir(ctx, tempRepoPath); err != nil {
+		return err
 	}
 
 	// Check if there are any changes to commit
