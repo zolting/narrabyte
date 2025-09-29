@@ -1,6 +1,6 @@
 import type { models } from "@go/models";
 import { Get } from "@go/services/repoLinkService";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButtons } from "@/components/ActionButtons";
@@ -8,10 +8,11 @@ import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
 import { GenerationTabs } from "@/components/GenerationTabs";
 import { SuccessPanel } from "@/components/SuccessPanel";
+import { Button } from "@/components/ui/button";
 import { useBranchManager } from "@/hooks/useBranchManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 
-export const Route = createFileRoute("/projects/$projectId")({
+export const Route = createFileRoute("/projects/$projectId/")({
 	component: ProjectDetailPage,
 });
 
@@ -25,6 +26,7 @@ function ProjectDetailPage() {
 	const repoPath = project?.CodebaseRepo;
 	const branchManager = useBranchManager(repoPath);
 	const docManager = useDocGenerationManager();
+	const navigate = useNavigate();
 
 	// Load project data
 	useEffect(() => {
@@ -38,7 +40,7 @@ function ProjectDetailPage() {
 			})
 			.finally(() => {
 				setLoading(false);
-			});
+			})
 	}, [projectId]);
 
 	// Reset everything when component mounts
@@ -62,8 +64,8 @@ function ProjectDetailPage() {
 		if (docManager.status === "success" && docManager.commitCompleted) {
 			docManager.setCompletedCommit(
 				branchManager.sourceBranch || "",
-				branchManager.targetBranch || ""
-			);
+				branchManager.targetBranch || "",
+			)
 		}
 	}, [
 		docManager.status,
@@ -71,7 +73,7 @@ function ProjectDetailPage() {
 		branchManager.sourceBranch,
 		branchManager.targetBranch,
 		docManager.setCompletedCommit,
-	]);
+	])
 
 	const canGenerate = useMemo(
 		() =>
@@ -80,15 +82,15 @@ function ProjectDetailPage() {
 					branchManager.sourceBranch &&
 					branchManager.targetBranch &&
 					branchManager.sourceBranch !== branchManager.targetBranch &&
-					!docManager.isBusy
+					!docManager.isBusy,
 			),
 		[
 			docManager.isBusy,
 			project,
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
-		]
-	);
+		],
+	)
 
 	const canCommit = useMemo(() => {
 		if (!(project && docManager.docResult)) {
@@ -102,7 +104,7 @@ function ProjectDetailPage() {
 		if (
 			!(project && branchManager.sourceBranch && branchManager.targetBranch)
 		) {
-			return;
+			return
 		}
 		branchManager.setSourceOpen(false);
 		branchManager.setTargetOpen(false);
@@ -111,27 +113,27 @@ function ProjectDetailPage() {
 			projectId: Number(project.ID),
 			sourceBranch: branchManager.sourceBranch,
 			targetBranch: branchManager.targetBranch,
-		});
+		})
 	}, [project, branchManager, docManager]);
 
 	const handleCommit = useCallback(() => {
 		if (!(project && docManager.docResult)) {
-			return;
+			return
 		}
 		const files = (docManager.docResult.files ?? [])
 			.map((file) => file.path)
 			.filter((path): path is string =>
-				Boolean(path && path.trim().length > 0)
-			);
+				Boolean(path && path.trim().length > 0),
+			)
 		if (files.length === 0) {
-			return;
+			return
 		}
 		docManager.setActiveTab("activity");
 		docManager.commitDocGeneration({
 			projectId: Number(project.ID),
 			branch: docManager.docResult.branch,
 			files,
-		});
+		})
 	}, [docManager, project]);
 
 	const handleReset = useCallback(() => {
@@ -154,14 +156,24 @@ function ProjectDetailPage() {
 			<div className="p-2 text-muted-foreground text-sm">
 				Project not found: {projectId}
 			</div>
-		);
+		)
 	}
 
 	return (
 		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
-			<h1 className="shrink-0 text-center font-semibold text-foreground text-xl">
-				{project.ProjectName}
-			</h1>
+			<div className="flex shrink-0 items-center justify-between">
+				<h1 className="flex-1 text-center font-semibold text-foreground text-xl">
+					{project.ProjectName}
+				</h1>
+
+				<Button
+					onClick={() => navigate({ to: `/projects/${projectId}/settings` })}
+					variant="outline"
+					size="sm"
+				>
+					{t("common.settings")}
+				</Button>
+			</div>
 			<section
 				className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4"
 				ref={containerRef}
@@ -184,7 +196,7 @@ function ProjectDetailPage() {
 									onStartNewTask={handleStartNewTask}
 									sourceBranch={branchManager.sourceBranch}
 								/>
-							);
+							)
 						}
 
 						if (docManager.hasGenerationAttempt) {
@@ -193,7 +205,7 @@ function ProjectDetailPage() {
 									sourceBranch={branchManager.sourceBranch}
 									targetBranch={branchManager.targetBranch}
 								/>
-							);
+							)
 						}
 
 						return (
@@ -211,7 +223,7 @@ function ProjectDetailPage() {
 								targetBranch={branchManager.targetBranch}
 								targetOpen={branchManager.targetOpen}
 							/>
-						);
+						)
 					})()}
 
 					{docManager.hasGenerationAttempt && (
@@ -241,5 +253,5 @@ function ProjectDetailPage() {
 				)}
 			</section>
 		</div>
-	);
+	)
 }

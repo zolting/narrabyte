@@ -3,7 +3,11 @@
 import {models} from '../models';
 import {context} from '../models';
 
+export function CheckLLMInstructions(arg1:number):Promise<boolean>;
+
 export function Get(arg1:number):Promise<models.RepoLink>;
+
+export function ImportLLMInstructions(arg1:number,arg2:string):Promise<void>;
 
 export function LinkRepositories(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:string):Promise<void>;
 
@@ -12,3 +16,5 @@ export function List(arg1:number,arg2:number):Promise<Array<models.RepoLink>>;
 export function Register(arg1:string,arg2:string,arg3:string):Promise<models.RepoLink>;
 
 export function Startup(arg1:context.Context):Promise<void>;
+
+export function UpdateProjectPaths(arg1:number,arg2:string,arg3:string):Promise<void>;

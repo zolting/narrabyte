@@ -110,5 +110,30 @@
     "errSavingKey": "Error saving key",
     "addApiKey": "Add API key",
     "existingKeys": "Existing Keys"
+  },
+  "projectSettings": {
+    "title": "Project Settings",
+    "subtitle": "Configure repository paths and LLM instructions for this project",
+    "repositoryPaths": "Repository Paths",
+    "documentationRepo": "Documentation Repository",
+    "codebaseRepo": "Codebase Repository",
+    "currentPath": "Current path",
+    "newPath": "New path",
+    "savePaths": "Save Paths",
+    "saving": "Saving...",
+    "pathsUpdated": "Paths updated successfully!",
+    "pathsUpdateError": "Failed to update paths",
+    "llmInstructions": "LLM Instructions",
+    "llmInstructionsStatus": "LLM instructions file",
+    "detected": "Detected",
+    "notDetected": "Not detected",
+    "llmInstructionsDescription": "Import a custom LLM instructions file that will be copied to .narrabyte/llm_instructions.md in your documentation repository.",
+    "import": "Import",
+    "importConfirm": "Import File",
+    "importing": "Importing...",
+    "selected": "Selected",
+    "llmInstructionsImported": "LLM instructions imported successfully!",
+    "llmInstructionsImportError": "Failed to import LLM instructions",
+    "loadError": "Failed to load project"
   }
 }
