@@ -37,3 +37,7 @@ export function Startup(arg1) {
 export function UpdateProjectPaths(arg1, arg2, arg3) {
   return window['go']['services']['repoLinkService']['UpdateProjectPaths'](arg1, arg2, arg3);
 }
+
+export function ValidateDirectory(arg1) {
+  return window['go']['services']['repoLinkService']['ValidateDirectory'](arg1);
+}

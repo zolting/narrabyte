@@ -143,6 +143,13 @@
     "llmInstructionsImported": "LLM instructions imported successfully!",
     "llmInstructionsImportError": "Failed to import LLM instructions",
     "loadError": "Failed to load project",
-    "deleteProject": "Delete Project"
+    "deleteProject": "Delete Project",
+    "noGitRepoDoc": "Documentation directory does not have an initialized git repository",
+    "noGitRepoCodebase": "Codebase directory does not have an initialized git repository",
+    "noGitRepoFound": "No initialized git repository found in this directory",
+    "dirNotExist": "Directory does not exist",
+    "docDirNotExist": "Documentation directory does not exist",
+    "codebaseDirNotExist": "Codebase directory does not exist",
+    "validationFailed": "Failed to validate directory"
   }
 }

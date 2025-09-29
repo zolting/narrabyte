@@ -15,6 +15,11 @@ import (
 
 const llmInstructionsBaseName = "llm_instructions"
 
+type DirectoryValidationResult struct {
+	IsValid      bool   `json:"isValid"`
+	ErrorMessage string `json:"errorMessage"`
+}
+
 type RepoLinkService interface {
 	Register(projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error)
 	Get(id uint) (*models.RepoLink, error)
@@ -25,6 +30,7 @@ type RepoLinkService interface {
 	UpdateProjectPaths(id uint, docRepo, codebaseRepo string) error
 	ImportLLMInstructions(id uint, llmInstructionsPath string) error
 	Delete(id uint) error
+	ValidateDirectory(path string) (*DirectoryValidationResult, error)
 }
 
 type repoLinkService struct {
@@ -253,4 +259,33 @@ func (s *repoLinkService) ImportLLMInstructions(id uint, llmInstructionsPath str
 // Delete deletes a project by ID
 func (s *repoLinkService) Delete(id uint) error {
 	return s.repoLinks.Delete(context.Background(), id)
+}
+
+// ValidateDirectory validates if a directory exists and has a git repository
+func (s *repoLinkService) ValidateDirectory(path string) (*DirectoryValidationResult, error) {
+	if path == "" {
+		return &DirectoryValidationResult{
+			IsValid:      false,
+			ErrorMessage: "Directory path is empty",
+		}, nil
+	}
+
+	if !utils.DirectoryExists(path) {
+		return &DirectoryValidationResult{
+			IsValid:      false,
+			ErrorMessage: "Directory does not exist",
+		}, nil
+	}
+
+	if !utils.HasGitRepo(path) {
+		return &DirectoryValidationResult{
+			IsValid:      false,
+			ErrorMessage: "No initialized git repository found in this directory",
+		}, nil
+	}
+
+	return &DirectoryValidationResult{
+		IsValid:      true,
+		ErrorMessage: "",
+	}, nil
 }

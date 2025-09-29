@@ -5,9 +5,10 @@ import {
 	Get,
 	ImportLLMInstructions,
 	UpdateProjectPaths,
+	ValidateDirectory,
 } from "@go/services/repoLinkService";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -42,6 +43,12 @@ function ProjectSettings() {
 	const [llmInstructionsFile, setLlmInstructionsFile] = useState("");
 	const [saving, setSaving] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+	const [docValidationError, setDocValidationError] = useState<string | null>(
+		null
+	);
+	const [codebaseValidationError, setCodebaseValidationError] = useState<
+		string | null
+	>(null);
 
 	useEffect(() => {
 		const loadProject = async () => {
@@ -77,12 +84,33 @@ function ProjectSettings() {
 				codebaseDirectory
 			);
 			toast.success(t("projectSettings.pathsUpdated"));
+			// Clear validation errors
+			setDocValidationError(null);
+			setCodebaseValidationError(null);
 			// Reload project
 			const updated = (await Get(Number(projectId))) as models.RepoLink;
 			setProject(updated);
 		} catch (error) {
 			console.error("Failed to update paths:", error);
-			toast.error(t("projectSettings.pathsUpdateError"));
+
+			// Parse error message for better user feedback
+			const errorMessage = error instanceof Error ? error.message : String(error);
+
+			if (errorMessage.includes("missing_git_repo: documentation")) {
+				toast.error(t("projectSettings.noGitRepoDoc"));
+				setDocValidationError(t("projectSettings.noGitRepoFound"));
+			} else if (errorMessage.includes("missing_git_repo: codebase")) {
+				toast.error(t("projectSettings.noGitRepoCodebase"));
+				setCodebaseValidationError(t("projectSettings.noGitRepoFound"));
+			} else if (errorMessage.includes("documentation repo path does not exist")) {
+				toast.error(t("projectSettings.docDirNotExist"));
+				setDocValidationError(t("projectSettings.dirNotExist"));
+			} else if (errorMessage.includes("codebase repo path does not exist")) {
+				toast.error(t("projectSettings.codebaseDirNotExist"));
+				setCodebaseValidationError(t("projectSettings.dirNotExist"));
+			} else {
+				toast.error(t("projectSettings.pathsUpdateError"));
+			}
 		} finally {
 			setSaving(false);
 		}
@@ -124,10 +152,47 @@ function ProjectSettings() {
 		}
 	};
 
+	const handleDocDirectoryChange = async (path: string) => {
+		setDocDirectory(path);
+		setDocValidationError(null);
+
+		if (path && path !== project?.DocumentationRepo) {
+			try {
+				const result = await ValidateDirectory(path);
+				if (!result.isValid) {
+					setDocValidationError(result.errorMessage);
+				}
+			} catch (error) {
+				console.error("Failed to validate documentation directory:", error);
+				setDocValidationError(t("projectSettings.validationFailed"));
+			}
+		}
+	};
+
+	const handleCodebaseDirectoryChange = async (path: string) => {
+		setCodebaseDirectory(path);
+		setCodebaseValidationError(null);
+
+		if (path && path !== project?.CodebaseRepo) {
+			try {
+				const result = await ValidateDirectory(path);
+				if (!result.isValid) {
+					setCodebaseValidationError(result.errorMessage);
+				}
+			} catch (error) {
+				console.error("Failed to validate codebase directory:", error);
+				setCodebaseValidationError(t("projectSettings.validationFailed"));
+			}
+		}
+	};
+
 	const pathsChanged =
 		project &&
 		(docDirectory !== project.DocumentationRepo ||
 			codebaseDirectory !== project.CodebaseRepo);
+
+	const hasValidationErrors =
+		docValidationError !== null || codebaseValidationError !== null;
 
 	if (loading) {
 		return <div className="p-8 text-muted-foreground">Loading...</div>;
@@ -176,14 +241,24 @@ function ProjectSettings() {
 									{t("projectSettings.currentPath")}:{" "}
 									{project.DocumentationRepo}
 								</div>
-								<DirectoryPicker onDirectorySelected={setDocDirectory} />
+								<DirectoryPicker
+									onDirectorySelected={handleDocDirectoryChange}
+								/>
 								{docDirectory !== project.DocumentationRepo && (
-									<div className="rounded bg-background p-2 text-xs">
-										<span className="text-muted-foreground">
-											{t("projectSettings.newPath")}:{" "}
-										</span>
-										<span className="font-medium">{docDirectory}</span>
-									</div>
+									<>
+										<div className="rounded bg-background p-2 text-xs">
+											<span className="text-muted-foreground">
+												{t("projectSettings.newPath")}:{" "}
+											</span>
+											<span className="font-medium">{docDirectory}</span>
+										</div>
+										{docValidationError && (
+											<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
+												<TriangleAlert size={14} />
+												<span>{docValidationError}</span>
+											</div>
+										)}
+									</>
 								)}
 							</div>
 
@@ -197,21 +272,31 @@ function ProjectSettings() {
 								<div className="text-muted-foreground text-xs">
 									{t("projectSettings.currentPath")}: {project.CodebaseRepo}
 								</div>
-								<DirectoryPicker onDirectorySelected={setCodebaseDirectory} />
+								<DirectoryPicker
+									onDirectorySelected={handleCodebaseDirectoryChange}
+								/>
 								{codebaseDirectory !== project.CodebaseRepo && (
-									<div className="rounded bg-background p-2 text-xs">
-										<span className="text-muted-foreground">
-											{t("projectSettings.newPath")}:{" "}
-										</span>
-										<span className="font-medium">{codebaseDirectory}</span>
-									</div>
+									<>
+										<div className="rounded bg-background p-2 text-xs">
+											<span className="text-muted-foreground">
+												{t("projectSettings.newPath")}:{" "}
+											</span>
+											<span className="font-medium">{codebaseDirectory}</span>
+										</div>
+										{codebaseValidationError && (
+											<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
+												<TriangleAlert size={14} />
+												<span>{codebaseValidationError}</span>
+											</div>
+										)}
+									</>
 								)}
 							</div>
 
 							{pathsChanged && (
 								<Button
 									className="w-full"
-									disabled={saving}
+									disabled={saving || hasValidationErrors}
 									onClick={handleSavePaths}
 									size="lg"
 								>
