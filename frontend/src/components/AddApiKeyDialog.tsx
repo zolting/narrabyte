@@ -20,7 +20,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 
-const PROVIDERS = [
+export const PROVIDERS = [
 	{ name: "openai", key: "OpenAI" },
 	{ name: "openrouter", key: "OpenRouter" },
 ];
@@ -58,13 +58,6 @@ export default function AddApiKeyDialog({
 
 	useEffect(() => {
 		if (open) {
-			// Set provider if editing
-			if (editProvider) {
-				setProvider(editProvider);
-			} else {
-				setProvider(PROVIDERS[0].name);
-			}
-
 			// Load existing keys
 			ListApiKeys()
 				.then((keys: Record<string, string>[]) => {
@@ -75,6 +68,20 @@ export default function AddApiKeyDialog({
 						description: key.description,
 					}));
 					setExistingKeys(apiKeys);
+
+					// Set provider if editing
+					if (editProvider) {
+						setProvider(editProvider);
+					} else {
+						// Find first available provider that doesn't have a key
+						const existingProviders = new Set(apiKeys.map((k) => k.provider));
+						const availableProvider = PROVIDERS.find(
+							(p) => !existingProviders.has(p.name)
+						);
+						if (availableProvider) {
+							setProvider(availableProvider.name);
+						}
+					}
 				})
 				.catch((err: Error) => console.error("Failed to fetch API keys:", err));
 		}
@@ -108,18 +115,6 @@ export default function AddApiKeyDialog({
 					</DialogTitle>
 				</DialogHeader>
 
-				{/* Existing keys list - only show when adding */}
-				{!isEditing && existingKeys.length > 0 && (
-					<div className="mb-4">
-						<p className="font-medium text-sm">{t("apiDialog.existingKeys")}</p>
-						<ul className="list-disc pl-4 text-gray-700 text-sm dark:text-gray-300">
-							{existingKeys.map((k) => (
-								<li key={k.provider}>{k.provider}</li>
-							))}
-						</ul>
-					</div>
-				)}
-
 				<form className="space-y-4" onSubmit={handleSubmit}>
 					<div className="space-y-2">
 						<Label htmlFor={providerId}>Provider</Label>
@@ -132,7 +127,14 @@ export default function AddApiKeyDialog({
 								<SelectValue placeholder="Select provider" />
 							</SelectTrigger>
 							<SelectContent>
-								{PROVIDERS.map((p) => (
+								{PROVIDERS.filter((p) => {
+									// When editing, only show the current provider
+									if (isEditing) {
+										return p.name === editProvider;
+									}
+									// When adding, only show providers that don't have keys yet
+									return !existingKeys.some((k) => k.provider === p.name);
+								}).map((p) => (
 									<SelectItem key={p.name} value={p.name}>
 										{p.key}
 									</SelectItem>

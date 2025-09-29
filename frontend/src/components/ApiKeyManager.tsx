@@ -7,6 +7,7 @@ import { Eye, EyeOff, Pencil, Plus, Trash2 } from "lucide-react";
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { PROVIDERS } from "@/components/AddApiKeyDialog";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -38,6 +39,11 @@ const ApiKeyManager = forwardRef<ApiKeyManagerHandle, ApiKeyManagerProps>(
 		const [loading, setLoading] = useState(false);
 		const [visibleKeys, setVisibleKeys] = useState<Record<string, string>>({});
 		const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
+
+		// Check if all providers have keys
+		const allProvidersHaveKeys =
+			apiKeys.length > 0 &&
+			PROVIDERS.every((p) => apiKeys.some((k) => k.provider === p.name));
 
 		const loadApiKeys = async () => {
 			setLoading(true);
@@ -132,7 +138,16 @@ const ApiKeyManager = forwardRef<ApiKeyManagerHandle, ApiKeyManagerProps>(
 							<CardTitle>{t("apiKeys.title")}</CardTitle>
 							<CardDescription>{t("apiKeys.description")}</CardDescription>
 						</div>
-						<Button onClick={onAddClick} size="sm">
+						<Button
+							disabled={allProvidersHaveKeys}
+							onClick={onAddClick}
+							size="sm"
+							title={
+								allProvidersHaveKeys
+									? t("apiKeys.allProvidersConfigured")
+									: undefined
+							}
+						>
 							<Plus className="mr-1 h-4 w-4" />
 							{t("apiKeys.add")}
 						</Button>
