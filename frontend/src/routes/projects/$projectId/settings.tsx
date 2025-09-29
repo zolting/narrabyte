@@ -152,6 +152,19 @@ function ProjectSettings() {
 		}
 	};
 
+	const getErrorMessageFromCode = (errorCode: string): string => {
+		switch (errorCode) {
+			case "NO_GIT_REPO":
+				return t("projectSettings.noGitRepoFound");
+			case "DIR_NOT_EXIST":
+				return t("projectSettings.dirNotExist");
+			case "EMPTY_PATH":
+				return t("projectSettings.dirNotExist");
+			default:
+				return t("projectSettings.validationFailed");
+		}
+	};
+
 	const handleDocDirectoryChange = async (path: string) => {
 		setDocDirectory(path);
 		setDocValidationError(null);
@@ -160,7 +173,7 @@ function ProjectSettings() {
 			try {
 				const result = await ValidateDirectory(path);
 				if (!result.isValid) {
-					setDocValidationError(result.errorMessage);
+					setDocValidationError(getErrorMessageFromCode(result.errorCode));
 				}
 			} catch (error) {
 				console.error("Failed to validate documentation directory:", error);
@@ -177,7 +190,7 @@ function ProjectSettings() {
 			try {
 				const result = await ValidateDirectory(path);
 				if (!result.isValid) {
-					setCodebaseValidationError(result.errorMessage);
+					setCodebaseValidationError(getErrorMessageFromCode(result.errorCode));
 				}
 			} catch (error) {
 				console.error("Failed to validate codebase directory:", error);

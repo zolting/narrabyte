@@ -16,8 +16,8 @@ import (
 const llmInstructionsBaseName = "llm_instructions"
 
 type DirectoryValidationResult struct {
-	IsValid      bool   `json:"isValid"`
-	ErrorMessage string `json:"errorMessage"`
+	IsValid   bool   `json:"isValid"`
+	ErrorCode string `json:"errorCode"`
 }
 
 type RepoLinkService interface {
@@ -265,27 +265,27 @@ func (s *repoLinkService) Delete(id uint) error {
 func (s *repoLinkService) ValidateDirectory(path string) (*DirectoryValidationResult, error) {
 	if path == "" {
 		return &DirectoryValidationResult{
-			IsValid:      false,
-			ErrorMessage: "Directory path is empty",
+			IsValid:   false,
+			ErrorCode: "EMPTY_PATH",
 		}, nil
 	}
 
 	if !utils.DirectoryExists(path) {
 		return &DirectoryValidationResult{
-			IsValid:      false,
-			ErrorMessage: "Directory does not exist",
+			IsValid:   false,
+			ErrorCode: "DIR_NOT_EXIST",
 		}, nil
 	}
 
 	if !utils.HasGitRepo(path) {
 		return &DirectoryValidationResult{
-			IsValid:      false,
-			ErrorMessage: "No initialized git repository found in this directory",
+			IsValid:   false,
+			ErrorCode: "NO_GIT_REPO",
 		}, nil
 	}
 
 	return &DirectoryValidationResult{
-		IsValid:      true,
-		ErrorMessage: "",
+		IsValid:   true,
+		ErrorCode: "",
 	}, nil
 }

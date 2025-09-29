@@ -145,7 +145,7 @@ export namespace services {
 	
 	export class DirectoryValidationResult {
 	    isValid: boolean;
-	    errorMessage: string;
+	    errorCode: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DirectoryValidationResult(source);
@@ -154,7 +154,7 @@ export namespace services {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.isValid = source["isValid"];
-	        this.errorMessage = source["errorMessage"];
+	        this.errorCode = source["errorCode"];
 	    }
 	}
 

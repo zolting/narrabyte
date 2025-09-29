@@ -143,6 +143,13 @@
     "llmInstructionsImported": "Instructions LLM importées avec succès!",
     "llmInstructionsImportError": "Échec de l'importation des instructions LLM",
     "loadError": "Échec du chargement du projet",
-    "deleteProject": "Supprimer le projet"
+    "deleteProject": "Supprimer le projet",
+    "noGitRepoDoc": "Le répertoire de documentation ne contient pas de dépôt git initialisé",
+    "noGitRepoCodebase": "Le répertoire du code source ne contient pas de dépôt git initialisé",
+    "noGitRepoFound": "Aucun dépôt git initialisé trouvé dans ce répertoire",
+    "dirNotExist": "Le répertoire n'existe pas",
+    "docDirNotExist": "Le répertoire de documentation n'existe pas",
+    "codebaseDirNotExist": "Le répertoire du code source n'existe pas",
+    "validationFailed": "Échec de la validation du répertoire"
   }
 }
