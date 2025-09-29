@@ -103,7 +103,15 @@
     "loading": "Loading…",
     "noProjects": "No projects",
     "collapseSidebar": "Collapse sidebar",
-    "expandSidebar": "Expand sidebar"
+    "expandSidebar": "Expand sidebar",
+    "projectSettings": "Project Settings",
+    "deleteProject": "Delete Project",
+    "deleteProjectTitle": "Delete Project",
+    "deleteProjectDescription": "Are you sure you want to delete \"{{projectName}}\"? This action cannot be undone and will only remove the project link from Narrabyte, not the actual files.",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteSuccess": "Project deleted successfully",
+    "deleteError": "Failed to delete project"
   },
   "apiDialog": {
     "keySaved": "API key saved successfully!",
@@ -134,6 +142,7 @@
     "selected": "Selected",
     "llmInstructionsImported": "LLM instructions imported successfully!",
     "llmInstructionsImportError": "Failed to import LLM instructions",
-    "loadError": "Failed to load project"
+    "loadError": "Failed to load project",
+    "deleteProject": "Delete Project"
   }
 }

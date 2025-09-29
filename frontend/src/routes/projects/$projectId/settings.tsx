@@ -1,16 +1,28 @@
 import type { models } from "@go/models";
 import {
 	CheckLLMInstructions,
+	Delete,
 	Get,
 	ImportLLMInstructions,
 	UpdateProjectPaths,
 } from "@go/services/repoLinkService";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import DirectoryPicker from "@/components/DirectoryPicker";
 import FilePicker from "@/components/FilePicker";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -29,6 +41,7 @@ function ProjectSettings() {
 	const [codebaseDirectory, setCodebaseDirectory] = useState("");
 	const [llmInstructionsFile, setLlmInstructionsFile] = useState("");
 	const [saving, setSaving] = useState(false);
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 	useEffect(() => {
 		const loadProject = async () => {
@@ -91,6 +104,23 @@ function ProjectSettings() {
 			toast.error(t("projectSettings.llmInstructionsImportError"));
 		} finally {
 			setSaving(false);
+		}
+	};
+
+	const handleDeleteProject = async () => {
+		if (!project) {
+			return;
+		}
+
+		try {
+			await Delete(project.ID);
+			toast.success(t("sidebar.deleteSuccess"));
+			navigate({ to: "/" });
+		} catch (error) {
+			console.error("Error deleting project:", error);
+			toast.error(t("sidebar.deleteError"));
+		} finally {
+			setIsDeleteDialogOpen(false);
 		}
 	};
 
@@ -267,15 +297,52 @@ function ProjectSettings() {
 						</div>
 					</section>
 
-					<Button
-						className="w-full"
-						onClick={() => navigate({ to: `/projects/${projectId}` })}
-						variant="outline"
-					>
-						{t("common.goBack")}
-					</Button>
+					<div className="flex gap-3">
+						<Button
+							className="flex-1"
+							onClick={() => navigate({ to: `/projects/${projectId}` })}
+							variant="outline"
+						>
+							{t("common.goBack")}
+						</Button>
+						<Button
+							className="flex-1"
+							onClick={() => setIsDeleteDialogOpen(true)}
+							variant="destructive"
+						>
+							<Trash2 size={16} />
+							{t("projectSettings.deleteProject")}
+						</Button>
+					</div>
 				</CardContent>
 			</Card>
+
+			<AlertDialog
+				onOpenChange={setIsDeleteDialogOpen}
+				open={isDeleteDialogOpen}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{t("sidebar.deleteProjectTitle")}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{t("sidebar.deleteProjectDescription", {
+								projectName: project?.ProjectName,
+							})}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>{t("sidebar.cancel")}</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={handleDeleteProject}
+						>
+							{t("sidebar.delete")}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }

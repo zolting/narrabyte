@@ -5,6 +5,8 @@ import {context} from '../models';
 
 export function CheckLLMInstructions(arg1:number):Promise<boolean>;
 
+export function Delete(arg1:number):Promise<void>;
+
 export function Get(arg1:number):Promise<models.RepoLink>;
 
 export function ImportLLMInstructions(arg1:number,arg2:string):Promise<void>;

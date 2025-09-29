@@ -6,6 +6,10 @@ export function CheckLLMInstructions(arg1) {
   return window['go']['services']['repoLinkService']['CheckLLMInstructions'](arg1);
 }
 
+export function Delete(arg1) {
+  return window['go']['services']['repoLinkService']['Delete'](arg1);
+}
+
 export function Get(arg1) {
   return window['go']['services']['repoLinkService']['Get'](arg1);
 }

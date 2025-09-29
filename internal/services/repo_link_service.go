@@ -24,6 +24,7 @@ type RepoLinkService interface {
 	CheckLLMInstructions(id uint) (bool, error)
 	UpdateProjectPaths(id uint, docRepo, codebaseRepo string) error
 	ImportLLMInstructions(id uint, llmInstructionsPath string) error
+	Delete(id uint) error
 }
 
 type repoLinkService struct {
@@ -247,4 +248,9 @@ func (s *repoLinkService) ImportLLMInstructions(id uint, llmInstructionsPath str
 	}
 
 	return nil
+}
+
+// Delete deletes a project by ID
+func (s *repoLinkService) Delete(id uint) error {
+	return s.repoLinks.Delete(context.Background(), id)
 }
