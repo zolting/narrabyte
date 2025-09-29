@@ -1,6 +1,7 @@
 import type { models } from "@go/models";
 import { Get } from "@go/services/repoLinkService";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButtons } from "@/components/ActionButtons";
@@ -171,6 +172,7 @@ function ProjectDetailPage() {
 					size="sm"
 					variant="outline"
 				>
+					<Settings size={16} />
 					{t("common.settings")}
 				</Button>
 			</div>

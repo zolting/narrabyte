@@ -7,7 +7,7 @@ import {
 	UpdateProjectPaths,
 } from "@go/services/repoLinkService";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -74,7 +74,7 @@ function ProjectSettings() {
 			await UpdateProjectPaths(
 				Number(project.ID),
 				docDirectory,
-				codebaseDirectory,
+				codebaseDirectory
 			);
 			toast.success(t("projectSettings.pathsUpdated"));
 			// Reload project
@@ -302,6 +302,7 @@ function ProjectSettings() {
 							onClick={() => navigate({ to: `/projects/${projectId}` })}
 							variant="outline"
 						>
+							<ArrowLeft size={16} />
 							{t("common.goBack")}
 						</Button>
 						<Button
