@@ -1,6 +1,6 @@
 import type { models } from "@go/models";
 import { Get } from "@go/services/repoLinkService";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButtons } from "@/components/ActionButtons";
@@ -40,7 +40,7 @@ function ProjectDetailPage() {
 			})
 			.finally(() => {
 				setLoading(false);
-			})
+			});
 	}, [projectId]);
 
 	// Reset everything when component mounts
@@ -64,8 +64,8 @@ function ProjectDetailPage() {
 		if (docManager.status === "success" && docManager.commitCompleted) {
 			docManager.setCompletedCommit(
 				branchManager.sourceBranch || "",
-				branchManager.targetBranch || "",
-			)
+				branchManager.targetBranch || ""
+			);
 		}
 	}, [
 		docManager.status,
@@ -73,7 +73,7 @@ function ProjectDetailPage() {
 		branchManager.sourceBranch,
 		branchManager.targetBranch,
 		docManager.setCompletedCommit,
-	])
+	]);
 
 	const canGenerate = useMemo(
 		() =>
@@ -82,15 +82,15 @@ function ProjectDetailPage() {
 					branchManager.sourceBranch &&
 					branchManager.targetBranch &&
 					branchManager.sourceBranch !== branchManager.targetBranch &&
-					!docManager.isBusy,
+					!docManager.isBusy
 			),
 		[
 			docManager.isBusy,
 			project,
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
-		],
-	)
+		]
+	);
 
 	const canCommit = useMemo(() => {
 		if (!(project && docManager.docResult)) {
@@ -104,7 +104,7 @@ function ProjectDetailPage() {
 		if (
 			!(project && branchManager.sourceBranch && branchManager.targetBranch)
 		) {
-			return
+			return;
 		}
 		branchManager.setSourceOpen(false);
 		branchManager.setTargetOpen(false);
@@ -113,27 +113,27 @@ function ProjectDetailPage() {
 			projectId: Number(project.ID),
 			sourceBranch: branchManager.sourceBranch,
 			targetBranch: branchManager.targetBranch,
-		})
+		});
 	}, [project, branchManager, docManager]);
 
 	const handleCommit = useCallback(() => {
 		if (!(project && docManager.docResult)) {
-			return
+			return;
 		}
 		const files = (docManager.docResult.files ?? [])
 			.map((file) => file.path)
 			.filter((path): path is string =>
-				Boolean(path && path.trim().length > 0),
-			)
+				Boolean(path && path.trim().length > 0)
+			);
 		if (files.length === 0) {
-			return
+			return;
 		}
 		docManager.setActiveTab("activity");
 		docManager.commitDocGeneration({
 			projectId: Number(project.ID),
 			branch: docManager.docResult.branch,
 			files,
-		})
+		});
 	}, [docManager, project]);
 
 	const handleReset = useCallback(() => {
@@ -156,7 +156,7 @@ function ProjectDetailPage() {
 			<div className="p-2 text-muted-foreground text-sm">
 				Project not found: {projectId}
 			</div>
-		)
+		);
 	}
 
 	return (
@@ -168,8 +168,8 @@ function ProjectDetailPage() {
 
 				<Button
 					onClick={() => navigate({ to: `/projects/${projectId}/settings` })}
-					variant="outline"
 					size="sm"
+					variant="outline"
 				>
 					{t("common.settings")}
 				</Button>
@@ -196,7 +196,7 @@ function ProjectDetailPage() {
 									onStartNewTask={handleStartNewTask}
 									sourceBranch={branchManager.sourceBranch}
 								/>
-							)
+							);
 						}
 
 						if (docManager.hasGenerationAttempt) {
@@ -205,7 +205,7 @@ function ProjectDetailPage() {
 									sourceBranch={branchManager.sourceBranch}
 									targetBranch={branchManager.targetBranch}
 								/>
-							)
+							);
 						}
 
 						return (
@@ -223,7 +223,7 @@ function ProjectDetailPage() {
 								targetBranch={branchManager.targetBranch}
 								targetOpen={branchManager.targetOpen}
 							/>
-						)
+						);
 					})()}
 
 					{docManager.hasGenerationAttempt && (
@@ -253,5 +253,5 @@ function ProjectDetailPage() {
 				)}
 			</section>
 		</div>
-	)
+	);
 }

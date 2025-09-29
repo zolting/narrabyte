@@ -52,14 +52,16 @@ function ProjectSettings() {
 	}, [projectId, t]);
 
 	const handleSavePaths = async () => {
-		if (!project) return;
+		if (!project) {
+			return;
+		}
 
 		setSaving(true);
 		try {
 			await UpdateProjectPaths(
 				Number(project.ID),
 				docDirectory,
-				codebaseDirectory,
+				codebaseDirectory
 			);
 			toast.success(t("projectSettings.pathsUpdated"));
 			// Reload project
@@ -74,7 +76,9 @@ function ProjectSettings() {
 	};
 
 	const handleImportLLMInstructions = async () => {
-		if (!project || !llmInstructionsFile) return;
+		if (!(project && llmInstructionsFile)) {
+			return;
+		}
 
 		setSaving(true);
 		try {
@@ -115,7 +119,7 @@ function ProjectSettings() {
 						<CardTitle className="text-2xl">
 							{t("projectSettings.title")}
 						</CardTitle>
-						<span className="text-muted-foreground text-base">•</span>
+						<span className="text-base text-muted-foreground">•</span>
 						<span className="font-semibold text-foreground text-xl">
 							{project.ProjectName}
 						</span>
@@ -132,23 +136,32 @@ function ProjectSettings() {
 
 						<div className="space-y-4 rounded-lg border border-border bg-muted/50 p-4">
 							<div className="space-y-2">
-								<label className="block font-medium text-sm">
+								<label
+									className="block font-medium text-sm"
+									htmlFor="doc-directory"
+								>
 									{t("projectSettings.documentationRepo")}
 								</label>
 								<div className="text-muted-foreground text-xs">
-									{t("projectSettings.currentPath")}: {project.DocumentationRepo}
+									{t("projectSettings.currentPath")}:{" "}
+									{project.DocumentationRepo}
 								</div>
 								<DirectoryPicker onDirectorySelected={setDocDirectory} />
 								{docDirectory !== project.DocumentationRepo && (
 									<div className="rounded bg-background p-2 text-xs">
-										<span className="text-muted-foreground">{t("projectSettings.newPath")}: </span>
+										<span className="text-muted-foreground">
+											{t("projectSettings.newPath")}:{" "}
+										</span>
 										<span className="font-medium">{docDirectory}</span>
 									</div>
 								)}
 							</div>
 
 							<div className="space-y-2">
-								<label className="block font-medium text-sm">
+								<label
+									className="block font-medium text-sm"
+									htmlFor="codebase-directory"
+								>
 									{t("projectSettings.codebaseRepo")}
 								</label>
 								<div className="text-muted-foreground text-xs">
@@ -157,7 +170,9 @@ function ProjectSettings() {
 								<DirectoryPicker onDirectorySelected={setCodebaseDirectory} />
 								{codebaseDirectory !== project.CodebaseRepo && (
 									<div className="rounded bg-background p-2 text-xs">
-										<span className="text-muted-foreground">{t("projectSettings.newPath")}: </span>
+										<span className="text-muted-foreground">
+											{t("projectSettings.newPath")}:{" "}
+										</span>
 										<span className="font-medium">{codebaseDirectory}</span>
 									</div>
 								)}
@@ -227,8 +242,12 @@ function ProjectSettings() {
 										{llmInstructionsFile && (
 											<>
 												<div className="rounded bg-background p-2 text-xs">
-													<span className="text-muted-foreground">{t("projectSettings.selected")}: </span>
-													<span className="font-medium">{llmInstructionsFile}</span>
+													<span className="text-muted-foreground">
+														{t("projectSettings.selected")}:{" "}
+													</span>
+													<span className="font-medium">
+														{llmInstructionsFile}
+													</span>
 												</div>
 												<Button
 													className="w-full"

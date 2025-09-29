@@ -94,8 +94,8 @@ export default function AddApiKeyDialog({
 				{/* Existing keys list */}
 				{existingKeys.length > 0 && (
 					<div className="mb-4">
-						<p className="text-sm font-medium">{t("apiDialog.existingKeys")}</p>
-						<ul className="list-disc pl-4 text-sm text-gray-700 dark:text-gray-300">
+						<p className="font-medium text-sm">{t("apiDialog.existingKeys")}</p>
+						<ul className="list-disc pl-4 text-gray-700 text-sm dark:text-gray-300">
 							{existingKeys.map((k) => (
 								<li key={k.provider}>{k.provider}</li>
 							))}
@@ -106,7 +106,7 @@ export default function AddApiKeyDialog({
 				<form className="space-y-4" onSubmit={handleSubmit}>
 					<div className="space-y-2">
 						<Label htmlFor={providerId}>Provider</Label>
-						<Select value={provider} onValueChange={setProvider}>
+						<Select onValueChange={setProvider} value={provider}>
 							<SelectTrigger>
 								<SelectValue placeholder="Select provider" />
 							</SelectTrigger>

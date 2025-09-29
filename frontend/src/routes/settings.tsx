@@ -79,8 +79,8 @@ function Settings() {
 					)}
 					<Button onClick={() => setDialogOpen(true)}>Add an API key</Button>
 					<AddApiKeyDialog
-						open={dialogOpen}
 						onClose={() => setDialogOpen(false)}
+						open={dialogOpen}
 					/>
 
 					<Button
