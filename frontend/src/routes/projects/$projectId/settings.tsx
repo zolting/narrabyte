@@ -74,7 +74,7 @@ function ProjectSettings() {
 			await UpdateProjectPaths(
 				Number(project.ID),
 				docDirectory,
-				codebaseDirectory
+				codebaseDirectory,
 			);
 			toast.success(t("projectSettings.pathsUpdated"));
 			// Reload project
@@ -228,7 +228,7 @@ function ProjectSettings() {
 							{t("projectSettings.llmInstructions")}
 						</h3>
 
-						<div className="space-y-2">
+						<div className="space-y-3 border border-border bg-muted/50 p-4">
 							<div className="flex items-center gap-2">
 								<span className="text-sm">
 									{t("projectSettings.llmInstructionsStatus")}:
@@ -253,45 +253,44 @@ function ProjectSettings() {
 									<p className="text-muted-foreground text-sm">
 										{t("projectSettings.llmInstructionsDescription")}
 									</p>
-									<div className="space-y-3 rounded-lg border border-border bg-muted/50 p-4">
-										<FilePicker
-											accept={{
-												label: "LLM Instructions",
-												extensions: [
-													"md",
-													"mdx",
-													"txt",
-													"json",
-													"yaml",
-													"yml",
-													"prompt",
-												],
-											}}
-											onFileSelected={setLlmInstructionsFile}
-										/>
-										{llmInstructionsFile && (
-											<>
-												<div className="rounded bg-background p-2 text-xs">
-													<span className="text-muted-foreground">
-														{t("projectSettings.selected")}:{" "}
-													</span>
-													<span className="font-medium">
-														{llmInstructionsFile}
-													</span>
-												</div>
-												<Button
-													className="w-full"
-													disabled={saving}
-													onClick={handleImportLLMInstructions}
-													size="lg"
-												>
-													{saving
-														? t("projectSettings.importing")
-														: t("projectSettings.importConfirm")}
-												</Button>
-											</>
-										)}
-									</div>
+
+									<FilePicker
+										accept={{
+											label: "LLM Instructions",
+											extensions: [
+												"md",
+												"mdx",
+												"txt",
+												"json",
+												"yaml",
+												"yml",
+												"prompt",
+											],
+										}}
+										onFileSelected={setLlmInstructionsFile}
+									/>
+									{llmInstructionsFile && (
+										<>
+											<div className="rounded bg-background p-2 text-xs">
+												<span className="text-muted-foreground">
+													{t("projectSettings.selected")}:{" "}
+												</span>
+												<span className="font-medium">
+													{llmInstructionsFile}
+												</span>
+											</div>
+											<Button
+												className="w-full"
+												disabled={saving}
+												onClick={handleImportLLMInstructions}
+												size="lg"
+											>
+												{saving
+													? t("projectSettings.importing")
+													: t("projectSettings.importConfirm")}
+											</Button>
+										</>
+									)}
 								</>
 							)}
 						</div>
