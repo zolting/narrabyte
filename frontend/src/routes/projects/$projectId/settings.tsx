@@ -31,6 +31,49 @@ export const Route = createFileRoute("/projects/$projectId/settings")({
 	component: ProjectSettings,
 });
 
+function RepositoryPathField({
+	label,
+	currentPath,
+	newPath,
+	onDirectoryChange,
+	validationError,
+}: {
+	label: string;
+	currentPath: string;
+	newPath: string;
+	onDirectoryChange: (path: string) => void;
+	validationError: string | null;
+}) {
+	const { t } = useTranslation();
+	const hasChanges = newPath !== currentPath;
+
+	return (
+		<div className="space-y-2">
+			<div className="block font-medium text-sm">{label}</div>
+			<div className="text-muted-foreground text-xs">
+				{t("projectSettings.currentPath")}: {currentPath}
+			</div>
+			<DirectoryPicker onDirectorySelected={onDirectoryChange} />
+			{hasChanges && (
+				<>
+					<div className="rounded bg-background p-2 text-xs">
+						<span className="text-muted-foreground">
+							{t("projectSettings.newPath")}:{" "}
+						</span>
+						<span className="font-medium">{newPath}</span>
+					</div>
+					{validationError && (
+						<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
+							<TriangleAlert size={14} />
+							<span>{validationError}</span>
+						</div>
+					)}
+				</>
+			)}
+		</div>
+	);
+}
+
 function ProjectSettings() {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
@@ -71,6 +114,47 @@ function ProjectSettings() {
 		loadProject();
 	}, [projectId, t]);
 
+	const handleSavePathsSuccess = async () => {
+		toast.success(t("projectSettings.pathsUpdated"));
+		setDocValidationError(null);
+		setCodebaseValidationError(null);
+		const updated = (await Get(Number(projectId))) as models.RepoLink;
+		setProject(updated);
+	};
+
+	const handleSavePathsError = (error: unknown) => {
+		console.error("Failed to update paths:", error);
+		const errorMessage = error instanceof Error ? error.message : String(error);
+
+		const errorMap: Record<string, () => void> = {
+			"missing_git_repo: documentation": () => {
+				toast.error(t("projectSettings.noGitRepoDoc"));
+				setDocValidationError(t("projectSettings.noGitRepoFound"));
+			},
+			"missing_git_repo: codebase": () => {
+				toast.error(t("projectSettings.noGitRepoCodebase"));
+				setCodebaseValidationError(t("projectSettings.noGitRepoFound"));
+			},
+			"documentation repo path does not exist": () => {
+				toast.error(t("projectSettings.docDirNotExist"));
+				setDocValidationError(t("projectSettings.dirNotExist"));
+			},
+			"codebase repo path does not exist": () => {
+				toast.error(t("projectSettings.codebaseDirNotExist"));
+				setCodebaseValidationError(t("projectSettings.dirNotExist"));
+			},
+		};
+
+		const matchedError = Object.keys(errorMap).find((key) =>
+			errorMessage.includes(key)
+		);
+		if (matchedError) {
+			errorMap[matchedError]();
+		} else {
+			toast.error(t("projectSettings.pathsUpdateError"));
+		}
+	};
+
 	const handleSavePaths = async () => {
 		if (!project) {
 			return;
@@ -83,34 +167,9 @@ function ProjectSettings() {
 				docDirectory,
 				codebaseDirectory
 			);
-			toast.success(t("projectSettings.pathsUpdated"));
-			// Clear validation errors
-			setDocValidationError(null);
-			setCodebaseValidationError(null);
-			// Reload project
-			const updated = (await Get(Number(projectId))) as models.RepoLink;
-			setProject(updated);
+			await handleSavePathsSuccess();
 		} catch (error) {
-			console.error("Failed to update paths:", error);
-
-			// Parse error message for better user feedback
-			const errorMessage = error instanceof Error ? error.message : String(error);
-
-			if (errorMessage.includes("missing_git_repo: documentation")) {
-				toast.error(t("projectSettings.noGitRepoDoc"));
-				setDocValidationError(t("projectSettings.noGitRepoFound"));
-			} else if (errorMessage.includes("missing_git_repo: codebase")) {
-				toast.error(t("projectSettings.noGitRepoCodebase"));
-				setCodebaseValidationError(t("projectSettings.noGitRepoFound"));
-			} else if (errorMessage.includes("documentation repo path does not exist")) {
-				toast.error(t("projectSettings.docDirNotExist"));
-				setDocValidationError(t("projectSettings.dirNotExist"));
-			} else if (errorMessage.includes("codebase repo path does not exist")) {
-				toast.error(t("projectSettings.codebaseDirNotExist"));
-				setCodebaseValidationError(t("projectSettings.dirNotExist"));
-			} else {
-				toast.error(t("projectSettings.pathsUpdateError"));
-			}
+			handleSavePathsError(error);
 		} finally {
 			setSaving(false);
 		}
@@ -243,68 +302,21 @@ function ProjectSettings() {
 						</h3>
 
 						<div className="space-y-4 rounded-lg border border-border bg-muted/50 p-4">
-							<div className="space-y-2">
-								<label
-									className="block font-medium text-sm"
-									htmlFor="doc-directory"
-								>
-									{t("projectSettings.documentationRepo")}
-								</label>
-								<div className="text-muted-foreground text-xs">
-									{t("projectSettings.currentPath")}:{" "}
-									{project.DocumentationRepo}
-								</div>
-								<DirectoryPicker
-									onDirectorySelected={handleDocDirectoryChange}
-								/>
-								{docDirectory !== project.DocumentationRepo && (
-									<>
-										<div className="rounded bg-background p-2 text-xs">
-											<span className="text-muted-foreground">
-												{t("projectSettings.newPath")}:{" "}
-											</span>
-											<span className="font-medium">{docDirectory}</span>
-										</div>
-										{docValidationError && (
-											<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
-												<TriangleAlert size={14} />
-												<span>{docValidationError}</span>
-											</div>
-										)}
-									</>
-								)}
-							</div>
+							<RepositoryPathField
+								currentPath={project.DocumentationRepo}
+								label={t("projectSettings.documentationRepo")}
+								newPath={docDirectory}
+								onDirectoryChange={handleDocDirectoryChange}
+								validationError={docValidationError}
+							/>
 
-							<div className="space-y-2">
-								<label
-									className="block font-medium text-sm"
-									htmlFor="codebase-directory"
-								>
-									{t("projectSettings.codebaseRepo")}
-								</label>
-								<div className="text-muted-foreground text-xs">
-									{t("projectSettings.currentPath")}: {project.CodebaseRepo}
-								</div>
-								<DirectoryPicker
-									onDirectorySelected={handleCodebaseDirectoryChange}
-								/>
-								{codebaseDirectory !== project.CodebaseRepo && (
-									<>
-										<div className="rounded bg-background p-2 text-xs">
-											<span className="text-muted-foreground">
-												{t("projectSettings.newPath")}:{" "}
-											</span>
-											<span className="font-medium">{codebaseDirectory}</span>
-										</div>
-										{codebaseValidationError && (
-											<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
-												<TriangleAlert size={14} />
-												<span>{codebaseValidationError}</span>
-											</div>
-										)}
-									</>
-								)}
-							</div>
+							<RepositoryPathField
+								currentPath={project.CodebaseRepo}
+								label={t("projectSettings.codebaseRepo")}
+								newPath={codebaseDirectory}
+								onDirectoryChange={handleCodebaseDirectoryChange}
+								validationError={codebaseValidationError}
+							/>
 
 							{pathsChanged && (
 								<Button

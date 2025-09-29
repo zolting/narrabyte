@@ -115,9 +115,29 @@
   },
   "apiDialog": {
     "keySaved": "API key saved successfully!",
+    "keyUpdated": "API key updated successfully!",
     "errSavingKey": "Error saving key",
     "addApiKey": "Add API key",
-    "existingKeys": "Existing Keys"
+    "editApiKey": "Edit API key",
+    "existingKeys": "Existing Keys",
+    "newApiKey": "New API Key",
+    "enterNewKey": "Enter new API key",
+    "save": "Save",
+    "update": "Update"
+  },
+  "apiKeys": {
+    "title": "API Keys",
+    "description": "Manage your API keys for different providers",
+    "noKeys": "No API keys configured",
+    "loadError": "Failed to load API keys",
+    "deleteSuccess": "API key deleted successfully",
+    "deleteError": "Failed to delete API key",
+    "fetchError": "Failed to fetch API key",
+    "showKey": "Show API key",
+    "hideKey": "Hide API key",
+    "deleteKey": "Delete API key",
+    "editKey": "Edit API key",
+    "add": "Add"
   },
   "projectSettings": {
     "title": "Project Settings",

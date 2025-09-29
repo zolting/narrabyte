@@ -115,9 +115,29 @@
   },
   "apiDialog": {
     "keySaved": "Clé API sauvegardée avec succès!",
+    "keyUpdated": "Clé API mise à jour avec succès!",
     "errSavingKey": "Erreur lors de la sauvegarde de la clé",
     "addApiKey": "Ajouter une clé API",
-    "existingKeys": "Clés déjà ajoutées"
+    "editApiKey": "Modifier la clé API",
+    "existingKeys": "Clés déjà ajoutées",
+    "newApiKey": "Nouvelle clé API",
+    "enterNewKey": "Entrer la nouvelle clé API",
+    "save": "Enregistrer",
+    "update": "Mettre à jour"
+  },
+  "apiKeys": {
+    "title": "Clés API",
+    "description": "Gérez vos clés API pour différents fournisseurs",
+    "noKeys": "Aucune clé API configurée",
+    "loadError": "Échec du chargement des clés API",
+    "deleteSuccess": "Clé API supprimée avec succès",
+    "deleteError": "Échec de la suppression de la clé API",
+    "fetchError": "Échec de la récupération de la clé API",
+    "showKey": "Afficher la clé API",
+    "hideKey": "Masquer la clé API",
+    "deleteKey": "Supprimer la clé API",
+    "editKey": "Modifier la clé API",
+    "add": "Ajouter"
   },
   "projectSettings": {
     "title": "Paramètres du projet",
