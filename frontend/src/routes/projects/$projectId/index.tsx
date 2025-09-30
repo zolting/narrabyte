@@ -30,7 +30,6 @@ function ProjectDetailPage() {
 	const { t } = useTranslation();
 	const { projectId } = Route.useParams();
 	const [project, setProject] = useState<models.RepoLink | null>(null);
-	const [loading, setLoading] = useState(false);
 	const [provider, setProvider] = useState<string>("anthropic");
 	const [availableProviders, setAvailableProviders] = useState<string[]>([]);
 	const containerRef = useRef<HTMLDivElement | null>(null);
@@ -42,16 +41,12 @@ function ProjectDetailPage() {
 
 	// Load project data
 	useEffect(() => {
-		setLoading(true);
 		Promise.resolve(Get(Number(projectId)))
 			.then((res) => {
 				setProject((res as models.RepoLink) ?? null);
 			})
 			.catch(() => {
 				setProject(null);
-			})
-			.finally(() => {
-				setLoading(false);
 			});
 	}, [projectId]);
 
@@ -93,7 +88,7 @@ function ProjectDetailPage() {
 		if (docManager.status === "success" && docManager.commitCompleted) {
 			docManager.setCompletedCommit(
 				branchManager.sourceBranch || "",
-				branchManager.targetBranch || "",
+				branchManager.targetBranch || ""
 			);
 		}
 	}, [
@@ -111,14 +106,14 @@ function ProjectDetailPage() {
 					branchManager.sourceBranch &&
 					branchManager.targetBranch &&
 					branchManager.sourceBranch !== branchManager.targetBranch &&
-					!docManager.isBusy,
+					!docManager.isBusy
 			),
 		[
 			docManager.isBusy,
 			project,
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
-		],
+		]
 	);
 
 	const canCommit = useMemo(() => {
@@ -153,7 +148,7 @@ function ProjectDetailPage() {
 		const files = (docManager.docResult.files ?? [])
 			.map((file) => file.path)
 			.filter((path): path is string =>
-				Boolean(path && path.trim().length > 0),
+				Boolean(path && path.trim().length > 0)
 			);
 		if (files.length === 0) {
 			return;
@@ -255,7 +250,7 @@ function ProjectDetailPage() {
 											<SelectValue
 												placeholder={t(
 													"common.selectProvider",
-													"Select a provider",
+													"Select a provider"
 												)}
 											/>
 										</SelectTrigger>
@@ -277,7 +272,7 @@ function ProjectDetailPage() {
 										<p className="text-muted-foreground text-xs">
 											{t(
 												"common.noProvidersConfigured",
-												"No API keys configured. Please add one in settings.",
+												"No API keys configured. Please add one in settings."
 											)}
 										</p>
 									)}

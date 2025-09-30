@@ -79,7 +79,6 @@ function ProjectSettings() {
 	const navigate = useNavigate();
 	const { projectId } = Route.useParams();
 	const [project, setProject] = useState<models.RepoLink | null>(null);
-	const [loading, setLoading] = useState(true);
 	const [hasLLMInstructions, setHasLLMInstructions] = useState(false);
 	const [docDirectory, setDocDirectory] = useState("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState("");
@@ -87,7 +86,7 @@ function ProjectSettings() {
 	const [saving, setSaving] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [docValidationError, setDocValidationError] = useState<string | null>(
-		null,
+		null
 	);
 	const [codebaseValidationError, setCodebaseValidationError] = useState<
 		string | null
@@ -95,7 +94,6 @@ function ProjectSettings() {
 
 	useEffect(() => {
 		const loadProject = async () => {
-			setLoading(true);
 			try {
 				const proj = (await Get(Number(projectId))) as models.RepoLink;
 				setProject(proj);
@@ -107,8 +105,6 @@ function ProjectSettings() {
 			} catch (error) {
 				console.error("Failed to load project:", error);
 				toast.error(t("projectSettings.loadError"));
-			} finally {
-				setLoading(false);
 			}
 		};
 		loadProject();
@@ -146,7 +142,7 @@ function ProjectSettings() {
 		};
 
 		const matchedError = Object.keys(errorMap).find((key) =>
-			errorMessage.includes(key),
+			errorMessage.includes(key)
 		);
 		if (matchedError) {
 			errorMap[matchedError]();
@@ -165,7 +161,7 @@ function ProjectSettings() {
 			await UpdateProjectPaths(
 				Number(project.ID),
 				docDirectory,
-				codebaseDirectory,
+				codebaseDirectory
 			);
 			await handleSavePathsSuccess();
 		} catch (error) {
