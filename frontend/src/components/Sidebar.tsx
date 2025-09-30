@@ -1,13 +1,29 @@
 import type { models } from "@go/models";
 import { Init } from "@go/services/GitService";
-import { LinkRepositories, List } from "@go/services/repoLinkService";
-import { Link, useLocation } from "@tanstack/react-router";
-import { Folder, Folders, Home, Plus, Settings } from "lucide-react";
+import { Delete, LinkRepositories, List } from "@go/services/repoLinkService";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Folder, Folders, Home, Plus, Settings, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import AddProjectDialog from "@/components/AddProjectDialog";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
 	Sidebar,
 	SidebarContent,
@@ -28,9 +44,13 @@ const REPO_OFFSET = 0;
 function AppSidebarContent() {
 	const { t } = useTranslation();
 	const location = useLocation();
+	const navigate = useNavigate();
 	const [projects, setProjects] = useState<models.RepoLink[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
+	const [projectToDelete, setProjectToDelete] =
+		useState<models.RepoLink | null>(null);
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 	const loadProjects = useCallback(() => {
 		setLoading(true);
@@ -156,6 +176,34 @@ function AppSidebarContent() {
 		}
 	};
 
+	const handleDeleteProject = async () => {
+		if (!projectToDelete) {
+			return;
+		}
+
+		try {
+			await Delete(projectToDelete.ID);
+			toast(t("sidebar.deleteSuccess"));
+			loadProjects();
+
+			// Navigate to home if we're currently viewing the deleted project
+			if (location.pathname === `/projects/${projectToDelete.ID}`) {
+				navigate({ to: "/" });
+			}
+		} catch (error) {
+			console.error("Error deleting project:", error);
+			toast(t("sidebar.deleteError"));
+		} finally {
+			setIsDeleteDialogOpen(false);
+			setProjectToDelete(null);
+		}
+	};
+
+	const openDeleteDialog = (project: models.RepoLink) => {
+		setProjectToDelete(project);
+		setIsDeleteDialogOpen(true);
+	};
+
 	return (
 		<>
 			<SidebarHeader className="border-sidebar-border border-b bg-sidebar-accent/20">
@@ -217,19 +265,46 @@ function AppSidebarContent() {
 									const projectId = String(p.ID);
 									return (
 										<SidebarMenuItem key={`${projectId}-${p.ProjectName}`}>
-											<SidebarMenuButton
-												asChild
-												isActive={
-													location.pathname === `/projects/${projectId}`
-												}
-												size="sm"
-												tooltip={p.ProjectName}
-											>
-												<Link params={{ projectId }} to="/projects/$projectId">
-													<Folder size={14} />
-													<span className="text-sm">{p.ProjectName}</span>
-												</Link>
-											</SidebarMenuButton>
+											<ContextMenu>
+												<ContextMenuTrigger>
+													<SidebarMenuButton
+														asChild
+														isActive={
+															location.pathname === `/projects/${projectId}`
+														}
+														size="sm"
+														tooltip={p.ProjectName}
+													>
+														<Link
+															params={{ projectId }}
+															to="/projects/$projectId"
+														>
+															<Folder size={14} />
+															<span className="text-sm">{p.ProjectName}</span>
+														</Link>
+													</SidebarMenuButton>
+												</ContextMenuTrigger>
+												<ContextMenuContent>
+													<ContextMenuItem
+														onSelect={() =>
+															navigate({
+																to: "/projects/$projectId/settings",
+																params: { projectId },
+															})
+														}
+													>
+														<Settings size={14} />
+														<span>{t("sidebar.projectSettings")}</span>
+													</ContextMenuItem>
+													<ContextMenuItem
+														onSelect={() => openDeleteDialog(p)}
+														variant="destructive"
+													>
+														<Trash2 size={14} />
+														<span>{t("sidebar.deleteProject")}</span>
+													</ContextMenuItem>
+												</ContextMenuContent>
+											</ContextMenu>
 										</SidebarMenuItem>
 									);
 								})}
@@ -262,6 +337,33 @@ function AppSidebarContent() {
 				onSubmit={handleAddProject}
 				open={isAddProjectOpen}
 			/>
+
+			<AlertDialog
+				onOpenChange={setIsDeleteDialogOpen}
+				open={isDeleteDialogOpen}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{t("sidebar.deleteProjectTitle")}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{t("sidebar.deleteProjectDescription", {
+								projectName: projectToDelete?.ProjectName,
+							})}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>{t("sidebar.cancel")}</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={handleDeleteProject}
+						>
+							{t("sidebar.delete")}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</>
 	);
 }

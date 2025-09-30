@@ -141,3 +141,22 @@ export namespace models {
 
 }
 
+export namespace services {
+	
+	export class DirectoryValidationResult {
+	    isValid: boolean;
+	    errorCode: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DirectoryValidationResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.isValid = source["isValid"];
+	        this.errorCode = source["errorCode"];
+	    }
+	}
+
+}
+

@@ -15,12 +15,22 @@ import (
 
 const llmInstructionsBaseName = "llm_instructions"
 
+type DirectoryValidationResult struct {
+	IsValid   bool   `json:"isValid"`
+	ErrorCode string `json:"errorCode"`
+}
+
 type RepoLinkService interface {
 	Register(projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error)
 	Get(id uint) (*models.RepoLink, error)
 	List(limit, offset int) ([]models.RepoLink, error)
 	LinkRepositories(projectName, docRepo, codebaseRepo string, initFumaDocs bool, llmInstructionsPath string) error
 	Startup(ctx context.Context)
+	CheckLLMInstructions(id uint) (bool, error)
+	UpdateProjectPaths(id uint, docRepo, codebaseRepo string) error
+	ImportLLMInstructions(id uint, llmInstructionsPath string) error
+	Delete(id uint) error
+	ValidateDirectory(path string) (*DirectoryValidationResult, error)
 }
 
 type repoLinkService struct {
@@ -172,4 +182,110 @@ func copyFile(src, dst string) error {
 		return fmt.Errorf("chmod: %w", err)
 	}
 	return nil
+}
+
+// CheckLLMInstructions checks if an LLM instructions file exists in the project
+func (s *repoLinkService) CheckLLMInstructions(id uint) (bool, error) {
+	project, err := s.Get(id)
+	if err != nil {
+		return false, fmt.Errorf("failed to get project: %w", err)
+	}
+
+	narrabyteDir := filepath.Join(project.DocumentationRepo, ".narrabyte")
+	entries, err := os.ReadDir(narrabyteDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to read .narrabyte directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			name := entry.Name()
+			base := name[:len(name)-len(filepath.Ext(name))]
+			if base == llmInstructionsBaseName {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// UpdateProjectPaths updates the documentation and codebase repository paths for a project
+func (s *repoLinkService) UpdateProjectPaths(id uint, docRepo, codebaseRepo string) error {
+	project, err := s.Get(id)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	if docRepo != "" {
+		if !utils.HasGitRepo(docRepo) {
+			return errors.New("missing_git_repo: documentation")
+		}
+		if !utils.DirectoryExists(docRepo) {
+			return errors.New("documentation repo path does not exist")
+		}
+		project.DocumentationRepo = docRepo
+	}
+
+	if codebaseRepo != "" {
+		if !utils.HasGitRepo(codebaseRepo) {
+			return errors.New("missing_git_repo: codebase")
+		}
+		if !utils.DirectoryExists(codebaseRepo) {
+			return errors.New("codebase repo path does not exist")
+		}
+		project.CodebaseRepo = codebaseRepo
+	}
+
+	return s.repoLinks.Update(context.Background(), project)
+}
+
+// ImportLLMInstructions imports an LLM instructions file for a project
+func (s *repoLinkService) ImportLLMInstructions(id uint, llmInstructionsPath string) error {
+	project, err := s.Get(id)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	if err := s.storeLLMInstructions(project.DocumentationRepo, llmInstructionsPath); err != nil {
+		return fmt.Errorf("failed to store llm instructions: %w", err)
+	}
+
+	return nil
+}
+
+// Delete deletes a project by ID
+func (s *repoLinkService) Delete(id uint) error {
+	return s.repoLinks.Delete(context.Background(), id)
+}
+
+// ValidateDirectory validates if a directory exists and has a git repository
+func (s *repoLinkService) ValidateDirectory(path string) (*DirectoryValidationResult, error) {
+	if path == "" {
+		return &DirectoryValidationResult{
+			IsValid:   false,
+			ErrorCode: "EMPTY_PATH",
+		}, nil
+	}
+
+	if !utils.DirectoryExists(path) {
+		return &DirectoryValidationResult{
+			IsValid:   false,
+			ErrorCode: "DIR_NOT_EXIST",
+		}, nil
+	}
+
+	if !utils.HasGitRepo(path) {
+		return &DirectoryValidationResult{
+			IsValid:   false,
+			ErrorCode: "NO_GIT_REPO",
+		}, nil
+	}
+
+	return &DirectoryValidationResult{
+		IsValid:   true,
+		ErrorCode: "",
+	}, nil
 }
