@@ -23,6 +23,7 @@ import {
 export const PROVIDERS = [
 	{ name: "openai", key: "OpenAI" },
 	{ name: "openrouter", key: "OpenRouter" },
+	{ name: "anthropic", key: "Anthropic" },
 ];
 
 // Convert string to []byte (UTF-8 encoding)

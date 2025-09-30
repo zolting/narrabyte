@@ -1,4 +1,5 @@
 import type { models } from "@go/models";
+import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
@@ -10,6 +11,14 @@ import { ComparisonDisplay } from "@/components/ComparisonDisplay";
 import { GenerationTabs } from "@/components/GenerationTabs";
 import { SuccessPanel } from "@/components/SuccessPanel";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { useBranchManager } from "@/hooks/useBranchManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 
@@ -22,6 +31,8 @@ function ProjectDetailPage() {
 	const { projectId } = Route.useParams();
 	const [project, setProject] = useState<models.RepoLink | null>(null);
 	const [loading, setLoading] = useState(false);
+	const [provider, setProvider] = useState<string>("anthropic");
+	const [availableProviders, setAvailableProviders] = useState<string[]>([]);
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
@@ -43,6 +54,23 @@ function ProjectDetailPage() {
 				setLoading(false);
 			});
 	}, [projectId]);
+
+	// Load available API keys to determine which providers are available
+	useEffect(() => {
+		ListApiKeys()
+			.then((keys) => {
+				const providers = keys.map((k) => k.provider);
+				setAvailableProviders(providers);
+				// Set default provider to the first available one
+				if (providers.length > 0 && !providers.includes(provider)) {
+					setProvider(providers[0]);
+				}
+			})
+			.catch((err) => {
+				console.error("Failed to load API keys:", err);
+				setAvailableProviders([]);
+			});
+	}, []);
 
 	// Reset everything when component mounts
 	useEffect(() => {
@@ -114,8 +142,9 @@ function ProjectDetailPage() {
 			projectId: Number(project.ID),
 			sourceBranch: branchManager.sourceBranch,
 			targetBranch: branchManager.targetBranch,
+			provider,
 		});
-	}, [project, branchManager, docManager]);
+	}, [project, branchManager, docManager, provider]);
 
 	const handleCommit = useCallback(() => {
 		if (!(project && docManager.docResult)) {
@@ -211,20 +240,67 @@ function ProjectDetailPage() {
 						}
 
 						return (
-							<BranchSelector
-								branches={branchManager.branches}
-								disableControls={disableControls}
-								project={project}
-								setSourceBranch={branchManager.setSourceBranch}
-								setSourceOpen={branchManager.setSourceOpen}
-								setTargetBranch={branchManager.setTargetBranch}
-								setTargetOpen={branchManager.setTargetOpen}
-								sourceBranch={branchManager.sourceBranch}
-								sourceOpen={branchManager.sourceOpen}
-								swapBranches={branchManager.swapBranches}
-								targetBranch={branchManager.targetBranch}
-								targetOpen={branchManager.targetOpen}
-							/>
+							<>
+								<div className="shrink-0 space-y-2">
+									<Label
+										className="font-medium text-sm"
+										htmlFor="provider-select"
+									>
+										{t("common.provider", "LLM Provider")}
+									</Label>
+									<Select
+										disabled={
+											disableControls || availableProviders.length === 0
+										}
+										onValueChange={setProvider}
+										value={provider}
+									>
+										<SelectTrigger className="w-full" id="provider-select">
+											<SelectValue
+												placeholder={t(
+													"common.selectProvider",
+													"Select a provider"
+												)}
+											/>
+										</SelectTrigger>
+										<SelectContent>
+											{availableProviders.includes("anthropic") && (
+												<SelectItem value="anthropic">
+													Anthropic (Claude)
+												</SelectItem>
+											)}
+											{availableProviders.includes("openai") && (
+												<SelectItem value="openai">OpenAI</SelectItem>
+											)}
+											{availableProviders.includes("openrouter") && (
+												<SelectItem value="openrouter">OpenRouter</SelectItem>
+											)}
+										</SelectContent>
+									</Select>
+									{availableProviders.length === 0 && (
+										<p className="text-muted-foreground text-xs">
+											{t(
+												"common.noProvidersConfigured",
+												"No API keys configured. Please add one in settings."
+											)}
+										</p>
+									)}
+								</div>
+								<BranchSelector
+									branches={branchManager.branches}
+									disableControls={disableControls}
+									project={project}
+									setSourceBranch={branchManager.setSourceBranch}
+									setSourceOpen={branchManager.setSourceOpen}
+									setTargetBranch={branchManager.setTargetBranch}
+									setTargetOpen={branchManager.setTargetOpen}
+									sourceBranch={branchManager.sourceBranch}
+									sourceOpen={branchManager.sourceOpen}
+									swapBranches={branchManager.swapBranches}
+									targetBranch={branchManager.targetBranch}
+									targetOpen={branchManager.targetOpen}
+								/>
+							</>
 						);
 					})()}
 

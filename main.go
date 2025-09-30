@@ -38,11 +38,9 @@ func main() {
 	//Create each service
 	fumadocsService := services.NewFumadocsService()
 	gitService := services.NewGitService()
-	dbService := services.NewDbServices(db, *fumadocsService, *gitService)
-	clientService := services.NewClientService(dbService.RepoLinks, gitService)
-
-	//Create the keyring (à valider!!!!)
 	keyringService := services.NewKeyringService()
+	dbService := services.NewDbServices(db, *fumadocsService, *gitService)
+	clientService := services.NewClientService(dbService.RepoLinks, gitService, keyringService)
 
 	// Create application with options
 	err = wails.Run(&options.App{

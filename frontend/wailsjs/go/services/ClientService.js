@@ -10,8 +10,12 @@ export function ExploreDemo() {
   return window['go']['services']['ClientService']['ExploreDemo']();
 }
 
-export function GenerateDocs(arg1, arg2, arg3) {
-  return window['go']['services']['ClientService']['GenerateDocs'](arg1, arg2, arg3);
+export function GenerateDocs(arg1, arg2, arg3, arg4) {
+  return window['go']['services']['ClientService']['GenerateDocs'](arg1, arg2, arg3, arg4);
+}
+
+export function InitializeLLMClient(arg1) {
+  return window['go']['services']['ClientService']['InitializeLLMClient'](arg1);
 }
 
 export function Startup(arg1) {
