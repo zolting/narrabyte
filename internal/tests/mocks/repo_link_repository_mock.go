@@ -9,6 +9,8 @@ type RepoLinkRepositoryMock struct {
 	CreateFunc   func(ctx context.Context, link *models.RepoLink) error
 	FindByIDFunc func(ctx context.Context, id uint) (*models.RepoLink, error)
 	ListFunc     func(ctx context.Context, limit, offset int) ([]models.RepoLink, error)
+	UpdateFunc   func(ctx context.Context, link *models.RepoLink) error
+	DeleteFunc   func(ctx context.Context, id uint) error
 }
 
 func (m *RepoLinkRepositoryMock) Create(ctx context.Context, link *models.RepoLink) error {
@@ -30,4 +32,18 @@ func (m *RepoLinkRepositoryMock) List(ctx context.Context, limit, offset int) ([
 		return m.ListFunc(ctx, limit, offset)
 	}
 	return []models.RepoLink{}, nil
+}
+
+func (m *RepoLinkRepositoryMock) Update(ctx context.Context, link *models.RepoLink) error {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(ctx, link)
+	}
+	return nil
+}
+
+func (m *RepoLinkRepositoryMock) Delete(ctx context.Context, id uint) error {
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(ctx, id)
+	}
+	return nil
 }
