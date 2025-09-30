@@ -19,7 +19,7 @@ func TestExploreCodebase(t *testing.T) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	llmClient, err := client.NewOpenAIClient(testCtx, apiKey)
 	if err != nil {
-		t.Fatalf("Failed to create OpenAIClient: %v", err)
+		t.Fatalf("Failed to create LLMClient: %v", err)
 	}
 
 	root, err := utils.FindProjectRoot()

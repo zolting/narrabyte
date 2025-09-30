@@ -27,10 +27,10 @@ import (
 // On pourrait lowkey rendre ca plus generique pour n'importe quel client
 // Interface pour clients?
 type ClientService struct {
-	OpenAIClient *client.OpenAIClient
-	context      context.Context
-	repoLinks    RepoLinkService
-	gitService   *GitService
+	LLMClient  *client.LLMClient
+	context    context.Context
+	repoLinks  RepoLinkService
+	gitService *GitService
 }
 
 func (s *ClientService) Startup(ctx context.Context) error {
@@ -54,7 +54,7 @@ func (s *ClientService) Startup(ctx context.Context) error {
 		return err
 	}
 
-	s.OpenAIClient = temp
+	s.LLMClient = temp
 
 	return nil
 }
@@ -72,10 +72,10 @@ func (s *ClientService) ExploreDemo() (string, error) {
 		return "", err
 	}
 
-	ctx := s.OpenAIClient.StartStream(s.context)
-	defer s.OpenAIClient.StopStream()
+	ctx := s.LLMClient.StartStream(s.context)
+	defer s.LLMClient.StopStream()
 
-	result, err := s.OpenAIClient.ExploreCodebaseDemo(ctx, root)
+	result, err := s.LLMClient.ExploreCodebaseDemo(ctx, root)
 	if err != nil {
 		return "", err
 	}
@@ -200,11 +200,11 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 		docsBranch,
 	)))
 
-	streamCtx := s.OpenAIClient.StartStream(ctx)
-	defer s.OpenAIClient.StopStream()
+	streamCtx := s.LLMClient.StartStream(ctx)
+	defer s.LLMClient.StopStream()
 
 	// Use temporary documentation root for LLM operations
-	llmResult, err := s.OpenAIClient.GenerateDocs(streamCtx, &client.DocGenerationRequest{
+	llmResult, err := s.LLMClient.GenerateDocs(streamCtx, &client.DocGenerationRequest{
 		ProjectName:       project.ProjectName,
 		CodebasePath:      codeRoot,
 		DocumentationPath: tempDocRoot, // Use temporary workspace
@@ -374,11 +374,11 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 }
 
 func (s *ClientService) StopStream() {
-	if s == nil || s.OpenAIClient == nil {
+	if s == nil || s.LLMClient == nil {
 		return
 	}
-	wasRunning := s.OpenAIClient.IsRunning()
-	s.OpenAIClient.StopStream()
+	wasRunning := s.LLMClient.IsRunning()
+	s.LLMClient.StopStream()
 	if wasRunning && s.context != nil {
 		events.Emit(s.context, events.LLMEventTool, events.NewWarn("Cancel requested: stopping LLM session"))
 	}
