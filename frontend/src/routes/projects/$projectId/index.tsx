@@ -182,11 +182,7 @@ function ProjectDetailPage() {
 
 	return (
 		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
-			<div className="flex shrink-0 items-center justify-between">
-				<h1 className="flex-1 text-center font-semibold text-foreground text-xl">
-					{project.ProjectName}
-				</h1>
-
+			<div className="flex shrink-0 items-center justify-end">
 				<Button
 					onClick={() => navigate({ to: `/projects/${projectId}/settings` })}
 					size="sm"
@@ -280,7 +276,6 @@ function ProjectDetailPage() {
 								<BranchSelector
 									branches={branchManager.branches}
 									disableControls={disableControls}
-									project={project}
 									setSourceBranch={branchManager.setSourceBranch}
 									setSourceOpen={branchManager.setSourceOpen}
 									setTargetBranch={branchManager.setTargetBranch}
