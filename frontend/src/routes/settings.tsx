@@ -1,95 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AddApiKeyDialog from "@/components/AddApiKeyDialog";
 import ApiKeyManager from "@/components/ApiKeyManager";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAppSettingsStore } from "../stores/appSettings";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { type AppTheme, useAppSettingsStore } from "../stores/appSettings";
 
 export const Route = createFileRoute("/settings")({
 	component: Settings,
 });
-
-function ThemeSelector({
-	theme,
-	setTheme,
-	loading,
-}: {
-	theme: string;
-	setTheme: (theme: string) => void;
-	loading: boolean;
-}) {
-	const { t } = useTranslation();
-
-	if (loading) {
-		return (
-			<div className="text-center text-muted-foreground text-sm">
-				{t("settings.loading")}
-			</div>
-		);
-	}
-
-	return (
-		<div className="flex gap-2">
-			<Button
-				onClick={() => setTheme("light")}
-				variant={theme === "light" ? "default" : "outline"}
-			>
-				{t("settings.light")}
-			</Button>
-			<Button
-				onClick={() => setTheme("dark")}
-				variant={theme === "dark" ? "default" : "outline"}
-			>
-				{t("settings.dark")}
-			</Button>
-			<Button
-				onClick={() => setTheme("system")}
-				variant={theme === "system" ? "default" : "outline"}
-			>
-				{t("settings.system")}
-			</Button>
-		</div>
-	);
-}
-
-function LanguageSelector({
-	locale,
-	setLocale,
-	loading,
-}: {
-	locale: string;
-	setLocale: (locale: string) => void;
-	loading: boolean;
-}) {
-	const { t } = useTranslation();
-
-	if (loading) {
-		return (
-			<div className="text-center text-muted-foreground text-sm">
-				{t("settings.loading")}
-			</div>
-		);
-	}
-
-	return (
-		<div className="flex gap-2">
-			<Button
-				onClick={() => setLocale("en")}
-				variant={locale.startsWith("en") ? "default" : "outline"}
-			>
-				English
-			</Button>
-			<Button
-				onClick={() => setLocale("fr")}
-				variant={locale.startsWith("fr") ? "default" : "outline"}
-			>
-				Français
-			</Button>
-		</div>
-	);
-}
 
 function Settings() {
 	const { t } = useTranslation();
@@ -133,27 +67,48 @@ function Settings() {
 
 				<Card>
 					<CardHeader>
-						<CardTitle>{t("settings.theme")}</CardTitle>
+						<CardTitle>{t("settings.preferences")}</CardTitle>
+						<CardDescription>
+							{t("settings.preferencesDescription")}
+						</CardDescription>
 					</CardHeader>
-					<CardContent>
-						<ThemeSelector
-							loading={isLoading}
-							setTheme={setTheme}
-							theme={theme}
-						/>
-					</CardContent>
-				</Card>
+					<CardContent className="space-y-4">
+						<div className="flex items-center justify-between">
+							<span className="font-medium text-sm">{t("settings.theme")}</span>
+							<Select
+								disabled={isLoading}
+								onValueChange={(value) => setTheme(value as AppTheme)}
+								value={theme}
+							>
+								<SelectTrigger className="w-[180px]">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="light">{t("settings.light")}</SelectItem>
+									<SelectItem value="dark">{t("settings.dark")}</SelectItem>
+									<SelectItem value="system">{t("settings.system")}</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
 
-				<Card>
-					<CardHeader>
-						<CardTitle>{t("settings.language")}</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<LanguageSelector
-							loading={isLoading}
-							locale={locale}
-							setLocale={setLocale}
-						/>
+						<div className="flex items-center justify-between">
+							<span className="font-medium text-sm">
+								{t("settings.language")}
+							</span>
+							<Select
+								disabled={isLoading}
+								onValueChange={setLocale}
+								value={locale}
+							>
+								<SelectTrigger className="w-[180px]">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="en">English</SelectItem>
+									<SelectItem value="fr">Français</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
 					</CardContent>
 				</Card>
 
@@ -168,6 +123,7 @@ function Settings() {
 					onClick={() => window.history.back()}
 					variant="outline"
 				>
+					<ArrowLeft size={16} />
 					{t("common.goBack")}
 				</Button>
 

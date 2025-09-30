@@ -86,7 +86,9 @@
     "language": "Language",
     "light": "Light",
     "dark": "Dark",
-    "system": "System"
+    "system": "System",
+    "preferences": "Preferences",
+    "preferencesDescription": "Customize your appearance and language settings"
   },
   "demoEvents": {
     "title": "Demo Events",
@@ -137,7 +139,8 @@
     "hideKey": "Hide API key",
     "deleteKey": "Delete API key",
     "editKey": "Edit API key",
-    "add": "Add"
+    "add": "Add",
+    "allProvidersConfigured": "All providers already have API keys configured"
   },
   "projectSettings": {
     "title": "Project Settings",

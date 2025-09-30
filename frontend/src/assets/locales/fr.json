@@ -86,7 +86,9 @@
     "language": "Langue",
     "light": "Clair",
     "dark": "Sombre",
-    "system": "Système"
+    "system": "Système",
+    "preferences": "Préférences",
+    "preferencesDescription": "Personnalisez vos paramètres d'apparence et de langue"
   },
   "demoEvents": {
     "title": "Événements de démonstration",
@@ -137,7 +139,8 @@
     "hideKey": "Masquer la clé API",
     "deleteKey": "Supprimer la clé API",
     "editKey": "Modifier la clé API",
-    "add": "Ajouter"
+    "add": "Ajouter",
+    "allProvidersConfigured": "Tous les fournisseurs ont déjà des clés API configurées"
   },
   "projectSettings": {
     "title": "Paramètres du projet",
