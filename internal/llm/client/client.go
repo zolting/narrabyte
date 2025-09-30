@@ -15,7 +15,9 @@ import (
 	"sync"
 
 	"github.com/cloudwego/eino-ext/components/model/claude"
+	"github.com/cloudwego/eino-ext/components/model/gemini"
 	"github.com/cloudwego/eino-ext/components/model/openai"
+	"google.golang.org/genai"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/components/model"
@@ -78,15 +80,37 @@ func NewOpenAIClient(ctx context.Context, key string) (*LLMClient, error) {
 }
 
 func NewClaudeClient(ctx context.Context, key string) (*LLMClient, error) {
-	maxTokens := 8192
 	model, err := claude.NewChatModel(ctx, &claude.Config{
 		APIKey:    key,
 		Model:     "claude-sonnet-4-5",
-		MaxTokens: maxTokens,
+		MaxTokens: 4096,
 	})
 
 	if err != nil {
 		log.Printf("Error creating Claude client: %v", err)
+		return nil, err
+	}
+
+	return &LLMClient{chatModel: model, Key: key}, err
+}
+
+func NewGeminiClient(ctx context.Context, key string) (*LLMClient, error) {
+	genai, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey: key,
+	})
+
+	if err != nil {
+		log.Printf("Error creating Gemini client: %v", err)
+		return nil, err
+	}
+
+	model, err := gemini.NewChatModel(ctx, &gemini.Config{
+		Client: genai,
+		Model:  "gemini-flash-latest",
+	})
+
+	if err != nil {
+		log.Printf("Error creating Gemini client: %v", err)
 		return nil, err
 	}
 

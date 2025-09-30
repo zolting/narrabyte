@@ -259,6 +259,9 @@ function ProjectDetailPage() {
 											{availableProviders.includes("openai") && (
 												<SelectItem value="openai">OpenAI</SelectItem>
 											)}
+											{availableProviders.includes("gemini") && (
+												<SelectItem value="gemini">Google Gemini</SelectItem>
+											)}
 											{availableProviders.includes("openrouter") && (
 												<SelectItem value="openrouter">OpenRouter</SelectItem>
 											)}

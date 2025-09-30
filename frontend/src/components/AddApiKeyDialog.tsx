@@ -24,6 +24,7 @@ export const PROVIDERS = [
 	{ name: "openai", key: "OpenAI" },
 	{ name: "openrouter", key: "OpenRouter" },
 	{ name: "anthropic", key: "Anthropic" },
+	{ name: "gemini", key: "Google Gemini" },
 ];
 
 // Convert string to []byte (UTF-8 encoding)
