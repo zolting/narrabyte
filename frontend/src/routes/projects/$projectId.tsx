@@ -215,13 +215,14 @@ function ProjectDetailPage() {
 					})()}
 
 					{docManager.hasGenerationAttempt && (
-						<GenerationTabs
-							activeTab={docManager.activeTab}
-							docResult={docManager.docResult}
-							events={docManager.events}
-							setActiveTab={docManager.setActiveTab}
-							status={docManager.status}
-						/>
+                        <GenerationTabs
+                            activeTab={docManager.activeTab}
+                            docResult={docManager.docResult}
+                            events={docManager.events}
+                            projectId={Number(project.ID)}
+                            setActiveTab={docManager.setActiveTab}
+                            status={docManager.status}
+                        />
 					)}
 				</div>
 

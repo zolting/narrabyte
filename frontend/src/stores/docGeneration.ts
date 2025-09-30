@@ -4,6 +4,7 @@ import { type DemoEvent, demoEventSchema } from "@/types/events";
 import {
 	CommitDocs,
 	GenerateDocs,
+	RefineDocs,
 	StopStream,
 } from "../../wailsjs/go/services/ClientService";
 import { EventsOn } from "../../wailsjs/runtime";
@@ -34,10 +35,24 @@ type State = {
 	result: models.DocGenerationResult | null;
 	error: string | null;
 	cancellationRequested: boolean;
+	toggleChat: (open?: boolean) => void;
+	chatOpen: boolean;
+	messages: {
+		id: string;
+		role: "user" | "assistant";
+		content: string;
+		status?: "pending" | "sent" | "error";
+		createdAt: Date;
+	}[];
 	start: (args: StartArgs) => Promise<void>;
 	reset: () => void;
 	commit: (args: CommitArgs) => Promise<void>;
 	cancel: () => Promise<void>;
+	refine: (args: {
+		projectId: number;
+		branch: string;
+		instruction: string;
+	}) => Promise<void>;
 };
 
 let unsubscribeTool: (() => void) | null = null;
@@ -72,6 +87,8 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 	result: null,
 	error: null,
 	cancellationRequested: false,
+	chatOpen: false,
+	messages: [],
 
 	start: async ({ projectId, sourceBranch, targetBranch }: StartArgs) => {
 		if (get().status === "running") {
@@ -234,6 +251,124 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 			result: null,
 			status: "idle",
 			cancellationRequested: false,
+			messages: [],
+			chatOpen: false,
 		});
+	},
+
+	toggleChat: (open) => {
+		if (typeof open === "boolean") {
+			set({ chatOpen: open });
+		} else {
+			set((s) => ({ chatOpen: !s.chatOpen }));
+		}
+	},
+
+	refine: async ({ projectId, branch, instruction }) => {
+		if (get().status === "running" || !instruction.trim()) {
+			return;
+		}
+
+		// Optimistically render the user message
+		const id =
+			typeof crypto !== "undefined" && "randomUUID" in crypto
+				? crypto.randomUUID()
+				: Math.random().toString(36).slice(2);
+		const userMsg = {
+			id,
+			role: "user" as const,
+			content: instruction,
+			status: "pending" as const,
+			createdAt: new Date(),
+		};
+
+		set((s) => ({
+			messages: [...s.messages, userMsg],
+			events: s.events,
+			error: null,
+			status: "running",
+		}));
+
+		// Subscribe to events
+		unsubscribeTool?.();
+		unsubscribeDone?.();
+		unsubscribeTool = EventsOn("event:llm:tool", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				set((state) => ({ events: [...state.events, evt] }));
+			} catch (error) {
+				console.error("Invalid refine tool event", error, payload);
+			}
+		});
+		unsubscribeDone = EventsOn("events:llm:done", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				set((state) => ({ events: [...state.events, evt] }));
+			} catch (error) {
+				console.error("Invalid refine done event", error, payload);
+			}
+		});
+
+		try {
+			const result = await RefineDocs(projectId, branch, instruction);
+			// Mark user message as sent and add assistant summary
+			type ChatMessage = State["messages"][number];
+
+			set((s) => {
+				const updated: ChatMessage[] = s.messages.map(
+					(m): ChatMessage =>
+						m.id === id ? { ...m, status: "sent" as const } : m
+				);
+
+				const summary = (result?.summary ?? "").trim();
+				const maybeAssistant: ChatMessage[] = summary
+					? [
+							{
+								id:
+									globalThis.crypto && "randomUUID" in globalThis.crypto
+										? globalThis.crypto.randomUUID()
+										: Math.random().toString(36).slice(2),
+								role: "assistant" as const,
+								content: summary,
+								createdAt: new Date(),
+							},
+						]
+					: [];
+
+				return {
+					messages: [...updated, ...maybeAssistant],
+					result,
+					status: "success",
+					events: [
+						...s.events,
+						createLocalEvent(
+							"info",
+							"Applied user instruction to documentation."
+						),
+					],
+				} satisfies Partial<State>;
+			});
+		} catch (error) {
+			const message = messageFromError(error);
+			set((s) => ({
+				messages: s.messages
+					.map((m) => (m.id === id ? { ...m, status: "error" as const } : m))
+					.concat([
+						{
+							id: Math.random().toString(36).slice(2),
+							role: "assistant" as const,
+							content: `Error: ${message}`,
+							createdAt: new Date(),
+						},
+					]),
+				status: "error",
+				error: message,
+			}));
+		} finally {
+			unsubscribeTool?.();
+			unsubscribeTool = null;
+			unsubscribeDone?.();
+			unsubscribeDone = null;
+		}
 	},
 }));

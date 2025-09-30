@@ -58,14 +58,152 @@ type DocGenerationResponse struct {
 	Summary string
 }
 
+// DocRefineRequest allows the user to request follow-up edits to the
+// documentation after an initial generation pass.
+type DocRefineRequest struct {
+	ProjectName       string
+	CodebasePath      string
+	DocumentationPath string
+	SourceBranch      string
+	Instruction       string
+}
+
+// DocRefine executes a lightweight agent session focused on applying
+// user-provided edits to the documentation repository. It reuses the
+// documentation tools (list/read/write/edit) and provides the
+// documentation + code repository listings as context.
+func (o *OpenAIClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocGenerationResponse, error) {
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("DocRefine: initializing"))
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if strings.TrimSpace(req.DocumentationPath) == "" {
+		return nil, fmt.Errorf("documentation path is required")
+	}
+	if strings.TrimSpace(req.CodebasePath) == "" {
+		return nil, fmt.Errorf("codebase path is required")
+	}
+	if strings.TrimSpace(req.Instruction) == "" {
+		return nil, fmt.Errorf("instruction is required")
+	}
+
+	docRoot, err := filepath.Abs(req.DocumentationPath)
+	if err != nil {
+		return nil, err
+	}
+	codeRoot, err := filepath.Abs(req.CodebasePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set up client state for this session
+	o.docRoot = docRoot
+	o.codeRoot = codeRoot
+	o.sourceBranch = strings.TrimSpace(req.SourceBranch)
+	o.targetBranch = ""
+	o.sourceCommit = ""
+	o.targetCommit = ""
+	o.SetListDirectoryBaseRoot(docRoot)
+
+	// Snapshots: live docs; code snapshot not required here
+	if err := o.prepareSnapshots(ctx); err != nil {
+		return nil, err
+	}
+
+	// Capture repository listings for context
+	docListing, err := o.captureListing(ctx, docRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list documentation root: %w", err)
+	}
+	codeListing, err := o.captureListing(ctx, codeRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list codebase root: %w", err)
+	}
+
+	// Initialize documentation-aware tools
+	toolsForSession, err := o.initDocumentationTools(docRoot, codeRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load system prompt tailored for refinement
+	systemPrompt, err := o.loadPrompt("refine_docs.txt")
+	if err != nil {
+		return nil, err
+	}
+
+	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+		Model: &o.ChatModel,
+		ToolsConfig: adk.ToolsConfig{
+			ToolsNodeConfig: compose.ToolsNodeConfig{
+				Tools: toolsForSession,
+			},
+		},
+		Name:        "Documentation Refiner",
+		Description: "Applies requested edits to documentation files",
+		Instruction: systemPrompt,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("Project: %s\n", strings.TrimSpace(req.ProjectName)))
+	if sb := strings.TrimSpace(req.SourceBranch); sb != "" {
+		b.WriteString(fmt.Sprintf("Docs branch: %s\n", sb))
+	}
+	b.WriteString("Documentation repository root:\n")
+	b.WriteString(filepath.ToSlash(docRoot))
+	b.WriteString("\n\n")
+	b.WriteString("Codebase repository root:\n")
+	b.WriteString(filepath.ToSlash(codeRoot))
+	b.WriteString("\n\n")
+	b.WriteString("<documentation_repo_listing>\n")
+	b.WriteString(docListing)
+	b.WriteString("\n</documentation_repo_listing>\n\n")
+	b.WriteString("<codebase_repo_listing>\n")
+	b.WriteString(codeListing)
+	b.WriteString("\n</codebase_repo_listing>\n\n")
+	b.WriteString("<user_instruction>\n")
+	b.WriteString(strings.TrimSpace(req.Instruction))
+	b.WriteString("\n</user_instruction>")
+
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
+	iter := runner.Query(ctx, b.String())
+	var lastMessage string
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if event.Err != nil {
+			if errors.Is(event.Err, context.Canceled) {
+				events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing canceled"))
+				return nil, context.Canceled
+			}
+			events.Emit(ctx, events.LLMEventDone, events.NewError("LLM processing error"))
+			return nil, event.Err
+		}
+		msg, err := event.Output.MessageOutput.GetMessage()
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("DocRefine: message error: %v", err)))
+			continue
+		}
+		lastMessage = msg.Content
+	}
+
+	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
+	return &DocGenerationResponse{Summary: strings.TrimSpace(lastMessage)}, nil
+}
+
 func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 	// temperature := float32(0)
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		APIKey: key,
-		Model:  "gpt-5-mini",
-		// APIKey:  "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",
-		// Model:   "x-ai/grok-4-fast:free",
-		// BaseURL: "https://openrouter.ai/api/v1",
+		//APIKey: key,
+		//Model:  "gpt-5-mini",
+		APIKey:  "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",
+		Model:   "x-ai/grok-4-fast:free",
+		BaseURL: "https://openrouter.ai/api/v1",
 	})
 
 	if err != nil {
