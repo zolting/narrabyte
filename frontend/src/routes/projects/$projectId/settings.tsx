@@ -87,7 +87,7 @@ function ProjectSettings() {
 	const [saving, setSaving] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [docValidationError, setDocValidationError] = useState<string | null>(
-		null
+		null,
 	);
 	const [codebaseValidationError, setCodebaseValidationError] = useState<
 		string | null
@@ -146,7 +146,7 @@ function ProjectSettings() {
 		};
 
 		const matchedError = Object.keys(errorMap).find((key) =>
-			errorMessage.includes(key)
+			errorMessage.includes(key),
 		);
 		if (matchedError) {
 			errorMap[matchedError]();
@@ -165,7 +165,7 @@ function ProjectSettings() {
 			await UpdateProjectPaths(
 				Number(project.ID),
 				docDirectory,
-				codebaseDirectory
+				codebaseDirectory,
 			);
 			await handleSavePathsSuccess();
 		} catch (error) {
@@ -265,10 +265,6 @@ function ProjectSettings() {
 
 	const hasValidationErrors =
 		docValidationError !== null || codebaseValidationError !== null;
-
-	if (loading) {
-		return <div className="p-8 text-muted-foreground">Loading...</div>;
-	}
 
 	if (!project) {
 		return (
