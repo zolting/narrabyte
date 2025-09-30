@@ -1,9 +1,6 @@
 import { create } from "zustand";
 import { type DemoEvent, demoEventSchema } from "@/types/events";
-import {
-	ExploreDemo,
-	StopStream,
-} from "../../wailsjs/go/services/ClientService";
+import { StopStream } from "../../wailsjs/go/services/ClientService";
 import { EventsOn } from "../../wailsjs/runtime";
 
 type State = {

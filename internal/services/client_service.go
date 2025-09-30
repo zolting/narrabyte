@@ -392,11 +392,11 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		docsBranch,
 	)))
 
-	streamCtx := s.OpenAIClient.StartStream(ctx)
-	defer s.OpenAIClient.StopStream()
+	streamCtx := s.LLMClient.StartStream(ctx)
+	defer s.LLMClient.StopStream()
 
 	// Run the refinement agent focused on applying user edits
-	llmResult, err := s.OpenAIClient.DocRefine(streamCtx, &client.DocRefineRequest{
+	llmResult, err := s.LLMClient.DocRefine(streamCtx, &client.DocRefineRequest{
 		ProjectName:       project.ProjectName,
 		CodebasePath:      codeRoot,
 		DocumentationPath: tempDocRoot,
