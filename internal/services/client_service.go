@@ -71,6 +71,8 @@ func (s *ClientService) InitializeLLMClient(provider string) error {
 		keyringProvider = "anthropic"
 	} else if provider == "openai" {
 		keyringProvider = "openai"
+	} else if provider == "gemini" {
+		keyringProvider = "gemini"
 	} else {
 		return fmt.Errorf("unsupported provider: %s", provider)
 	}
@@ -88,6 +90,8 @@ func (s *ClientService) InitializeLLMClient(provider string) error {
 		llmClient, err = client.NewClaudeClient(s.context, apiKey)
 	} else if provider == "openai" {
 		llmClient, err = client.NewOpenAIClient(s.context, apiKey)
+	} else if provider == "gemini" {
+		llmClient, err = client.NewGeminiClient(s.context, apiKey)
 	}
 
 	if err != nil {
