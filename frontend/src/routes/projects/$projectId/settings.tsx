@@ -79,7 +79,6 @@ function ProjectSettings() {
 	const navigate = useNavigate();
 	const { projectId } = Route.useParams();
 	const [project, setProject] = useState<models.RepoLink | null>(null);
-	const [loading, setLoading] = useState(true);
 	const [hasLLMInstructions, setHasLLMInstructions] = useState(false);
 	const [docDirectory, setDocDirectory] = useState("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState("");
@@ -95,7 +94,6 @@ function ProjectSettings() {
 
 	useEffect(() => {
 		const loadProject = async () => {
-			setLoading(true);
 			try {
 				const proj = (await Get(Number(projectId))) as models.RepoLink;
 				setProject(proj);
@@ -107,8 +105,6 @@ function ProjectSettings() {
 			} catch (error) {
 				console.error("Failed to load project:", error);
 				toast.error(t("projectSettings.loadError"));
-			} finally {
-				setLoading(false);
 			}
 		};
 		loadProject();
@@ -265,10 +261,6 @@ function ProjectSettings() {
 
 	const hasValidationErrors =
 		docValidationError !== null || codebaseValidationError !== null;
-
-	if (loading) {
-		return <div className="p-8 text-muted-foreground">Loading...</div>;
-	}
 
 	if (!project) {
 		return (

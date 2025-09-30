@@ -27,10 +27,11 @@ import (
 // On pourrait lowkey rendre ca plus generique pour n'importe quel client
 // Interface pour clients?
 type ClientService struct {
-	OpenAIClient *client.OpenAIClient
-	context      context.Context
-	repoLinks    RepoLinkService
-	gitService   *GitService
+	LLMClient      *client.LLMClient
+	context        context.Context
+	repoLinks      RepoLinkService
+	gitService     *GitService
+	keyringService *KeyringService
 }
 
 func (s *ClientService) Startup(ctx context.Context) error {
@@ -41,55 +42,70 @@ func (s *ClientService) Startup(ctx context.Context) error {
 	if s.gitService == nil {
 		return fmt.Errorf("git service not configured")
 	}
-
-	err := utils.LoadEnv()
-	if err != nil {
-		return err
+	if s.keyringService == nil {
+		return fmt.Errorf("keyring service not configured")
 	}
-	key := os.Getenv("OPENAI_API_KEY")
-
-	temp, err := client.NewOpenAIClient(ctx, key)
-
-	if err != nil {
-		return err
-	}
-
-	s.OpenAIClient = temp
-
 	return nil
 }
 
-func NewClientService(repoLinks RepoLinkService, gitService *GitService) *ClientService {
+func NewClientService(repoLinks RepoLinkService, gitService *GitService, keyringService *KeyringService) *ClientService {
 	return &ClientService{
-		repoLinks:  repoLinks,
-		gitService: gitService,
+		repoLinks:      repoLinks,
+		gitService:     gitService,
+		keyringService: keyringService,
 	}
 }
 
-func (s *ClientService) ExploreDemo() (string, error) {
-	root, err := utils.FindProjectRoot()
-	if err != nil {
-		return "", err
+// InitializeLLMClient initializes the LLM client for the specified provider
+func (s *ClientService) InitializeLLMClient(provider string) error {
+	if s.context == nil {
+		return fmt.Errorf("client service not initialized")
+	}
+	if s.keyringService == nil {
+		return fmt.Errorf("keyring service not configured")
 	}
 
-	ctx := s.OpenAIClient.StartStream(s.context)
-	defer s.OpenAIClient.StopStream()
-
-	result, err := s.OpenAIClient.ExploreCodebaseDemo(ctx, root)
-	if err != nil {
-		return "", err
+	// Map frontend provider names to keyring provider names
+	keyringProvider := provider
+	if provider == "anthropic" {
+		keyringProvider = "anthropic"
+	} else if provider == "openai" {
+		keyringProvider = "openai"
+	} else {
+		return fmt.Errorf("unsupported provider: %s", provider)
 	}
 
-	return result, nil
+	apiKey, err := s.keyringService.GetApiKey(keyringProvider)
+	if err != nil {
+		return fmt.Errorf("failed to get API key for %s: %w", provider, err)
+	}
+	if apiKey == "" {
+		return fmt.Errorf("API key for %s is not configured", provider)
+	}
+
+	var llmClient *client.LLMClient
+	if provider == "anthropic" {
+		llmClient, err = client.NewClaudeClient(s.context, apiKey)
+	} else if provider == "openai" {
+		llmClient, err = client.NewOpenAIClient(s.context, apiKey)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to create %s client: %w", provider, err)
+	}
+
+	s.LLMClient = llmClient
+	return nil
 }
 
-func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch, provider string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
 	}
 	sourceBranch = strings.TrimSpace(sourceBranch)
 	targetBranch = strings.TrimSpace(targetBranch)
+	provider = strings.TrimSpace(provider)
 	if projectID == 0 {
 		return nil, fmt.Errorf("project id is required")
 	}
@@ -98,6 +114,14 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 	}
 	if sourceBranch == targetBranch {
 		return nil, fmt.Errorf("source and target branches must differ")
+	}
+	if provider == "" {
+		return nil, fmt.Errorf("provider is required")
+	}
+
+	// Initialize LLM client with the specified provider
+	if err := s.InitializeLLMClient(provider); err != nil {
+		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
 	}
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
@@ -200,11 +224,11 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch 
 		docsBranch,
 	)))
 
-	streamCtx := s.OpenAIClient.StartStream(ctx)
-	defer s.OpenAIClient.StopStream()
+	streamCtx := s.LLMClient.StartStream(ctx)
+	defer s.LLMClient.StopStream()
 
 	// Use temporary documentation root for LLM operations
-	llmResult, err := s.OpenAIClient.GenerateDocs(streamCtx, &client.DocGenerationRequest{
+	llmResult, err := s.LLMClient.GenerateDocs(streamCtx, &client.DocGenerationRequest{
 		ProjectName:       project.ProjectName,
 		CodebasePath:      codeRoot,
 		DocumentationPath: tempDocRoot, // Use temporary workspace
@@ -575,11 +599,11 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 }
 
 func (s *ClientService) StopStream() {
-	if s == nil || s.OpenAIClient == nil {
+	if s == nil || s.LLMClient == nil {
 		return
 	}
-	wasRunning := s.OpenAIClient.IsRunning()
-	s.OpenAIClient.StopStream()
+	wasRunning := s.LLMClient.IsRunning()
+	s.LLMClient.StopStream()
 	if wasRunning && s.context != nil {
 		events.Emit(s.context, events.LLMEventTool, events.NewWarn("Cancel requested: stopping LLM session"))
 	}

@@ -21,6 +21,7 @@ type StartArgs = {
 	projectId: number;
 	sourceBranch: string;
 	targetBranch: string;
+	provider: string;
 };
 
 type CommitArgs = {
@@ -90,7 +91,12 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 	chatOpen: false,
 	messages: [],
 
-	start: async ({ projectId, sourceBranch, targetBranch }: StartArgs) => {
+	start: async ({
+		projectId,
+		sourceBranch,
+		targetBranch,
+		provider,
+	}: StartArgs) => {
 		if (get().status === "running") {
 			return;
 		}
@@ -125,7 +131,12 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 		});
 
 		try {
-			const result = await GenerateDocs(projectId, sourceBranch, targetBranch);
+			const result = await GenerateDocs(
+				projectId,
+				sourceBranch,
+				targetBranch,
+				provider
+			);
 			set({ result, status: "success", cancellationRequested: false });
 		} catch (error) {
 			const message = messageFromError(error);
