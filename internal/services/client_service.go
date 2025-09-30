@@ -27,10 +27,10 @@ import (
 // On pourrait lowkey rendre ca plus generique pour n'importe quel client
 // Interface pour clients?
 type ClientService struct {
-	LLMClient   *client.LLMClient
-	context     context.Context
-	repoLinks   RepoLinkService
-	gitService  *GitService
+	LLMClient      *client.LLMClient
+	context        context.Context
+	repoLinks      RepoLinkService
+	gitService     *GitService
 	keyringService *KeyringService
 }
 
@@ -96,23 +96,6 @@ func (s *ClientService) InitializeLLMClient(provider string) error {
 
 	s.LLMClient = llmClient
 	return nil
-}
-
-func (s *ClientService) ExploreDemo() (string, error) {
-	root, err := utils.FindProjectRoot()
-	if err != nil {
-		return "", err
-	}
-
-	ctx := s.LLMClient.StartStream(s.context)
-	defer s.LLMClient.StopStream()
-
-	result, err := s.LLMClient.ExploreCodebaseDemo(ctx, root)
-	if err != nil {
-		return "", err
-	}
-
-	return result, nil
 }
 
 func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch, provider string) (*models.DocGenerationResult, error) {
