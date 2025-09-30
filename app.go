@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"narrabyte/internal/events"
 	"sync"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -59,4 +60,46 @@ func (a *App) SelectDirectory() (string, error) {
 		return "", err
 	}
 	return dir, nil
+}
+
+// SelectFile opens a native file picker dialog and returns the selected file path
+func (a *App) SelectFile() (string, error) {
+	file, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select File",
+	})
+	if err != nil {
+		return "", err
+	}
+	return file, nil
+}
+
+// SelectFileFiltered opens a native file picker dialog and returns the selected file path
+// with a filter based on the provided extensions
+func (a *App) SelectFileFiltered(displayName string, extensions []string) (string, error) {
+	if len(extensions) == 0 {
+		return a.SelectFile()
+	}
+	pattern := ""
+	for i, ext := range extensions {
+		if ext == "" {
+			continue
+		}
+		if ext[0] == '.' {
+			ext = ext[1:]
+		}
+		if i > 0 {
+			pattern += ";"
+		}
+		pattern += "*." + ext
+	}
+	file, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select File",
+		Filters: []runtime.FileFilter{
+			{DisplayName: displayName, Pattern: pattern},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	return file, nil
 }

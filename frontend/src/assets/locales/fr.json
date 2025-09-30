@@ -36,6 +36,7 @@
     "noEvents": "Aucune activité d'outil pour le moment.",
     "files": "Fichiers",
     "selectFile": "Sélectionnez un fichier pour afficher le diff.",
+    "selectFileAction": "Sélectionner un fichier",
     "noDocumentationChanges": "Aucun changement de documentation n'a été produit pour ce diff.",
     "commitSuccess": "Documentation validée avec succès !",
     "commitSuccessDescription": "Vos modifications de documentation ont été validées avec succès dans la branche de documentation.",
@@ -55,7 +56,8 @@
     "existingDocumentationRepository": "Dépôt de documentation existant",
     "newDocumentationRepository": "Nouveau dépôt Fumadocs",
     "creationPath": "Chemin de création",
-    "chooseNewOrExisitingDoc": "Choisir si vous voulez créer un nouveau dépôt de documentation ou lier un existant."
+    "chooseNewOrExisitingDoc": "Choisir si vous voulez créer un nouveau dépôt de documentation ou lier un existant.",
+    "llmInstructions": "Instructions LLM spécifiques à ce projet (optionnel)"
   },
   "home": {
     "greeting": "Veuillez entrer votre nom ci-dessous 👇",
@@ -84,7 +86,9 @@
     "language": "Langue",
     "light": "Clair",
     "dark": "Sombre",
-    "system": "Système"
+    "system": "Système",
+    "preferences": "Préférences",
+    "preferencesDescription": "Personnalisez vos paramètres d'apparence et de langue"
   },
   "demoEvents": {
     "title": "Événements de démonstration",
@@ -101,12 +105,74 @@
     "loading": "Chargement…",
     "noProjects": "Aucun projet",
     "collapseSidebar": "Replier la barre latérale",
-    "expandSidebar": "Déplier la barre latérale"
+    "expandSidebar": "Déplier la barre latérale",
+    "projectSettings": "Paramètres du projet",
+    "deleteProject": "Supprimer le projet",
+    "deleteProjectTitle": "Supprimer le projet",
+    "deleteProjectDescription": "Êtes-vous sûr de vouloir supprimer \"{{projectName}}\" ? Cette action ne peut pas être annulée et supprimera uniquement le lien du projet dans Narrabyte, pas les fichiers réels.",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "deleteSuccess": "Projet supprimé avec succès",
+    "deleteError": "Échec de la suppression du projet"
   },
   "apiDialog": {
     "keySaved": "Clé API sauvegardée avec succès!",
+    "keyUpdated": "Clé API mise à jour avec succès!",
     "errSavingKey": "Erreur lors de la sauvegarde de la clé",
     "addApiKey": "Ajouter une clé API",
-    "existingKeys": "Clés déjà ajoutées"
+    "editApiKey": "Modifier la clé API",
+    "existingKeys": "Clés déjà ajoutées",
+    "newApiKey": "Nouvelle clé API",
+    "enterNewKey": "Entrer la nouvelle clé API",
+    "save": "Enregistrer",
+    "update": "Mettre à jour"
+  },
+  "apiKeys": {
+    "title": "Clés API",
+    "description": "Gérez vos clés API pour différents fournisseurs",
+    "noKeys": "Aucune clé API configurée",
+    "loadError": "Échec du chargement des clés API",
+    "deleteSuccess": "Clé API supprimée avec succès",
+    "deleteError": "Échec de la suppression de la clé API",
+    "fetchError": "Échec de la récupération de la clé API",
+    "showKey": "Afficher la clé API",
+    "hideKey": "Masquer la clé API",
+    "deleteKey": "Supprimer la clé API",
+    "editKey": "Modifier la clé API",
+    "add": "Ajouter",
+    "allProvidersConfigured": "Tous les fournisseurs ont déjà des clés API configurées"
+  },
+  "projectSettings": {
+    "title": "Paramètres du projet",
+    "subtitle": "Configurez les chemins des dépôts et les instructions LLM pour ce projet",
+    "repositoryPaths": "Chemins des dépôts",
+    "documentationRepo": "Dépôt de documentation",
+    "codebaseRepo": "Dépôt du code source",
+    "currentPath": "Chemin actuel",
+    "newPath": "Nouveau chemin",
+    "savePaths": "Enregistrer les chemins",
+    "saving": "Enregistrement...",
+    "pathsUpdated": "Chemins mis à jour avec succès!",
+    "pathsUpdateError": "Échec de la mise à jour des chemins",
+    "llmInstructions": "Instructions LLM",
+    "llmInstructionsStatus": "Fichier d'instructions LLM",
+    "detected": "Détecté",
+    "notDetected": "Non détecté",
+    "llmInstructionsDescription": "Importez un fichier d'instructions LLM personnalisé qui sera copié dans .narrabyte/llm_instructions.md de votre dépôt de documentation.",
+    "import": "Importer",
+    "importConfirm": "Importer le fichier",
+    "importing": "Importation...",
+    "selected": "Sélectionné",
+    "llmInstructionsImported": "Instructions LLM importées avec succès!",
+    "llmInstructionsImportError": "Échec de l'importation des instructions LLM",
+    "loadError": "Échec du chargement du projet",
+    "deleteProject": "Supprimer le projet",
+    "noGitRepoDoc": "Le répertoire de documentation ne contient pas de dépôt git initialisé",
+    "noGitRepoCodebase": "Le répertoire du code source ne contient pas de dépôt git initialisé",
+    "noGitRepoFound": "Aucun dépôt git initialisé trouvé dans ce répertoire",
+    "dirNotExist": "Le répertoire n'existe pas",
+    "docDirNotExist": "Le répertoire de documentation n'existe pas",
+    "codebaseDirNotExist": "Le répertoire du code source n'existe pas",
+    "validationFailed": "Échec de la validation du répertoire"
   }
 }

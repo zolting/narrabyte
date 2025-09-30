@@ -11,6 +11,8 @@ type RepoLinkRepository interface {
 	Create(ctx context.Context, link *models.RepoLink) error
 	FindByID(ctx context.Context, id uint) (*models.RepoLink, error)
 	List(ctx context.Context, limit, offset int) ([]models.RepoLink, error)
+	Update(ctx context.Context, link *models.RepoLink) error
+	Delete(ctx context.Context, id uint) error
 }
 
 type repoLinkRepository struct {
@@ -38,4 +40,12 @@ func (r *repoLinkRepository) List(ctx context.Context, limit, offset int) ([]mod
 	var links []models.RepoLink
 	err := r.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&links).Error
 	return links, err
+}
+
+func (r *repoLinkRepository) Update(ctx context.Context, link *models.RepoLink) error {
+	return r.db.WithContext(ctx).Save(link).Error
+}
+
+func (r *repoLinkRepository) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&models.RepoLink{}, id).Error
 }

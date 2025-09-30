@@ -68,7 +68,7 @@ func (s *KeyringService) StoreApiKey(provider string, apiKey []byte) error {
 		Key:         prefix + provider + suffix,
 		Data:        apiKey,
 		Label:       provider + "API key",
-		Description: "API key for " + provider + "used by Narrabyte",
+		Description: "API key for " + provider + " used by Narrabyte",
 	}
 	return s.ring.Set(item)
 }

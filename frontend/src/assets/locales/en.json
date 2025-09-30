@@ -36,6 +36,7 @@
     "noEvents": "No tool activity yet.",
     "files": "Files",
     "selectFile": "Select a file to preview the diff.",
+    "selectFileAction": "Select File",
     "noDocumentationChanges": "No documentation changes were produced for this diff.",
     "commitSuccess": "Documentation Committed Successfully!",
     "commitSuccessDescription": "Your documentation changes have been successfully committed to the documentation branch.",
@@ -55,7 +56,8 @@
     "existingDocumentationRepository": "Existing documentation repository",
     "newDocumentationRepository": "New Fumadocs repository",
     "creationPath": "Creation Path",
-    "chooseNewOrExisitingDoc": "Choose if you want to create a new documentation repository or link an existing one."
+    "chooseNewOrExisitingDoc": "Choose if you want to create a new documentation repository or link an existing one.",
+    "llmInstructions": "LLM instructions specific to this project (optional)"
   },
   "home": {
     "greeting": "Please enter your name below 👇",
@@ -84,7 +86,9 @@
     "language": "Language",
     "light": "Light",
     "dark": "Dark",
-    "system": "System"
+    "system": "System",
+    "preferences": "Preferences",
+    "preferencesDescription": "Customize your appearance and language settings"
   },
   "demoEvents": {
     "title": "Demo Events",
@@ -101,12 +105,74 @@
     "loading": "Loading…",
     "noProjects": "No projects",
     "collapseSidebar": "Collapse sidebar",
-    "expandSidebar": "Expand sidebar"
+    "expandSidebar": "Expand sidebar",
+    "projectSettings": "Project Settings",
+    "deleteProject": "Delete Project",
+    "deleteProjectTitle": "Delete Project",
+    "deleteProjectDescription": "Are you sure you want to delete \"{{projectName}}\"? This action cannot be undone and will only remove the project link from Narrabyte, not the actual files.",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteSuccess": "Project deleted successfully",
+    "deleteError": "Failed to delete project"
   },
   "apiDialog": {
     "keySaved": "API key saved successfully!",
+    "keyUpdated": "API key updated successfully!",
     "errSavingKey": "Error saving key",
     "addApiKey": "Add API key",
-    "existingKeys": "Existing Keys"
+    "editApiKey": "Edit API key",
+    "existingKeys": "Existing Keys",
+    "newApiKey": "New API Key",
+    "enterNewKey": "Enter new API key",
+    "save": "Save",
+    "update": "Update"
+  },
+  "apiKeys": {
+    "title": "API Keys",
+    "description": "Manage your API keys for different providers",
+    "noKeys": "No API keys configured",
+    "loadError": "Failed to load API keys",
+    "deleteSuccess": "API key deleted successfully",
+    "deleteError": "Failed to delete API key",
+    "fetchError": "Failed to fetch API key",
+    "showKey": "Show API key",
+    "hideKey": "Hide API key",
+    "deleteKey": "Delete API key",
+    "editKey": "Edit API key",
+    "add": "Add",
+    "allProvidersConfigured": "All providers already have API keys configured"
+  },
+  "projectSettings": {
+    "title": "Project Settings",
+    "subtitle": "Configure repository paths and LLM instructions for this project",
+    "repositoryPaths": "Repository Paths",
+    "documentationRepo": "Documentation Repository",
+    "codebaseRepo": "Codebase Repository",
+    "currentPath": "Current path",
+    "newPath": "New path",
+    "savePaths": "Save Paths",
+    "saving": "Saving...",
+    "pathsUpdated": "Paths updated successfully!",
+    "pathsUpdateError": "Failed to update paths",
+    "llmInstructions": "LLM Instructions",
+    "llmInstructionsStatus": "LLM instructions file",
+    "detected": "Detected",
+    "notDetected": "Not detected",
+    "llmInstructionsDescription": "Import a custom LLM instructions file that will be copied to .narrabyte/llm_instructions.md in your documentation repository.",
+    "import": "Import",
+    "importConfirm": "Import File",
+    "importing": "Importing...",
+    "selected": "Selected",
+    "llmInstructionsImported": "LLM instructions imported successfully!",
+    "llmInstructionsImportError": "Failed to import LLM instructions",
+    "loadError": "Failed to load project",
+    "deleteProject": "Delete Project",
+    "noGitRepoDoc": "Documentation directory does not have an initialized git repository",
+    "noGitRepoCodebase": "Codebase directory does not have an initialized git repository",
+    "noGitRepoFound": "No initialized git repository found in this directory",
+    "dirNotExist": "Directory does not exist",
+    "docDirNotExist": "Documentation directory does not exist",
+    "codebaseDirNotExist": "Codebase directory does not exist",
+    "validationFailed": "Failed to validate directory"
   }
 }

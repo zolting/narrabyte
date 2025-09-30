@@ -41,6 +41,7 @@ var DefaultIgnorePatterns = []string{
 	".venv/",
 	"venv/",
 	"env/",
+	".narrabyte/",
 }
 
 const listLimit = 100

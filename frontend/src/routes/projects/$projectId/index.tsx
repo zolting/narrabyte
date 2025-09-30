@@ -1,6 +1,7 @@
 import type { models } from "@go/models";
 import { Get } from "@go/services/repoLinkService";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButtons } from "@/components/ActionButtons";
@@ -8,10 +9,11 @@ import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
 import { GenerationTabs } from "@/components/GenerationTabs";
 import { SuccessPanel } from "@/components/SuccessPanel";
+import { Button } from "@/components/ui/button";
 import { useBranchManager } from "@/hooks/useBranchManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 
-export const Route = createFileRoute("/projects/$projectId")({
+export const Route = createFileRoute("/projects/$projectId/")({
 	component: ProjectDetailPage,
 });
 
@@ -25,6 +27,7 @@ function ProjectDetailPage() {
 	const repoPath = project?.CodebaseRepo;
 	const branchManager = useBranchManager(repoPath);
 	const docManager = useDocGenerationManager();
+	const navigate = useNavigate();
 
 	// Load project data
 	useEffect(() => {
@@ -159,9 +162,20 @@ function ProjectDetailPage() {
 
 	return (
 		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
-			<h1 className="shrink-0 text-center font-semibold text-foreground text-xl">
-				{project.ProjectName}
-			</h1>
+			<div className="flex shrink-0 items-center justify-between">
+				<h1 className="flex-1 text-center font-semibold text-foreground text-xl">
+					{project.ProjectName}
+				</h1>
+
+				<Button
+					onClick={() => navigate({ to: `/projects/${projectId}/settings` })}
+					size="sm"
+					variant="outline"
+				>
+					<Settings size={16} />
+					{t("common.settings")}
+				</Button>
+			</div>
 			<section
 				className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4"
 				ref={containerRef}

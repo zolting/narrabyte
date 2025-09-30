@@ -24,6 +24,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
+const llmInstructionsNamePrefix = "llm_instructions"
+
 type OpenAIClient struct {
 	ChatModel       openai.ChatModel
 	Key             string
@@ -406,6 +408,14 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	systemPrompt, err := o.loadPrompt("generate_docs.txt")
 	if err != nil {
 		return nil, err
+	}
+
+	if repoInstr, ierr := o.loadRepoLLMInstructions(docRoot); ierr == nil && strings.TrimSpace(repoInstr) != "" {
+		// Prepend repo-specific instructions so they take priority
+		systemPrompt = systemPrompt + "\n\n# User-provided documentation instructions\n" + strings.TrimSpace(repoInstr)
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("loaded repo llm instructions"))
+	} else if ierr != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo llm instructions: %v", ierr)))
 	}
 
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
@@ -1245,4 +1255,40 @@ func imageTypeByExt(p string) string {
 	default:
 		return ""
 	}
+}
+
+// loadRepoLLMInstructions scans the documentation repository's .narrabyte directory
+// for a file beginning with "llm_instructions" and returns its contents.
+func (o *OpenAIClient) loadRepoLLMInstructions(docRoot string) (string, error) {
+	docRoot = strings.TrimSpace(docRoot)
+	if docRoot == "" {
+		return "", nil
+	}
+	dir := filepath.Join(docRoot, ".narrabyte")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	var candidate string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasPrefix(name, llmInstructionsNamePrefix) {
+			candidate = filepath.Join(dir, name)
+			break
+		}
+	}
+	if candidate == "" {
+		return "", nil
+	}
+	data, err := os.ReadFile(candidate)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }

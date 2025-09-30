@@ -5,3 +5,11 @@
 export function SelectDirectory() {
   return window['go']['main']['App']['SelectDirectory']();
 }
+
+export function SelectFile() {
+  return window['go']['main']['App']['SelectFile']();
+}
+
+export function SelectFileFiltered(arg1, arg2) {
+  return window['go']['main']['App']['SelectFileFiltered'](arg1, arg2);
+}
