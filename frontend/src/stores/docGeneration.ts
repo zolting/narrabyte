@@ -31,12 +31,22 @@ type CommitArgs = {
 
 type ProjectKey = string;
 
+type CompletedCommitInfo = {
+	sourceBranch: string;
+	targetBranch: string;
+};
+
 type DocGenerationData = {
 	events: DemoEvent[];
 	status: DocGenerationStatus;
 	result: models.DocGenerationResult | null;
 	error: string | null;
 	cancellationRequested: boolean;
+	activeTab: "activity" | "review" | "summary";
+	commitCompleted: boolean;
+	completedCommitInfo: CompletedCommitInfo | null;
+	sourceBranch: string | null;
+	targetBranch: string | null;
 };
 
 type State = {
@@ -45,6 +55,12 @@ type State = {
 	reset: (projectId: number | string) => void;
 	commit: (args: CommitArgs) => Promise<void>;
 	cancel: (projectId: number | string) => Promise<void>;
+	setActiveTab: (projectId: number | string, tab: "activity" | "review" | "summary") => void;
+	setCommitCompleted: (projectId: number | string, completed: boolean) => void;
+	setCompletedCommitInfo: (
+		projectId: number | string,
+		info: CompletedCommitInfo | null
+	) => void;
 };
 
 const EMPTY_DOC_STATE: DocGenerationData = {
@@ -53,6 +69,11 @@ const EMPTY_DOC_STATE: DocGenerationData = {
 	result: null,
 	error: null,
 	cancellationRequested: false,
+	activeTab: "activity",
+	commitCompleted: false,
+	completedCommitInfo: null,
+	sourceBranch: null,
+	targetBranch: null,
 };
 
 const toKey = (projectId: number | string): ProjectKey => String(projectId);
@@ -136,6 +157,11 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				result: null,
 				status: "running",
 				cancellationRequested: false,
+				activeTab: "activity",
+				commitCompleted: false,
+				completedCommitInfo: null,
+				sourceBranch,
+				targetBranch,
 			});
 
 			clearSubscriptions(key);
@@ -209,6 +235,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						status: "error",
 						cancellationRequested: false,
 						result: null,
+						commitCompleted: false,
 					});
 				}
 			} finally {
@@ -265,6 +292,8 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						`Committing documentation updates to ${branch}`
 					),
 				],
+				activeTab: "activity",
+				commitCompleted: false,
 			}));
 
 			try {
@@ -280,6 +309,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 							`Committed documentation changes for ${branch}`
 						),
 					],
+					commitCompleted: true,
 				}));
 			} catch (error) {
 				const message = messageFromError(error);
@@ -294,6 +324,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 							`Failed to commit documentation changes: ${message}`
 						),
 					],
+					commitCompleted: false,
 				}));
 			}
 		},
@@ -307,7 +338,27 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				result: null,
 				status: "idle",
 				cancellationRequested: false,
+				activeTab: "activity",
+				commitCompleted: false,
+				completedCommitInfo: null,
+				sourceBranch: null,
+				targetBranch: null,
 			});
+		},
+
+		setActiveTab: (projectId, tab) => {
+			const key = toKey(projectId);
+			setDocState(key, { activeTab: tab });
+		},
+
+		setCommitCompleted: (projectId, completed) => {
+			const key = toKey(projectId);
+			setDocState(key, { commitCompleted: completed });
+		},
+
+		setCompletedCommitInfo: (projectId, info) => {
+			const key = toKey(projectId);
+			setDocState(key, { completedCommitInfo: info });
 		},
 	};
 });

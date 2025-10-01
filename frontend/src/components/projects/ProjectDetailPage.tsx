@@ -73,10 +73,15 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, [docManager.docResult]);
 
 	useEffect(() => {
-		if (docManager.status === "success" && docManager.commitCompleted) {
+		if (
+			docManager.status === "success" &&
+			docManager.commitCompleted &&
+			branchManager.sourceBranch &&
+			branchManager.targetBranch
+		) {
 			docManager.setCompletedCommit(
-				branchManager.sourceBranch || "",
-				branchManager.targetBranch || ""
+				branchManager.sourceBranch,
+				branchManager.targetBranch
 			);
 		}
 	}, [
@@ -159,6 +164,18 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, [handleReset]);
 
 	const disableControls = docManager.isBusy;
+	const comparisonSourceBranch =
+		docManager.sourceBranch ??
+		docManager.completedCommitInfo?.sourceBranch ??
+		branchManager.sourceBranch;
+	const comparisonTargetBranch =
+		docManager.targetBranch ??
+		docManager.completedCommitInfo?.targetBranch ??
+		branchManager.targetBranch;
+	const successSourceBranch =
+		docManager.completedCommitInfo?.sourceBranch ??
+		docManager.sourceBranch ??
+		branchManager.sourceBranch;
 
 	if (!project) {
 		return (
@@ -205,7 +222,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 								<SuccessPanel
 									completedCommitInfo={docManager.completedCommitInfo}
 									onStartNewTask={handleStartNewTask}
-									sourceBranch={branchManager.sourceBranch}
+									sourceBranch={successSourceBranch}
 								/>
 							);
 						}
@@ -213,8 +230,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						if (docManager.hasGenerationAttempt) {
 							return (
 								<ComparisonDisplay
-									sourceBranch={branchManager.sourceBranch}
-									targetBranch={branchManager.targetBranch}
+									sourceBranch={comparisonSourceBranch}
+									targetBranch={comparisonTargetBranch}
 								/>
 							);
 						}
