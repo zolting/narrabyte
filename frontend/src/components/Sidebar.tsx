@@ -1,8 +1,38 @@
-import type { models } from "@go/models";
+import {
+	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	KeyboardSensor,
+	PointerSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	arrayMove,
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { models } from "@go/models";
 import { Init } from "@go/services/GitService";
-import { Delete, LinkRepositories, List } from "@go/services/repoLinkService";
+import {
+	Delete,
+	LinkRepositories,
+	List,
+	UpdateProjectOrder,
+} from "@go/services/repoLinkService";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { Folder, Folders, Home, Plus, Settings, Trash2 } from "lucide-react";
+import {
+	Folder,
+	Folders,
+	GripVertical,
+	Home,
+	Plus,
+	Settings,
+	Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -41,6 +71,77 @@ import {
 const MAX_REPOS = 100;
 const REPO_OFFSET = 0;
 
+function SortableProjectItem({
+	project,
+	isActive,
+	onDelete,
+	onNavigateToSettings,
+}: {
+	project: models.RepoLink;
+	isActive: boolean;
+	onDelete: () => void;
+	onNavigateToSettings: () => void;
+}) {
+	const { t } = useTranslation();
+	const projectId = String(project.ID);
+
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: projectId });
+
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+		opacity: isDragging ? 0.5 : 1,
+	};
+
+	return (
+		<SidebarMenuItem ref={setNodeRef} style={style}>
+			<ContextMenu>
+				<ContextMenuTrigger>
+					<div className="flex w-full items-center gap-1">
+						<button
+							className="cursor-grab rounded p-1 hover:bg-sidebar-accent active:cursor-grabbing group-data-[collapsible=icon]:hidden"
+							type="button"
+							{...attributes}
+							{...listeners}
+						>
+							<GripVertical className="text-muted-foreground" size={14} />
+						</button>
+						<SidebarMenuButton
+							asChild
+							className="flex-1"
+							isActive={isActive}
+							size="sm"
+							tooltip={project.ProjectName}
+						>
+							<Link params={{ projectId }} to="/projects/$projectId">
+								<Folder size={14} />
+								<span className="text-sm">{project.ProjectName}</span>
+							</Link>
+						</SidebarMenuButton>
+					</div>
+				</ContextMenuTrigger>
+				<ContextMenuContent>
+					<ContextMenuItem onSelect={onNavigateToSettings}>
+						<Settings size={14} />
+						<span>{t("sidebar.projectSettings")}</span>
+					</ContextMenuItem>
+					<ContextMenuItem onSelect={onDelete} variant="destructive">
+						<Trash2 size={14} />
+						<span>{t("sidebar.deleteProject")}</span>
+					</ContextMenuItem>
+				</ContextMenuContent>
+			</ContextMenu>
+		</SidebarMenuItem>
+	);
+}
+
 function AppSidebarContent() {
 	const { t } = useTranslation();
 	const location = useLocation();
@@ -52,11 +153,27 @@ function AppSidebarContent() {
 		useState<models.RepoLink | null>(null);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
+	const sensors = useSensors(
+		useSensor(PointerSensor, {
+			activationConstraint: {
+				distance: 8,
+			},
+		}),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		})
+	);
+
 	const loadProjects = useCallback(() => {
 		setLoading(true);
 		Promise.resolve(List(MAX_REPOS, REPO_OFFSET))
 			.then((res) => {
-				setProjects((res as models.RepoLink[]) ?? []);
+				const sorted = ((res as models.RepoLink[]) ?? []).sort((a, b) => {
+					const indexA = a.index ?? a.ID;
+					const indexB = b.index ?? b.ID;
+					return indexA - indexB;
+				});
+				setProjects(sorted);
 			})
 			.catch(() => {
 				setProjects([]);
@@ -204,6 +321,41 @@ function AppSidebarContent() {
 		setIsDeleteDialogOpen(true);
 	};
 
+	const handleDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+
+		if (!over || active.id === over.id) {
+			return;
+		}
+
+		setProjects((items) => {
+			const oldIndex = items.findIndex((item) => String(item.ID) === active.id);
+			const newIndex = items.findIndex((item) => String(item.ID) === over.id);
+
+			const newOrder = arrayMove(items, oldIndex, newIndex);
+
+			updateProjectOrder(newOrder).catch((error) => {
+				console.error("Error updating project order:", error);
+				toast(t("sidebar.reorderError"));
+				loadProjects();
+			});
+
+			return newOrder;
+		});
+	};
+
+	const updateProjectOrder = async (orderedProjects: models.RepoLink[]) => {
+		const updates = orderedProjects.map(
+			(project, index) =>
+				new models.RepoLinkOrderUpdate({
+					ID: project.ID,
+					Index: index,
+				})
+		);
+
+		await UpdateProjectOrder(updates);
+	};
+
 	return (
 		<>
 			<SidebarHeader className="border-sidebar-border border-b bg-sidebar-accent/20">
@@ -260,54 +412,38 @@ function AppSidebarContent() {
 									</div>
 								</SidebarMenuItem>
 							)}
-							{!loading &&
-								projects.map((p) => {
-									const projectId = String(p.ID);
-									return (
-										<SidebarMenuItem key={`${projectId}-${p.ProjectName}`}>
-											<ContextMenu>
-												<ContextMenuTrigger>
-													<SidebarMenuButton
-														asChild
-														isActive={
-															location.pathname === `/projects/${projectId}`
-														}
-														size="sm"
-														tooltip={p.ProjectName}
-													>
-														<Link
-															params={{ projectId }}
-															to="/projects/$projectId"
-														>
-															<Folder size={14} />
-															<span className="text-sm">{p.ProjectName}</span>
-														</Link>
-													</SidebarMenuButton>
-												</ContextMenuTrigger>
-												<ContextMenuContent>
-													<ContextMenuItem
-														onSelect={() =>
-															navigate({
-																to: "/projects/$projectId/settings",
-																params: { projectId },
-															})
-														}
-													>
-														<Settings size={14} />
-														<span>{t("sidebar.projectSettings")}</span>
-													</ContextMenuItem>
-													<ContextMenuItem
-														onSelect={() => openDeleteDialog(p)}
-														variant="destructive"
-													>
-														<Trash2 size={14} />
-														<span>{t("sidebar.deleteProject")}</span>
-													</ContextMenuItem>
-												</ContextMenuContent>
-											</ContextMenu>
-										</SidebarMenuItem>
-									);
-								})}
+							{!loading && projects.length > 0 && (
+								<DndContext
+									collisionDetection={closestCenter}
+									onDragEnd={handleDragEnd}
+									sensors={sensors}
+								>
+									<SortableContext
+										items={projects.map((p) => String(p.ID))}
+										strategy={verticalListSortingStrategy}
+									>
+										{projects.map((p) => {
+											const projectId = String(p.ID);
+											return (
+												<SortableProjectItem
+													isActive={
+														location.pathname === `/projects/${projectId}`
+													}
+													key={projectId}
+													onDelete={() => openDeleteDialog(p)}
+													onNavigateToSettings={() => {
+														navigate({
+															to: "/projects/$projectId/settings",
+															params: { projectId },
+														});
+													}}
+													project={p}
+												/>
+											);
+										})}
+									</SortableContext>
+								</DndContext>
+							)}
 						</SidebarMenu>
 					</SidebarGroupContent>
 				</SidebarGroup>
@@ -354,12 +490,12 @@ function AppSidebarContent() {
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel>{t("sidebar.cancel")}</AlertDialogCancel>
+						<AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
 						<AlertDialogAction
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 							onClick={handleDeleteProject}
 						>
-							{t("sidebar.delete")}
+							{t("common.delete")}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

@@ -125,6 +125,7 @@ export namespace models {
 	    DocumentationRepo: string;
 	    CodebaseRepo: string;
 	    ProjectName: string;
+	    index: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new RepoLink(source);
@@ -136,6 +137,21 @@ export namespace models {
 	        this.DocumentationRepo = source["DocumentationRepo"];
 	        this.CodebaseRepo = source["CodebaseRepo"];
 	        this.ProjectName = source["ProjectName"];
+	        this.index = source["index"];
+	    }
+	}
+	export class RepoLinkOrderUpdate {
+	    ID: number;
+	    Index: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RepoLinkOrderUpdate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Index = source["Index"];
 	    }
 	}
 

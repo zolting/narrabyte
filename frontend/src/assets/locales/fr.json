@@ -33,6 +33,7 @@
     "commit": "Valider",
     "reset": "Réinitialiser",
     "inProgress": "En cours",
+    "submit": "Soumettre",
     "noEvents": "Aucune activité d'outil pour le moment.",
     "files": "Fichiers",
     "selectFile": "Sélectionnez un fichier pour afficher le diff.",
@@ -41,15 +42,14 @@
     "commitSuccess": "Documentation validée avec succès !",
     "commitSuccessDescription": "Vos modifications de documentation ont été validées avec succès dans la branche de documentation.",
     "documentationAvailable": "La documentation est maintenant disponible dans la branche",
-    "startNewTask": "Commencer une nouvelle tâche de documentation"
+    "startNewTask": "Commencer une nouvelle tâche de documentation",
+    "delete": "Supprimer"
   },
   "projectManager": {
     "addProject": "Ajouter un projet",
     "projectName": "Nom du projet",
     "docDirectory": "Répertoire de documentation",
     "codebaseDirectory": "Répertoire du code source",
-    "submit": "Soumettre",
-    "cancel": "Annuler",
     "enterProjectName": "Entrer le nom du projet",
     "selectDocDirectory": "Selectionner le répertoire de documentation",
     "selectCodebaseDirectory": "Selectionner le répertoire du code source",
@@ -110,10 +110,9 @@
     "deleteProject": "Supprimer le projet",
     "deleteProjectTitle": "Supprimer le projet",
     "deleteProjectDescription": "Êtes-vous sûr de vouloir supprimer \"{{projectName}}\" ? Cette action ne peut pas être annulée et supprimera uniquement le lien du projet dans Narrabyte, pas les fichiers réels.",
-    "cancel": "Annuler",
-    "delete": "Supprimer",
     "deleteSuccess": "Projet supprimé avec succès",
-    "deleteError": "Échec de la suppression du projet"
+    "deleteError": "Échec de la suppression du projet",
+    "reorderError": "Échec de la réorganisation de l'ordre des projets"
   },
   "apiDialog": {
     "keySaved": "Clé API sauvegardée avec succès!",
