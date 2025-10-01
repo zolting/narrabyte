@@ -39,6 +39,9 @@ export function DocGenerationResultPanel({
 }) {
 	const toggleChat = useDocGenerationStore((s) => s.toggleChat);
 	const chatOpen = useDocGenerationStore((s) => s.chatOpen);
+	const changedSinceInitial = useDocGenerationStore(
+		(s) => s.changedSinceInitial
+	);
 	const { t } = useTranslation();
 	const [viewType, setViewType] = useState<"split" | "unified">("unified");
 
@@ -168,18 +171,32 @@ export function DocGenerationResultPanel({
 										onClick={() => setSelectedPath(entry.path)}
 										type="button"
 									>
-										<div
-											className={cn(
-												"font-medium text-xs",
-												statusClassMap[entry.status.toLowerCase()] ??
-													"text-foreground/70"
-											)}
-										>
-											{entry.status}
-										</div>
-										<div className="truncate font-mono text-foreground/90 text-sm">
-											{entry.path}
-										</div>
+										{(() => {
+											const isChanged = (changedSinceInitial || []).includes(
+												entry.path
+											);
+											return (
+												<div>
+													<div
+														className={cn(
+															"font-medium text-xs",
+															statusClassMap[entry.status.toLowerCase()] ??
+																"text-foreground/70"
+														)}
+													>
+														{entry.status}
+														{isChanged && (
+															<span className="ml-2 inline-flex items-center rounded border border-amber-200 bg-amber-100/60 px-1.5 py-0.5 font-medium text-[10px] text-amber-800">
+																Updated
+															</span>
+														)}
+													</div>
+													<div className="truncate font-mono text-foreground/90 text-sm">
+														{entry.path}
+													</div>
+												</div>
+											);
+										})()}
 									</button>
 								</li>
 							))}

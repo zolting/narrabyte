@@ -67,7 +67,7 @@ export function DocRefinementChat({
 			{chatOpen && (
 				<div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
 					<div
-						className="min-h-0 flex-1 overflow-y-auto rounded-md border border-border bg-muted/30 p-2"
+						className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-md border border-border bg-muted/30 p-2"
 						ref={containerRef}
 					>
 						{messages.length === 0 ? (
