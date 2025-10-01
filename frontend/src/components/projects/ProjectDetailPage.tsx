@@ -31,7 +31,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const repoPath = project?.CodebaseRepo;
 	const branchManager = useBranchManager(repoPath);
-	const docManager = useDocGenerationManager();
+	const docManager = useDocGenerationManager(projectId);
 	const navigate = useNavigate();
 
 	useEffect(() => {
@@ -60,9 +60,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, []);
 
 	useEffect(() => {
-		docManager.reset();
 		branchManager.resetBranches();
-	}, [docManager.reset, branchManager.resetBranches]);
+	}, [branchManager.resetBranches]);
 
 	useEffect(() => {
 		if (docManager.docResult) {

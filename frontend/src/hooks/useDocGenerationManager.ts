@@ -1,15 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { DemoEvent } from "@/types/events";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 
-export const useDocGenerationManager = () => {
-	const docResult = useDocGenerationStore((s) => s.result);
-	const status = useDocGenerationStore((s) => s.status);
-	const events = useDocGenerationStore((s) => s.events);
+const EMPTY_EVENTS: DemoEvent[] = [];
+
+export const useDocGenerationManager = (projectId: string) => {
+	const projectKey = useMemo(() => String(projectId), [projectId]);
+	const docResult = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.result ?? null
+	);
+	const status = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.status ?? "idle"
+	);
+	const events = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.events ?? EMPTY_EVENTS
+	);
+	const docGenerationError = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.error ?? null
+	);
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
 	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
 	const commitDocGeneration = useDocGenerationStore((s) => s.commit);
-	const cancelDocGeneration = useDocGenerationStore((s) => s.cancel);
-	const docGenerationError = useDocGenerationStore((s) => s.error);
+	const cancelDocGenerationStore = useDocGenerationStore((s) => s.cancel);
 
 	const [activeTab, setActiveTab] = useState<"activity" | "review" | "summary">(
 		"activity"
@@ -57,11 +69,11 @@ export const useDocGenerationManager = () => {
 	}, [status, docResult]);
 
 	const reset = useCallback(() => {
-		resetDocGeneration();
+		resetDocGeneration(projectKey);
 		setActiveTab("activity");
 		setCommitCompleted(false);
 		setCompletedCommitInfo(null);
-	}, [resetDocGeneration]);
+	}, [projectKey, resetDocGeneration]);
 
 	const setCompletedCommit = useCallback(
 		(sourceBranch: string, targetBranch: string) => {
@@ -69,6 +81,10 @@ export const useDocGenerationManager = () => {
 		},
 		[]
 	);
+
+	const cancelDocGeneration = useCallback(() => {
+		cancelDocGenerationStore(projectKey);
+	}, [cancelDocGenerationStore, projectKey]);
 
 	return {
 		docResult,
