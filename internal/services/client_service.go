@@ -94,8 +94,6 @@ func (s *ClientService) InitializeLLMClient(provider string) error {
 		llmClient, err = client.NewGeminiClient(s.context, apiKey)
 	}
 
-	llmClient, err = client.NewTestClient(s.context, apiKey)
-
 	if err != nil {
 		return fmt.Errorf("failed to create %s client: %w", provider, err)
 	}
