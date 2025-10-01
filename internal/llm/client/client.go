@@ -14,9 +14,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cloudwego/eino-ext/components/model/claude"
+	"github.com/cloudwego/eino-ext/components/model/gemini"
 	"github.com/cloudwego/eino-ext/components/model/openai"
+	"google.golang.org/genai"
 
 	"github.com/cloudwego/eino/adk"
+	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/components/tool"
 	einoUtils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
@@ -26,8 +30,8 @@ import (
 
 const llmInstructionsNamePrefix = "llm_instructions"
 
-type OpenAIClient struct {
-	ChatModel       openai.ChatModel
+type LLMClient struct {
+	chatModel       model.ToolCallingChatModel
 	Key             string
 	fileHistoryMu   sync.Mutex
 	fileOpenHistory []string
@@ -60,14 +64,11 @@ type DocGenerationResponse struct {
 	Summary string
 }
 
-func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
+func NewOpenAIClient(ctx context.Context, key string) (*LLMClient, error) {
 	// temperature := float32(0)
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		APIKey: key,
 		Model:  "gpt-5-mini",
-		// APIKey:  "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",
-		// Model:   "x-ai/grok-4-fast:free",
-		// BaseURL: "https://openrouter.ai/api/v1",
 	})
 
 	if err != nil {
@@ -75,11 +76,49 @@ func NewOpenAIClient(ctx context.Context, key string) (*OpenAIClient, error) {
 		return nil, err
 	}
 
-	return &OpenAIClient{ChatModel: *model, Key: key}, err
+	return &LLMClient{chatModel: model, Key: key}, err
+}
+
+func NewClaudeClient(ctx context.Context, key string) (*LLMClient, error) {
+	model, err := claude.NewChatModel(ctx, &claude.Config{
+		APIKey:    key,
+		Model:     "claude-sonnet-4-5",
+		MaxTokens: 4096,
+	})
+
+	if err != nil {
+		log.Printf("Error creating Claude client: %v", err)
+		return nil, err
+	}
+
+	return &LLMClient{chatModel: model, Key: key}, err
+}
+
+func NewGeminiClient(ctx context.Context, key string) (*LLMClient, error) {
+	genai, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey: key,
+	})
+
+	if err != nil {
+		log.Printf("Error creating Gemini client: %v", err)
+		return nil, err
+	}
+
+	model, err := gemini.NewChatModel(ctx, &gemini.Config{
+		Client: genai,
+		Model:  "gemini-flash-latest",
+	})
+
+	if err != nil {
+		log.Printf("Error creating Gemini client: %v", err)
+		return nil, err
+	}
+
+	return &LLMClient{chatModel: model, Key: key}, err
 }
 
 // watch out pour le contexte ici
-func (o *OpenAIClient) StartStream(ctx context.Context) context.Context {
+func (o *LLMClient) StartStream(ctx context.Context) context.Context {
 	o.mu.Lock()
 	if o.running {
 		o.mu.Unlock()
@@ -92,7 +131,7 @@ func (o *OpenAIClient) StartStream(ctx context.Context) context.Context {
 	return ctx
 }
 
-func (o *OpenAIClient) StopStream() {
+func (o *LLMClient) StopStream() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	cancel := o.cancel
@@ -104,7 +143,7 @@ func (o *OpenAIClient) StopStream() {
 }
 
 // IsRunning reports whether a session is currently active.
-func (o *OpenAIClient) IsRunning() bool {
+func (o *LLMClient) IsRunning() bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.running
@@ -113,7 +152,7 @@ func (o *OpenAIClient) IsRunning() bool {
 // SetListDirectoryBaseRoot binds the list-directory tools to a specific base directory.
 // Example: SetListDirectoryBaseRoot("/path/to/project") then tool input "frontend"
 // resolves to "/path/to/project/frontend".
-func (o *OpenAIClient) SetListDirectoryBaseRoot(root string) {
+func (o *LLMClient) SetListDirectoryBaseRoot(root string) {
 	// Normalize to absolute base root for consistent absolute-path semantics
 	abs := root
 	if r := strings.TrimSpace(root); r != "" {
@@ -127,7 +166,7 @@ func (o *OpenAIClient) SetListDirectoryBaseRoot(root string) {
 }
 
 // loadSystemPrompt loads the system instruction from the demo.txt file
-func (o *OpenAIClient) loadPrompt(name string) (string, error) {
+func (o *LLMClient) loadPrompt(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", fmt.Errorf("prompt name is required")
@@ -144,85 +183,7 @@ func (o *OpenAIClient) loadPrompt(name string) (string, error) {
 	return string(data), nil
 }
 
-func (o *OpenAIClient) ExploreCodebaseDemo(ctx context.Context, codebasePath string) (string, error) {
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ExploreCodebaseDemo: starting"))
-
-	// Initialize tools
-	allTools, err := o.initTools()
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: init tools error: %v", err)))
-		return "", err
-	}
-
-	o.SetListDirectoryBaseRoot(codebasePath)
-
-	// Load system prompt
-	systemPrompt, err := o.loadPrompt("demo.txt")
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: load system prompt error: %v", err)))
-		return "", err
-	}
-	events.Emit(ctx, events.LLMEventTool, events.NewDebug("ExploreCodebaseDemo: system prompt loaded"))
-
-	// Repo preview
-	preview, err := tools.ListDirectory(ctx, &tools.ListLSInput{Path: codebasePath})
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: preview error: %v", err)))
-		return "", err
-	}
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ExploreCodebaseDemo: repository preview generated"))
-
-	// Build agent
-	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
-		Model: &o.ChatModel,
-		ToolsConfig: adk.ToolsConfig{
-			ToolsNodeConfig: compose.ToolsNodeConfig{
-				Tools: allTools,
-			},
-		},
-		Name:        "Codebase Assistant",
-		Description: "An agent that helps the user understand a codebase.",
-		Instruction: systemPrompt,
-	})
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ExploreCodebaseDemo: agent creation error: %v", err)))
-		return "", err
-	}
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("ExploreCodebaseDemo: agent created"))
-
-	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
-	iter := runner.Query(ctx, "Here is an initial listing of the project (capped at 100 files):\n\n"+
-		preview.Output+
-		"\n\nHow does the git diff frontend component work? Add your explanation by editing the explanations.md file, between App Settings and Repo Linking. You must use the edit tool to edit the file, not the write tool. Keep the current content. End by creating a file called haiku.txt in the same directory as the explanations. The haiku should be a short poem about the git diff frontend component.")
-
-	var lastMessage string
-	for {
-		event, ok := iter.Next()
-		if !ok {
-			break
-		}
-		if event.Err != nil {
-			if errors.Is(event.Err, context.Canceled) {
-				events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing canceled"))
-				return "", context.Canceled
-			}
-			events.Emit(ctx, events.LLMEventDone, events.NewError("LLM processing error"))
-			return "", event.Err
-		}
-		msg, err := event.Output.MessageOutput.GetMessage()
-		if err != nil {
-			events.Emit(ctx, events.LLMEventDone, events.NewError(fmt.Sprintf("LLM message error: %v", err)))
-			continue
-		}
-		lastMessage = msg.Content
-	}
-
-	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
-
-	return lastMessage, nil
-}
-
-func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest) (*DocGenerationResponse, error) {
+func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest) (*DocGenerationResponse, error) {
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocs: initializing"))
 	if req == nil {
 		return nil, fmt.Errorf("request is required")
@@ -281,7 +242,7 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	}
 
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
-		Model: &o.ChatModel,
+		Model: o.chatModel,
 		ToolsConfig: adk.ToolsConfig{
 			ToolsNodeConfig: compose.ToolsNodeConfig{
 				Tools: toolsForSession,
@@ -360,7 +321,7 @@ func (o *OpenAIClient) GenerateDocs(ctx context.Context, req *DocGenerationReque
 	return &DocGenerationResponse{Summary: strings.TrimSpace(lastMessage)}, nil
 }
 
-func (o *OpenAIClient) prepareSnapshots(ctx context.Context) error {
+func (o *LLMClient) prepareSnapshots(ctx context.Context) error {
 	codeRoot := strings.TrimSpace(o.codeRoot)
 	sourceCommit := strings.TrimSpace(o.sourceCommit)
 	sourceBranch := strings.TrimSpace(o.sourceBranch)
@@ -392,7 +353,7 @@ func (o *OpenAIClient) prepareSnapshots(ctx context.Context) error {
 }
 
 // recordOpenedFile appends a file path to the session history if not already present.
-func (o *OpenAIClient) recordOpenedFile(p string) {
+func (o *LLMClient) recordOpenedFile(p string) {
 	if o == nil {
 		return
 	}
@@ -424,7 +385,7 @@ func (o *OpenAIClient) recordOpenedFile(p string) {
 
 // resolveAbsWithinBase resolves an input path to an absolute path under the configured base root.
 // Returns the absolute candidate even when it escapes base so callers can include it in messages.
-func (o *OpenAIClient) resolveAbsWithinBase(p string) (abs string, err error) {
+func (o *LLMClient) resolveAbsWithinBase(p string) (abs string, err error) {
 	base := strings.TrimSpace(o.baseRoot)
 	if base == "" {
 		return "", fmt.Errorf("project root not set")
@@ -458,7 +419,7 @@ func (o *OpenAIClient) resolveAbsWithinBase(p string) (abs string, err error) {
 }
 
 // hasRead checks if the absolute path has been read in this session.
-func (o *OpenAIClient) hasRead(absPath string) bool {
+func (o *LLMClient) hasRead(absPath string) bool {
 	norm := filepath.ToSlash(strings.TrimSpace(absPath))
 	if norm == "" {
 		return false
@@ -469,7 +430,7 @@ func (o *OpenAIClient) hasRead(absPath string) bool {
 }
 
 // ResetFileOpenHistory clears the in-memory history for the current client session.
-func (o *OpenAIClient) ResetFileOpenHistory() {
+func (o *LLMClient) ResetFileOpenHistory() {
 	if o == nil {
 		return
 	}
@@ -479,7 +440,7 @@ func (o *OpenAIClient) ResetFileOpenHistory() {
 }
 
 // FileOpenHistory returns a copy of the file-open history for the most recent session.
-func (o *OpenAIClient) FileOpenHistory() []string {
+func (o *LLMClient) FileOpenHistory() []string {
 	if o == nil {
 		return nil
 	}
@@ -490,7 +451,7 @@ func (o *OpenAIClient) FileOpenHistory() []string {
 	return out
 }
 
-func (o *OpenAIClient) captureListing(ctx context.Context, root string) (string, error) {
+func (o *LLMClient) captureListing(ctx context.Context, root string) (string, error) {
 	var listing string
 	snapshot := o.snapshotForRoot(root)
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("CaptureListing: . [%s]", snapshotInfo(snapshot))))
@@ -508,7 +469,7 @@ func (o *OpenAIClient) captureListing(ctx context.Context, root string) (string,
 	return listing, nil
 }
 
-func (o *OpenAIClient) snapshotForRoot(root string) *tools.GitSnapshot {
+func (o *LLMClient) snapshotForRoot(root string) *tools.GitSnapshot {
 	if pathsEqual(root, o.codeRoot) {
 		return o.codeSnapshot
 	}
@@ -518,7 +479,7 @@ func (o *OpenAIClient) snapshotForRoot(root string) *tools.GitSnapshot {
 // initTools initializes and returns all available tools for the current session.
 // It resets the file-open history and wraps certain tools (e.g., read_file_tool)
 // to record useful session metadata.
-func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
+func (o *LLMClient) initTools() ([]tool.BaseTool, error) {
 	// Reset per-session file history when initializing tools
 	o.ResetFileOpenHistory()
 
@@ -753,7 +714,7 @@ func (o *OpenAIClient) initTools() ([]tool.BaseTool, error) {
 	return []tool.BaseTool{listDirectoryTool, readFileTool, globTool, grepTool, writeTool, editTool}, nil
 }
 
-func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.BaseTool, error) {
+func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.BaseTool, error) {
 	o.ResetFileOpenHistory()
 	o.docRoot = docRoot
 	o.codeRoot = codeRoot
@@ -997,7 +958,7 @@ func (o *OpenAIClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.
 	return []tool.BaseTool{listTool, readTool, writeTool, editTool}, nil
 }
 
-func (o *OpenAIClient) withBaseRoot(root string, snapshot *tools.GitSnapshot, fn func() error) error {
+func (o *LLMClient) withBaseRoot(root string, snapshot *tools.GitSnapshot, fn func() error) error {
 	root = strings.TrimSpace(root)
 	if root == "" {
 		return fmt.Errorf("base root not set")
@@ -1015,7 +976,7 @@ func (o *OpenAIClient) withBaseRoot(root string, snapshot *tools.GitSnapshot, fn
 	return fn()
 }
 
-func (o *OpenAIClient) resolveToolPath(input string, allowCode bool) (root string, rel string, abs string, err error) {
+func (o *LLMClient) resolveToolPath(input string, allowCode bool) (root string, rel string, abs string, err error) {
 	in := strings.TrimSpace(input)
 	if in == "" || in == "." {
 		return o.docRoot, ".", o.docRoot, nil
@@ -1121,7 +1082,7 @@ func imageTypeByExt(p string) string {
 
 // loadRepoLLMInstructions scans the documentation repository's .narrabyte directory
 // for a file beginning with "llm_instructions" and returns its contents.
-func (o *OpenAIClient) loadRepoLLMInstructions(docRoot string) (string, error) {
+func (o *LLMClient) loadRepoLLMInstructions(docRoot string) (string, error) {
 	docRoot = strings.TrimSpace(docRoot)
 	if docRoot == "" {
 		return "", nil
