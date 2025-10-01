@@ -13,9 +13,7 @@ const STARTS_WITH_A_SLASH_REGEX = /^a\//;
 const STARTS_WITH_B_SLASH_REGEX = /^b\//;
 
 function normalizeDiffPath(path?: string | null): string {
-	if (!path) {
-		return "";
-	}
+	if (!path) return "";
 	return path
 		.replace(STARTS_WITH_A_SLASH_REGEX, "")
 		.replace(STARTS_WITH_B_SLASH_REGEX, "");
@@ -31,21 +29,20 @@ const statusClassMap: Record<string, string> = {
 };
 
 export function DocGenerationResultPanel({
-	result,
-	projectId,
-}: {
+											 result,
+											 projectId,
+										 }: {
 	result: models.DocGenerationResult | null;
 	projectId: number;
 }) {
 	const toggleChat = useDocGenerationStore((s) => s.toggleChat);
 	const chatOpen = useDocGenerationStore((s) => s.chatOpen);
+	const changedSinceInitial = useDocGenerationStore((s) => s.changedSinceInitial);
 	const { t } = useTranslation();
 	const [viewType, setViewType] = useState<"split" | "unified">("unified");
 
 	const parsedDiff = useMemo(() => {
-		if (!result?.diff) {
-			return [];
-		}
+		if (!result?.diff) return [];
 		try {
 			return parseDiff(result.diff);
 		} catch (error) {
@@ -68,9 +65,7 @@ export function DocGenerationResultPanel({
 		() =>
 			parsedDiff.map((file) => {
 				const key = normalizeDiffPath(
-					file.newPath && file.newPath !== "/dev/null"
-						? file.newPath
-						: file.oldPath
+					file.newPath && file.newPath !== "/dev/null" ? file.newPath : file.oldPath
 				);
 				return {
 					diff: file,
@@ -97,9 +92,7 @@ export function DocGenerationResultPanel({
 		[entries, selectedPath]
 	);
 
-	if (!result) {
-		return null;
-	}
+	if (!result) return null;
 
 	const hasDiff = entries.length > 0 && result.diff.trim().length > 0;
 
@@ -110,7 +103,8 @@ export function DocGenerationResultPanel({
 	);
 
 	return (
-		<section className="flex h-full flex-col gap-4 overflow-hidden rounded-lg border border-border bg-card p-4">
+		// 🔧 Give the panel a viewport-based height so descendants can scroll.
+		<section className="flex h-[75vh] min-h-0 flex-col gap-4 overflow-hidden rounded-lg border border-border bg-card p-4">
 			<header className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 				<div>
 					<h2 className="font-semibold text-foreground text-lg">
@@ -174,13 +168,19 @@ export function DocGenerationResultPanel({
 													className={cn(
 														"font-medium text-xs",
 														statusClassMap[entry.status.toLowerCase()] ??
-															"text-foreground/70"
+														"text-foreground/70"
 													)}
 												>
 													{entry.status}
 												</div>
-												<div className="truncate font-mono text-foreground/90 text-sm">
+												<div className="flex items-center gap-2 truncate font-mono text-foreground/90 text-sm">
 													{entry.path}
+													{changedSinceInitial?.includes(entry.path) && (
+														<span
+															className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500"
+															title="Updated after request"
+														/>
+													)}
 												</div>
 											</button>
 										</li>
@@ -188,8 +188,8 @@ export function DocGenerationResultPanel({
 								</ul>
 							</div>
 
-							<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border text-xs">
-								<div className="h-full overflow-y-auto">
+							<div className="min-h-0 flex flex-col rounded-md border border-border text-xs">
+								<div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto overscroll-contain">
 									{activeEntry ? (
 										<Diff
 											className="text-foreground"
@@ -206,10 +206,7 @@ export function DocGenerationResultPanel({
 										</Diff>
 									) : (
 										<div className="p-4 text-muted-foreground text-sm">
-											{t(
-												"common.selectFile",
-												"Select a file to preview the diff."
-											)}
+											{t("common.selectFile", "Select a file to preview the diff.")}
 										</div>
 									)}
 								</div>
@@ -226,7 +223,7 @@ export function DocGenerationResultPanel({
 				</div>
 
 				{chatOpen && (
-					<div className="min-h-0">
+					<div className="min-h-0 h-full overflow-hidden">
 						<DocRefinementChat branch={result.branch} projectId={projectId} />
 					</div>
 				)}

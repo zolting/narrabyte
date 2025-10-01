@@ -1,5 +1,6 @@
 import type { models } from "@go/models";
 import { create } from "zustand";
+import { parseDiff } from "react-diff-view";
 import { type DemoEvent, demoEventSchema } from "@/types/events";
 import {
 	CommitDocs,
@@ -45,6 +46,15 @@ type State = {
 		status?: "pending" | "sent" | "error";
 		createdAt: Date;
 	}[];
+    /**
+     * Map of path -> stable signature of diff hunks from the initial generation.
+     * Used to determine which files have changed due to user refinements.
+     */
+    initialDiffSignatures: Record<string, string> | null;
+    /**
+     * Paths of files whose diffs differ from the initial generation (i.e., changed after request).
+     */
+    changedSinceInitial: string[];
 	start: (args: StartArgs) => Promise<void>;
 	reset: () => void;
 	commit: (args: CommitArgs) => Promise<void>;
@@ -82,6 +92,41 @@ const createLocalEvent = (
 	timestamp: new Date(),
 });
 
+const STARTS_WITH_A_SLASH_REGEX = /^a\//;
+const STARTS_WITH_B_SLASH_REGEX = /^b\//;
+
+function normalizeDiffPath(path?: string | null): string {
+    if (!path) return "";
+    return path.replace(STARTS_WITH_A_SLASH_REGEX, "").replace(STARTS_WITH_B_SLASH_REGEX, "");
+}
+
+function computeDiffSignatures(diffText: string | null | undefined): Record<string, string> {
+    if (!diffText || !diffText.trim()) return {};
+    try {
+        const files = parseDiff(diffText);
+        const out: Record<string, string> = {};
+        for (const f of files) {
+            const key = normalizeDiffPath(
+                f.newPath && f.newPath !== "/dev/null" ? f.newPath : f.oldPath
+            );
+            // Create a stable signature based on hunks structure/content only.
+            const signature = JSON.stringify(
+                (f.hunks || []).map((h) => ({
+                    content: h.content,
+                    changes: h.changes.map((c) => ({
+                        type: c.type,
+                        content: c.content,
+                    })),
+                }))
+            );
+            out[key] = signature;
+        }
+        return out;
+    } catch (e) {
+        return {};
+    }
+}
+
 export const useDocGenerationStore = create<State>((set, get) => ({
 	events: [],
 	status: "idle",
@@ -90,6 +135,8 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 	cancellationRequested: false,
 	chatOpen: false,
 	messages: [],
+    initialDiffSignatures: null,
+    changedSinceInitial: [],
 
 	start: async ({
 		projectId,
@@ -137,7 +184,14 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 				targetBranch,
 				provider
 			);
-			set({ result, status: "success", cancellationRequested: false });
+			set({
+                result,
+                status: "success",
+                cancellationRequested: false,
+                // Establish baseline signatures for later comparisons
+                initialDiffSignatures: computeDiffSignatures(result?.diff),
+                changedSinceInitial: [],
+            });
 		} catch (error) {
 			const message = messageFromError(error);
 			const normalized = message.toLowerCase();
@@ -264,6 +318,8 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 			cancellationRequested: false,
 			messages: [],
 			chatOpen: false,
+            initialDiffSignatures: null,
+            changedSinceInitial: [],
 		});
 	},
 
@@ -346,6 +402,15 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 						]
 					: [];
 
+				// Compute which files changed compared to the initial generation
+				const baseline = s.initialDiffSignatures || {};
+				const current = computeDiffSignatures(result?.diff);
+				const changed = Object.keys(current).filter((p) => {
+					const prev = baseline[p];
+					if (prev === undefined) return true; // new file change introduced by refine
+					return prev !== current[p];
+				});
+
 				return {
 					messages: [...updated, ...maybeAssistant],
 					result,
@@ -357,6 +422,7 @@ export const useDocGenerationStore = create<State>((set, get) => ({
 							"Applied user instruction to documentation."
 						),
 					],
+					changedSinceInitial: changed,
 				} satisfies Partial<State>;
 			});
 		} catch (error) {
