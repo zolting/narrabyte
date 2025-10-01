@@ -94,6 +94,8 @@ func (s *ClientService) InitializeLLMClient(provider string) error {
 		llmClient, err = client.NewGeminiClient(s.context, apiKey)
 	}
 
+	llmClient, err = client.NewTestClient(s.context, apiKey)
+
 	if err != nil {
 		return fmt.Errorf("failed to create %s client: %w", provider, err)
 	}
@@ -492,8 +494,38 @@ func createTempDocRepoAtBranchHead(ctx context.Context, sourceRepoPath, branch s
 	}
 	refName := plumbing.NewBranchReferenceName(branch)
 	if err := wt.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
+		// Fallback: if branch is missing in the temp clone, create it from the
+		// source repo's branch head (or base) and retry checkout.
+		srcRepo, srcOpenErr := git.PlainOpen(sourceRepoPath)
+		if srcOpenErr != nil {
+			cleanup()
+			return "", nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
+		}
+
+		// Try to resolve the branch in source repo
+		var headHash plumbing.Hash
+		if srcRef, refErr := srcRepo.Reference(refName, true); refErr == nil {
+			headHash = srcRef.Hash()
+		} else {
+			// If the branch doesn't exist (unexpected), fall back to base branch
+			baseHash, _, baseErr := ensureBaseBranch(srcRepo)
+			if baseErr != nil {
+				cleanup()
+				return "", nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
+			}
+			headHash = baseHash
+		}
+
+		// Create the branch ref in the temp repo and retry checkout
+		if setErr := tempRepo.Storer.SetReference(plumbing.NewHashReference(refName, headHash)); setErr != nil {
+			cleanup()
+			return "", nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
+		}
+
+		if coErr := wt.Checkout(&git.CheckoutOptions{Branch: refName}); coErr != nil {
+			cleanup()
+			return "", nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, coErr)
+		}
 	}
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Temporary docs workspace ready: branch '%s' at %s", branch, tempPath)))

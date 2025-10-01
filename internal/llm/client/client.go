@@ -77,9 +77,22 @@ func NewOpenAIClient(ctx context.Context, key string) (*LLMClient, error) {
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		APIKey: key,
 		Model:  "gpt-5-mini",
-		//APIKey:  "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",
-		//Model:   "x-ai/grok-4-fast:free",
-		//BaseURL: "https://openrouter.ai/api/v1",
+	})
+
+	if err != nil {
+		log.Printf("Error creating OpenAI client: %v", err)
+		return nil, err
+	}
+
+	return &LLMClient{chatModel: model, Key: key}, err
+}
+
+func NewTestClient(ctx context.Context, key string) (*LLMClient, error) {
+	// temperature := float32(0)
+	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
+		APIKey:  "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",
+		Model:   "x-ai/grok-4-fast:free",
+		BaseURL: "https://openrouter.ai/api/v1",
 	})
 
 	if err != nil {
