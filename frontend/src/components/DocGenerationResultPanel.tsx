@@ -13,7 +13,9 @@ const STARTS_WITH_A_SLASH_REGEX = /^a\//;
 const STARTS_WITH_B_SLASH_REGEX = /^b\//;
 
 function normalizeDiffPath(path?: string | null): string {
-	if (!path) return "";
+	if (!path) {
+		return "";
+	}
 	return path
 		.replace(STARTS_WITH_A_SLASH_REGEX, "")
 		.replace(STARTS_WITH_B_SLASH_REGEX, "");
@@ -41,7 +43,9 @@ export function DocGenerationResultPanel({
 	const [viewType, setViewType] = useState<"split" | "unified">("unified");
 
 	const parsedDiff = useMemo(() => {
-		if (!result?.diff) return [];
+		if (!result?.diff) {
+			return [];
+		}
 		try {
 			return parseDiff(result.diff);
 		} catch (error) {
@@ -93,7 +97,9 @@ export function DocGenerationResultPanel({
 		[entries, selectedPath]
 	);
 
-	if (!result) return null;
+	if (!result) {
+		return null;
+	}
 
 	const hasDiff = entries.length > 0 && result.diff.trim().length > 0;
 

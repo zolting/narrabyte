@@ -27,9 +27,13 @@ export function DocRefinementChat({
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	useEffect(() => {
-		if (!chatOpen) return;
+		if (!chatOpen) {
+			return;
+		}
 		const el = containerRef.current;
-		if (el) el.scrollTop = el.scrollHeight;
+		if (el) {
+			el.scrollTop = el.scrollHeight;
+		}
 	}, [chatOpen, messages.length]);
 
 	const pending = useMemo(
@@ -39,7 +43,9 @@ export function DocRefinementChat({
 
 	const handleSend = async () => {
 		const text = input.trim();
-		if (!text) return;
+		if (!text) {
+			return;
+		}
 		setInput("");
 		await refine({ projectId, branch, instruction: text });
 	};
