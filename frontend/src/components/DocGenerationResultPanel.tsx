@@ -29,15 +29,14 @@ const statusClassMap: Record<string, string> = {
 };
 
 export function DocGenerationResultPanel({
-											 result,
-											 projectId,
-										 }: {
+	result,
+	projectId,
+}: {
 	result: models.DocGenerationResult | null;
 	projectId: number;
 }) {
 	const toggleChat = useDocGenerationStore((s) => s.toggleChat);
 	const chatOpen = useDocGenerationStore((s) => s.chatOpen);
-	const changedSinceInitial = useDocGenerationStore((s) => s.changedSinceInitial);
 	const { t } = useTranslation();
 	const [viewType, setViewType] = useState<"split" | "unified">("unified");
 
@@ -65,7 +64,9 @@ export function DocGenerationResultPanel({
 		() =>
 			parsedDiff.map((file) => {
 				const key = normalizeDiffPath(
-					file.newPath && file.newPath !== "/dev/null" ? file.newPath : file.oldPath
+					file.newPath && file.newPath !== "/dev/null"
+						? file.newPath
+						: file.oldPath
 				);
 				return {
 					diff: file,
@@ -96,15 +97,8 @@ export function DocGenerationResultPanel({
 
 	const hasDiff = entries.length > 0 && result.diff.trim().length > 0;
 
-	// When chat is closed, don't allocate a grid column for it.
-	const layoutClass = cn(
-		"flex min-h-0 flex-1 flex-col gap-4 overflow-hidden",
-		chatOpen && "lg:grid lg:grid-cols-[1fr_360px]"
-	);
-
 	return (
-		// 🔧 Give the panel a viewport-based height so descendants can scroll.
-		<section className="flex h-[75vh] min-h-0 flex-col gap-4 overflow-hidden rounded-lg border border-border bg-card p-4">
+		<section className="flex h-full flex-col gap-4 overflow-hidden rounded-lg border border-border bg-card p-4">
 			<header className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 				<div>
 					<h2 className="font-semibold text-foreground text-lg">
@@ -114,7 +108,7 @@ export function DocGenerationResultPanel({
 						{t("common.branch", "Branch")}: {result.branch}
 					</p>
 				</div>
-				<div className="space-x-2">
+				<div>
 					{hasDiff && (
 						<Button
 							className="border-border text-foreground hover:bg-accent"
@@ -129,9 +123,8 @@ export function DocGenerationResultPanel({
 								: t("common.splitView", "Split view")}
 						</Button>
 					)}
-
 					<Button
-						className="border-border"
+						className="ml-2 border-border text-foreground hover:bg-accent"
 						onClick={() => toggleChat()}
 						size="sm"
 						variant="outline"
@@ -143,91 +136,86 @@ export function DocGenerationResultPanel({
 				</div>
 			</header>
 
-			<div className={layoutClass}>
-				<div className="min-h-0 flex-1 overflow-hidden">
-					{hasDiff ? (
-						<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[220px_1fr]">
-							<div className="flex max-h-48 min-h-0 flex-col gap-2 overflow-hidden lg:h-full lg:max-h-none">
-								<div className="text-muted-foreground text-xs uppercase tracking-wide">
-									{t("common.files", "Files")}
-								</div>
-								<ul className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-									{entries.map((entry) => (
-										<li key={entry.path}>
-											<button
-												className={cn(
-													"w-full rounded-md border border-transparent px-3 py-2 text-left transition-colors",
-													selectedPath === entry.path
-														? "bg-accent text-accent-foreground"
-														: "hover:bg-muted"
-												)}
-												onClick={() => setSelectedPath(entry.path)}
-												type="button"
-											>
-												<div
-													className={cn(
-														"font-medium text-xs",
-														statusClassMap[entry.status.toLowerCase()] ??
-														"text-foreground/70"
-													)}
-												>
-													{entry.status}
-												</div>
-												<div className="flex items-center gap-2 truncate font-mono text-foreground/90 text-sm">
-													{entry.path}
-													{changedSinceInitial?.includes(entry.path) && (
-														<span
-															className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500"
-															title="Updated after request"
-														/>
-													)}
-												</div>
-											</button>
-										</li>
-									))}
-								</ul>
-							</div>
-
-							<div className="min-h-0 flex flex-col rounded-md border border-border text-xs">
-								<div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto overscroll-contain">
-									{activeEntry ? (
-										<Diff
-											className="text-foreground"
-											diffType={activeEntry.diff.type}
-											hunks={activeEntry.diff.hunks}
-											optimizeSelection={false}
-											viewType={viewType}
-										>
-											{(hunks) =>
-												hunks.map((hunk) => (
-													<Hunk hunk={hunk} key={hunk.content} />
-												))
-											}
-										</Diff>
-									) : (
-										<div className="p-4 text-muted-foreground text-sm">
-											{t("common.selectFile", "Select a file to preview the diff.")}
-										</div>
-									)}
-								</div>
-							</div>
+			{hasDiff ? (
+				<div
+					className={cn(
+						"flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid",
+						chatOpen
+							? "lg:grid-cols-[220px_1fr_360px]" // files | diff | chat
+							: "lg:grid-cols-[220px_1fr]" // files | diff
+					)}
+				>
+					<div className="flex max-h-48 min-h-0 flex-col gap-2 overflow-hidden lg:h-full lg:max-h-none">
+						<div className="text-muted-foreground text-xs uppercase tracking-wide">
+							{t("common.files", "Files")}
 						</div>
-					) : (
-						<div className="rounded-md border border-border border-dashed p-4 text-muted-foreground text-sm">
-							{t(
-								"common.noDocumentationChanges",
-								"No documentation changes were produced for this diff."
+						<ul className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+							{entries.map((entry) => (
+								<li key={entry.path}>
+									<button
+										className={cn(
+											"w-full rounded-md border border-transparent px-3 py-2 text-left transition-colors",
+											selectedPath === entry.path
+												? "bg-accent text-accent-foreground"
+												: "hover:bg-muted"
+										)}
+										onClick={() => setSelectedPath(entry.path)}
+										type="button"
+									>
+										<div
+											className={cn(
+												"font-medium text-xs",
+												statusClassMap[entry.status.toLowerCase()] ??
+													"text-foreground/70"
+											)}
+										>
+											{entry.status}
+										</div>
+										<div className="truncate font-mono text-foreground/90 text-sm">
+											{entry.path}
+										</div>
+									</button>
+								</li>
+							))}
+						</ul>
+					</div>
+
+					<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border text-xs">
+						<div className="h-full overflow-auto">
+							{activeEntry ? (
+								<Diff
+									className="text-foreground"
+									diffType={activeEntry.diff.type}
+									hunks={activeEntry.diff.hunks}
+									optimizeSelection={false}
+									viewType={viewType}
+								>
+									{(hunks) =>
+										hunks.map((hunk) => <Hunk hunk={hunk} key={hunk.content} />)
+									}
+								</Diff>
+							) : (
+								<div className="p-4 text-muted-foreground text-sm">
+									{t("common.selectFile", "Select a file to preview the diff.")}
+								</div>
 							)}
+						</div>
+					</div>
+
+					{chatOpen && (
+						<div className="h-full min-h-0 overflow-hidden">
+							<DocRefinementChat branch={result.branch} projectId={projectId} />
 						</div>
 					)}
 				</div>
-
-				{chatOpen && (
-					<div className="min-h-0 h-full overflow-hidden">
-						<DocRefinementChat branch={result.branch} projectId={projectId} />
-					</div>
-				)}
-			</div>
+			) : (
+				<div className="rounded-md border border-border border-dashed p-4 text-muted-foreground text-sm">
+					{t(
+						"common.noDocumentationChanges",
+						"No documentation changes were produced for this diff."
+					)}
+				</div>
+			)}
 		</section>
 	);
 }
