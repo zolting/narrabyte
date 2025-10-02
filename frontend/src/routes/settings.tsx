@@ -19,7 +19,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { type AppTheme, useAppSettingsStore } from "../stores/appSettings";
+import { type AppTheme, useAppSettingsStore } from "@/stores/appSettings";
 
 export const Route = createFileRoute("/settings")({
 	component: Settings,

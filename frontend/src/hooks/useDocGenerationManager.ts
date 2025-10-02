@@ -1,24 +1,48 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import type { DemoEvent } from "@/types/events";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 
-export const useDocGenerationManager = () => {
-	const docResult = useDocGenerationStore((s) => s.result);
-	const status = useDocGenerationStore((s) => s.status);
-	const events = useDocGenerationStore((s) => s.events);
+const EMPTY_EVENTS: DemoEvent[] = [];
+
+export const useDocGenerationManager = (projectId: string) => {
+	const projectKey = useMemo(() => String(projectId), [projectId]);
+	const docResult = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.result ?? null
+	);
+	const status = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.status ?? "idle"
+	);
+	const events = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.events ?? EMPTY_EVENTS
+	);
+	const docGenerationError = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.error ?? null
+	);
+	const activeTab = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.activeTab ?? "activity"
+	);
+	const commitCompleted = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.commitCompleted ?? false
+	);
+	const completedCommitInfo = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.completedCommitInfo ?? null
+	);
+	const sourceBranch = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.sourceBranch ?? null
+	);
+	const targetBranch = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.targetBranch ?? null
+	);
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
 	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
 	const commitDocGeneration = useDocGenerationStore((s) => s.commit);
-	const cancelDocGeneration = useDocGenerationStore((s) => s.cancel);
-	const docGenerationError = useDocGenerationStore((s) => s.error);
-
-	const [activeTab, setActiveTab] = useState<"activity" | "review" | "summary">(
-		"activity"
+	const cancelDocGenerationStore = useDocGenerationStore((s) => s.cancel);
+	const setActiveTabStore = useDocGenerationStore((s) => s.setActiveTab);
+	const setCompletedCommitInfoStore = useDocGenerationStore(
+		(s) => s.setCompletedCommitInfo
 	);
-	const [commitCompleted, setCommitCompleted] = useState(false);
-	const [completedCommitInfo, setCompletedCommitInfo] = useState<{
-		sourceBranch: string;
-		targetBranch: string;
-	} | null>(null);
+	const prevDocResultRef = useRef(docResult);
+	const prevStatusRef = useRef(status);
 
 	const isRunning = status === "running";
 	const isCommitting = status === "committing";
@@ -26,49 +50,49 @@ export const useDocGenerationManager = () => {
 	const hasGenerationAttempt =
 		status !== "idle" || Boolean(docResult) || events.length > 0;
 
+	const setActiveTab = useCallback(
+		(tab: "activity" | "review" | "summary") => {
+			setActiveTabStore(projectKey, tab);
+		},
+		[projectKey, setActiveTabStore]
+	);
+
 	// Switch to review tab when LLM completes
 	useEffect(() => {
-		if (docResult) {
+		if (docResult && prevDocResultRef.current !== docResult) {
 			setActiveTab("review");
 		}
-	}, [docResult]);
+		prevDocResultRef.current = docResult;
+	}, [docResult, setActiveTab]);
 
 	// Handle tab switching during status changes
 	useEffect(() => {
-		if (status === "running" || status === "committing") {
+		if (
+			(status === "running" || status === "committing") &&
+			prevStatusRef.current !== status
+		) {
 			setActiveTab("activity");
 		}
-		if (status === "success" && commitCompleted) {
-			return; // Keep current tab when commit completes
-		}
-	}, [status, commitCompleted]);
-
-	// Detect successful commit completion
-	const prevStatusRef = useRef(status);
-	useEffect(() => {
-		if (
-			prevStatusRef.current === "committing" &&
-			status === "success" &&
-			docResult
-		) {
-			setCommitCompleted(true);
-		}
 		prevStatusRef.current = status;
-	}, [status, docResult]);
+	}, [status, setActiveTab]);
 
 	const reset = useCallback(() => {
-		resetDocGeneration();
-		setActiveTab("activity");
-		setCommitCompleted(false);
-		setCompletedCommitInfo(null);
-	}, [resetDocGeneration]);
+		resetDocGeneration(projectKey);
+	}, [projectKey, resetDocGeneration]);
 
 	const setCompletedCommit = useCallback(
 		(sourceBranch: string, targetBranch: string) => {
-			setCompletedCommitInfo({ sourceBranch, targetBranch });
+			setCompletedCommitInfoStore(projectKey, {
+				sourceBranch,
+				targetBranch,
+			});
 		},
-		[]
+		[projectKey, setCompletedCommitInfoStore]
 	);
+
+	const cancelDocGeneration = useCallback(() => {
+		cancelDocGenerationStore(projectKey);
+	}, [cancelDocGenerationStore, projectKey]);
 
 	return {
 		docResult,
@@ -79,6 +103,8 @@ export const useDocGenerationManager = () => {
 		setActiveTab,
 		commitCompleted,
 		completedCommitInfo,
+		sourceBranch,
+		targetBranch,
 		isRunning,
 		isCommitting,
 		isBusy,

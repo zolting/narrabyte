@@ -29,20 +29,54 @@ type CommitArgs = {
 	files: string[];
 };
 
-type State = {
+type ProjectKey = string;
+
+type CompletedCommitInfo = {
+	sourceBranch: string;
+	targetBranch: string;
+};
+
+type DocGenerationData = {
 	events: DemoEvent[];
 	status: DocGenerationStatus;
 	result: models.DocGenerationResult | null;
 	error: string | null;
 	cancellationRequested: boolean;
-	start: (args: StartArgs) => Promise<void>;
-	reset: () => void;
-	commit: (args: CommitArgs) => Promise<void>;
-	cancel: () => Promise<void>;
+	activeTab: "activity" | "review" | "summary";
+	commitCompleted: boolean;
+	completedCommitInfo: CompletedCommitInfo | null;
+	sourceBranch: string | null;
+	targetBranch: string | null;
 };
 
-let unsubscribeTool: (() => void) | null = null;
-let unsubscribeDone: (() => void) | null = null;
+type State = {
+	docStates: Record<ProjectKey, DocGenerationData>;
+	start: (args: StartArgs) => Promise<void>;
+	reset: (projectId: number | string) => void;
+	commit: (args: CommitArgs) => Promise<void>;
+	cancel: (projectId: number | string) => Promise<void>;
+	setActiveTab: (projectId: number | string, tab: "activity" | "review" | "summary") => void;
+	setCommitCompleted: (projectId: number | string, completed: boolean) => void;
+	setCompletedCommitInfo: (
+		projectId: number | string,
+		info: CompletedCommitInfo | null
+	) => void;
+};
+
+const EMPTY_DOC_STATE: DocGenerationData = {
+	events: [],
+	status: "idle",
+	result: null,
+	error: null,
+	cancellationRequested: false,
+	activeTab: "activity",
+	commitCompleted: false,
+	completedCommitInfo: null,
+	sourceBranch: null,
+	targetBranch: null,
+};
+
+const toKey = (projectId: number | string): ProjectKey => String(projectId);
 
 const messageFromError = (error: unknown) => {
 	if (error instanceof Error) {
@@ -67,184 +101,264 @@ const createLocalEvent = (
 	timestamp: new Date(),
 });
 
-export const useDocGenerationStore = create<State>((set, get) => ({
-	events: [],
-	status: "idle",
-	result: null,
-	error: null,
-	cancellationRequested: false,
+type SubscriptionMap = {
+	tool?: () => void;
+	done?: () => void;
+};
 
-	start: async ({
-		projectId,
-		sourceBranch,
-		targetBranch,
-		provider,
-	}: StartArgs) => {
-		if (get().status === "running") {
-			return;
-		}
+const subscriptions = new Map<ProjectKey, SubscriptionMap>();
 
-		set({
-			events: [],
-			error: null,
-			result: null,
-			status: "running",
-			cancellationRequested: false,
+const clearSubscriptions = (key: ProjectKey) => {
+	const entry = subscriptions.get(key);
+	if (!entry) {
+		return;
+	}
+	entry.tool?.();
+	entry.done?.();
+	subscriptions.delete(key);
+};
+
+export const useDocGenerationStore = create<State>((set, get) => {
+	const setDocState = (
+		key: ProjectKey,
+		partial: Partial<DocGenerationData> | ((prev: DocGenerationData) => DocGenerationData)
+	) => {
+		set((state) => {
+			const previous = state.docStates[key] ?? EMPTY_DOC_STATE;
+			const next =
+				typeof partial === "function" ? partial(previous) : { ...previous, ...partial };
+			return {
+				docStates: {
+					...state.docStates,
+					[key]: next,
+				},
+			};
 		});
+	};
 
-		unsubscribeTool?.();
-		unsubscribeDone?.();
+	return {
+		docStates: {},
 
-		unsubscribeTool = EventsOn("event:llm:tool", (payload) => {
-			try {
-				const evt = demoEventSchema.parse(payload);
-				set((state) => ({ events: [...state.events, evt] }));
-			} catch (error) {
-				console.error("Invalid doc generation tool event", error, payload);
+		start: async ({
+			projectId,
+			sourceBranch,
+			targetBranch,
+			provider,
+		}: StartArgs) => {
+			const key = toKey(projectId);
+			const currentState = get().docStates[key] ?? EMPTY_DOC_STATE;
+			if (currentState.status === "running") {
+				return;
 			}
-		});
 
-		unsubscribeDone = EventsOn("events:llm:done", (payload) => {
-			try {
-				const evt = demoEventSchema.parse(payload);
-				set((state) => ({ events: [...state.events, evt] }));
-			} catch (error) {
-				console.error("Invalid doc generation done event", error, payload);
-			}
-		});
-
-		try {
-			const result = await GenerateDocs(
-				projectId,
+			setDocState(key, {
+				events: [],
+				error: null,
+				result: null,
+				status: "running",
+				cancellationRequested: false,
+				activeTab: "activity",
+				commitCompleted: false,
+				completedCommitInfo: null,
 				sourceBranch,
 				targetBranch,
-				provider
-			);
-			set({ result, status: "success", cancellationRequested: false });
-		} catch (error) {
-			const message = messageFromError(error);
-			const normalized = message.toLowerCase();
-			const canceled =
-				get().cancellationRequested ||
-				normalized.includes("context canceled") ||
-				normalized.includes("context cancelled") ||
-				normalized.includes("cancelled") ||
-				normalized.includes("canceled");
-			if (canceled) {
-				set((state) => ({
-					error: null,
-					result: null,
-					status: "canceled",
+			});
+
+			clearSubscriptions(key);
+
+			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
+				try {
+					const evt = demoEventSchema.parse(payload);
+					setDocState(key, (prev) => ({
+						...prev,
+						events: [...prev.events, evt],
+					}));
+				} catch (error) {
+					console.error("Invalid doc generation tool event", error, payload);
+				}
+			});
+
+			const doneUnsub = EventsOn("events:llm:done", (payload) => {
+				try {
+					const evt = demoEventSchema.parse(payload);
+					setDocState(key, (prev) => ({
+						...prev,
+						events: [...prev.events, evt],
+					}));
+				} catch (error) {
+					console.error("Invalid doc generation done event", error, payload);
+				}
+			});
+
+			subscriptions.set(key, { tool: toolUnsub, done: doneUnsub });
+
+			try {
+				const result = await GenerateDocs(
+					projectId,
+					sourceBranch,
+					targetBranch,
+					provider
+				);
+				setDocState(key, {
+					result,
+					status: "success",
 					cancellationRequested: false,
+				});
+			} catch (error) {
+				const message = messageFromError(error);
+				const normalized = message.toLowerCase();
+				const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
+				const canceled =
+					docState.cancellationRequested ||
+					normalized.includes("context canceled") ||
+					normalized.includes("context cancelled") ||
+					normalized.includes("cancelled") ||
+					normalized.includes("canceled");
+				if (canceled) {
+					setDocState(key, (prev) => ({
+						...prev,
+						error: null,
+						result: null,
+						status: "canceled",
+						cancellationRequested: false,
+						events: [
+							...prev.events,
+							createLocalEvent(
+								"warn",
+								"Documentation generation canceled by user."
+							),
+						],
+					}));
+				} else {
+					setDocState(key, {
+						error: message,
+						status: "error",
+						cancellationRequested: false,
+						result: null,
+						commitCompleted: false,
+					});
+				}
+			} finally {
+				clearSubscriptions(key);
+				setDocState(key, { cancellationRequested: false });
+			}
+		},
+
+		cancel: async (projectId: number | string) => {
+			const key = toKey(projectId);
+			const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
+			if (docState.status !== "running") {
+				return;
+			}
+
+			setDocState(key, { cancellationRequested: true });
+			try {
+				await StopStream();
+			} catch (error) {
+				const message = messageFromError(error);
+				console.error("Failed to cancel doc generation", error);
+				setDocState(key, (prev) => ({
+					...prev,
+					cancellationRequested: false,
+					error: message,
+					status: "error",
+					result: null,
 					events: [
-						...state.events,
+						...prev.events,
 						createLocalEvent(
-							"warn",
-							"Documentation generation canceled by user."
+							"error",
+							`Failed to cancel documentation generation: ${message}`
 						),
 					],
 				}));
-			} else {
-				set({
-					error: message,
-					status: "error",
-					cancellationRequested: false,
-					result: null,
-				});
 			}
-		} finally {
-			unsubscribeTool?.();
-			unsubscribeTool = null;
-			unsubscribeDone?.();
-			unsubscribeDone = null;
-			set({ cancellationRequested: false });
-		}
-	},
+		},
 
-	cancel: async () => {
-		if (get().status !== "running") {
-			return;
-		}
+		commit: async ({ projectId, branch, files }: CommitArgs) => {
+			const key = toKey(projectId);
+			const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
+			if (docState.status === "committing") {
+				return;
+			}
 
-		set({ cancellationRequested: true });
-		try {
-			await StopStream();
-		} catch (error) {
-			const message = messageFromError(error);
-			console.error("Failed to cancel doc generation", error);
-			set((state) => ({
-				cancellationRequested: false,
-				error: message,
-				status: "error",
-				result: null,
-				events: [
-					...state.events,
-					createLocalEvent(
-						"error",
-						`Failed to cancel documentation generation: ${message}`
-					),
-				],
-			}));
-		}
-	},
-
-	commit: async ({ projectId, branch, files }: CommitArgs) => {
-		if (get().status === "committing") {
-			return;
-		}
-
-		set((state) => ({
-			error: null,
-			status: "committing",
-			events: [
-				...state.events,
-				createLocalEvent(
-					"info",
-					`Committing documentation updates to ${branch}`
-				),
-			],
-		}));
-
-		try {
-			await CommitDocs(projectId, branch, files);
-			set((state) => ({
+			setDocState(key, (prev) => ({
+				...prev,
 				error: null,
-				status: "success",
+				status: "committing",
 				events: [
-					...state.events,
+					...prev.events,
 					createLocalEvent(
 						"info",
-						`Committed documentation changes for ${branch}`
+						`Committing documentation updates to ${branch}`
 					),
 				],
-				result: state.result,
+				activeTab: "activity",
+				commitCompleted: false,
 			}));
-		} catch (error) {
-			set((state) => ({
-				error: messageFromError(error),
-				status: "error",
-				events: [
-					...state.events,
-					createLocalEvent(
-						"error",
-						`Failed to commit documentation changes: ${messageFromError(error)}`
-					),
-				],
-			}));
-		}
-	},
 
-	reset: () => {
-		unsubscribeTool?.();
-		unsubscribeTool = null;
-		unsubscribeDone?.();
-		unsubscribeDone = null;
-		set({
-			events: [],
-			error: null,
-			result: null,
-			status: "idle",
-			cancellationRequested: false,
-		});
-	},
-}));
+			try {
+				await CommitDocs(projectId, branch, files);
+				setDocState(key, (prev) => ({
+					...prev,
+					error: null,
+					status: "success",
+					events: [
+						...prev.events,
+						createLocalEvent(
+							"info",
+							`Committed documentation changes for ${branch}`
+						),
+					],
+					commitCompleted: true,
+				}));
+			} catch (error) {
+				const message = messageFromError(error);
+				setDocState(key, (prev) => ({
+					...prev,
+					error: message,
+					status: "error",
+					events: [
+						...prev.events,
+						createLocalEvent(
+							"error",
+							`Failed to commit documentation changes: ${message}`
+						),
+					],
+					commitCompleted: false,
+				}));
+			}
+		},
+
+		reset: (projectId: number | string) => {
+			const key = toKey(projectId);
+			clearSubscriptions(key);
+			setDocState(key, {
+				events: [],
+				error: null,
+				result: null,
+				status: "idle",
+				cancellationRequested: false,
+				activeTab: "activity",
+				commitCompleted: false,
+				completedCommitInfo: null,
+				sourceBranch: null,
+				targetBranch: null,
+			});
+		},
+
+		setActiveTab: (projectId, tab) => {
+			const key = toKey(projectId);
+			setDocState(key, { activeTab: tab });
+		},
+
+		setCommitCompleted: (projectId, completed) => {
+			const key = toKey(projectId);
+			setDocState(key, { commitCompleted: completed });
+		},
+
+		setCompletedCommitInfo: (projectId, info) => {
+			const key = toKey(projectId);
+			setDocState(key, { completedCommitInfo: info });
+		},
+	};
+});
