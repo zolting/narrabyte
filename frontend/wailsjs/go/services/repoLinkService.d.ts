@@ -20,6 +20,8 @@ export function Register(arg1:string,arg2:string,arg3:string):Promise<models.Rep
 
 export function Startup(arg1:context.Context):Promise<void>;
 
+export function UpdateProjectOrder(arg1:Array<models.RepoLinkOrderUpdate>):Promise<void>;
+
 export function UpdateProjectPaths(arg1:number,arg2:string,arg3:string):Promise<void>;
 
 export function ValidateDirectory(arg1:string):Promise<services.DirectoryValidationResult>;

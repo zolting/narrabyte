@@ -5,4 +5,10 @@ type RepoLink struct {
 	DocumentationRepo string
 	CodebaseRepo      string
 	ProjectName       string
+	Index             int `json:"index"`
+}
+
+type RepoLinkOrderUpdate struct {
+	ID    uint `json:"ID"`
+	Index int  `json:"Index"`
 }

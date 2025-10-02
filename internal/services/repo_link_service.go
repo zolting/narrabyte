@@ -84,12 +84,19 @@ func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo 
 		return nil, fmt.Errorf("unable to access .narrabyte directory: %w", err)
 	}
 
+	ctx := context.Background()
+
+	if err := s.repoLinks.IncrementAllIndexes(ctx); err != nil {
+		return nil, fmt.Errorf("failed to increment indexes: %w", err)
+	}
+
 	link := &models.RepoLink{
 		ProjectName:       projectName,
 		DocumentationRepo: documentationRepo,
 		CodebaseRepo:      codebaseRepo,
+		Index:             0,
 	}
-	if err := s.repoLinks.Create(context.Background(), link); err != nil {
+	if err := s.repoLinks.Create(ctx, link); err != nil {
 		return nil, err
 	}
 	return link, nil
@@ -288,4 +295,8 @@ func (s *repoLinkService) ValidateDirectory(path string) (*DirectoryValidationRe
 		IsValid:   true,
 		ErrorCode: "",
 	}, nil
+}
+
+func (s *repoLinkService) UpdateProjectOrder(updates []models.RepoLinkOrderUpdate) error {
+	return s.repoLinks.UpdateOrder(context.Background(), updates)
 }
