@@ -9,6 +9,8 @@ export function GenerateDocs(arg1:number,arg2:string,arg3:string,arg4:string):Pr
 
 export function InitializeLLMClient(arg1:string):Promise<void>;
 
+export function RefineDocs(arg1:number,arg2:string,arg3:string):Promise<models.DocGenerationResult>;
+
 export function Startup(arg1:context.Context):Promise<void>;
 
 export function StopStream():Promise<void>;

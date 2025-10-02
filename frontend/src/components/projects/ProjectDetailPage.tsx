@@ -321,6 +321,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							events={docManager.events}
 							setActiveTab={docManager.setActiveTab}
 							status={docManager.status}
+							projectId={Number(project.ID)}
 						/>
 					)}
 				</div>

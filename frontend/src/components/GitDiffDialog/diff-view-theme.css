@@ -49,6 +49,13 @@
 	--diff-omit-gutter-line-color: oklch(0.5 0.2 25.723);
 }
 
+.diff-container {
+	/* Ensure the diff area can scroll within constrained flex parents */
+	min-height: 0;
+	height: 100%;
+	overflow: auto;
+}
+
 /* Make diff table take full width */
 .diff-container .diff-view {
 	width: 100%;

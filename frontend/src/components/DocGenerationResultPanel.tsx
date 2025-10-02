@@ -1,11 +1,13 @@
 import type { models } from "@go/models";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Diff, Hunk, parseDiff } from "react-diff-view";
 import { useTranslation } from "react-i18next";
+import { DocRefinementChat } from "@/components/DocRefinementChat";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import "react-diff-view/style/index.css";
 import "./GitDiffDialog/diff-view-theme.css";
+import { useDocGenerationStore } from "@/stores/docGeneration";
 
 const STARTS_WITH_A_SLASH_REGEX = /^a\//;
 const STARTS_WITH_B_SLASH_REGEX = /^b\//;
@@ -30,11 +32,26 @@ const statusClassMap: Record<string, string> = {
 
 export function DocGenerationResultPanel({
 	result,
+	projectId,
 }: {
 	result: models.DocGenerationResult | null;
+	projectId: number;
 }) {
+	const projectKey = useMemo(() => String(projectId), [projectId]);
+	const toggleChatStore = useDocGenerationStore((s) => s.toggleChat);
+	const chatOpen = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.chatOpen ?? false
+	);
+	const changedSinceInitial = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.changedSinceInitial ?? []
+	);
 	const { t } = useTranslation();
 	const [viewType, setViewType] = useState<"split" | "unified">("unified");
+
+	const handleToggleChat = useCallback(() => {
+		toggleChatStore(projectKey);
+	}, [toggleChatStore, projectKey]);
+
 	const parsedDiff = useMemo(() => {
 		if (!result?.diff) {
 			return [];
@@ -107,23 +124,43 @@ export function DocGenerationResultPanel({
 						{t("common.branch", "Branch")}: {result.branch}
 					</p>
 				</div>
-				{hasDiff && (
+				<div>
+					{hasDiff && (
+						<Button
+							className="border-border text-foreground hover:bg-accent"
+							onClick={() =>
+								setViewType((prev) => (prev === "split" ? "unified" : "split"))
+							}
+							size="sm"
+							variant="outline"
+						>
+							{viewType === "split"
+								? t("common.inlineView", "Inline view")
+								: t("common.splitView", "Split view")}
+						</Button>
+					)}
 					<Button
-						className="border-border text-foreground hover:bg-accent"
-						onClick={() =>
-							setViewType((prev) => (prev === "split" ? "unified" : "split"))
-						}
+						className="ml-2 border-border text-foreground hover:bg-accent"
+						onClick={handleToggleChat}
 						size="sm"
 						variant="outline"
 					>
-						{viewType === "split"
-							? t("common.inlineView", "Inline view")
-							: t("common.splitView", "Split view")}
+						{chatOpen
+							? t("common.hideChat", "Hide chat")
+							: t("common.showChat", "Show chat")}
 					</Button>
-				)}
+				</div>
 			</header>
+
 			{hasDiff ? (
-				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[220px_1fr]">
+				<div
+					className={cn(
+						"flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid",
+						chatOpen
+							? "lg:grid-cols-[220px_1fr_360px]" // files | diff | chat
+							: "lg:grid-cols-[220px_1fr]" // files | diff
+					)}
+				>
 					<div className="flex max-h-48 min-h-0 flex-col gap-2 overflow-hidden lg:h-full lg:max-h-none">
 						<div className="text-muted-foreground text-xs uppercase tracking-wide">
 							{t("common.files", "Files")}
@@ -141,25 +178,40 @@ export function DocGenerationResultPanel({
 										onClick={() => setSelectedPath(entry.path)}
 										type="button"
 									>
-										<div
-											className={cn(
-												"font-medium text-xs",
-												statusClassMap[entry.status.toLowerCase()] ??
-													"text-foreground/70"
-											)}
-										>
-											{entry.status}
-										</div>
-										<div className="truncate font-mono text-foreground/90 text-sm">
-											{entry.path}
-										</div>
+										{(() => {
+											const isChanged = (changedSinceInitial || []).includes(
+												entry.path
+											);
+											return (
+												<div>
+													<div
+														className={cn(
+															"font-medium text-xs",
+															statusClassMap[entry.status.toLowerCase()] ??
+																"text-foreground/70"
+														)}
+													>
+														{entry.status}
+														{isChanged && (
+															<span className="ml-2 inline-flex items-center rounded border border-amber-200 bg-amber-100/60 px-1.5 py-0.5 font-medium text-[10px] text-amber-800">
+																{t("apiDialog.update", "Update")}
+															</span>
+														)}
+													</div>
+													<div className="truncate font-mono text-foreground/90 text-sm">
+														{entry.path}
+													</div>
+												</div>
+											);
+										})()}
 									</button>
 								</li>
 							))}
 						</ul>
 					</div>
+
 					<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border text-xs">
-						<div className="h-full overflow-y-auto">
+						<div className="h-full overflow-auto">
 							{activeEntry ? (
 								<Diff
 									className="text-foreground"
@@ -179,6 +231,12 @@ export function DocGenerationResultPanel({
 							)}
 						</div>
 					</div>
+
+					{chatOpen && (
+						<div className="h-full min-h-0 overflow-hidden">
+							<DocRefinementChat branch={result.branch} projectId={projectId} />
+						</div>
+					)}
 				</div>
 			) : (
 				<div className="rounded-md border border-border border-dashed p-4 text-muted-foreground text-sm">
