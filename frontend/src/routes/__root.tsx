@@ -1,6 +1,10 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { useEffect } from "react";
+import {
+	ProjectCacheHost,
+	ProjectCacheProvider,
+} from "@/components/projects/ProjectCache";
 import { AppSidebar } from "@/components/Sidebar";
 import {
 	SidebarInset,
@@ -51,20 +55,23 @@ function ThemeSync() {
 
 function RootLayout() {
 	return (
-		<SidebarProvider>
-			<Toaster />
-			<ThemeSync />
-			<AppSidebar />
-			<SidebarInset className="flex flex-col">
-				<header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4">
-					<SidebarTrigger className="-ml-1" />
-				</header>
-				<main>
-					<Outlet />
-					<TanStackRouterDevtools position="bottom-right" />
-				</main>
-			</SidebarInset>
-		</SidebarProvider>
+		<ProjectCacheProvider>
+			<SidebarProvider>
+				<Toaster />
+				<ThemeSync />
+				<AppSidebar />
+				<SidebarInset className="flex flex-col">
+					<header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4">
+						<SidebarTrigger className="-ml-1" />
+					</header>
+					<main>
+						<ProjectCacheHost />
+						<Outlet />
+						<TanStackRouterDevtools position="bottom-right" />
+					</main>
+				</SidebarInset>
+			</SidebarProvider>
+		</ProjectCacheProvider>
 	);
 }
 

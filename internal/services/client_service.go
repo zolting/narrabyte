@@ -128,11 +128,6 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch,
 		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
-		"GenerateDocs: starting for project %d (%s -> %s)",
-		projectID, targetBranch, sourceBranch,
-	)))
-
 	project, err := s.repoLinks.Get(projectID)
 	if err != nil {
 		return nil, err
@@ -140,6 +135,11 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch,
 	if project == nil {
 		return nil, fmt.Errorf("project not found")
 	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+		"GenerateDocs: starting for project %s (%s -> %s)",
+		project.ProjectName, targetBranch, sourceBranch,
+	)))
 
 	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
 	docRepoPath := strings.TrimSpace(project.DocumentationRepo)

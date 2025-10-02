@@ -35,6 +35,7 @@
     "commit": "Commit",
     "reset": "Reset",
     "inProgress": "In progress",
+    "submit": "Submit",
     "noEvents": "No tool activity yet.",
     "files": "Files",
     "selectFile": "Select a file to preview the diff.",
@@ -43,15 +44,14 @@
     "commitSuccess": "Documentation Committed Successfully!",
     "commitSuccessDescription": "Your documentation changes have been successfully committed to the documentation branch.",
     "documentationAvailable": "Documentation is now available in branch",
-    "startNewTask": "Start New Documentation Task"
+    "startNewTask": "Start New Documentation Task",
+    "delete": "Delete"
   },
   "projectManager": {
     "addProject": "Add Project",
     "projectName": "Project Name",
     "docDirectory": "Documentation Directory",
     "codebaseDirectory": "Codebase Directory",
-    "submit": "Submit",
-    "cancel": "Cancel",
     "enterProjectName": "Enter project name",
     "selectDocDirectory": "Select documentation directory",
     "selectCodebaseDirectory": "Select codebase directory",
@@ -112,10 +112,9 @@
     "deleteProject": "Delete Project",
     "deleteProjectTitle": "Delete Project",
     "deleteProjectDescription": "Are you sure you want to delete \"{{projectName}}\"? This action cannot be undone and will only remove the project link from Narrabyte, not the actual files.",
-    "cancel": "Cancel",
-    "delete": "Delete",
     "deleteSuccess": "Project deleted successfully",
-    "deleteError": "Failed to delete project"
+    "deleteError": "Failed to delete project",
+    "reorderError": "Failed to update project order"
   },
   "apiDialog": {
     "keySaved": "API key saved successfully!",

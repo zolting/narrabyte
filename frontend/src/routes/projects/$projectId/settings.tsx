@@ -78,7 +78,9 @@ function ProjectSettings() {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
 	const { projectId } = Route.useParams();
-	const [project, setProject] = useState<models.RepoLink | null>(null);
+	const [project, setProject] = useState<
+		models.RepoLink | null | undefined
+	>(undefined);
 	const [hasLLMInstructions, setHasLLMInstructions] = useState(false);
 	const [docDirectory, setDocDirectory] = useState("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState("");
@@ -94,6 +96,7 @@ function ProjectSettings() {
 
 	useEffect(() => {
 		const loadProject = async () => {
+			setProject(undefined);
 			try {
 				const proj = (await Get(Number(projectId))) as models.RepoLink;
 				setProject(proj);
@@ -105,6 +108,7 @@ function ProjectSettings() {
 			} catch (error) {
 				console.error("Failed to load project:", error);
 				toast.error(t("projectSettings.loadError"));
+				setProject(null);
 			}
 		};
 		loadProject();
@@ -261,6 +265,10 @@ function ProjectSettings() {
 
 	const hasValidationErrors =
 		docValidationError !== null || codebaseValidationError !== null;
+
+	if (project === undefined) {
+		return <div className="p-8" />;
+	}
 
 	if (!project) {
 		return (
@@ -435,12 +443,12 @@ function ProjectSettings() {
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel>{t("sidebar.cancel")}</AlertDialogCancel>
+						<AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
 						<AlertDialogAction
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 							onClick={handleDeleteProject}
 						>
-							{t("sidebar.delete")}
+							{t("common.delete")}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
