@@ -1,5 +1,5 @@
 import type { models } from "@go/models";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Diff, Hunk, parseDiff } from "react-diff-view";
 import { useTranslation } from "react-i18next";
 import { DocRefinementChat } from "@/components/DocRefinementChat";
@@ -37,13 +37,20 @@ export function DocGenerationResultPanel({
 	result: models.DocGenerationResult | null;
 	projectId: number;
 }) {
-	const toggleChat = useDocGenerationStore((s) => s.toggleChat);
-	const chatOpen = useDocGenerationStore((s) => s.chatOpen);
+	const projectKey = useMemo(() => String(projectId), [projectId]);
+	const toggleChatStore = useDocGenerationStore((s) => s.toggleChat);
+	const chatOpen = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.chatOpen ?? false
+	);
 	const changedSinceInitial = useDocGenerationStore(
-		(s) => s.changedSinceInitial
+		(s) => s.docStates[projectKey]?.changedSinceInitial ?? []
 	);
 	const { t } = useTranslation();
 	const [viewType, setViewType] = useState<"split" | "unified">("unified");
+
+	const handleToggleChat = useCallback(() => {
+		toggleChatStore(projectKey);
+	}, [toggleChatStore, projectKey]);
 
 	const parsedDiff = useMemo(() => {
 		if (!result?.diff) {
@@ -134,7 +141,7 @@ export function DocGenerationResultPanel({
 					)}
 					<Button
 						className="ml-2 border-border text-foreground hover:bg-accent"
-						onClick={() => toggleChat()}
+						onClick={handleToggleChat}
 						size="sm"
 						variant="outline"
 					>

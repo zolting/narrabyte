@@ -16,10 +16,17 @@ export function DocRefinementChat({
 	className?: string;
 	style?: React.CSSProperties;
 }) {
-	const messages = useDocGenerationStore((s) => s.messages);
-	const chatOpen = useDocGenerationStore((s) => s.chatOpen);
-	const refine = useDocGenerationStore((s) => s.refine);
-	const status = useDocGenerationStore((s) => s.status);
+	const projectKey = useMemo(() => String(projectId), [projectId]);
+	const messages = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.messages ?? []
+	);
+	const chatOpen = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.chatOpen ?? false
+	);
+	const refineDocs = useDocGenerationStore((s) => s.refine);
+	const status = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.status ?? "idle"
+	);
 
 	const [input, setInput] = useState("");
 	const disabled = status === "running" || !branch || !projectId;
@@ -47,7 +54,7 @@ export function DocRefinementChat({
 			return;
 		}
 		setInput("");
-		await refine({ projectId, branch, instruction: text });
+		await refineDocs({ projectId, branch, instruction: text });
 	};
 
 	return (

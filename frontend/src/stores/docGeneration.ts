@@ -461,7 +461,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				id: messageId,
 				role: "user",
 				content: trimmed,
-				status: "pending",
+				status: "pending" as const,
 				createdAt: new Date(),
 			};
 
@@ -511,8 +511,10 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						}
 						return previousSignature !== current[path];
 					});
-					const updatedMessages = prev.messages.map((message) =>
-						message.id === messageId ? { ...message, status: "sent" } : message
+					const updatedMessages = prev.messages.map<ChatMessage>((message) =>
+						message.id === messageId
+							? { ...message, status: "sent" as const }
+							: message
 					);
 					const summary = (result?.summary ?? "").trim();
 					const assistantMessages: ChatMessage[] = summary
@@ -549,8 +551,10 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			} catch (error) {
 				const message = messageFromError(error);
 				setDocState(key, (prev) => {
-					const updatedMessages = prev.messages.map((msg) =>
-						msg.id === messageId ? { ...msg, status: "error" } : msg
+					const updatedMessages = prev.messages.map<ChatMessage>((msg) =>
+						msg.id === messageId
+							? { ...msg, status: "error" as const }
+							: msg
 					);
 					const assistantMessages: ChatMessage[] = [
 						{
