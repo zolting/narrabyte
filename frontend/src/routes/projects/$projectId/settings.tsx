@@ -267,11 +267,7 @@ function ProjectSettings() {
 		docValidationError !== null || codebaseValidationError !== null;
 
 	if (project === undefined) {
-		return (
-			<div className="p-8 text-muted-foreground">
-				{t("common.loading", "Loading project…")}
-			</div>
-		);
+		return <div className="p-8" />;
 	}
 
 	if (!project) {
