@@ -24,7 +24,9 @@ import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { t } = useTranslation();
-	const [project, setProject] = useState<models.RepoLink | null>(null);
+	const [project, setProject] = useState<models.RepoLink | null | undefined>(
+		undefined
+	);
 	const [provider, setProvider] = useState<string>("anthropic");
 	const [availableProviders, setAvailableProviders] = useState<string[]>([]);
 	const containerRef = useRef<HTMLDivElement | null>(null);
@@ -35,6 +37,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const navigate = useNavigate();
 
 	useEffect(() => {
+		setProject(undefined);
 		Promise.resolve(Get(Number(projectId)))
 			.then((res) => {
 				setProject((res as models.RepoLink) ?? null);
@@ -176,6 +179,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		docManager.completedCommitInfo?.sourceBranch ??
 		docManager.sourceBranch ??
 		branchManager.sourceBranch;
+
+	if (project === undefined) {
+		return (
+			<div className="p-2 text-muted-foreground text-sm">
+				{t("common.loading", "Loading project…")}
+			</div>
+		);
+	}
 
 	if (!project) {
 		return (

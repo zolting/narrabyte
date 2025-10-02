@@ -81,17 +81,20 @@ export function ProjectCacheHost() {
 		return null;
 	}
 
-	const activeEntry = entries.find((e) => e.id === activeProjectId);
-	if (!activeEntry) {
-		return null;
-	}
-
 	return (
-		<div
-			className="h-full w-full"
-			style={{ display: isProjectDetailView ? "block" : "none" }}
-		>
-			{activeEntry.element}
+		<div className="h-full w-full" style={{ display: isProjectDetailView ? "block" : "none" }}>
+			{entries.map((entry) => {
+				const isActive = entry.id === activeProjectId;
+				return (
+					<div
+						key={entry.id}
+						style={{ display: isActive ? "block" : "none", height: "100%" }}
+						className="h-full w-full"
+					>
+						{entry.element}
+					</div>
+				);
+			})}
 		</div>
 	);
 }
