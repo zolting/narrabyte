@@ -4,6 +4,12 @@ import { Diff, Hunk, parseDiff } from "react-diff-view";
 import { useTranslation } from "react-i18next";
 import { DocRefinementChat } from "@/components/DocRefinementChat";
 import { Button } from "@/components/ui/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import "react-diff-view/style/index.css";
 import "./GitDiffDialog/diff-view-theme.css";
@@ -165,46 +171,58 @@ export function DocGenerationResultPanel({
 						<div className="text-muted-foreground text-xs uppercase tracking-wide">
 							{t("common.files", "Files")}
 						</div>
-						<ul className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+						<ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1">
 							{entries.map((entry) => (
 								<li key={entry.path}>
-									<button
-										className={cn(
-											"w-full rounded-md border border-transparent px-3 py-2 text-left transition-colors",
-											selectedPath === entry.path
-												? "bg-accent text-accent-foreground"
-												: "hover:bg-muted"
-										)}
-										onClick={() => setSelectedPath(entry.path)}
-										type="button"
-									>
-										{(() => {
-											const isChanged = (changedSinceInitial || []).includes(
-												entry.path
-											);
-											return (
-												<div>
-													<div
-														className={cn(
-															"font-medium text-xs",
-															statusClassMap[entry.status.toLowerCase()] ??
-																"text-foreground/70"
-														)}
-													>
-														{entry.status}
-														{isChanged && (
-															<span className="ml-2 inline-flex items-center rounded border border-amber-200 bg-amber-100/60 px-1.5 py-0.5 font-medium text-[10px] text-amber-800">
-																{t("apiDialog.update", "Update")}
-															</span>
-														)}
-													</div>
-													<div className="truncate font-mono text-foreground/90 text-sm">
-														{entry.path}
-													</div>
-												</div>
-											);
-										})()}
-									</button>
+									<TooltipProvider delayDuration={500}>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<button
+													className={cn(
+														"group w-full rounded-md border border-transparent px-2 py-1.5 text-left transition-colors",
+														selectedPath === entry.path
+															? "bg-accent text-accent-foreground"
+															: "hover:bg-muted"
+													)}
+													onClick={() => setSelectedPath(entry.path)}
+													type="button"
+												>
+													{(() => {
+														const isChanged = (
+															changedSinceInitial || []
+														).includes(entry.path);
+														return (
+															<div>
+																<div
+																	className={cn(
+																		"font-medium text-[11px]",
+																		statusClassMap[
+																			entry.status.toLowerCase()
+																		] ?? "text-foreground/70"
+																	)}
+																>
+																	{entry.status}
+																	{isChanged && (
+																		<span className="ml-2 inline-flex items-center rounded border border-amber-200 bg-amber-100/60 px-1.5 py-0.5 font-medium text-[10px] text-amber-800">
+																			{t("apiDialog.update", "Update")}
+																		</span>
+																	)}
+																</div>
+																<div className="truncate font-mono text-foreground/90 text-xs transition-colors group-hover:text-foreground">
+																	{entry.path}
+																</div>
+															</div>
+														);
+													})()}
+												</button>
+											</TooltipTrigger>
+											<TooltipContent side="right">
+												<p className="max-w-md break-all font-mono text-xs">
+													{entry.path}
+												</p>
+											</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
 								</li>
 							))}
 						</ul>

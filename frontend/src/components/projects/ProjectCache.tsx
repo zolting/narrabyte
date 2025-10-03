@@ -82,14 +82,17 @@ export function ProjectCacheHost() {
 	}
 
 	return (
-		<div className="h-full w-full" style={{ display: isProjectDetailView ? "block" : "none" }}>
+		<div
+			className="h-full w-full"
+			style={{ display: isProjectDetailView ? "block" : "none" }}
+		>
 			{entries.map((entry) => {
 				const isActive = entry.id === activeProjectId;
 				return (
 					<div
+						className="h-full w-full"
 						key={entry.id}
 						style={{ display: isActive ? "block" : "none", height: "100%" }}
-						className="h-full w-full"
 					>
 						{entry.element}
 					</div>

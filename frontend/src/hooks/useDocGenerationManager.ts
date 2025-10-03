@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import type { DemoEvent } from "@/types/events";
 import { useDocGenerationStore } from "@/stores/docGeneration";
+import type { DemoEvent } from "@/types/events";
 
 const EMPTY_EVENTS: DemoEvent[] = [];
 
@@ -81,10 +81,10 @@ export const useDocGenerationManager = (projectId: string) => {
 	}, [projectKey, resetDocGeneration]);
 
 	const setCompletedCommit = useCallback(
-		(sourceBranch: string, targetBranch: string) => {
+		(newSourceBranch: string, newTargetBranch: string) => {
 			setCompletedCommitInfoStore(projectKey, {
-				sourceBranch,
-				targetBranch,
+				sourceBranch: newSourceBranch,
+				targetBranch: newTargetBranch,
 			});
 		},
 		[projectKey, setCompletedCommitInfoStore]

@@ -1,3 +1,4 @@
+import { Send } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -66,28 +67,28 @@ export function DocRefinementChat({
 			style={style}
 		>
 			{!hideHeader && (
-				<header className="flex items-center justify-between gap-2 border-border border-b px-3 py-2">
-					<div className="font-medium text-sm">Chat</div>
+				<header className="flex items-center justify-between gap-2 border-border border-b px-2 py-1.5">
+					<div className="font-medium text-xs">Chat</div>
 				</header>
 			)}
 
 			{chatOpen && (
-				<div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+				<div className="flex min-h-0 flex-1 flex-col gap-2 p-2">
 					<div
 						className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-md border border-border bg-muted/30 p-2"
 						ref={containerRef}
 					>
 						{messages.length === 0 ? (
-							<div className="text-muted-foreground text-xs">
+							<div className="text-[11px] text-muted-foreground">
 								Ask for refinements, e.g. "Make the settings.mdx persistence
 								section more concise and add a concrete code example."
 							</div>
 						) : (
-							<ul className="space-y-2">
+							<ul className="space-y-1.5">
 								{messages.map((m) => (
 									<li
 										className={cn(
-											"text-sm",
+											"text-xs",
 											m.role === "user"
 												? "text-foreground"
 												: "text-foreground/90"
@@ -118,9 +119,9 @@ export function DocRefinementChat({
 						)}
 					</div>
 
-					<div className="flex items-end gap-2">
+					<div className="relative flex overflow-hidden border-2 border-border">
 						<textarea
-							className="max-h-40 min-h-[3rem] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none disabled:opacity-60"
+							className="flex-1 resize-none border-0 bg-background px-3 py-2 text-xs outline-none disabled:opacity-60"
 							disabled={disabled}
 							onChange={(e) => setInput(e.target.value)}
 							onKeyDown={(e) => {
@@ -129,17 +130,18 @@ export function DocRefinementChat({
 									handleSend();
 								}
 							}}
-							placeholder="Describe the change you want…"
-							rows={3}
+							placeholder="Describe the change you want to make…"
+							rows={2}
 							value={input}
 						/>
+						<div className="w-px bg-border" />
 						<Button
-							className="font-semibold"
+							className="h-full w-[3rem] shrink-0 rounded-none border-0 p-0"
 							disabled={disabled || !input.trim() || pending}
 							onClick={handleSend}
 							size="sm"
 						>
-							Send
+							<Send className="h-4 w-4" />
 						</Button>
 					</div>
 				</div>

@@ -53,7 +53,7 @@ function GitDiffDialog({ children }: GitDiffDialogProps) {
 	return (
 		<Dialog>
 			<DialogTrigger asChild>{children}</DialogTrigger>
-			<DialogContent className="flex max-h-[80vh] max-w-[95vw] flex-col overflow-hidden min-h-0 sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw]">
+			<DialogContent className="flex max-h-[80vh] min-h-0 max-w-[95vw] flex-col overflow-hidden sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw]">
 				<DialogHeader>
 					<DialogTitle className="text-foreground">
 						{t("common.gitDiff")}

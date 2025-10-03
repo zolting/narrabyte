@@ -8,21 +8,21 @@ import type { DocGenerationStatus } from "@/stores/docGeneration";
 import type { DemoEvent } from "@/types/events";
 
 interface GenerationTabsProps {
-    activeTab: "activity" | "review" | "summary";
-    setActiveTab: (tab: "activity" | "review" | "summary") => void;
-    events: DemoEvent[];
-    status: DocGenerationStatus;
-    docResult: models.DocGenerationResult | null;
-    projectId: number;
+	activeTab: "activity" | "review" | "summary";
+	setActiveTab: (tab: "activity" | "review" | "summary") => void;
+	events: DemoEvent[];
+	status: DocGenerationStatus;
+	docResult: models.DocGenerationResult | null;
+	projectId: number;
 }
 
 export const GenerationTabs = ({
-    activeTab,
-    setActiveTab,
-    events,
-    status,
-    docResult,
-    projectId,
+	activeTab,
+	setActiveTab,
+	events,
+	status,
+	docResult,
+	projectId,
 }: GenerationTabsProps) => {
 	const { t } = useTranslation();
 
@@ -91,14 +91,14 @@ export const GenerationTabs = ({
 			>
 				<DocGenerationProgressLog events={events} status={status} />
 			</TabsContent>
-            {docResult && (
-                <TabsContent
-                    className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
-                    value="review"
-                >
-                    <DocGenerationResultPanel result={docResult} projectId={projectId} />
-                </TabsContent>
-            )}
+			{docResult && (
+				<TabsContent
+					className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+					value="review"
+				>
+					<DocGenerationResultPanel projectId={projectId} result={docResult} />
+				</TabsContent>
+			)}
 			{docResult?.summary && (
 				<TabsContent
 					className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
