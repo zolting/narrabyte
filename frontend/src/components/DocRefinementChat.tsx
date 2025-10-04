@@ -1,5 +1,6 @@
 import { Send } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDocGenerationStore } from "@/stores/docGeneration";
@@ -17,6 +18,7 @@ export function DocRefinementChat({
 	className?: string;
 	style?: React.CSSProperties;
 }) {
+	const { t } = useTranslation();
 	const projectKey = useMemo(() => String(projectId), [projectId]);
 	const messages = useDocGenerationStore(
 		(s) => s.docStates[projectKey]?.messages ?? []
@@ -140,6 +142,7 @@ export function DocRefinementChat({
 							disabled={disabled || !input.trim() || pending}
 							onClick={handleSend}
 							size="sm"
+							aria-label={t("common.submit")}
 						>
 							<Send className="h-4 w-4" />
 						</Button>
