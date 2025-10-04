@@ -147,6 +147,7 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 
 	// Compose ignore patterns
 	patterns := append([]string{}, DefaultIgnorePatterns...)
+	patterns = append(patterns, GetScopedIgnorePatterns()...)
 	if in != nil && len(in.Ignore) > 0 {
 		patterns = append(patterns, in.Ignore...)
 	}
@@ -381,6 +382,11 @@ func matchIgnoredDir(relDir string, patterns []string) bool {
 		dirPat := strings.TrimSuffix(p, "/**")
 		dirPat = strings.TrimSuffix(dirPat, "/")
 		if dirPat != p { // indicates it was a dir-style pattern
+			relNorm := strings.TrimPrefix(relDir, "./")
+			dirNorm := strings.TrimPrefix(dirPat, "./")
+			if relNorm == dirNorm || strings.HasPrefix(relNorm, dirNorm+"/") {
+				return true
+			}
 			for _, s := range segs {
 				if s == dirPat {
 					return true

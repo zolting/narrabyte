@@ -1,17 +1,52 @@
 package utils
 
-import "os"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+)
 
 func DirectoryExists(path string) bool {
-	info, error := os.Stat(path)
-	if os.IsNotExist(error) {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
 		return false
 	}
-	return true && info.IsDir()
+	return err == nil && info.IsDir()
 }
 
+// HasGitRepo returns true when the provided directory either contains a .git
+// folder or is nested within a Git worktree. The caller is responsible for
+// ensuring the input path exists.
 func HasGitRepo(path string) bool {
-	gitPath := path + string(os.PathSeparator) + ".git"
-	info, err := os.Stat(gitPath)
-	return err == nil && info.IsDir()
+	_, ok := FindGitRepoRoot(path)
+	return ok
+}
+
+// FindGitRepoRoot traverses upward from the given path until it finds a
+// directory containing a .git folder. The second return value reports whether a
+// repository root was discovered.
+func FindGitRepoRoot(path string) (string, bool) {
+	if strings.TrimSpace(path) == "" {
+		return "", false
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = filepath.Clean(path)
+	}
+	current := abs
+	for {
+		info, statErr := os.Stat(current)
+		if statErr != nil || !info.IsDir() {
+			return "", false
+		}
+		gitDir := filepath.Join(current, ".git")
+		if gitInfo, gitErr := os.Stat(gitDir); gitErr == nil && gitInfo.IsDir() {
+			return current, true
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", false
+		}
+		current = parent
+	}
 }

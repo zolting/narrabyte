@@ -75,6 +75,9 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 		}, nil
 	}
 
+	ignorePatterns := append([]string{}, DefaultIgnorePatterns...)
+	ignorePatterns = append(ignorePatterns, GetScopedIgnorePatterns()...)
+
 	// Resolve search directory under base
 	search := strings.TrimSpace(in.Path)
 	var searchPath string
@@ -215,6 +218,9 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 				default:
 				}
 			}
+			if matchIgnoredFile(relPath, ignorePatterns) {
+				return nil
+			}
 			absCandidate := filepath.Join(searchPath, filepath.FromSlash(relPath))
 			slashCandidate := filepath.ToSlash(absCandidate)
 			if rx.MatchString(slashCandidate) {
@@ -309,6 +315,14 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 				continue
 			}
 			if st.IsDir() {
+				continue
+			}
+			relToSearch, relErr := filepath.Rel(searchPath, p)
+			if relErr != nil {
+				relToSearch = p
+			}
+			relToSearch = filepath.ToSlash(relToSearch)
+			if matchIgnoredFile(relToSearch, ignorePatterns) {
 				continue
 			}
 			files = append(files, fileInfo{path: p, mtime: st.ModTime().UnixNano()})

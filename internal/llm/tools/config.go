@@ -13,6 +13,7 @@ type baseContext struct {
 }
 
 var currentBaseContext baseContext
+var scopedIgnorePatterns []string
 
 // SetListDirectoryBaseRoot sets the base directory that ListDirectory tools
 // will treat as the root for resolving paths.
@@ -39,6 +40,23 @@ func getListDirectoryBaseRoot() (string, error) {
 	}
 
 	return "", errors.New("list directory base root not set")
+}
+
+func SetScopedIgnorePatterns(patterns []string) {
+	if len(patterns) == 0 {
+		scopedIgnorePatterns = nil
+		return
+	}
+	scopedIgnorePatterns = append([]string{}, patterns...)
+}
+
+func GetScopedIgnorePatterns() []string {
+	if len(scopedIgnorePatterns) == 0 {
+		return nil
+	}
+	out := make([]string, len(scopedIgnorePatterns))
+	copy(out, scopedIgnorePatterns)
+	return out
 }
 
 func SetGitSnapshot(snapshot *GitSnapshot) {
