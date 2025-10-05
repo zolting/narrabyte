@@ -83,7 +83,7 @@ func NewOpenAIClient(ctx context.Context, key string) (*LLMClient, error) {
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		APIKey:          key,
 		Model:           "gpt-5-mini",
-		ReasoningEffort: openai.ReasoningEffortLevelLow,
+		ReasoningEffort: openai.ReasoningEffortLevelMedium,
 	})
 
 	if err != nil {
