@@ -1,10 +1,10 @@
 import type { models } from "@go/models";
-import { ListApiKeys } from "@go/services/KeyringService";
-import { Get } from "@go/services/repoLinkService";
 import {
 	GetCurrentBranch,
 	HasUncommittedChanges,
 } from "@go/services/GitService";
+import { ListApiKeys } from "@go/services/KeyringService";
+import { Get } from "@go/services/repoLinkService";
 import { useNavigate } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -192,7 +192,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	// Calculate canMerge and merge disabled reason
 	const { canMerge, mergeDisabledReason } = useMemo(() => {
-		if (!docManager.docResult || !docManager.docsInCodeRepo || !docManager.sourceBranch || docManager.isBusy) {
+		if (
+			!(
+				docManager.docResult &&
+				docManager.docsInCodeRepo &&
+				docManager.sourceBranch
+			) ||
+			docManager.isBusy
+		) {
 			return { canMerge: false, mergeDisabledReason: null };
 		}
 

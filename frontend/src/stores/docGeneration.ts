@@ -649,7 +649,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						initialDiffSignatures: baseline,
 						changedSinceInitial: changed,
 						cancellationRequested: false,
-						docsInCodeRepo: Boolean(result?.docsInCodeRepo ?? prev.docsInCodeRepo),
+						docsInCodeRepo: Boolean(
+							result?.docsInCodeRepo ?? prev.docsInCodeRepo
+						),
 						docsBranch: result?.docsBranch ?? prev.docsBranch,
 						mergeInProgress: false,
 					};

@@ -138,11 +138,11 @@ export function DocRefinementChat({
 						/>
 						<div className="w-px bg-border" />
 						<Button
+							aria-label={t("common.submit")}
 							className="h-full w-[3rem] shrink-0 rounded-none border-0 p-0"
 							disabled={disabled || !input.trim() || pending}
 							onClick={handleSend}
 							size="sm"
-							aria-label={t("common.submit")}
 						>
 							<Send className="h-4 w-4" />
 						</Button>

@@ -126,13 +126,14 @@ export function DocGenerationResultPanel({
 					<h2 className="font-semibold text-foreground text-lg">
 						{t("common.documentationUpdates", "Documentation Updates")}
 					</h2>
-					<div className="text-muted-foreground text-xs sm:text-sm space-y-1">
+					<div className="space-y-1 text-muted-foreground text-xs sm:text-sm">
 						<p>
 							{t("common.sourceBranch", "Source branch")}: {result.branch}
 						</p>
 						{result.docsBranch && (
 							<p>
-								{t("common.docsBranch", "Documentation branch")}: {result.docsBranch}
+								{t("common.docsBranch", "Documentation branch")}:{" "}
+								{result.docsBranch}
 							</p>
 						)}
 						{result.docsInCodeRepo && (

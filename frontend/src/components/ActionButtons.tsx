@@ -83,13 +83,17 @@ export const ActionButtons = ({
 											>
 												{isMerging
 													? t("common.mergingDocs", "Merging…")
-													: t("common.mergeDocsIntoSource", "Merge into source branch")}
+													: t(
+															"common.mergeDocsIntoSource",
+															"Merge into source branch"
+														)}
 											</Button>
 										</div>
 									</TooltipTrigger>
 									{!canMerge && mergeDisabledReason && (
 										<TooltipContent>
-											{mergeDisabledReason === "onSourceBranchWithUncommitted" ? (
+											{mergeDisabledReason ===
+											"onSourceBranchWithUncommitted" ? (
 												<p className="max-w-xs text-xs">
 													{t(
 														"common.mergeDisabledUncommittedChanges",

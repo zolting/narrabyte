@@ -103,7 +103,7 @@ export const useDocGenerationManager = (projectId: string) => {
 	}, [cancelDocGenerationStore, projectKey]);
 
 	const mergeDocs = useCallback(() => {
-		if (!docsInCodeRepo || !docResult?.branch) {
+		if (!(docsInCodeRepo && docResult?.branch)) {
 			return;
 		}
 		mergeDocsStore({ projectId: Number(projectId), branch: docResult.branch });
