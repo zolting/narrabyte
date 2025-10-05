@@ -2,6 +2,12 @@ import type { models } from "@go/models";
 import { ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ActionButtonsProps {
 	docResult: models.DocGenerationResult | null;
@@ -12,6 +18,7 @@ interface ActionButtonsProps {
 	canMerge: boolean;
 	isMerging: boolean;
 	docGenerationError: string | null;
+	mergeDisabledReason: string | null;
 	onCancel: () => void;
 	onReset: () => void;
 	onCommit: () => void;
@@ -28,6 +35,7 @@ export const ActionButtons = ({
 	canMerge,
 	isMerging,
 	docGenerationError,
+	mergeDisabledReason,
 	onCancel,
 	onReset,
 	onCommit,
@@ -63,16 +71,36 @@ export const ActionButtons = ({
 				{docResult ? (
 					<>
 						{docResult.docsInCodeRepo && (
-							<Button
-								className="gap-2 border-border text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-								disabled={!canMerge}
-								onClick={onMerge}
-								variant="outline"
-							>
-								{isMerging
-									? t("common.mergingDocs", "Merging…")
-									: t("common.mergeDocsIntoSource", "Merge into source branch")}
-							</Button>
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div>
+											<Button
+												className="gap-2 border-border text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+												disabled={!canMerge}
+												onClick={onMerge}
+												variant="outline"
+											>
+												{isMerging
+													? t("common.mergingDocs", "Merging…")
+													: t("common.mergeDocsIntoSource", "Merge into source branch")}
+											</Button>
+										</div>
+									</TooltipTrigger>
+									{!canMerge && mergeDisabledReason && (
+										<TooltipContent>
+											{mergeDisabledReason === "onSourceBranchWithUncommitted" ? (
+												<p className="max-w-xs text-xs">
+													{t(
+														"common.mergeDisabledUncommittedChanges",
+														"Cannot merge: You are currently on the source branch with uncommitted changes. Please commit or stash your changes first."
+													)}
+												</p>
+											) : null}
+										</TooltipContent>
+									)}
+								</Tooltip>
+							</TooltipProvider>
 						)}
 						<Button
 							className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"

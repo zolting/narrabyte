@@ -1,6 +1,10 @@
 import type { models } from "@go/models";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
+import {
+	GetCurrentBranch,
+	HasUncommittedChanges,
+} from "@go/services/GitService";
 import { useNavigate } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -29,6 +33,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	);
 	const [provider, setProvider] = useState<string>("anthropic");
 	const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
+	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
@@ -94,6 +100,22 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		branchManager.targetBranch,
 		docManager.setCompletedCommit,
 	]);
+
+	// Check current branch and uncommitted changes when docs are in code repo
+	useEffect(() => {
+		if (repoPath && docManager.docsInCodeRepo) {
+			Promise.all([
+				GetCurrentBranch(repoPath).catch(() => null),
+				HasUncommittedChanges(repoPath).catch(() => false),
+			]).then(([branch, uncommitted]) => {
+				setCurrentBranch(branch);
+				setHasUncommitted(uncommitted);
+			});
+		} else {
+			setCurrentBranch(null);
+			setHasUncommitted(false);
+		}
+	}, [repoPath, docManager.docsInCodeRepo]);
 
 	const canGenerate = useMemo(
 		() =>
@@ -167,12 +189,30 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, [handleReset]);
 
 	const disableControls = docManager.isBusy;
-	const canMerge = Boolean(
-		docManager.docResult &&
-		docManager.docsInCodeRepo &&
-		docManager.sourceBranch &&
-		!docManager.isBusy
-	);
+
+	// Calculate canMerge and merge disabled reason
+	const { canMerge, mergeDisabledReason } = useMemo(() => {
+		if (!docManager.docResult || !docManager.docsInCodeRepo || !docManager.sourceBranch || docManager.isBusy) {
+			return { canMerge: false, mergeDisabledReason: null };
+		}
+
+		// Check if currently on source branch with uncommitted changes
+		if (currentBranch === docManager.sourceBranch && hasUncommitted) {
+			return {
+				canMerge: false,
+				mergeDisabledReason: "onSourceBranchWithUncommitted",
+			};
+		}
+
+		return { canMerge: true, mergeDisabledReason: null };
+	}, [
+		docManager.docResult,
+		docManager.docsInCodeRepo,
+		docManager.sourceBranch,
+		docManager.isBusy,
+		currentBranch,
+		hasUncommitted,
+	]);
 	const comparisonSourceBranch =
 		docManager.sourceBranch ??
 		docManager.completedCommitInfo?.sourceBranch ??
@@ -342,6 +382,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						isBusy={docManager.isBusy}
 						isMerging={docManager.isMerging}
 						isRunning={docManager.isRunning}
+						mergeDisabledReason={mergeDisabledReason}
 						onCancel={docManager.cancelDocGeneration}
 						onCommit={handleCommit}
 						onGenerate={handleGenerate}

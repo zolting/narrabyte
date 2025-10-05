@@ -46,7 +46,8 @@
     "commitSuccessDescription": "Vos modifications de documentation ont été validées avec succès dans la branche de documentation.",
     "documentationAvailable": "La documentation est maintenant disponible dans la branche",
     "startNewTask": "Commencer une nouvelle tâche de documentation",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "mergeDisabledUncommittedChanges": "Impossible de fusionner : Vous êtes actuellement sur la branche source avec des modifications non validées. Veuillez d'abord valider ou remiser vos modifications."
   },
   "projectManager": {
     "addProject": "Ajouter un projet",

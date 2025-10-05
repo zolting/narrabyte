@@ -1,4 +1,5 @@
 import type { models } from "@go/models";
+import i18n from "i18next";
 import { parseDiff } from "react-diff-view";
 import { create } from "zustand";
 import { type DemoEvent, demoEventSchema } from "@/types/events";
@@ -121,6 +122,21 @@ const messageFromError = (error: unknown) => {
 		return error;
 	}
 	return "An unknown error occurred while generating documentation.";
+};
+
+const mapErrorCodeToMessage = (errorMessage: string): string => {
+	const trimmed = errorMessage.trim();
+
+	// Check for specific error codes
+	if (trimmed === "ERR_UNCOMMITTED_CHANGES_ON_SOURCE_BRANCH") {
+		return i18n.t(
+			"common.mergeDisabledUncommittedChanges",
+			"Cannot merge: You are currently on the source branch with uncommitted changes. Please commit or stash your changes first."
+		);
+	}
+
+	// Return original message if no mapping found
+	return errorMessage;
 };
 
 const createLocalEvent = (
@@ -462,7 +478,8 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					commitCompleted: true,
 				}));
 			} catch (error) {
-				const message = messageFromError(error);
+				const rawMessage = messageFromError(error);
+				const message = mapErrorCodeToMessage(rawMessage);
 				setDocState(key, (prev) => ({
 					...prev,
 					mergeInProgress: false,

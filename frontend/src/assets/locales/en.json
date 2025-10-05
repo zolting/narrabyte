@@ -46,7 +46,8 @@
     "commitSuccessDescription": "Your documentation changes have been successfully committed to the documentation branch.",
     "documentationAvailable": "Documentation is now available in branch",
     "startNewTask": "Start New Documentation Task",
-    "delete": "Delete"
+    "delete": "Delete",
+    "mergeDisabledUncommittedChanges": "Cannot merge: You are currently on the source branch with uncommitted changes. Please commit or stash your changes first."
   },
   "projectManager": {
     "addProject": "Add Project",

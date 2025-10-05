@@ -558,6 +558,21 @@ func (s *ClientService) MergeDocsIntoSource(projectID uint, sourceBranch string)
 		return fmt.Errorf("failed to open repository: %w", err)
 	}
 
+	// Check if currently on source branch with uncommitted changes
+	currentBranch, err := s.gitService.GetCurrentBranch(docCfg.RepoRoot)
+	if err != nil {
+		return fmt.Errorf("failed to get current branch: %w", err)
+	}
+	if currentBranch == sourceBranch {
+		hasUncommitted, err := s.gitService.HasUncommittedChanges(docCfg.RepoRoot)
+		if err != nil {
+			return fmt.Errorf("failed to check for uncommitted changes: %w", err)
+		}
+		if hasUncommitted {
+			return fmt.Errorf("ERR_UNCOMMITTED_CHANGES_ON_SOURCE_BRANCH")
+		}
+	}
+
 	docsBranch := documentationBranchName(sourceBranch)
 	docRefName := plumbing.NewBranchReferenceName(docsBranch)
 	sourceRefName := plumbing.NewBranchReferenceName(sourceBranch)
