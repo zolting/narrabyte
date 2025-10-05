@@ -6,11 +6,14 @@ import (
 )
 
 type RepoLinkRepositoryMock struct {
-	CreateFunc   func(ctx context.Context, link *models.RepoLink) error
-	FindByIDFunc func(ctx context.Context, id uint) (*models.RepoLink, error)
-	ListFunc     func(ctx context.Context, limit, offset int) ([]models.RepoLink, error)
-	UpdateFunc   func(ctx context.Context, link *models.RepoLink) error
-	DeleteFunc   func(ctx context.Context, id uint) error
+	CreateFunc       func(ctx context.Context, link *models.RepoLink) error
+	FindByIDFunc     func(ctx context.Context, id uint) (*models.RepoLink, error)
+	ListFunc         func(ctx context.Context, limit, offset int) ([]models.RepoLink, error)
+	UpdateFunc       func(ctx context.Context, link *models.RepoLink) error
+	DeleteFunc       func(ctx context.Context, id uint) error
+	UpdateOrderFunc  func(ctx context.Context, updates []models.RepoLinkOrderUpdate) error
+	IncrementAllFunc func(ctx context.Context) error
+	GetMaxIndexFunc  func(ctx context.Context) (int, error)
 }
 
 func (m *RepoLinkRepositoryMock) Create(ctx context.Context, link *models.RepoLink) error {
@@ -46,4 +49,25 @@ func (m *RepoLinkRepositoryMock) Delete(ctx context.Context, id uint) error {
 		return m.DeleteFunc(ctx, id)
 	}
 	return nil
+}
+
+func (m *RepoLinkRepositoryMock) UpdateOrder(ctx context.Context, updates []models.RepoLinkOrderUpdate) error {
+	if m.UpdateOrderFunc != nil {
+		return m.UpdateOrderFunc(ctx, updates)
+	}
+	return nil
+}
+
+func (m *RepoLinkRepositoryMock) IncrementAllIndexes(ctx context.Context) error {
+	if m.IncrementAllFunc != nil {
+		return m.IncrementAllFunc(ctx)
+	}
+	return nil
+}
+
+func (m *RepoLinkRepositoryMock) GetMaxIndex(ctx context.Context) (int, error) {
+	if m.GetMaxIndexFunc != nil {
+		return m.GetMaxIndexFunc(ctx)
+	}
+	return 0, nil
 }

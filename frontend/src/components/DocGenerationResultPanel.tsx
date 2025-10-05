@@ -126,9 +126,24 @@ export function DocGenerationResultPanel({
 					<h2 className="font-semibold text-foreground text-lg">
 						{t("common.documentationUpdates", "Documentation Updates")}
 					</h2>
-					<p className="text-muted-foreground text-sm">
-						{t("common.branch", "Branch")}: {result.branch}
-					</p>
+					<div className="text-muted-foreground text-xs sm:text-sm space-y-1">
+						<p>
+							{t("common.sourceBranch", "Source branch")}: {result.branch}
+						</p>
+						{result.docsBranch && (
+							<p>
+								{t("common.docsBranch", "Documentation branch")}: {result.docsBranch}
+							</p>
+						)}
+						{result.docsInCodeRepo && (
+							<p className="text-emerald-600">
+								{t(
+									"common.docsSharedWithCode",
+									"Documentation changes were generated directly inside the code repository"
+								)}
+							</p>
+						)}
+					</div>
 				</div>
 				<div>
 					{hasDiff && (

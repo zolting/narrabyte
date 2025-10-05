@@ -33,6 +33,12 @@ export const useDocGenerationManager = (projectId: string) => {
 	const targetBranch = useDocGenerationStore(
 		(s) => s.docStates[projectKey]?.targetBranch ?? null
 	);
+	const docsInCodeRepo = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.docsInCodeRepo ?? false
+	);
+	const mergeInProgress = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.mergeInProgress ?? false
+	);
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
 	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
 	const commitDocGeneration = useDocGenerationStore((s) => s.commit);
@@ -41,12 +47,14 @@ export const useDocGenerationManager = (projectId: string) => {
 	const setCompletedCommitInfoStore = useDocGenerationStore(
 		(s) => s.setCompletedCommitInfo
 	);
+	const mergeDocsStore = useDocGenerationStore((s) => s.mergeDocs);
 	const prevDocResultRef = useRef(docResult);
 	const prevStatusRef = useRef(status);
 
 	const isRunning = status === "running";
 	const isCommitting = status === "committing";
-	const isBusy = isRunning || isCommitting;
+	const isMerging = mergeInProgress;
+	const isBusy = isRunning || isCommitting || isMerging;
 	const hasGenerationAttempt =
 		status !== "idle" || Boolean(docResult) || events.length > 0;
 
@@ -94,6 +102,13 @@ export const useDocGenerationManager = (projectId: string) => {
 		cancelDocGenerationStore(projectKey);
 	}, [cancelDocGenerationStore, projectKey]);
 
+	const mergeDocs = useCallback(() => {
+		if (!docsInCodeRepo || !docResult?.branch) {
+			return;
+		}
+		mergeDocsStore({ projectId: Number(projectId), branch: docResult.branch });
+	}, [docsInCodeRepo, docResult?.branch, mergeDocsStore, projectId]);
+
 	return {
 		docResult,
 		status,
@@ -107,6 +122,7 @@ export const useDocGenerationManager = (projectId: string) => {
 		targetBranch,
 		isRunning,
 		isCommitting,
+		isMerging,
 		isBusy,
 		hasGenerationAttempt,
 		startDocGeneration,
@@ -114,5 +130,7 @@ export const useDocGenerationManager = (projectId: string) => {
 		cancelDocGeneration,
 		reset,
 		setCompletedCommit,
+		docsInCodeRepo,
+		mergeDocs,
 	};
 };

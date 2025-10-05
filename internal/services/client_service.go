@@ -307,10 +307,12 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch,
 		summary = llmResult.Summary
 	}
 	return &models.DocGenerationResult{
-		Branch:  sourceBranch,
-		Files:   files,
-		Diff:    docDiff,
-		Summary: summary,
+		Branch:         sourceBranch,
+		DocsBranch:     docsBranch,
+		DocsInCodeRepo: docCfg.SharedWithCode,
+		Files:          files,
+		Diff:           docDiff,
+		Summary:        summary,
 	}, nil
 }
 
@@ -483,10 +485,12 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		summary = llmResult.Summary
 	}
 	return &models.DocGenerationResult{
-		Branch:  sourceBranch,
-		Files:   files,
-		Diff:    docDiff,
-		Summary: summary,
+		Branch:         sourceBranch,
+		DocsBranch:     docsBranch,
+		DocsInCodeRepo: docCfg.SharedWithCode,
+		Files:          files,
+		Diff:           docDiff,
+		Summary:        summary,
 	}, nil
 }
 

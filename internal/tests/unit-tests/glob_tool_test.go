@@ -415,3 +415,28 @@ func TestGlob_TruncationLogic(t *testing.T) {
 	count := result.Metadata["count"]
 	utils.Equal(t, count != "0", true)
 }
+
+func TestGlob_RespectsScopedIgnores(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	tools.SetListDirectoryBaseRoot(root)
+	tools.SetScopedIgnorePatterns([]string{"docs", "docs/**"})
+	t.Cleanup(func() { tools.SetScopedIgnorePatterns(nil) })
+
+	docsDir := filepath.Join(root, "docs")
+	utils.NilError(t, os.MkdirAll(docsDir, 0o755))
+	utils.NilError(t, os.WriteFile(filepath.Join(docsDir, "ignore.md"), []byte("doc"), 0o644))
+	srcDir := filepath.Join(root, "src")
+	utils.NilError(t, os.MkdirAll(srcDir, 0o755))
+	utils.NilError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main"), 0o644))
+
+	result, err := tools.Glob(ctx, &tools.GlobInput{Pattern: "**/*"})
+	utils.NilError(t, err)
+
+	if strings.Contains(result.Output, "ignore.md") {
+		t.Fatalf("expected scoped ignore to hide docs file; output: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "main.go") {
+		t.Fatalf("expected normal files to appear; output: %s", result.Output)
+	}
+}

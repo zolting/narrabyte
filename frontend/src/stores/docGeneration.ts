@@ -5,6 +5,7 @@ import { type DemoEvent, demoEventSchema } from "@/types/events";
 import {
 	CommitDocs,
 	GenerateDocs,
+	MergeDocsIntoSource,
 	RefineDocs,
 	StopStream,
 } from "../../wailsjs/go/services/ClientService";
@@ -61,6 +62,9 @@ type DocGenerationData = {
 	messages: ChatMessage[];
 	initialDiffSignatures: Record<string, string> | null;
 	changedSinceInitial: string[];
+	docsInCodeRepo: boolean;
+	docsBranch: string | null;
+	mergeInProgress: boolean;
 };
 
 type State = {
@@ -84,6 +88,7 @@ type State = {
 		branch: string;
 		instruction: string;
 	}) => Promise<void>;
+	mergeDocs: (args: { projectId: number; branch: string }) => Promise<void>;
 };
 
 const EMPTY_DOC_STATE: DocGenerationData = {
@@ -101,6 +106,9 @@ const EMPTY_DOC_STATE: DocGenerationData = {
 	messages: [],
 	initialDiffSignatures: null,
 	changedSinceInitial: [],
+	docsInCodeRepo: false,
+	docsBranch: null,
+	mergeInProgress: false,
 };
 
 const toKey = (projectId: number | string): ProjectKey => String(projectId);
@@ -239,6 +247,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				messages: [],
 				initialDiffSignatures: null,
 				changedSinceInitial: [],
+				docsInCodeRepo: false,
+				docsBranch: null,
+				mergeInProgress: false,
 			});
 
 			clearSubscriptions(key);
@@ -282,6 +293,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					cancellationRequested: false,
 					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
 					changedSinceInitial: [],
+					docsInCodeRepo: Boolean(result?.docsInCodeRepo),
+					docsBranch: result?.docsBranch ?? null,
+					mergeInProgress: false,
 				});
 			} catch (error) {
 				const message = messageFromError(error);
@@ -360,6 +374,11 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				return;
 			}
 
+			const label =
+				docState.docsBranch && docState.docsBranch.trim() !== ""
+					? docState.docsBranch
+					: branch;
+
 			setDocState(key, (prev) => ({
 				...prev,
 				error: null,
@@ -368,7 +387,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					...prev.events,
 					createLocalEvent(
 						"info",
-						`Committing documentation updates to ${branch}`
+						`Committing documentation updates to ${label}`
 					),
 				],
 				activeTab: "activity",
@@ -385,7 +404,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						...prev.events,
 						createLocalEvent(
 							"info",
-							`Committed documentation changes for ${branch}`
+							`Committed documentation changes for ${label}`
 						),
 					],
 					commitCompleted: true,
@@ -401,6 +420,58 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						createLocalEvent(
 							"error",
 							`Failed to commit documentation changes: ${message}`
+						),
+					],
+					commitCompleted: false,
+				}));
+			}
+		},
+
+		mergeDocs: async ({ projectId, branch }): Promise<void> => {
+			const key = toKey(projectId);
+			const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
+			if (!docState.docsInCodeRepo || docState.mergeInProgress) {
+				return;
+			}
+			setDocState(key, (prev) => ({
+				...prev,
+				mergeInProgress: true,
+				error: null,
+				events: [
+					...prev.events,
+					createLocalEvent(
+						"info",
+						`Merging documentation branch into ${branch}`
+					),
+				],
+			}));
+
+			try {
+				await MergeDocsIntoSource(projectId, branch);
+				setDocState(key, (prev) => ({
+					...prev,
+					mergeInProgress: false,
+					error: null,
+					events: [
+						...prev.events,
+						createLocalEvent(
+							"info",
+							`Merged documentation updates into ${branch}`
+						),
+					],
+					commitCompleted: true,
+				}));
+			} catch (error) {
+				const message = messageFromError(error);
+				setDocState(key, (prev) => ({
+					...prev,
+					mergeInProgress: false,
+					error: message,
+					events: [
+						...prev.events,
+						createLocalEvent(
+							"error",
+							`Failed to merge documentation branch: ${message}`
 						),
 					],
 					commitCompleted: false,
@@ -426,6 +497,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				messages: [],
 				initialDiffSignatures: null,
 				changedSinceInitial: [],
+				docsInCodeRepo: false,
+				docsBranch: null,
+				mergeInProgress: false,
 			});
 		},
 
@@ -558,6 +632,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						initialDiffSignatures: baseline,
 						changedSinceInitial: changed,
 						cancellationRequested: false,
+						docsInCodeRepo: Boolean(result?.docsInCodeRepo ?? prev.docsInCodeRepo),
+						docsBranch: result?.docsBranch ?? prev.docsBranch,
+						mergeInProgress: false,
 					};
 				});
 			} catch (error) {

@@ -9,11 +9,14 @@ interface ActionButtonsProps {
 	isBusy: boolean;
 	canGenerate: boolean;
 	canCommit: boolean;
+	canMerge: boolean;
+	isMerging: boolean;
 	docGenerationError: string | null;
 	onCancel: () => void;
 	onReset: () => void;
 	onCommit: () => void;
 	onGenerate: () => void;
+	onMerge: () => void;
 }
 
 export const ActionButtons = ({
@@ -22,11 +25,14 @@ export const ActionButtons = ({
 	isBusy,
 	canGenerate,
 	canCommit,
+	canMerge,
+	isMerging,
 	docGenerationError,
 	onCancel,
 	onReset,
 	onCommit,
 	onGenerate,
+	onMerge,
 }: ActionButtonsProps) => {
 	const { t } = useTranslation();
 
@@ -55,14 +61,28 @@ export const ActionButtons = ({
 					{t("common.reset")}
 				</Button>
 				{docResult ? (
-					<Button
-						className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-						disabled={!canCommit}
-						onClick={onCommit}
-					>
-						{t("common.commit")}
-						<ArrowRight className="h-4 w-4" />
-					</Button>
+					<>
+						{docResult.docsInCodeRepo && (
+							<Button
+								className="gap-2 border-border text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+								disabled={!canMerge}
+								onClick={onMerge}
+								variant="outline"
+							>
+								{isMerging
+									? t("common.mergingDocs", "Merging…")
+									: t("common.mergeDocsIntoSource", "Merge into source branch")}
+							</Button>
+						)}
+						<Button
+							className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+							disabled={!canCommit}
+							onClick={onCommit}
+						>
+							{t("common.commit")}
+							<ArrowRight className="h-4 w-4" />
+						</Button>
+					</>
 				) : (
 					<Button
 						className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"

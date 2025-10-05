@@ -167,6 +167,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, [handleReset]);
 
 	const disableControls = docManager.isBusy;
+	const canMerge = Boolean(
+		docManager.docResult &&
+		docManager.docsInCodeRepo &&
+		docManager.sourceBranch &&
+		!docManager.isBusy
+	);
 	const comparisonSourceBranch =
 		docManager.sourceBranch ??
 		docManager.completedCommitInfo?.sourceBranch ??
@@ -330,13 +336,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					<ActionButtons
 						canCommit={canCommit}
 						canGenerate={canGenerate}
+						canMerge={canMerge}
 						docGenerationError={docManager.docGenerationError}
 						docResult={docManager.docResult}
 						isBusy={docManager.isBusy}
+						isMerging={docManager.isMerging}
 						isRunning={docManager.isRunning}
 						onCancel={docManager.cancelDocGeneration}
 						onCommit={handleCommit}
 						onGenerate={handleGenerate}
+						onMerge={docManager.mergeDocs}
 						onReset={handleReset}
 					/>
 				)}

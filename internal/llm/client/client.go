@@ -279,9 +279,10 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 				Tools: toolsForSession,
 			},
 		},
-		Name:        "Documentation Assistant",
-		Description: "Analyzes code diffs and proposes documentation updates",
-		Instruction: systemPrompt,
+		Name:          "Documentation Assistant",
+		Description:   "Analyzes code diffs and proposes documentation updates",
+		Instruction:   systemPrompt,
+		MaxIterations: 100,
 	})
 	if err != nil {
 		return nil, err
