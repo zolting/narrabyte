@@ -38,6 +38,7 @@ type ProjectKey = string;
 type CompletedCommitInfo = {
 	sourceBranch: string;
 	targetBranch: string;
+	wasMerge?: boolean;
 };
 
 type ChatMessage = {
@@ -476,6 +477,11 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						),
 					],
 					commitCompleted: true,
+					completedCommitInfo: {
+						sourceBranch: branch,
+						targetBranch: prev.targetBranch ?? "",
+						wasMerge: true,
+					},
 				}));
 			} catch (error) {
 				const rawMessage = messageFromError(error);

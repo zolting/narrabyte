@@ -1,6 +1,17 @@
 import type { models } from "@go/models";
 import { ArrowRight } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
@@ -43,6 +54,7 @@ export const ActionButtons = ({
 	onMerge,
 }: ActionButtonsProps) => {
 	const { t } = useTranslation();
+	const [showMergeConfirm, setShowMergeConfirm] = useState(false);
 
 	return (
 		<footer className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -71,40 +83,77 @@ export const ActionButtons = ({
 				{docResult ? (
 					<>
 						{docResult.docsInCodeRepo && (
-							<TooltipProvider>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<div>
-											<Button
-												className="gap-2 border-border text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-												disabled={!canMerge}
-												onClick={onMerge}
-												variant="outline"
-											>
-												{isMerging
-													? t("common.mergingDocs", "Merging…")
-													: t(
-															"common.mergeDocsIntoSource",
-															"Merge into source branch"
+							<>
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<div>
+												<Button
+													className="gap-2 border-border text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+													disabled={!canMerge}
+													onClick={() => setShowMergeConfirm(true)}
+													variant="outline"
+												>
+													{isMerging
+														? t("common.mergingDocs", "Merging…")
+														: t(
+																"common.mergeDocsIntoSource",
+																"Merge into source branch"
+															)}
+												</Button>
+											</div>
+										</TooltipTrigger>
+										{!canMerge && mergeDisabledReason && (
+											<TooltipContent>
+												{mergeDisabledReason ===
+												"onSourceBranchWithUncommitted" ? (
+													<p className="max-w-xs text-xs">
+														{t(
+															"common.mergeDisabledUncommittedChanges",
+															"Cannot merge: You are currently on the source branch with uncommitted changes. Please commit or stash your changes first."
 														)}
-											</Button>
-										</div>
-									</TooltipTrigger>
-									{!canMerge && mergeDisabledReason && (
-										<TooltipContent>
-											{mergeDisabledReason ===
-											"onSourceBranchWithUncommitted" ? (
-												<p className="max-w-xs text-xs">
-													{t(
-														"common.mergeDisabledUncommittedChanges",
-														"Cannot merge: You are currently on the source branch with uncommitted changes. Please commit or stash your changes first."
-													)}
-												</p>
-											) : null}
-										</TooltipContent>
-									)}
-								</Tooltip>
-							</TooltipProvider>
+													</p>
+												) : null}
+											</TooltipContent>
+										)}
+									</Tooltip>
+								</TooltipProvider>
+								<AlertDialog
+									onOpenChange={setShowMergeConfirm}
+									open={showMergeConfirm}
+								>
+									<AlertDialogContent>
+										<AlertDialogHeader>
+											<AlertDialogTitle>
+												{t(
+													"common.confirmMergeTitle",
+													"Merge documentation into source branch?"
+												)}
+											</AlertDialogTitle>
+											<AlertDialogDescription>
+												{t(
+													"common.confirmMergeDescription",
+													"This will fast-forward your source branch ({branch}) to include the documentation commit. The changes will be immediately available on {branch}.",
+													{ branch: docResult.branch }
+												)}
+											</AlertDialogDescription>
+										</AlertDialogHeader>
+										<AlertDialogFooter>
+											<AlertDialogCancel>
+												{t("common.cancel", "Cancel")}
+											</AlertDialogCancel>
+											<AlertDialogAction
+												onClick={() => {
+													setShowMergeConfirm(false);
+													onMerge();
+												}}
+											>
+												{t("common.merge", "Merge")}
+											</AlertDialogAction>
+										</AlertDialogFooter>
+									</AlertDialogContent>
+								</AlertDialog>
+							</>
 						)}
 						<Button
 							className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"

@@ -6,6 +6,7 @@ interface SuccessPanelProps {
 	completedCommitInfo: {
 		sourceBranch: string;
 		targetBranch: string;
+		wasMerge?: boolean;
 	} | null;
 	sourceBranch: string | undefined;
 	onStartNewTask: () => void;
@@ -17,15 +18,26 @@ export const SuccessPanel = ({
 	onStartNewTask,
 }: SuccessPanelProps) => {
 	const { t } = useTranslation();
+	const wasMerge = completedCommitInfo?.wasMerge ?? false;
+	const displayBranch = wasMerge
+		? completedCommitInfo?.sourceBranch || sourceBranch
+		: `docs-${completedCommitInfo?.sourceBranch || sourceBranch}`;
 
 	return (
 		<div className="flex flex-col gap-6 rounded-lg border border-green-200 bg-green-50/50 p-6 dark:border-green-800 dark:bg-green-950/30">
 			<div className="text-center">
 				<h3 className="mb-2 font-semibold text-green-800 text-lg dark:text-green-200">
-					{t("common.commitSuccess")}
+					{wasMerge
+						? t("common.mergeSuccess", "Merge Successful!")
+						: t("common.commitSuccess")}
 				</h3>
 				<p className="text-green-700 text-sm dark:text-green-300">
-					{t("common.commitSuccessDescription")}
+					{wasMerge
+						? t(
+								"common.mergeSuccessDescription",
+								"The documentation changes have been merged into your source branch."
+							)
+						: t("common.commitSuccessDescription")}
 				</p>
 			</div>
 			<div className="text-center">
@@ -33,7 +45,7 @@ export const SuccessPanel = ({
 					{t("common.documentationAvailable")}:
 				</p>
 				<code className="rounded bg-background px-3 py-2 font-mono text-foreground text-sm shadow-sm">
-					docs-{completedCommitInfo?.sourceBranch || sourceBranch}
+					{displayBranch}
 				</code>
 			</div>
 			<div className="text-center">
