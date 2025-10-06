@@ -492,7 +492,7 @@ function AppSidebarContent() {
 					<AlertDialogFooter>
 						<AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
 						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							className="bg-destructive text-destructive-foreground hover:brightness-90 dark:hover:brightness-110"
 							onClick={handleDeleteProject}
 						>
 							{t("common.delete")}

@@ -68,14 +68,14 @@ export default function AddProjectDialog({
 
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
-			<DialogContent className="sm:max-w-[580px]">
-				<DialogHeader>
+			<DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col overflow-hidden">
+				<DialogHeader className="flex-shrink-0">
 					<DialogTitle className="font-semibold text-foreground text-lg">
 						{t("projectManager.addProject")}
 					</DialogTitle>
 				</DialogHeader>
 
-				<form className="space-y-6" onSubmit={handleSubmit}>
+				<form className="space-y-4 overflow-y-auto flex-1 overflow-x-hidden px-1" onSubmit={handleSubmit}>
 					<div>
 						<label
 							className="mb-1 block font-medium text-foreground"
@@ -177,23 +177,23 @@ export default function AddProjectDialog({
 						)}
 					</div>
 
-					<DialogFooter className="pt-2">
-						<Button
-							className="text-foreground hover:text-accent"
-							onClick={onClose}
-							type="button"
-							variant="outline"
-						>
-							{t("common.cancel")}
-						</Button>
-						<Button
-							disabled={!(name && docDirectory && codebaseDirectory)}
-							type="submit"
-						>
-							{t("home.addProject")}
-						</Button>
-					</DialogFooter>
 				</form>
+				<DialogFooter className="pt-4 flex-shrink-0">
+					<Button
+						onClick={onClose}
+						type="button"
+						variant="outline"
+					>
+						{t("common.cancel")}
+					</Button>
+					<Button
+						disabled={!(name && docDirectory && codebaseDirectory)}
+						onClick={handleSubmit}
+						type="button"
+					>
+						{t("home.addProject")}
+					</Button>
+				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 	);
