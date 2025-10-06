@@ -16,6 +16,7 @@
     "showChat": "Afficher le chat",
     "hideChat": "Cacher le chat",
     "generateDocs": "Générer documentation",
+    "llmProvider": "Fournisseur de LLM",
     "generateDocsDescription": "Générer la documentation d'une branche source vers la branche ciblée pour le projet choisi.",
     "sourceBranch": "Branche source",
     "targetBranch": "Branche ciblée",
@@ -52,7 +53,9 @@
     "approve": "Approuver",
     "confirmApprovalTitle": "Approuver les modifications de la documentation ?",
     "confirmApprovalDescription": "La documentation a été automatiquement validée. Cliquez sur Approuver pour confirmer et voir le message de succès.",
-    "docsBranch": "Branche de documentation"
+    "docsBranch": "Branche de documentation",
+    "docInstructionsLabel": "Précisions ou instructions pour cette génération de documentation spécifique",
+    "docInstructionsPlaceholder": "Ex: Seulement documenter l'aspect end-user de la PR. Ne pas couvrir les mises à jour de package. Porter une attention particulière aux modifications du fonctionnement de X fonctionnalité."
   },
   "projectManager": {
     "addProject": "Ajouter un projet",

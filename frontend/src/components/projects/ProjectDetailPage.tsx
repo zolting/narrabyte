@@ -35,6 +35,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [availableProviders, setAvailableProviders] = useState<string[]>([]);
 	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
+	const [userInstructions, setUserInstructions] = useState<string>("");
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
@@ -148,8 +149,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			sourceBranch: branchManager.sourceBranch,
 			targetBranch: branchManager.targetBranch,
 			provider,
+			userInstructions,
 		});
-	}, [project, branchManager, docManager, provider]);
+	}, [project, branchManager, docManager, provider, userInstructions]);
 
 	const handleApprove = useCallback(() => {
 		docManager.approveCommit();
@@ -231,7 +233,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4"
 				ref={containerRef}
 			>
-				<header className="flex shrink-0 items-start justify-between gap-4">
+				<header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 bg-card pb-2">
 					<div className="space-y-2">
 						<h2 className="font-semibold text-foreground text-lg">
 							{t("common.generateDocs")}
@@ -283,7 +285,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										className="font-medium text-sm"
 										htmlFor="provider-select"
 									>
-										{t("common.provider", "LLM Provider")}
+										{t("common.llmProvider")}
 									</Label>
 									<Select
 										disabled={
@@ -339,6 +341,22 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 									targetBranch={branchManager.targetBranch}
 									targetOpen={branchManager.targetOpen}
 								/>
+								<div className="mt-2">
+									<Label
+										className="font-medium text-sm"
+										htmlFor="doc-instructions"
+									>
+										{t("common.docInstructionsLabel")}
+									</Label>
+									<textarea
+										className="resize-vertical min-h-[60px] w-full rounded border border-border bg-background p-2 text-sm"
+										disabled={disableControls}
+										id="doc-instructions"
+										onChange={(e) => setUserInstructions(e.target.value)}
+										placeholder={t("common.docInstructionsPlaceholder")}
+										value={userInstructions}
+									/>
+								</div>
 							</>
 						);
 					})()}

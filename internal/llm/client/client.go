@@ -63,6 +63,7 @@ type DocGenerationRequest struct {
 	SourceCommit         string
 	Diff                 string
 	ChangedFiles         []string
+	SpecificInstr        string
 }
 
 type DocRefineRequest struct {
@@ -260,18 +261,32 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		return nil, err
 	}
 
-	systemPrompt, err := o.loadPrompt("generate_docs.txt")
+	systemInstr, err := o.loadPrompt("generate_docs.txt")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load system instructions: %w", err)
 	}
 
-	if repoInstr, ierr := o.loadRepoLLMInstructions(docRoot); ierr == nil && strings.TrimSpace(repoInstr) != "" {
-		// Prepend repo-specific instructions so they take priority
-		systemPrompt = systemPrompt + "\n\n# User-provided documentation instructions\n" + strings.TrimSpace(repoInstr)
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("loaded repo llm instructions"))
-	} else if ierr != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo llm instructions: %v", ierr)))
+	repoInstr, repoErr := o.loadRepoLLMInstructions(docRoot)
+	if repoErr != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo LLM instructions: %v", repoErr)))
 	}
+
+	var promptParts []string
+
+	if strings.TrimSpace(req.SpecificInstr) != "" {
+		promptParts = append(promptParts, "# Generation-specific documentation instructions\n"+strings.TrimSpace(req.SpecificInstr))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("added specific instructions"))
+	}
+
+	if strings.TrimSpace(repoInstr) != "" {
+		promptParts = append(promptParts, "# Repo-specific documentation instructions\n"+strings.TrimSpace(repoInstr))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("added repo instructions"))
+	}
+
+	promptParts = append(promptParts, "# Default documentation instructions\n"+systemInstr)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("added system instructions"))
+
+	finalInstr := strings.Join(promptParts, "\n\n")
 
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Model: o.chatModel,
@@ -282,7 +297,7 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		},
 		Name:          "Documentation Assistant",
 		Description:   "Analyzes code diffs and proposes documentation updates",
-		Instruction:   systemPrompt,
+		Instruction:   finalInstr,
 		MaxIterations: 100,
 	})
 	if err != nil {

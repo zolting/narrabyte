@@ -114,7 +114,7 @@ func (s *ClientService) InitializeLLMClient(provider string) error {
 	return nil
 }
 
-func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch, provider string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, provider string, userInstructions string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
@@ -269,6 +269,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch, targetBranch,
 		SourceCommit:         sourceHash.String(),
 		Diff:                 diffText,
 		ChangedFiles:         changedFiles,
+		SpecificInstr:        userInstructions,
 	})
 	if err != nil {
 		return nil, err

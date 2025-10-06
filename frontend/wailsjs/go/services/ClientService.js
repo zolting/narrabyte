@@ -6,8 +6,8 @@ export function CommitDocs(arg1, arg2, arg3) {
   return window['go']['services']['ClientService']['CommitDocs'](arg1, arg2, arg3);
 }
 
-export function GenerateDocs(arg1, arg2, arg3, arg4) {
-  return window['go']['services']['ClientService']['GenerateDocs'](arg1, arg2, arg3, arg4);
+export function GenerateDocs(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['services']['ClientService']['GenerateDocs'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function InitializeLLMClient(arg1) {
