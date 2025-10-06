@@ -350,7 +350,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										{t("common.docInstructionsLabel")}
 									</Label>
 									<Textarea
-										className="resize-vertical min-h-[60px] text-xs"
+										className="resize-vertical min-h-[200px] text-xs"
 										disabled={disableControls}
 										id="doc-instructions"
 										onChange={(e) => setUserInstructions(e.target.value)}
