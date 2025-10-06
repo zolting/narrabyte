@@ -23,6 +23,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useBranchManager } from "@/hooks/useBranchManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 
@@ -341,15 +342,15 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 									targetBranch={branchManager.targetBranch}
 									targetOpen={branchManager.targetOpen}
 								/>
-								<div className="mt-2">
+								<div className="space-y-2">
 									<Label
 										className="font-medium text-sm"
 										htmlFor="doc-instructions"
 									>
 										{t("common.docInstructionsLabel")}
 									</Label>
-									<textarea
-										className="resize-vertical min-h-[60px] w-full rounded border border-border bg-background p-2 text-sm"
+									<Textarea
+										className="resize-vertical min-h-[60px] text-xs"
 										disabled={disableControls}
 										id="doc-instructions"
 										onChange={(e) => setUserInstructions(e.target.value)}

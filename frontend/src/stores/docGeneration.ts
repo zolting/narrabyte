@@ -1,8 +1,4 @@
 import type { models } from "@go/models";
-import i18n from "i18next";
-import { parseDiff } from "react-diff-view";
-import { create } from "zustand";
-import { type DemoEvent, demoEventSchema } from "@/types/events";
 import {
 	CommitDocs,
 	GenerateDocs,
@@ -10,6 +6,10 @@ import {
 	RefineDocs,
 	StopStream,
 } from "@go/services/ClientService";
+import i18n from "i18next";
+import { parseDiff } from "react-diff-view";
+import { create } from "zustand";
+import { type DemoEvent, demoEventSchema } from "@/types/events";
 import { EventsOn } from "../../wailsjs/runtime";
 
 export type DocGenerationStatus =
