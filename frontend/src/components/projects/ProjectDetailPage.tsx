@@ -134,14 +134,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		]
 	);
 
-	const canCommit = useMemo(() => {
-		if (!(project && docManager.docResult)) {
-			return false;
-		}
-		const files = docManager.docResult.files ?? [];
-		return files.length > 0 && !docManager.isBusy;
-	}, [docManager.docResult, docManager.isBusy, project]);
-
 	const handleGenerate = useCallback(() => {
 		if (
 			!(project && branchManager.sourceBranch && branchManager.targetBranch)
@@ -159,25 +151,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		});
 	}, [project, branchManager, docManager, provider]);
 
-	const handleCommit = useCallback(() => {
-		if (!(project && docManager.docResult)) {
-			return;
-		}
-		const files = (docManager.docResult.files ?? [])
-			.map((file) => file.path)
-			.filter((path): path is string =>
-				Boolean(path && path.trim().length > 0)
-			);
-		if (files.length === 0) {
-			return;
-		}
-		docManager.setActiveTab("activity");
-		docManager.commitDocGeneration({
-			projectId: Number(project.ID),
-			branch: docManager.docResult.branch,
-			files,
-		});
-	}, [docManager, project]);
+	const handleApprove = useCallback(() => {
+		docManager.approveCommit();
+	}, [docManager]);
 
 	const handleReset = useCallback(() => {
 		docManager.reset();
@@ -381,7 +357,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 				{!docManager.commitCompleted && (
 					<ActionButtons
-						canCommit={canCommit}
 						canGenerate={canGenerate}
 						canMerge={canMerge}
 						docGenerationError={docManager.docGenerationError}
@@ -390,8 +365,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						isMerging={docManager.isMerging}
 						isRunning={docManager.isRunning}
 						mergeDisabledReason={mergeDisabledReason}
+						onApprove={handleApprove}
 						onCancel={docManager.cancelDocGeneration}
-						onCommit={handleCommit}
 						onGenerate={handleGenerate}
 						onMerge={docManager.mergeDocs}
 						onReset={handleReset}

@@ -47,6 +47,9 @@ export const useDocGenerationManager = (projectId: string) => {
 	const setCompletedCommitInfoStore = useDocGenerationStore(
 		(s) => s.setCompletedCommitInfo
 	);
+	const setCommitCompletedStore = useDocGenerationStore(
+		(s) => s.setCommitCompleted
+	);
 	const mergeDocsStore = useDocGenerationStore((s) => s.mergeDocs);
 	const prevDocResultRef = useRef(docResult);
 	const prevStatusRef = useRef(status);
@@ -98,6 +101,10 @@ export const useDocGenerationManager = (projectId: string) => {
 		[projectKey, setCompletedCommitInfoStore]
 	);
 
+	const approveCommit = useCallback(() => {
+		setCommitCompletedStore(projectKey, true);
+	}, [projectKey, setCommitCompletedStore]);
+
 	const cancelDocGeneration = useCallback(() => {
 		cancelDocGenerationStore(projectKey);
 	}, [cancelDocGenerationStore, projectKey]);
@@ -130,6 +137,7 @@ export const useDocGenerationManager = (projectId: string) => {
 		cancelDocGeneration,
 		reset,
 		setCompletedCommit,
+		approveCommit,
 		docsInCodeRepo,
 		mergeDocs,
 	};
