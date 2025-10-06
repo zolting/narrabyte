@@ -173,7 +173,7 @@ const ApiKeyManager = forwardRef<ApiKeyManagerHandle, ApiKeyManagerProps>(
 								>
 									<div className="min-w-0 flex-1">
 										<div className="font-medium">{key.provider}</div>
-										<div className="mt-1 font-mono text-sm">
+										<div className="mt-1 truncate font-mono text-sm">
 											{revealedKeys.has(key.provider)
 												? visibleKeys[key.provider] || "***"
 												: "••••••••••••••••"}
