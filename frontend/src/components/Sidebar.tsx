@@ -28,10 +28,11 @@ import {
 	Folder,
 	Folders,
 	GripVertical,
-	Home,
 	Plus,
+	Search,
 	Settings,
 	Trash2,
+	X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -66,7 +67,9 @@ import {
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
+	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { Input } from "@/components/ui/input";
 
 const MAX_REPOS = 100;
 const REPO_OFFSET = 0;
@@ -97,7 +100,9 @@ function SortableProjectItem({
 	const style = {
 		transform: CSS.Transform.toString(transform),
 		transition,
-		opacity: isDragging ? 0.5 : 1,
+		opacity: isDragging ? 0.3 : 1,
+		boxShadow: isDragging ? "0 4px 12px rgba(0, 0, 0, 0.15)" : "none",
+		scale: isDragging ? 1.02 : 1,
 	};
 
 	return (
@@ -106,12 +111,12 @@ function SortableProjectItem({
 				<ContextMenuTrigger>
 					<div className="flex w-full items-center gap-1">
 						<button
-							className="cursor-grab rounded p-1 hover:bg-sidebar-accent active:cursor-grabbing group-data-[collapsible=icon]:hidden"
+							className="cursor-grab rounded p-1 text-muted-foreground/60 hover:bg-sidebar-accent hover:text-muted-foreground active:cursor-grabbing group-data-[collapsible=icon]:hidden"
 							type="button"
 							{...attributes}
 							{...listeners}
 						>
-							<GripVertical className="text-muted-foreground" size={14} />
+							<GripVertical size={16} />
 						</button>
 						<SidebarMenuButton
 							asChild
@@ -121,7 +126,7 @@ function SortableProjectItem({
 							tooltip={project.ProjectName}
 						>
 							<Link params={{ projectId }} to="/projects/$projectId">
-								<Folder size={14} />
+								<Folder size={16} />
 								<span className="text-sm">{project.ProjectName}</span>
 							</Link>
 						</SidebarMenuButton>
@@ -129,11 +134,11 @@ function SortableProjectItem({
 				</ContextMenuTrigger>
 				<ContextMenuContent>
 					<ContextMenuItem onSelect={onNavigateToSettings}>
-						<Settings size={14} />
+						<Settings size={16} />
 						<span>{t("sidebar.projectSettings")}</span>
 					</ContextMenuItem>
 					<ContextMenuItem onSelect={onDelete} variant="destructive">
-						<Trash2 size={14} />
+						<Trash2 size={16} />
 						<span>{t("sidebar.deleteProject")}</span>
 					</ContextMenuItem>
 				</ContextMenuContent>
@@ -152,6 +157,8 @@ function AppSidebarContent() {
 	const [projectToDelete, setProjectToDelete] =
 		useState<models.RepoLink | null>(null);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [isSearchOpen, setIsSearchOpen] = useState(false);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
@@ -356,73 +363,112 @@ function AppSidebarContent() {
 		await UpdateProjectOrder(updates);
 	};
 
+	const filteredProjects = projects.filter((project) =>
+		project.ProjectName.toLowerCase().includes(searchQuery.toLowerCase())
+	);
+
 	return (
 		<>
-			<SidebarHeader className="border-sidebar-border border-b bg-sidebar-accent/20">
-				<SidebarMenu>
-					<SidebarMenuItem>
-						<SidebarMenuButton
-							asChild
-							className="h-12 justify-start font-semibold group-data-[collapsible=icon]:justify-center"
-							isActive={location.pathname === "/"}
-							size="lg"
-							tooltip={t("sidebar.home")}
-						>
-							<Link to="/">
-								<Home size={20} />
-								<span className="font-semibold group-data-[collapsible=icon]:hidden">
-									{t("sidebar.home")}
-								</span>
-							</Link>
-						</SidebarMenuButton>
-					</SidebarMenuItem>
-				</SidebarMenu>
+			<SidebarHeader className="border-sidebar-border border-b p-2">
+				<SidebarTrigger />
 			</SidebarHeader>
 
 			<SidebarContent className="pt-4">
 				<SidebarGroup>
-					<SidebarGroupLabel className="mb-1 px-1 font-semibold text-sidebar-foreground">
-						<Folders size={18} />
-						<span className="ml-1">{t("sidebar.projects")}</span>
-					</SidebarGroupLabel>
-					<SidebarGroupAction asChild>
-						<Button
-							aria-label={t("home.addProject")}
-							className="h-5 w-5 p-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-							onClick={() => setIsAddProjectOpen(true)}
-							size="sm"
-							variant="ghost"
-						>
-							<Plus className="h-3.5 w-3.5" />
-						</Button>
-					</SidebarGroupAction>
+					<div className="mb-2 space-y-2">
+						<div className="flex items-center justify-between px-2">
+							<SidebarGroupLabel className="mb-0 flex-1 p-0 font-semibold text-sidebar-foreground">
+								<Folders size={16} />
+								<span className="ml-1">{t("sidebar.projects")}</span>
+							</SidebarGroupLabel>
+							<Button
+								aria-label={t("home.addProject")}
+								className="h-5 w-5 p-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
+								onClick={() => setIsAddProjectOpen(true)}
+								size="sm"
+								variant="ghost"
+							>
+								<Plus className="h-3.5 w-3.5" />
+							</Button>
+						</div>
+						{projects.length > 5 && (
+							<div className="px-2 group-data-[collapsible=icon]:hidden">
+								<div className="relative">
+									<Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+									<Input
+										className="h-7 pl-8 pr-2 text-xs"
+										onChange={(e) => setSearchQuery(e.target.value)}
+										placeholder={t("sidebar.searchProjects", "Search projects...")}
+										type="search"
+										value={searchQuery}
+									/>
+									{searchQuery && (
+										<button
+											className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground hover:text-foreground"
+											onClick={() => setSearchQuery("")}
+											type="button"
+										>
+											<X size={14} />
+										</button>
+									)}
+								</div>
+							</div>
+						)}
+					</div>
 					<SidebarGroupContent>
 						<SidebarMenu>
 							{loading && (
-								<SidebarMenuItem>
-									<div className="px-2 py-1 text-muted-foreground text-xs group-data-[collapsible=icon]:hidden">
-										{t("sidebar.loading")}
-									</div>
-								</SidebarMenuItem>
+								<>
+									{[1, 2, 3].map((i) => (
+										<SidebarMenuItem key={i}>
+											<div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:hidden">
+												<div className="h-4 w-4 animate-pulse rounded bg-sidebar-accent" />
+												<div className="h-4 flex-1 animate-pulse rounded bg-sidebar-accent" />
+											</div>
+										</SidebarMenuItem>
+									))}
+								</>
 							)}
 							{!loading && projects.length === 0 && (
 								<SidebarMenuItem>
-									<div className="px-2 py-1 text-muted-foreground text-xs group-data-[collapsible=icon]:hidden">
-										{t("sidebar.noProjects")}
+									<div className="flex flex-col gap-2 px-2 py-4 text-center group-data-[collapsible=icon]:hidden">
+										<Folder className="mx-auto text-muted-foreground" size={32} />
+										<p className="text-muted-foreground text-xs">
+											{t("sidebar.noProjects")}
+										</p>
+										<Button
+											className="mt-1"
+											onClick={() => setIsAddProjectOpen(true)}
+											size="sm"
+											variant="outline"
+										>
+											<Plus size={16} />
+											{t("home.addProject")}
+										</Button>
 									</div>
 								</SidebarMenuItem>
 							)}
-							{!loading && projects.length > 0 && (
+							{!loading && projects.length > 0 && filteredProjects.length === 0 && (
+								<SidebarMenuItem>
+									<div className="flex flex-col gap-2 px-2 py-4 text-center group-data-[collapsible=icon]:hidden">
+										<Search className="mx-auto text-muted-foreground" size={32} />
+										<p className="text-muted-foreground text-xs">
+											{t("sidebar.noProjectsFound", "No projects found")}
+										</p>
+									</div>
+								</SidebarMenuItem>
+							)}
+							{!loading && filteredProjects.length > 0 && (
 								<DndContext
 									collisionDetection={closestCenter}
 									onDragEnd={handleDragEnd}
 									sensors={sensors}
 								>
 									<SortableContext
-										items={projects.map((p) => String(p.ID))}
+										items={filteredProjects.map((p) => String(p.ID))}
 										strategy={verticalListSortingStrategy}
 									>
-										{projects.map((p) => {
+										{filteredProjects.map((p) => {
 											const projectId = String(p.ID);
 											return (
 												<SortableProjectItem
@@ -449,19 +495,18 @@ function AppSidebarContent() {
 				</SidebarGroup>
 			</SidebarContent>
 
-			<SidebarFooter className="border-sidebar-border border-t bg-sidebar-accent/10">
+			<SidebarFooter className="border-sidebar-border border-t p-2">
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton
 							asChild
-							className="hover:bg-sidebar-accent/30"
 							isActive={location.pathname === "/settings"}
 							size="sm"
 							tooltip={t("sidebar.settings")}
 						>
 							<Link to="/settings">
 								<Settings size={16} />
-								<span className="text-sm">{t("sidebar.settings")}</span>
+								<span>{t("sidebar.settings")}</span>
 							</Link>
 						</SidebarMenuButton>
 					</SidebarMenuItem>

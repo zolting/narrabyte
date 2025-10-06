@@ -9,7 +9,6 @@ import { AppSidebar } from "@/components/Sidebar";
 import {
 	SidebarInset,
 	SidebarProvider,
-	SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { useAppSettingsStore } from "@/stores/appSettings";
@@ -61,9 +60,6 @@ function RootLayout() {
 				<ThemeSync />
 				<AppSidebar />
 				<SidebarInset className="flex flex-col">
-					<header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4">
-						<SidebarTrigger className="-ml-1" />
-					</header>
 					<main>
 						<ProjectCacheHost />
 						<Outlet />

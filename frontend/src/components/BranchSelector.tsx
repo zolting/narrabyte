@@ -1,5 +1,5 @@
 import type { models } from "@go/models";
-import { ArrowRightLeft, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
+import { ArrowRight, ArrowRightLeft, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -59,13 +59,12 @@ export const BranchSelector = ({
 	const targetBranchComboboxId = useId();
 	const targetBranchListId = useId();
 
+	const canSwap = Boolean(sourceBranch && targetBranch);
+
 	return (
-		<div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-end gap-4">
-			<div className="grid min-w-0 gap-2">
-				<Label
-					className="mb-1 text-foreground"
-					htmlFor={sourceBranchComboboxId}
-				>
+		<div className="flex items-center gap-3">
+			<div className="flex-1 space-y-2 rounded-lg border border-border/50 bg-muted/30 p-3">
+				<Label className="text-xs text-muted-foreground" htmlFor={sourceBranchComboboxId}>
 					{t("common.sourceBranch")}
 				</Label>
 				<Popover modal={true} onOpenChange={setSourceOpen} open={sourceOpen}>
@@ -129,22 +128,22 @@ export const BranchSelector = ({
 				</Popover>
 			</div>
 
-			<Button
-				aria-label={t("common.swapBranches")}
-				className="h-10 w-10 p-1 hover:bg-accent"
-				disabled={disableControls || branches.length < 2}
-				onClick={swapBranches}
-				type="button"
-				variant="secondary"
-			>
-				<ArrowRightLeft className="h-4 w-4" />
-			</Button>
-
-			<div className="grid min-w-0 gap-2">
-				<Label
-					className="mb-1 text-foreground"
-					htmlFor={targetBranchComboboxId}
+			<div className="flex shrink-0 flex-col items-center gap-1">
+				<ArrowRight className="h-5 w-5 text-muted-foreground" />
+				<Button
+					aria-label={t("common.swapBranches")}
+					className="h-7 w-7 p-0"
+					disabled={disableControls || !canSwap}
+					onClick={swapBranches}
+					type="button"
+					variant="ghost"
 				>
+					<ArrowRightLeft className="h-3.5 w-3.5" />
+				</Button>
+			</div>
+
+			<div className="flex-1 space-y-2 rounded-lg border border-border/50 bg-accent/30 p-3">
+				<Label className="text-xs text-muted-foreground" htmlFor={targetBranchComboboxId}>
 					{t("common.targetBranch")}
 				</Label>
 				<Popover modal={true} onOpenChange={setTargetOpen} open={targetOpen}>
