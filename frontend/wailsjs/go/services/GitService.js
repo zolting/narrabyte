@@ -22,6 +22,14 @@ export function DiffBetweenCommits(arg1, arg2, arg3) {
   return window['go']['services']['GitService']['DiffBetweenCommits'](arg1, arg2, arg3);
 }
 
+export function GetCurrentBranch(arg1) {
+  return window['go']['services']['GitService']['GetCurrentBranch'](arg1);
+}
+
+export function HasUncommittedChanges(arg1) {
+  return window['go']['services']['GitService']['HasUncommittedChanges'](arg1);
+}
+
 export function Init(arg1) {
   return window['go']['services']['GitService']['Init'](arg1);
 }

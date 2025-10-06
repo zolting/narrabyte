@@ -1,4 +1,8 @@
 import type { models } from "@go/models";
+import {
+	GetCurrentBranch,
+	HasUncommittedChanges,
+} from "@go/services/GitService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
 import { useNavigate } from "@tanstack/react-router";
@@ -29,6 +33,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	);
 	const [provider, setProvider] = useState<string>("anthropic");
 	const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
+	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
@@ -95,6 +101,22 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		docManager.setCompletedCommit,
 	]);
 
+	// Check current branch and uncommitted changes when docs are in code repo
+	useEffect(() => {
+		if (repoPath && docManager.docsInCodeRepo) {
+			Promise.all([
+				GetCurrentBranch(repoPath).catch(() => null),
+				HasUncommittedChanges(repoPath).catch(() => false),
+			]).then(([branch, uncommitted]) => {
+				setCurrentBranch(branch);
+				setHasUncommitted(uncommitted);
+			});
+		} else {
+			setCurrentBranch(null);
+			setHasUncommitted(false);
+		}
+	}, [repoPath, docManager.docsInCodeRepo]);
+
 	const canGenerate = useMemo(
 		() =>
 			Boolean(
@@ -111,14 +133,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			branchManager.targetBranch,
 		]
 	);
-
-	const canCommit = useMemo(() => {
-		if (!(project && docManager.docResult)) {
-			return false;
-		}
-		const files = docManager.docResult.files ?? [];
-		return files.length > 0 && !docManager.isBusy;
-	}, [docManager.docResult, docManager.isBusy, project]);
 
 	const handleGenerate = useCallback(() => {
 		if (
@@ -137,25 +151,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		});
 	}, [project, branchManager, docManager, provider]);
 
-	const handleCommit = useCallback(() => {
-		if (!(project && docManager.docResult)) {
-			return;
-		}
-		const files = (docManager.docResult.files ?? [])
-			.map((file) => file.path)
-			.filter((path): path is string =>
-				Boolean(path && path.trim().length > 0)
-			);
-		if (files.length === 0) {
-			return;
-		}
-		docManager.setActiveTab("activity");
-		docManager.commitDocGeneration({
-			projectId: Number(project.ID),
-			branch: docManager.docResult.branch,
-			files,
-		});
-	}, [docManager, project]);
+	const handleApprove = useCallback(() => {
+		docManager.approveCommit();
+	}, [docManager]);
 
 	const handleReset = useCallback(() => {
 		docManager.reset();
@@ -167,6 +165,37 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, [handleReset]);
 
 	const disableControls = docManager.isBusy;
+
+	// Calculate canMerge and merge disabled reason
+	const { canMerge, mergeDisabledReason } = useMemo(() => {
+		if (
+			!(
+				docManager.docResult &&
+				docManager.docsInCodeRepo &&
+				docManager.sourceBranch
+			) ||
+			docManager.isBusy
+		) {
+			return { canMerge: false, mergeDisabledReason: null };
+		}
+
+		// Check if currently on source branch with uncommitted changes
+		if (currentBranch === docManager.sourceBranch && hasUncommitted) {
+			return {
+				canMerge: false,
+				mergeDisabledReason: "onSourceBranchWithUncommitted",
+			};
+		}
+
+		return { canMerge: true, mergeDisabledReason: null };
+	}, [
+		docManager.docResult,
+		docManager.docsInCodeRepo,
+		docManager.sourceBranch,
+		docManager.isBusy,
+		currentBranch,
+		hasUncommitted,
+	]);
 	const comparisonSourceBranch =
 		docManager.sourceBranch ??
 		docManager.completedCommitInfo?.sourceBranch ??
@@ -328,15 +357,18 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 				{!docManager.commitCompleted && (
 					<ActionButtons
-						canCommit={canCommit}
 						canGenerate={canGenerate}
+						canMerge={canMerge}
 						docGenerationError={docManager.docGenerationError}
 						docResult={docManager.docResult}
 						isBusy={docManager.isBusy}
+						isMerging={docManager.isMerging}
 						isRunning={docManager.isRunning}
+						mergeDisabledReason={mergeDisabledReason}
+						onApprove={handleApprove}
 						onCancel={docManager.cancelDocGeneration}
-						onCommit={handleCommit}
 						onGenerate={handleGenerate}
+						onMerge={docManager.mergeDocs}
 						onReset={handleReset}
 					/>
 				)}

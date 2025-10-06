@@ -200,6 +200,9 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: include filter '%s'", include)))
 	}
 
+	ignorePatterns := append([]string{}, DefaultIgnorePatterns...)
+	ignorePatterns = append(ignorePatterns, GetScopedIgnorePatterns()...)
+
 	// Check for context cancellation early
 	if ctx != nil {
 		select {
@@ -292,7 +295,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 			for _, entry := range entries {
 				relPath := joinCommitPath(displayPath, entry.Name)
 				if entry.IsDir() {
-					if matchIgnoredDir(relPath, DefaultIgnorePatterns) {
+					if matchIgnoredDir(relPath, ignorePatterns) {
 						continue
 					}
 					if err := walk(entry.Path, relPath); err != nil {
@@ -303,7 +306,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 				if !entry.IsFile() {
 					continue
 				}
-				if matchIgnoredFile(relPath, DefaultIgnorePatterns) {
+				if matchIgnoredFile(relPath, ignorePatterns) {
 					continue
 				}
 				if len(includeMatchers) > 0 {
@@ -411,9 +414,13 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 				if rel == "." || rel == "" {
 					return nil
 				}
-				if matchIgnoredDir(rel, DefaultIgnorePatterns) {
+				if matchIgnoredDir(rel, ignorePatterns) {
 					return fs.SkipDir
 				}
+				return nil
+			}
+
+			if matchIgnoredFile(rel, ignorePatterns) {
 				return nil
 			}
 

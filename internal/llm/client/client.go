@@ -39,6 +39,7 @@ type LLMClient struct {
 	baseRoot        string
 	docRoot         string
 	codeRoot        string
+	docRelative     string
 	sourceBranch    string
 	targetBranch    string
 	sourceCommit    string
@@ -53,22 +54,24 @@ type LLMClient struct {
 }
 
 type DocGenerationRequest struct {
-	ProjectName       string
-	CodebasePath      string
-	DocumentationPath string
-	SourceBranch      string
-	TargetBranch      string
-	SourceCommit      string
-	Diff              string
-	ChangedFiles      []string
+	ProjectName          string
+	CodebasePath         string
+	DocumentationPath    string
+	DocumentationRelPath string
+	SourceBranch         string
+	TargetBranch         string
+	SourceCommit         string
+	Diff                 string
+	ChangedFiles         []string
 }
 
 type DocRefineRequest struct {
-	ProjectName       string
-	CodebasePath      string
-	DocumentationPath string
-	SourceBranch      string
-	Instruction       string
+	ProjectName          string
+	CodebasePath         string
+	DocumentationPath    string
+	DocumentationRelPath string
+	SourceBranch         string
+	Instruction          string
 }
 
 type DocGenerationResponse struct {
@@ -78,8 +81,9 @@ type DocGenerationResponse struct {
 func NewOpenAIClient(ctx context.Context, key string) (*LLMClient, error) {
 	// temperature := float32(0)
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		APIKey: key,
-		Model:  "gpt-5-mini",
+		APIKey:          key,
+		Model:           "gpt-5-mini",
+		ReasoningEffort: openai.ReasoningEffortLevelMedium,
 	})
 
 	if err != nil {
@@ -227,6 +231,11 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 	}
 	o.docRoot = docRoot
 	o.codeRoot = codeRoot
+	if trimmed := strings.TrimSpace(req.DocumentationRelPath); trimmed != "" {
+		o.docRelative = trimmed
+	} else {
+		o.docRelative = "."
+	}
 	o.sourceBranch = strings.TrimSpace(req.SourceBranch)
 	o.targetBranch = strings.TrimSpace(req.TargetBranch)
 	o.sourceCommit = strings.TrimSpace(req.SourceCommit)
@@ -271,9 +280,10 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 				Tools: toolsForSession,
 			},
 		},
-		Name:        "Documentation Assistant",
-		Description: "Analyzes code diffs and proposes documentation updates",
-		Instruction: systemPrompt,
+		Name:          "Documentation Assistant",
+		Description:   "Analyzes code diffs and proposes documentation updates",
+		Instruction:   systemPrompt,
+		MaxIterations: 100,
 	})
 	if err != nil {
 		return nil, err
@@ -949,15 +959,36 @@ func (o *LLMClient) withBaseRoot(root string, snapshot *tools.GitSnapshot, fn fu
 	}
 	prevRoot := o.baseRoot
 	prevSnapshot := tools.CurrentGitSnapshot()
+	prevIgnores := tools.GetScopedIgnorePatterns()
 	tools.SetListDirectoryBaseRoot(root)
 	tools.SetGitSnapshot(snapshot)
+	tools.SetScopedIgnorePatterns(o.scopedIgnoresForRoot(root))
 	o.baseRoot = root
 	defer func() {
 		tools.SetListDirectoryBaseRoot(prevRoot)
 		tools.SetGitSnapshot(prevSnapshot)
+		tools.SetScopedIgnorePatterns(prevIgnores)
 		o.baseRoot = prevRoot
 	}()
 	return fn()
+}
+
+func (o *LLMClient) scopedIgnoresForRoot(root string) []string {
+	if strings.TrimSpace(o.docRelative) == "" || o.docRelative == "." {
+		return nil
+	}
+	if o.codeRoot == "" {
+		return nil
+	}
+	if pathsEqual(root, o.codeRoot) {
+		rel := filepath.ToSlash(filepath.Clean(o.docRelative))
+		rel = strings.TrimPrefix(rel, "./")
+		if rel == "" || rel == "." {
+			return nil
+		}
+		return []string{rel, rel + "/**"}
+	}
+	return nil
 }
 
 func (o *LLMClient) resolveToolPath(input string, allowCode bool) (root string, rel string, abs string, err error) {

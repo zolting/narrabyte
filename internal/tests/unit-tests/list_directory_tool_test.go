@@ -417,6 +417,31 @@ func TestListDirectory_EmptyIgnorePatterns(t *testing.T) {
 	utils.Equal(t, strings.Contains(result.Output, "file2.txt"), true)
 }
 
+func TestListDirectory_ScopedIgnores(t *testing.T) {
+	root := t.TempDir()
+	tools.SetListDirectoryBaseRoot(root)
+	tools.SetScopedIgnorePatterns([]string{"docs", "docs/**"})
+	t.Cleanup(func() {
+		tools.SetScopedIgnorePatterns(nil)
+	})
+
+	docsDir := filepath.Join(root, "docs")
+	utils.NilError(t, os.MkdirAll(docsDir, 0o755))
+	utils.NilError(t, os.WriteFile(filepath.Join(docsDir, "index.md"), []byte("content"), 0o644))
+	srcDir := filepath.Join(root, "src")
+	utils.NilError(t, os.MkdirAll(srcDir, 0o755))
+	utils.NilError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main"), 0o644))
+
+	result, err := tools.ListDirectory(context.Background(), &tools.ListLSInput{Path: "."})
+	utils.NilError(t, err)
+	if strings.Contains(result.Output, "docs") {
+		t.Fatalf("expected docs directory to be hidden by scoped ignore; output: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "main.go") {
+		t.Fatalf("expected non-ignored files to be listed; output: %s", result.Output)
+	}
+}
+
 func TestListDirectory_UnicodeNames(t *testing.T) {
 	tempDir := t.TempDir()
 	tools.SetListDirectoryBaseRoot(tempDir)

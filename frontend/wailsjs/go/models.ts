@@ -86,6 +86,8 @@ export namespace models {
 	}
 	export class DocGenerationResult {
 	    branch: string;
+	    docsBranch: string;
+	    docsInCodeRepo: boolean;
 	    files: DocChangedFile[];
 	    diff: string;
 	    summary: string;
@@ -97,6 +99,8 @@ export namespace models {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.branch = source["branch"];
+	        this.docsBranch = source["docsBranch"];
+	        this.docsInCodeRepo = source["docsInCodeRepo"];
 	        this.files = this.convertValues(source["files"], DocChangedFile);
 	        this.diff = source["diff"];
 	        this.summary = source["summary"];

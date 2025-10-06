@@ -15,6 +15,10 @@ export function DiffBetweenBranches(arg1:git.Repository,arg2:string,arg3:string)
 
 export function DiffBetweenCommits(arg1:git.Repository,arg2:string,arg3:string):Promise<string>;
 
+export function GetCurrentBranch(arg1:string):Promise<string>;
+
+export function HasUncommittedChanges(arg1:string):Promise<boolean>;
+
 export function Init(arg1:string):Promise<git.Repository>;
 
 export function LatestCommit(arg1:string):Promise<string>;

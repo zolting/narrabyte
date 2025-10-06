@@ -327,3 +327,47 @@ func signatureFromEnv() *object.Signature {
 		When:  time.Now(),
 	}
 }
+
+// GetCurrentBranch returns the name of the current branch for the repository at the given path.
+func (g *GitService) GetCurrentBranch(repoPath string) (string, error) {
+	if repoPath == "" {
+		return "", fmt.Errorf("repository path cannot be empty")
+	}
+
+	repo, err := git.PlainOpen(repoPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open repository at %s: %w", repoPath, err)
+	}
+
+	ref, err := repo.Head()
+	if err != nil {
+		return "", fmt.Errorf("failed to get HEAD reference: %w", err)
+	}
+
+	return ref.Name().Short(), nil
+}
+
+// HasUncommittedChanges checks if the repository has any uncommitted changes (staged or unstaged).
+func (g *GitService) HasUncommittedChanges(repoPath string) (bool, error) {
+	if repoPath == "" {
+		return false, fmt.Errorf("repository path cannot be empty")
+	}
+
+	repo, err := git.PlainOpen(repoPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to open repository at %s: %w", repoPath, err)
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return false, fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	status, err := wt.Status()
+	if err != nil {
+		return false, fmt.Errorf("failed to get status: %w", err)
+	}
+
+	// Check if there are any changes (staged or unstaged)
+	return !status.IsClean(), nil
+}

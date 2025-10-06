@@ -424,6 +424,30 @@ func TestGrep_ContextCancellation(t *testing.T) {
 	utils.Equal(t, err, context.Canceled)
 }
 
+func TestGrep_RespectsScopedIgnores(t *testing.T) {
+	tempDir := t.TempDir()
+	tools.SetListDirectoryBaseRoot(tempDir)
+	tools.SetScopedIgnorePatterns([]string{"docs", "docs/**"})
+	t.Cleanup(func() { tools.SetScopedIgnorePatterns(nil) })
+
+	docsDir := filepath.Join(tempDir, "docs")
+	utils.NilError(t, os.MkdirAll(docsDir, 0o755))
+	utils.NilError(t, os.WriteFile(filepath.Join(docsDir, "guide.md"), []byte("needle"), 0o644))
+	srcDir := filepath.Join(tempDir, "src")
+	utils.NilError(t, os.MkdirAll(srcDir, 0o755))
+	utils.NilError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("needle"), 0o644))
+
+	result, err := tools.Grep(context.Background(), &tools.GrepInput{Pattern: "needle"})
+	utils.NilError(t, err)
+
+	if strings.Contains(result.Output, "guide.md") {
+		t.Fatalf("expected scoped ignore to hide docs match; output: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "main.go") {
+		t.Fatalf("expected non-ignored match to appear; output: %s", result.Output)
+	}
+}
+
 // Additional edge case tests
 func TestGrep_IncludePatternComplex(t *testing.T) {
 	tempDir := t.TempDir()
