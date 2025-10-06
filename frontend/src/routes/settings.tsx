@@ -32,7 +32,7 @@ function Settings() {
 
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [editingProvider, setEditingProvider] = useState<string | undefined>(
-		undefined,
+		undefined
 	);
 	const apiKeyManagerRef = useRef<{ refresh: () => void }>(null);
 	const theme = settings?.Theme ?? "system";

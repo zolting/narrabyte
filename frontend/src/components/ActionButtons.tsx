@@ -70,11 +70,7 @@ export const ActionButtons = ({
 						{t("common.cancel")}
 					</Button>
 				)}
-				<Button
-					disabled={isBusy}
-					onClick={onReset}
-					variant="outline"
-				>
+				<Button disabled={isBusy} onClick={onReset} variant="outline">
 					{t("common.reset")}
 				</Button>
 				{docResult ? (

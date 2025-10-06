@@ -1,5 +1,10 @@
 import type { models } from "@go/models";
-import { ArrowRight, ArrowRightLeft, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
+import {
+	ArrowRight,
+	ArrowRightLeft,
+	CheckIcon,
+	ChevronsUpDownIcon,
+} from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -64,7 +69,10 @@ export const BranchSelector = ({
 	return (
 		<div className="flex items-center gap-3">
 			<div className="flex-1 space-y-2 rounded-lg border border-border/50 bg-muted/30 p-3">
-				<Label className="text-xs text-muted-foreground" htmlFor={sourceBranchComboboxId}>
+				<Label
+					className="text-muted-foreground text-xs"
+					htmlFor={sourceBranchComboboxId}
+				>
 					{t("common.sourceBranch")}
 				</Label>
 				<Popover modal={true} onOpenChange={setSourceOpen} open={sourceOpen}>
@@ -143,7 +151,10 @@ export const BranchSelector = ({
 			</div>
 
 			<div className="flex-1 space-y-2 rounded-lg border border-border/50 bg-accent/30 p-3">
-				<Label className="text-xs text-muted-foreground" htmlFor={targetBranchComboboxId}>
+				<Label
+					className="text-muted-foreground text-xs"
+					htmlFor={targetBranchComboboxId}
+				>
 					{t("common.targetBranch")}
 				</Label>
 				<Popover modal={true} onOpenChange={setTargetOpen} open={targetOpen}>

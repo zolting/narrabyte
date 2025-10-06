@@ -6,10 +6,7 @@ import {
 	ProjectCacheProvider,
 } from "@/components/projects/ProjectCache";
 import { AppSidebar } from "@/components/Sidebar";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { useAppSettingsStore } from "@/stores/appSettings";
 

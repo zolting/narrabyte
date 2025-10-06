@@ -55,12 +55,12 @@ import {
 	ContextMenuItem,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Input } from "@/components/ui/input";
 import {
 	Sidebar,
 	SidebarContent,
 	SidebarFooter,
 	SidebarGroup,
-	SidebarGroupAction,
 	SidebarGroupContent,
 	SidebarGroupLabel,
 	SidebarHeader,
@@ -69,7 +69,6 @@ import {
 	SidebarMenuItem,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Input } from "@/components/ui/input";
 
 const MAX_REPOS = 100;
 const REPO_OFFSET = 0;
@@ -158,7 +157,6 @@ function AppSidebarContent() {
 		useState<models.RepoLink | null>(null);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
-	const [isSearchOpen, setIsSearchOpen] = useState(false);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
@@ -394,17 +392,23 @@ function AppSidebarContent() {
 						{projects.length > 5 && (
 							<div className="px-2 group-data-[collapsible=icon]:hidden">
 								<div className="relative">
-									<Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+									<Search
+										className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 text-muted-foreground"
+										size={14}
+									/>
 									<Input
-										className="h-7 pl-8 pr-2 text-xs"
+										className="h-7 pr-2 pl-8 text-xs"
 										onChange={(e) => setSearchQuery(e.target.value)}
-										placeholder={t("sidebar.searchProjects", "Search projects...")}
+										placeholder={t(
+											"sidebar.searchProjects",
+											"Search projects..."
+										)}
 										type="search"
 										value={searchQuery}
 									/>
 									{searchQuery && (
 										<button
-											className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground hover:text-foreground"
+											className="-translate-y-1/2 absolute top-1/2 right-2 rounded-sm text-muted-foreground hover:text-foreground"
 											onClick={() => setSearchQuery("")}
 											type="button"
 										>
@@ -417,22 +421,22 @@ function AppSidebarContent() {
 					</div>
 					<SidebarGroupContent>
 						<SidebarMenu>
-							{loading && (
-								<>
-									{[1, 2, 3].map((i) => (
-										<SidebarMenuItem key={i}>
-											<div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:hidden">
-												<div className="h-4 w-4 animate-pulse rounded bg-sidebar-accent" />
-												<div className="h-4 flex-1 animate-pulse rounded bg-sidebar-accent" />
-											</div>
-										</SidebarMenuItem>
-									))}
-								</>
-							)}
+							{loading &&
+								[1, 2, 3].map((i) => (
+									<SidebarMenuItem key={i}>
+										<div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:hidden">
+											<div className="h-4 w-4 animate-pulse rounded bg-sidebar-accent" />
+											<div className="h-4 flex-1 animate-pulse rounded bg-sidebar-accent" />
+										</div>
+									</SidebarMenuItem>
+								))}
 							{!loading && projects.length === 0 && (
 								<SidebarMenuItem>
 									<div className="flex flex-col gap-2 px-2 py-4 text-center group-data-[collapsible=icon]:hidden">
-										<Folder className="mx-auto text-muted-foreground" size={32} />
+										<Folder
+											className="mx-auto text-muted-foreground"
+											size={32}
+										/>
 										<p className="text-muted-foreground text-xs">
 											{t("sidebar.noProjects")}
 										</p>
@@ -448,16 +452,21 @@ function AppSidebarContent() {
 									</div>
 								</SidebarMenuItem>
 							)}
-							{!loading && projects.length > 0 && filteredProjects.length === 0 && (
-								<SidebarMenuItem>
-									<div className="flex flex-col gap-2 px-2 py-4 text-center group-data-[collapsible=icon]:hidden">
-										<Search className="mx-auto text-muted-foreground" size={32} />
-										<p className="text-muted-foreground text-xs">
-											{t("sidebar.noProjectsFound", "No projects found")}
-										</p>
-									</div>
-								</SidebarMenuItem>
-							)}
+							{!loading &&
+								projects.length > 0 &&
+								filteredProjects.length === 0 && (
+									<SidebarMenuItem>
+										<div className="flex flex-col gap-2 px-2 py-4 text-center group-data-[collapsible=icon]:hidden">
+											<Search
+												className="mx-auto text-muted-foreground"
+												size={32}
+											/>
+											<p className="text-muted-foreground text-xs">
+												{t("sidebar.noProjectsFound", "No projects found")}
+											</p>
+										</div>
+									</SidebarMenuItem>
+								)}
 							{!loading && filteredProjects.length > 0 && (
 								<DndContext
 									collisionDetection={closestCenter}
