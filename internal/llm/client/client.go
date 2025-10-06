@@ -266,27 +266,10 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		return nil, fmt.Errorf("failed to load system instructions: %w", err)
 	}
 
-	repoInstr, repoErr := o.loadRepoLLMInstructions(docRoot)
+	projectInstr, repoErr := o.loadRepoLLMInstructions(docRoot)
 	if repoErr != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo LLM instructions: %v", repoErr)))
 	}
-
-	var promptParts []string
-
-	if strings.TrimSpace(req.SpecificInstr) != "" {
-		promptParts = append(promptParts, "# Generation-specific documentation instructions\n"+strings.TrimSpace(req.SpecificInstr))
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("added specific instructions"))
-	}
-
-	if strings.TrimSpace(repoInstr) != "" {
-		promptParts = append(promptParts, "# Repo-specific documentation instructions\n"+strings.TrimSpace(repoInstr))
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("added repo instructions"))
-	}
-
-	promptParts = append(promptParts, "# Default documentation instructions\n"+systemInstr)
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("added system instructions"))
-
-	finalInstr := strings.Join(promptParts, "\n\n")
 
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Model: o.chatModel,
@@ -297,7 +280,7 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		},
 		Name:          "Documentation Assistant",
 		Description:   "Analyzes code diffs and proposes documentation updates",
-		Instruction:   finalInstr,
+		Instruction:   systemInstr,
 		MaxIterations: 100,
 	})
 	if err != nil {
@@ -316,27 +299,52 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 	}
 
 	var promptBuilder strings.Builder
+
+	// Section 1: Custom Instructions
+	if strings.TrimSpace(projectInstr) != "" {
+		promptBuilder.WriteString("# Project-specific documentation instructions\n")
+		promptBuilder.WriteString(strings.TrimSpace(projectInstr))
+		promptBuilder.WriteString("\n\n")
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("added repo instructions"))
+	}
+
+	if strings.TrimSpace(req.SpecificInstr) != "" {
+		promptBuilder.WriteString("# Generation-specific documentation instructions\n")
+		promptBuilder.WriteString(strings.TrimSpace(req.SpecificInstr))
+		promptBuilder.WriteString("\n\n")
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("added specific instructions"))
+	}
+
+	// Section 2: Project Context
+	promptBuilder.WriteString("# Project Context\n")
 	promptBuilder.WriteString(fmt.Sprintf("Project: %s\n", strings.TrimSpace(req.ProjectName)))
 	promptBuilder.WriteString(fmt.Sprintf("Source branch: %s\n", strings.TrimSpace(req.SourceBranch)))
 	if commit := strings.TrimSpace(req.SourceCommit); commit != "" {
-		promptBuilder.WriteString(fmt.Sprintf("Source branch commit: %s\n", commit))
+		promptBuilder.WriteString(fmt.Sprintf("Source commit: %s\n", commit))
 	}
-	promptBuilder.WriteString(fmt.Sprintf("Target branch: %s\n\n", strings.TrimSpace(req.TargetBranch)))
-	promptBuilder.WriteString("Documentation repository root: \n")
-	promptBuilder.WriteString(filepath.ToSlash(docRoot))
-	promptBuilder.WriteString("\n\n")
-	promptBuilder.WriteString("Codebase repository root: \n")
-	promptBuilder.WriteString(filepath.ToSlash(codeRoot))
-	promptBuilder.WriteString("\n\n")
-	promptBuilder.WriteString("Changed source files (relative to codebase root):\n")
+	promptBuilder.WriteString(fmt.Sprintf("Target branch: %s\n", strings.TrimSpace(req.TargetBranch)))
+	promptBuilder.WriteString(fmt.Sprintf("Documentation root: %s\n", filepath.ToSlash(docRoot)))
+	promptBuilder.WriteString(fmt.Sprintf("Codebase root: %s\n\n", filepath.ToSlash(codeRoot)))
+
+	// Section 3: Changed Files
+	promptBuilder.WriteString("# Changed Files\n")
 	promptBuilder.WriteString(changedList)
 	promptBuilder.WriteString("\n\n")
+
+	// Section 4: Repository Structure
+	promptBuilder.WriteString("# Repository Structure\n\n")
+	promptBuilder.WriteString("## Documentation Repository\n")
 	promptBuilder.WriteString("<documentation_repo_listing>\n")
 	promptBuilder.WriteString(docListing)
 	promptBuilder.WriteString("\n</documentation_repo_listing>\n\n")
+
+	promptBuilder.WriteString("## Codebase Repository\n")
 	promptBuilder.WriteString("<codebase_repo_listing>\n")
 	promptBuilder.WriteString(codeListing)
 	promptBuilder.WriteString("\n</codebase_repo_listing>\n\n")
+
+	// Section 5: Code Changes
+	promptBuilder.WriteString("# Code Changes\n")
 	promptBuilder.WriteString("<git_diff>\n")
 	promptBuilder.WriteString(req.Diff)
 	promptBuilder.WriteString("\n</git_diff>")
