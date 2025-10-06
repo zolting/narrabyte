@@ -1,4 +1,12 @@
-# Project Context
+# Narrabyte Project Documentation
+
+This document contains guidelines for both the **React/TypeScript frontend** and the **Go backend**.
+
+---
+
+# Frontend (React/TypeScript)
+
+## Project Context
 Ultracite enforces strict type safety, accessibility standards, and consistent code quality for JavaScript/TypeScript projects using Biome's lightning-fast formatter and linter.
 
 ## Key Principles
@@ -380,3 +388,48 @@ try {
   console.log(e);
 }
 ```
+
+---
+
+# Backend (Go)
+
+## Technology Stack
+- **Framework**: Wails v2 (Go + Web UI)
+- **Database**: SQLite with GORM ORM
+- **Git**: go-git library
+- **LLM**: Cloudwego Eino (Claude, OpenAI, Gemini)
+- **Security**: OS keyring for credentials
+
+## Architecture Overview
+Clean architecture with layered design:
+- **Presentation**: Wails bindings expose Go methods to frontend
+- **Service Layer**: `internal/services/` - Business logic and orchestration
+- **Repository Layer**: `internal/repositories/` - Data access with interface-based design
+- **Models**: `internal/models/` - Domain entities with GORM annotations
+
+## Key Services
+
+### GitService (`internal/services/git_service.go`)
+Handles Git operations: repository management, branch operations, diff generation, staging/commits.
+
+### ClientService (`internal/services/client_service.go`)
+LLM-powered documentation generation:
+- Manages temporary Git workspaces for safe operations
+- Coordinates code and documentation repositories
+- Key methods: `GenerateDocs()`, `RefineDocs()`, `MergeDocsIntoSource()`, `CommitDocs()`
+
+### LLM Integration (`internal/llm/`)
+- Multi-provider support (Claude, OpenAI, Gemini) via unified interface
+- Agent-based workflow with tools (list, read, write, edit files)
+- Policy enforcement: read-before-write, scoped operations, path traversal protection
+- Event system for real-time UI updates
+
+### Database
+SQLite with WAL mode, GORM migrations. Models: `AppSettings` (singleton), `RepoLink` (projects).
+
+## Best Practices
+- **Error Handling**: Wrap with context (`fmt.Errorf("...: %w", err)`), check specific types
+- **Concurrency**: Use `context.Context`, `sync.Mutex` for shared state
+- **Git**: Validate state, use temp clones for isolation, check ancestry before merge
+- **Testing**: Unit/integration tests, mocks in `internal/tests/`
+- **Wails**: Bind in `main.go`, use lifecycle hooks, emit events for reactivity
