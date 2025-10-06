@@ -21,7 +21,7 @@ export const SuccessPanel = ({
 	const wasMerge = completedCommitInfo?.wasMerge ?? false;
 	const displayBranch = wasMerge
 		? completedCommitInfo?.sourceBranch || sourceBranch
-		: `docs-${completedCommitInfo?.sourceBranch || sourceBranch}`;
+		: `docs/${completedCommitInfo?.sourceBranch || sourceBranch}`;
 
 	return (
 		<div className="flex flex-col gap-6 rounded-lg border border-green-200 bg-green-50/50 p-6 dark:border-green-800 dark:bg-green-950/30">
