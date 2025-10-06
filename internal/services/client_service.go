@@ -589,14 +589,8 @@ func (s *ClientService) MergeDocsIntoSource(projectID uint, sourceBranch string)
 	if err != nil {
 		return fmt.Errorf("failed to load documentation commit: %w", err)
 	}
-	parents := docCommit.Parents()
-	defer parents.Close()
-	baseParent, err := parents.Next()
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return fmt.Errorf("documentation branch commit has no parent; cannot merge")
-		}
-		return fmt.Errorf("failed to inspect documentation commit parent: %w", err)
+	if docCommit.NumParents() == 0 {
+		return fmt.Errorf("documentation branch commit has no parent; cannot merge")
 	}
 
 	sourceRef, err := repo.Reference(sourceRefName, true)
@@ -607,12 +601,31 @@ func (s *ClientService) MergeDocsIntoSource(projectID uint, sourceBranch string)
 		return fmt.Errorf("failed to resolve source branch '%s': %w", sourceBranch, err)
 	}
 
-	if sourceRef.Hash() != baseParent.Hash {
+	sourceCommit, err := repo.CommitObject(sourceRef.Hash())
+	if err != nil {
+		return fmt.Errorf("failed to load source commit: %w", err)
+	}
+
+	isAncestor, err := sourceCommit.IsAncestor(docCommit)
+	if err != nil {
+		return fmt.Errorf("failed to verify branch ancestry: %w", err)
+	}
+	if !isAncestor {
 		return fmt.Errorf("source branch '%s' has diverged since documentation was generated", sourceBranch)
 	}
 
 	if err := repo.Storer.SetReference(plumbing.NewHashReference(sourceRefName, docRef.Hash())); err != nil {
 		return fmt.Errorf("failed to fast-forward source branch '%s': %w", sourceBranch, err)
+	}
+
+	if currentBranch == sourceBranch {
+		worktree, err := repo.Worktree()
+		if err != nil {
+			return fmt.Errorf("failed to load worktree for branch '%s': %w", sourceBranch, err)
+		}
+		if err := worktree.Reset(&git.ResetOptions{Mode: git.HardReset, Commit: docRef.Hash()}); err != nil {
+			return fmt.Errorf("failed to update worktree to documentation commit: %w", err)
+		}
 	}
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
