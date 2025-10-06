@@ -1,6 +1,6 @@
 import type { models } from "@go/models";
-import { create } from "zustand";
 import { parseDiff } from "react-diff-view";
+import { create } from "zustand";
 import { type DemoEvent, demoEventSchema } from "@/types/events";
 import {
 	CommitDocs,
@@ -69,14 +69,21 @@ type State = {
 	reset: (projectId: number | string) => void;
 	commit: (args: CommitArgs) => Promise<void>;
 	cancel: (projectId: number | string) => Promise<void>;
-	setActiveTab: (projectId: number | string, tab: "activity" | "review" | "summary") => void;
+	setActiveTab: (
+		projectId: number | string,
+		tab: "activity" | "review" | "summary"
+	) => void;
 	setCommitCompleted: (projectId: number | string, completed: boolean) => void;
 	setCompletedCommitInfo: (
 		projectId: number | string,
 		info: CompletedCommitInfo | null
 	) => void;
 	toggleChat: (projectId: number | string, open?: boolean) => void;
-	refine: (args: { projectId: number; branch: string; instruction: string }) => Promise<void>;
+	refine: (args: {
+		projectId: number;
+		branch: string;
+		instruction: string;
+	}) => Promise<void>;
 };
 
 const EMPTY_DOC_STATE: DocGenerationData = {
@@ -134,7 +141,7 @@ const normalizeDiffPath = (path?: string | null) => {
 };
 
 const computeDiffSignatures = (diffText: string | null | undefined) => {
-	if (!diffText || !diffText.trim()) {
+	if (!diffText?.trim()) {
 		return {};
 	}
 	try {
@@ -183,12 +190,16 @@ const clearSubscriptions = (key: ProjectKey) => {
 export const useDocGenerationStore = create<State>((set, get) => {
 	const setDocState = (
 		key: ProjectKey,
-		partial: Partial<DocGenerationData> | ((prev: DocGenerationData) => DocGenerationData)
+		partial:
+			| Partial<DocGenerationData>
+			| ((prev: DocGenerationData) => DocGenerationData)
 	) => {
 		set((state) => {
 			const previous = state.docStates[key] ?? EMPTY_DOC_STATE;
 			const next =
-				typeof partial === "function" ? partial(previous) : { ...previous, ...partial };
+				typeof partial === "function"
+					? partial(previous)
+					: { ...previous, ...partial };
 			return {
 				docStates: {
 					...state.docStates,
@@ -502,7 +513,8 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				const result = await RefineDocs(projectId, branch, trimmed);
 				setDocState(key, (prev) => {
 					const baseline =
-						prev.initialDiffSignatures ?? computeDiffSignatures(prev.result?.diff ?? null);
+						prev.initialDiffSignatures ??
+						computeDiffSignatures(prev.result?.diff ?? null);
 					const current = computeDiffSignatures(result?.diff ?? null);
 					const changed = Object.keys(current).filter((path) => {
 						const previousSignature = baseline[path];
@@ -552,9 +564,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				const message = messageFromError(error);
 				setDocState(key, (prev) => {
 					const updatedMessages = prev.messages.map<ChatMessage>((msg) =>
-						msg.id === messageId
-							? { ...msg, status: "error" as const }
-							: msg
+						msg.id === messageId ? { ...msg, status: "error" as const } : msg
 					);
 					const assistantMessages: ChatMessage[] = [
 						{

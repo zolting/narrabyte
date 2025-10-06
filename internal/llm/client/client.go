@@ -24,6 +24,7 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	einoUtils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
+	"github.com/cloudwego/eino/schema"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 )
@@ -44,9 +45,11 @@ type LLMClient struct {
 	targetCommit    string
 	codeSnapshot    *tools.GitSnapshot
 
-	mu      sync.Mutex
-	running bool
-	cancel  context.CancelFunc
+	mu                    sync.Mutex
+	running               bool
+	cancel                context.CancelFunc
+	conversationHistoryMu sync.Mutex
+	conversationHistory   []adk.Message // Store conversation for context in refinement
 }
 
 type DocGenerationRequest struct {
@@ -157,6 +160,14 @@ func (o *LLMClient) IsRunning() bool {
 	return o.running
 }
 
+// ClearConversationHistory clears the conversation history, resetting the session state.
+// This should be called when starting a new GenerateDocs session.
+func (o *LLMClient) ClearConversationHistory() {
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+	o.conversationHistory = nil
+}
+
 // SetListDirectoryBaseRoot binds the list-directory tools to a specific base directory.
 // Example: SetListDirectoryBaseRoot("/path/to/project") then tool input "frontend"
 // resolves to "/path/to/project/frontend".
@@ -193,6 +204,10 @@ func (o *LLMClient) loadPrompt(name string) (string, error) {
 
 func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest) (*DocGenerationResponse, error) {
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocs: initializing"))
+
+	// Clear any existing conversation history to start fresh
+	o.ClearConversationHistory()
+
 	if req == nil {
 		return nil, fmt.Errorf("request is required")
 	}
@@ -301,8 +316,13 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 	promptBuilder.WriteString(req.Diff)
 	promptBuilder.WriteString("\n</git_diff>")
 
+	// Create runner for this generation session
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
+	println("=== GenerateDocs: Created runner ===")
+
 	iter := runner.Query(ctx, promptBuilder.String())
+
+	var conversationHistory []adk.Message
 	var lastMessage string
 	for {
 		event, ok := iter.Next()
@@ -322,7 +342,19 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("GenerateDocs: message error: %v", err)))
 			continue
 		}
+		// Capture the message for conversation history
+		conversationHistory = append(conversationHistory, msg)
 		lastMessage = msg.Content
+	}
+
+	// Store conversation history for potential refinement
+	o.conversationHistoryMu.Lock()
+	o.conversationHistory = conversationHistory
+	o.conversationHistoryMu.Unlock()
+	println("=== GenerateDocs: Completed ===")
+	println("GenerateDocs: Stored", len(conversationHistory), "messages in conversation history")
+	for i, msg := range conversationHistory {
+		println("  History", i, "- Role:", msg.Role, "ContentLength:", len(msg.Content), "ToolCalls:", len(msg.ToolCalls))
 	}
 
 	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
@@ -366,6 +398,23 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 	if err := o.prepareSnapshots(ctx); err != nil {
 		return nil, err
 	}
+
+	// Check if we have conversation history from GenerateDocs
+	o.conversationHistoryMu.Lock()
+	conversationHistory := o.conversationHistory
+	o.conversationHistoryMu.Unlock()
+
+	println("=== DocRefine: Checking conversation history ===")
+	println("conversationHistory length:", len(conversationHistory))
+
+	if len(conversationHistory) > 0 {
+		println("DocRefine: will include", len(conversationHistory), "previous messages for context")
+	} else {
+		println("DocRefine: no conversation history available, starting fresh")
+	}
+
+	// Always create a new session for refinement, but include conversation history if available
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("DocRefine: creating refinement session"))
 
 	// Capture repository listings for context
 	docListing, err := o.captureListing(ctx, docRoot)
@@ -426,7 +475,36 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 	b.WriteString("\n</user_instruction>")
 
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
-	iter := runner.Query(ctx, b.String())
+
+	// Build the messages array for the refinement session
+	var messages []adk.Message
+
+	if len(conversationHistory) > 0 {
+		// Include the previous conversation history for context
+		println("DocRefine: Including", len(conversationHistory), "previous messages for context")
+		messages = make([]adk.Message, len(conversationHistory))
+		copy(messages, conversationHistory)
+
+		// Print the history being included
+		for i, msg := range conversationHistory {
+			println("  History", i, "- Role:", msg.Role, "ContentLength:", len(msg.Content), "ToolCalls:", len(msg.ToolCalls))
+		}
+	}
+
+	// Append the new user instruction
+	newUserMessage := &schema.Message{
+		Role:    schema.User,
+		Content: b.String(),
+	}
+	messages = append(messages, newUserMessage)
+
+	println("DocRefine: Total messages being sent to LLM:", len(messages))
+	println("  Last message (new instruction) - Role:", newUserMessage.Role, "ContentLength:", len(newUserMessage.Content))
+
+	// Use Run instead of Query to pass the full message history
+	iter := runner.Run(ctx, messages)
+
+	var newMessages []adk.Message
 	var lastMessage string
 	for {
 		event, ok := iter.Next()
@@ -446,8 +524,20 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("DocRefine: message error: %v", err)))
 			continue
 		}
+		// Capture only the NEW messages from this round (assistant responses)
+		newMessages = append(newMessages, msg)
 		lastMessage = msg.Content
 	}
+
+	// Update conversation history: keep all messages we sent + append new responses
+	// messages already contains: [old history + new user message]
+	// newMessages contains: [assistant responses from this round]
+	o.conversationHistoryMu.Lock()
+	o.conversationHistory = append(messages, newMessages...)
+	totalMessages := len(o.conversationHistory)
+	o.conversationHistoryMu.Unlock()
+	println("DocRefine: Updated conversation history, now contains", totalMessages, "messages")
+	println("  (sent", len(messages), "messages, got", len(newMessages), "new responses)")
 
 	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
 	return &DocGenerationResponse{Summary: strings.TrimSpace(lastMessage)}, nil
@@ -606,244 +696,6 @@ func (o *LLMClient) snapshotForRoot(root string) *tools.GitSnapshot {
 		return o.codeSnapshot
 	}
 	return nil
-}
-
-// initTools initializes and returns all available tools for the current session.
-// It resets the file-open history and wraps certain tools (e.g., read_file_tool)
-// to record useful session metadata.
-func (o *LLMClient) initTools() ([]tool.BaseTool, error) {
-	// Reset per-session file history when initializing tools
-	o.ResetFileOpenHistory()
-
-	// List directory tool
-	lsDesc := tools.ToolDescription("list_directory_tool")
-	if strings.TrimSpace(lsDesc) == "" {
-		lsDesc = "lists the contents of a directory"
-	}
-	listDirectoryTool, err := einoUtils.InferTool("list_directory_tool", lsDesc, tools.ListDirectory)
-	if err != nil {
-		return nil, err
-	}
-
-	// Read file tool with history capture
-	readFileWithHistory := func(ctx context.Context, in *tools.ReadFileInput) (*tools.ReadFileOutput, error) {
-		out, err := tools.ReadFile(ctx, in)
-		if err == nil && out != nil {
-			if out.Metadata == nil || out.Metadata["error"] == "" {
-				o.recordOpenedFile(out.Title)
-			}
-		}
-		return out, err
-	}
-	rfDesc := tools.ToolDescription("read_file_tool")
-	if strings.TrimSpace(rfDesc) == "" {
-		rfDesc = "reads the contents of a file"
-	}
-	readFileTool, err := einoUtils.InferTool("read_file_tool", rfDesc, readFileWithHistory)
-	if err != nil {
-		return nil, err
-	}
-
-	// Glob tool
-	globDesc := tools.ToolDescription("glob_tool")
-	if strings.TrimSpace(globDesc) == "" {
-		globDesc = "find files by glob pattern"
-	}
-	globTool, err := einoUtils.InferTool("glob_tool", globDesc, tools.Glob)
-	if err != nil {
-		return nil, err
-	}
-
-	// Grep tool
-	grepDesc := tools.ToolDescription("grep_tool")
-	if strings.TrimSpace(grepDesc) == "" {
-		grepDesc = "search file contents by regex"
-	}
-	grepTool, err := einoUtils.InferTool("grep_tool", grepDesc, tools.Grep)
-	if err != nil {
-		return nil, err
-	}
-
-	// Write file tool with policy checks
-	writeDesc := tools.ToolDescription("write_file_tool")
-	if strings.TrimSpace(writeDesc) == "" {
-		writeDesc = "write or create a file within the project"
-	}
-	writeWithPolicy := func(ctx context.Context, in *tools.WriteFileInput) (*tools.WriteFileOutput, error) {
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("WriteFile(policy): starting"))
-
-		if in == nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): input is required"))
-			return &tools.WriteFileOutput{
-				Title:  "",
-				Output: "Format error: input is required",
-				Metadata: map[string]string{
-					"error": "format_error",
-				},
-			}, nil
-		}
-
-		p := strings.TrimSpace(in.FilePath)
-		if p == "" {
-			events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): file_path is required"))
-			return &tools.WriteFileOutput{
-				Title:  "",
-				Output: "Format error: file_path is required",
-				Metadata: map[string]string{
-					"error": "format_error",
-				},
-			}, nil
-		}
-
-		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("WriteFile(policy): resolving '%s'", p)))
-		absCandidate, rerr := o.resolveAbsWithinBase(p)
-		if rerr != nil {
-			if rerr.Error() == "project root not set" {
-				events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): project root not set"))
-				return &tools.WriteFileOutput{
-					Title:    "",
-					Output:   "Format error: project root not set",
-					Metadata: map[string]string{"error": "format_error"},
-				}, nil
-			}
-			if strings.Contains(rerr.Error(), "escapes") {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): path escapes the configured project root"))
-				return &tools.WriteFileOutput{
-					Title:    filepath.ToSlash(absCandidate),
-					Output:   "Format error: path escapes the configured project root",
-					Metadata: map[string]string{"error": "format_error"},
-				}, nil
-			}
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): resolve error: %v", rerr)))
-			return nil, rerr
-		}
-
-		// If file exists, enforce prior read
-		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
-			if !o.hasRead(absCandidate) {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): policy violation - must read before write"))
-				return &tools.WriteFileOutput{
-					Title:    filepath.ToSlash(absCandidate),
-					Output:   "Policy error: must read the file before writing",
-					Metadata: map[string]string{"error": "policy_violation"},
-				}, nil
-			}
-		}
-
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): invoking underlying WriteFile for '%s'", filepath.ToSlash(absCandidate))))
-		out, err := tools.WriteFile(ctx, in)
-		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): underlying error: %v", err)))
-			return out, err
-		}
-		title := ""
-		if out != nil && strings.TrimSpace(out.Title) != "" {
-			title = filepath.ToSlash(out.Title)
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): done%s", func() string {
-			if title == "" {
-				return ""
-			}
-			return " for '" + title + "'"
-		}())))
-		return out, nil
-	}
-	writeTool, err := einoUtils.InferTool("write_file_tool", writeDesc, writeWithPolicy)
-	if err != nil {
-		return nil, err
-	}
-
-	// Edit tool with policy checks
-	editDesc := tools.ToolDescription("edit_file_tool")
-	if strings.TrimSpace(editDesc) == "" {
-		editDesc = "edit a file using context-aware string replacement"
-	}
-
-	editWithPolicy := func(ctx context.Context, in *tools.EditInput) (*tools.EditOutput, error) {
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("EditFile(policy): starting"))
-
-		// Validate input
-		if in == nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): input is required"))
-			return &tools.EditOutput{
-				Title:    "",
-				Output:   "Format error: input is required",
-				Metadata: map[string]string{"error": "format_error"},
-			}, nil
-		}
-		p := strings.TrimSpace(in.FilePath)
-		if p == "" {
-			events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): file_path is required"))
-			return &tools.EditOutput{
-				Title:    "",
-				Output:   "Format error: file_path is required",
-				Metadata: map[string]string{"error": "format_error"},
-			}, nil
-		}
-
-		// Resolve absolute path and ensure it is under base
-		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("EditFile(policy): resolving '%s'", p)))
-		absCandidate, rerr := o.resolveAbsWithinBase(p)
-		if rerr != nil {
-			if rerr.Error() == "project root not set" {
-				events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): project root not set"))
-				return &tools.EditOutput{
-					Title:    "",
-					Output:   "Format error: project root not set",
-					Metadata: map[string]string{"error": "format_error"},
-				}, nil
-			}
-			if strings.Contains(rerr.Error(), "escapes") {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): path escapes the configured project root"))
-				return &tools.EditOutput{
-					Title:    filepath.ToSlash(absCandidate),
-					Output:   "Format error: path escapes the configured project root",
-					Metadata: map[string]string{"error": "format_error"},
-				}, nil
-			}
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): resolve error: %v", rerr)))
-			return nil, rerr
-		}
-
-		// If file exists, enforce prior read
-		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
-			if !o.hasRead(absCandidate) {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): policy violation - must read before edit"))
-				return &tools.EditOutput{
-					Title:    filepath.ToSlash(absCandidate),
-					Output:   "Policy error: must read the file before editing",
-					Metadata: map[string]string{"error": "policy_violation"},
-				}, nil
-			}
-		}
-
-		// Invoke underlying Edit tool
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("EditFile(policy): invoking underlying Edit for '%s'", filepath.ToSlash(absCandidate))))
-		out, err := tools.Edit(ctx, in)
-		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): underlying error: %v", err)))
-			return out, err
-		}
-
-		title := ""
-		if out != nil && strings.TrimSpace(out.Title) != "" {
-			title = filepath.ToSlash(out.Title)
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(func() string {
-			if title == "" {
-				return "EditFile(policy): done"
-			}
-			return "EditFile(policy): done for '" + title + "'"
-		}()))
-		return out, nil
-	}
-
-	editTool, err := einoUtils.InferTool("edit_tool", editDesc, editWithPolicy)
-	if err != nil {
-		return nil, err
-	}
-
-	return []tool.BaseTool{listDirectoryTool, readFileTool, globTool, grepTool, writeTool, editTool}, nil
 }
 
 func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.BaseTool, error) {

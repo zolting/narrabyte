@@ -198,32 +198,32 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	return (
 		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
-			<div className="flex shrink-0 items-center justify-end">
-				<Button
-					onClick={() =>
-						navigate({
-							to: "/projects/$projectId/settings",
-							params: { projectId },
-						})
-					}
-					size="sm"
-					variant="outline"
-				>
-					<Settings size={16} />
-					{t("common.settings")}
-				</Button>
-			</div>
 			<section
 				className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4"
 				ref={containerRef}
 			>
-				<header className="shrink-0 space-y-2">
-					<h2 className="font-semibold text-foreground text-lg">
-						{t("common.generateDocs")}
-					</h2>
-					<p className="text-muted-foreground text-sm">
-						{t("common.generateDocsDescription")}
-					</p>
+				<header className="flex shrink-0 items-start justify-between gap-4">
+					<div className="space-y-2">
+						<h2 className="font-semibold text-foreground text-lg">
+							{t("common.generateDocs")}
+						</h2>
+						<p className="text-muted-foreground text-sm">
+							{t("common.generateDocsDescription")}
+						</p>
+					</div>
+					<Button
+						onClick={() =>
+							navigate({
+								to: "/projects/$projectId/settings",
+								params: { projectId },
+							})
+						}
+						size="sm"
+						variant="outline"
+					>
+						<Settings size={16} />
+						{t("common.settings")}
+					</Button>
 				</header>
 
 				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
@@ -319,9 +319,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							activeTab={docManager.activeTab}
 							docResult={docManager.docResult}
 							events={docManager.events}
+							projectId={Number(project.ID)}
 							setActiveTab={docManager.setActiveTab}
 							status={docManager.status}
-							projectId={Number(project.ID)}
 						/>
 					)}
 				</div>

@@ -78,9 +78,9 @@ function ProjectSettings() {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
 	const { projectId } = Route.useParams();
-	const [project, setProject] = useState<
-		models.RepoLink | null | undefined
-	>(undefined);
+	const [project, setProject] = useState<models.RepoLink | null | undefined>(
+		undefined
+	);
 	const [hasLLMInstructions, setHasLLMInstructions] = useState(false);
 	const [docDirectory, setDocDirectory] = useState("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState("");

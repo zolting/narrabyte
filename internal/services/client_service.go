@@ -324,6 +324,11 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		projectID, sourceBranch,
 	)))
 
+	// Ensure LLM client is initialized
+	if s.LLMClient == nil {
+		return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first")
+	}
+
 	project, err := s.repoLinks.Get(projectID)
 	if err != nil {
 		return nil, err

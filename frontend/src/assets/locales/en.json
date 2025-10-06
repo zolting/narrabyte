@@ -38,6 +38,7 @@
     "submit": "Submit",
     "noEvents": "No tool activity yet.",
     "files": "Files",
+    "updated": "Updated",
     "selectFile": "Select a file to preview the diff.",
     "selectFileAction": "Select File",
     "noDocumentationChanges": "No documentation changes were produced for this diff.",
