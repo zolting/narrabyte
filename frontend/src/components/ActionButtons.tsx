@@ -55,6 +55,7 @@ export const ActionButtons = ({
 }: ActionButtonsProps) => {
 	const { t } = useTranslation();
 	const [showMergeConfirm, setShowMergeConfirm] = useState(false);
+	const [showApproveConfirm, setShowApproveConfirm] = useState(false);
 
 	return (
 		<footer className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -158,11 +159,39 @@ export const ActionButtons = ({
 						<Button
 							className="gap-2 font-semibold disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
 							disabled={!canCommit}
-							onClick={onCommit}
+							onClick={() => setShowApproveConfirm(true)}
 						>
-							{t("common.commit")}
+							{t("common.approve")}
 							<ArrowRight className="h-4 w-4" />
 						</Button>
+						<AlertDialog
+							onOpenChange={setShowApproveConfirm}
+							open={showApproveConfirm}
+						>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>
+										{t("common.confirmApprovalTitle")}
+									</AlertDialogTitle>
+									<AlertDialogDescription>
+										{t("common.confirmApprovalDescription")}
+									</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel>
+										{t("common.cancel")}
+									</AlertDialogCancel>
+									<AlertDialogAction
+										onClick={() => {
+											setShowApproveConfirm(false);
+											onCommit();
+										}}
+									>
+										{t("common.approve")}
+									</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
 					</>
 				) : (
 					<Button

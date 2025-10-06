@@ -48,7 +48,10 @@
     "startNewTask": "Commencer une nouvelle tâche de documentation",
     "delete": "Supprimer",
     "mergeDisabledUncommittedChanges": "Impossible de fusionner : Vous êtes actuellement sur la branche source avec des modifications non validées. Veuillez d'abord valider ou remiser vos modifications.",
-    "mergeDocsIntoSource": "Fusionner la documentation dans la source"
+    "mergeDocsIntoSource": "Fusionner la documentation dans la source",
+    "approve": "Approuver",
+    "confirmApprovalTitle": "Approuver les modifications de la documentation ?",
+    "confirmApprovalDescription": "La documentation a été automatiquement validée. Cliquez sur Approuver pour confirmer et voir le message de succès."
   },
   "projectManager": {
     "addProject": "Ajouter un projet",
