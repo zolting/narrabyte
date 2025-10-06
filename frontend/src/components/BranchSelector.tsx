@@ -5,7 +5,7 @@ import {
 	CheckIcon,
 	ChevronsUpDownIcon,
 } from "lucide-react";
-import { useId } from "react";
+import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,9 +66,19 @@ export const BranchSelector = ({
 
 	const canSwap = Boolean(sourceBranch && targetBranch);
 
+	const availableSourceBranches = useMemo(
+		() => branches.filter((b) => b.name !== targetBranch),
+		[branches, targetBranch]
+	);
+
+	const availableTargetBranches = useMemo(
+		() => branches.filter((b) => b.name !== sourceBranch),
+		[branches, sourceBranch]
+	);
+
 	return (
-		<div className="flex items-center gap-3">
-			<div className="flex-1 space-y-2 rounded-lg border border-border/50 bg-muted/30 p-3">
+		<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+			<div className="min-w-0 space-y-2 rounded-lg border border-border/50 bg-muted/30 p-3">
 				<Label
 					className="text-muted-foreground text-xs"
 					htmlFor={sourceBranchComboboxId}
@@ -107,28 +117,24 @@ export const BranchSelector = ({
 							<CommandList className="max-h-[200px]" id={sourceBranchListId}>
 								<CommandEmpty>No branch found.</CommandEmpty>
 								<CommandGroup>
-									{branches
-										.filter((b) => b.name !== targetBranch)
-										.map((b) => (
-											<CommandItem
-												key={b.name}
-												onSelect={(currentValue) => {
-													setSourceBranch(currentValue);
-													setSourceOpen(false);
-												}}
-												value={b.name}
-											>
-												<CheckIcon
-													className={cn(
-														"mr-2 h-4 w-4",
-														sourceBranch === b.name
-															? "opacity-100"
-															: "opacity-0"
-													)}
-												/>
-												{b.name}
-											</CommandItem>
-										))}
+									{availableSourceBranches.map((b) => (
+										<CommandItem
+											key={b.name}
+											onSelect={(currentValue) => {
+												setSourceBranch(currentValue);
+												setSourceOpen(false);
+											}}
+											value={b.name}
+										>
+											<CheckIcon
+												className={cn(
+													"mr-2 h-4 w-4",
+													sourceBranch === b.name ? "opacity-100" : "opacity-0"
+												)}
+											/>
+											{b.name}
+										</CommandItem>
+									))}
 								</CommandGroup>
 							</CommandList>
 						</Command>
@@ -150,7 +156,7 @@ export const BranchSelector = ({
 				</Button>
 			</div>
 
-			<div className="flex-1 space-y-2 rounded-lg border border-border/50 bg-accent/30 p-3">
+			<div className="min-w-0 space-y-2 rounded-lg border border-border/50 bg-accent/30 p-3">
 				<Label
 					className="text-muted-foreground text-xs"
 					htmlFor={targetBranchComboboxId}
@@ -189,28 +195,24 @@ export const BranchSelector = ({
 							<CommandList className="max-h-[200px]" id={targetBranchListId}>
 								<CommandEmpty>No branch found.</CommandEmpty>
 								<CommandGroup>
-									{branches
-										.filter((b) => b.name !== sourceBranch)
-										.map((b) => (
-											<CommandItem
-												key={b.name}
-												onSelect={(currentValue) => {
-													setTargetBranch(currentValue);
-													setTargetOpen(false);
-												}}
-												value={b.name}
-											>
-												<CheckIcon
-													className={cn(
-														"mr-2 h-4 w-4",
-														targetBranch === b.name
-															? "opacity-100"
-															: "opacity-0"
-													)}
-												/>
-												{b.name}
-											</CommandItem>
-										))}
+									{availableTargetBranches.map((b) => (
+										<CommandItem
+											key={b.name}
+											onSelect={(currentValue) => {
+												setTargetBranch(currentValue);
+												setTargetOpen(false);
+											}}
+											value={b.name}
+										>
+											<CheckIcon
+												className={cn(
+													"mr-2 h-4 w-4",
+													targetBranch === b.name ? "opacity-100" : "opacity-0"
+												)}
+											/>
+											{b.name}
+										</CommandItem>
+									))}
 								</CommandGroup>
 							</CommandList>
 						</Command>

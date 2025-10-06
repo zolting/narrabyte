@@ -9,6 +9,21 @@ export const useBranchManager = (repoPath: string | undefined) => {
 	const [sourceOpen, setSourceOpen] = useState(false);
 	const [targetOpen, setTargetOpen] = useState(false);
 
+	const resetBranches = useCallback(() => {
+		setSourceBranch(undefined);
+		setTargetBranch(undefined);
+		setSourceOpen(false);
+		setTargetOpen(false);
+	}, []);
+
+	const swapBranches = useCallback(() => {
+		setSourceBranch((currentSource) => {
+			const next = targetBranch;
+			setTargetBranch(currentSource);
+			return next;
+		});
+	}, [targetBranch]);
+
 	// Fetch branches when repoPath changes
 	useEffect(() => {
 		if (!repoPath) {
@@ -38,21 +53,6 @@ export const useBranchManager = (repoPath: string | undefined) => {
 			isActive = false;
 		};
 	}, [repoPath]);
-
-	const swapBranches = useCallback(() => {
-		setSourceBranch((currentSource) => {
-			const next = targetBranch;
-			setTargetBranch(currentSource);
-			return next;
-		});
-	}, [targetBranch]);
-
-	const resetBranches = useCallback(() => {
-		setSourceBranch(undefined);
-		setTargetBranch(undefined);
-		setSourceOpen(false);
-		setTargetOpen(false);
-	}, []);
 
 	return {
 		branches,
