@@ -47,7 +47,8 @@
     "documentationAvailable": "La documentation est maintenant disponible dans la branche",
     "startNewTask": "Commencer une nouvelle tâche de documentation",
     "delete": "Supprimer",
-    "mergeDisabledUncommittedChanges": "Impossible de fusionner : Vous êtes actuellement sur la branche source avec des modifications non validées. Veuillez d'abord valider ou remiser vos modifications."
+    "mergeDisabledUncommittedChanges": "Impossible de fusionner : Vous êtes actuellement sur la branche source avec des modifications non validées. Veuillez d'abord valider ou remiser vos modifications.",
+    "mergeDocsIntoSource": "Fusionner la documentation dans la source"
   },
   "projectManager": {
     "addProject": "Ajouter un projet",

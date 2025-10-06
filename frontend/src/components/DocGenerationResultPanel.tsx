@@ -136,14 +136,6 @@ export function DocGenerationResultPanel({
 								{result.docsBranch}
 							</p>
 						)}
-						{result.docsInCodeRepo && (
-							<p className="text-emerald-600">
-								{t(
-									"common.docsSharedWithCode",
-									"Documentation changes were generated directly inside the code repository"
-								)}
-							</p>
-						)}
 					</div>
 				</div>
 				<div>

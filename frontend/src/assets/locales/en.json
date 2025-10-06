@@ -47,7 +47,8 @@
     "documentationAvailable": "Documentation is now available in branch",
     "startNewTask": "Start New Documentation Task",
     "delete": "Delete",
-    "mergeDisabledUncommittedChanges": "Cannot merge: You are currently on the source branch with uncommitted changes. Please commit or stash your changes first."
+    "mergeDisabledUncommittedChanges": "Cannot merge: You are currently on the source branch with uncommitted changes. Please commit or stash your changes first.",
+    "mergeDocsIntoSource": "Merge Docs into Source"
   },
   "projectManager": {
     "addProject": "Add Project",
