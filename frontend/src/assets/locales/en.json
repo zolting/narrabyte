@@ -51,7 +51,8 @@
     "mergeDocsIntoSource": "Merge Docs into Source",
     "approve": "Approve",
     "confirmApprovalTitle": "Approve Documentation Changes?",
-    "confirmApprovalDescription": "The documentation has been automatically committed. Click Approve to confirm and view the success message."
+    "confirmApprovalDescription": "The documentation has been automatically committed. Click Approve to confirm and view the success message.",
+    "docsBranch": "Documentation branch"
   },
   "projectManager": {
     "addProject": "Add Project",

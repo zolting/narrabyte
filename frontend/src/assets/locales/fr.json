@@ -51,7 +51,8 @@
     "mergeDocsIntoSource": "Fusionner la documentation dans la source",
     "approve": "Approuver",
     "confirmApprovalTitle": "Approuver les modifications de la documentation ?",
-    "confirmApprovalDescription": "La documentation a été automatiquement validée. Cliquez sur Approuver pour confirmer et voir le message de succès."
+    "confirmApprovalDescription": "La documentation a été automatiquement validée. Cliquez sur Approuver pour confirmer et voir le message de succès.",
+    "docsBranch": "Branche de documentation"
   },
   "projectManager": {
     "addProject": "Ajouter un projet",
