@@ -113,6 +113,7 @@
   "sidebar": {
     "home": "Accueil",
     "projects": "Projets",
+    "searchProjects": "Rechercher...",
     "settings": "Paramètres",
     "loading": "Chargement…",
     "noProjects": "Aucun projet",

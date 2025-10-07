@@ -59,73 +59,87 @@ function Settings() {
 	};
 
 	return (
-		<div className="flex min-h-screen flex-col items-center bg-background p-8 font-mono">
-			<div className="w-full max-w-2xl space-y-6">
-				<h1 className="text-center font-bold text-2xl">
-					{t("settings.title")}
-				</h1>
+		<div className="min-h-screen w-full overflow-x-hidden bg-background font-mono">
+			<div className="mx-auto w-full max-w-4xl px-6 py-12">
+				<div className="mb-8">
+					<Button
+						className="mb-6"
+						onClick={() => window.history.back()}
+						size="sm"
+						variant="ghost"
+					>
+						<ArrowLeft className="mr-2 h-4 w-4" />
+						{t("common.goBack")}
+					</Button>
+					<h1 className="font-bold text-4xl tracking-tight">
+						{t("settings.title")}
+					</h1>
+				</div>
 
-				<Card>
-					<CardHeader>
-						<CardTitle>{t("settings.preferences")}</CardTitle>
-						<CardDescription>
-							{t("settings.preferencesDescription")}
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="flex items-center justify-between">
-							<span className="font-medium text-sm">{t("settings.theme")}</span>
-							<Select
-								disabled={isLoading}
-								onValueChange={(value) => setTheme(value as AppTheme)}
-								value={theme}
-							>
-								<SelectTrigger className="w-[180px]">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="light">{t("settings.light")}</SelectItem>
-									<SelectItem value="dark">{t("settings.dark")}</SelectItem>
-									<SelectItem value="system">{t("settings.system")}</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
+				<div className="space-y-8">
+					<Card>
+						<CardHeader>
+							<CardTitle>{t("settings.preferences")}</CardTitle>
+							<CardDescription>
+								{t("settings.preferencesDescription")}
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-6">
+							<div className="flex items-center justify-between">
+								<div>
+									<div className="font-medium">{t("settings.theme")}</div>
+									<div className="text-muted-foreground text-sm">
+										Choose your interface theme
+									</div>
+								</div>
+								<Select
+									disabled={isLoading}
+									onValueChange={(value) => setTheme(value as AppTheme)}
+									value={theme}
+								>
+									<SelectTrigger className="w-[180px]">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="light">{t("settings.light")}</SelectItem>
+										<SelectItem value="dark">{t("settings.dark")}</SelectItem>
+										<SelectItem value="system">
+											{t("settings.system")}
+										</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
 
-						<div className="flex items-center justify-between">
-							<span className="font-medium text-sm">
-								{t("settings.language")}
-							</span>
-							<Select
-								disabled={isLoading}
-								onValueChange={setLocale}
-								value={locale}
-							>
-								<SelectTrigger className="w-[180px]">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="en">English</SelectItem>
-									<SelectItem value="fr">Français</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-					</CardContent>
-				</Card>
+							<div className="flex items-center justify-between">
+								<div>
+									<div className="font-medium">{t("settings.language")}</div>
+									<div className="text-muted-foreground text-sm">
+										Select your preferred language
+									</div>
+								</div>
+								<Select
+									disabled={isLoading}
+									onValueChange={setLocale}
+									value={locale}
+								>
+									<SelectTrigger className="w-[180px]">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="en">English</SelectItem>
+										<SelectItem value="fr">Français</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+						</CardContent>
+					</Card>
 
-				<ApiKeyManager
-					onAddClick={handleAddClick}
-					onEditClick={handleEditClick}
-					ref={apiKeyManagerRef}
-				/>
-
-				<Button
-					className="w-full"
-					onClick={() => window.history.back()}
-					variant="outline"
-				>
-					<ArrowLeft size={16} />
-					{t("common.goBack")}
-				</Button>
+					<ApiKeyManager
+						onAddClick={handleAddClick}
+						onEditClick={handleEditClick}
+						ref={apiKeyManagerRef}
+					/>
+				</div>
 
 				<AddApiKeyDialog
 					editProvider={editingProvider}

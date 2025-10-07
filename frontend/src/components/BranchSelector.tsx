@@ -1,6 +1,11 @@
 import type { models } from "@go/models";
-import { ArrowRightLeft, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
-import { useId } from "react";
+import {
+	ArrowRight,
+	ArrowRightLeft,
+	CheckIcon,
+	ChevronsUpDownIcon,
+} from "lucide-react";
+import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,11 +64,23 @@ export const BranchSelector = ({
 	const targetBranchComboboxId = useId();
 	const targetBranchListId = useId();
 
+	const canSwap = Boolean(sourceBranch && targetBranch);
+
+	const availableSourceBranches = useMemo(
+		() => branches.filter((b) => b.name !== targetBranch),
+		[branches, targetBranch]
+	);
+
+	const availableTargetBranches = useMemo(
+		() => branches.filter((b) => b.name !== sourceBranch),
+		[branches, sourceBranch]
+	);
+
 	return (
-		<div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-end gap-4">
-			<div className="grid min-w-0 gap-2">
+		<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+			<div className="min-w-0 space-y-2 rounded-lg border border-border/50 bg-muted/30 p-3">
 				<Label
-					className="mb-1 text-foreground"
+					className="text-muted-foreground text-xs"
 					htmlFor={sourceBranchComboboxId}
 				>
 					{t("common.sourceBranch")}
@@ -100,28 +117,24 @@ export const BranchSelector = ({
 							<CommandList className="max-h-[200px]" id={sourceBranchListId}>
 								<CommandEmpty>No branch found.</CommandEmpty>
 								<CommandGroup>
-									{branches
-										.filter((b) => b.name !== targetBranch)
-										.map((b) => (
-											<CommandItem
-												key={b.name}
-												onSelect={(currentValue) => {
-													setSourceBranch(currentValue);
-													setSourceOpen(false);
-												}}
-												value={b.name}
-											>
-												<CheckIcon
-													className={cn(
-														"mr-2 h-4 w-4",
-														sourceBranch === b.name
-															? "opacity-100"
-															: "opacity-0"
-													)}
-												/>
-												{b.name}
-											</CommandItem>
-										))}
+									{availableSourceBranches.map((b) => (
+										<CommandItem
+											key={b.name}
+											onSelect={(currentValue) => {
+												setSourceBranch(currentValue);
+												setSourceOpen(false);
+											}}
+											value={b.name}
+										>
+											<CheckIcon
+												className={cn(
+													"mr-2 h-4 w-4",
+													sourceBranch === b.name ? "opacity-100" : "opacity-0"
+												)}
+											/>
+											{b.name}
+										</CommandItem>
+									))}
 								</CommandGroup>
 							</CommandList>
 						</Command>
@@ -129,20 +142,23 @@ export const BranchSelector = ({
 				</Popover>
 			</div>
 
-			<Button
-				aria-label={t("common.swapBranches")}
-				className="h-10 w-10 p-1 hover:bg-accent"
-				disabled={disableControls || branches.length < 2}
-				onClick={swapBranches}
-				type="button"
-				variant="secondary"
-			>
-				<ArrowRightLeft className="h-4 w-4" />
-			</Button>
+			<div className="flex shrink-0 flex-col items-center gap-1">
+				<ArrowRight className="h-5 w-5 text-muted-foreground" />
+				<Button
+					aria-label={t("common.swapBranches")}
+					className="h-7 w-7 p-0"
+					disabled={disableControls || !canSwap}
+					onClick={swapBranches}
+					type="button"
+					variant="ghost"
+				>
+					<ArrowRightLeft className="h-3.5 w-3.5" />
+				</Button>
+			</div>
 
-			<div className="grid min-w-0 gap-2">
+			<div className="min-w-0 space-y-2 rounded-lg border border-border/50 bg-accent/30 p-3">
 				<Label
-					className="mb-1 text-foreground"
+					className="text-muted-foreground text-xs"
 					htmlFor={targetBranchComboboxId}
 				>
 					{t("common.targetBranch")}
@@ -179,28 +195,24 @@ export const BranchSelector = ({
 							<CommandList className="max-h-[200px]" id={targetBranchListId}>
 								<CommandEmpty>No branch found.</CommandEmpty>
 								<CommandGroup>
-									{branches
-										.filter((b) => b.name !== sourceBranch)
-										.map((b) => (
-											<CommandItem
-												key={b.name}
-												onSelect={(currentValue) => {
-													setTargetBranch(currentValue);
-													setTargetOpen(false);
-												}}
-												value={b.name}
-											>
-												<CheckIcon
-													className={cn(
-														"mr-2 h-4 w-4",
-														targetBranch === b.name
-															? "opacity-100"
-															: "opacity-0"
-													)}
-												/>
-												{b.name}
-											</CommandItem>
-										))}
+									{availableTargetBranches.map((b) => (
+										<CommandItem
+											key={b.name}
+											onSelect={(currentValue) => {
+												setTargetBranch(currentValue);
+												setTargetOpen(false);
+											}}
+											value={b.name}
+										>
+											<CheckIcon
+												className={cn(
+													"mr-2 h-4 w-4",
+													targetBranch === b.name ? "opacity-100" : "opacity-0"
+												)}
+											/>
+											{b.name}
+										</CommandItem>
+									))}
 								</CommandGroup>
 							</CommandList>
 						</Command>

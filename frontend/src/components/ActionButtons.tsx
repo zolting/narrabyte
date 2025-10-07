@@ -70,12 +70,7 @@ export const ActionButtons = ({
 						{t("common.cancel")}
 					</Button>
 				)}
-				<Button
-					className="border-border text-foreground hover:bg-accent"
-					disabled={isBusy}
-					onClick={onReset}
-					variant="outline"
-				>
+				<Button disabled={isBusy} onClick={onReset} variant="outline">
 					{t("common.reset")}
 				</Button>
 				{docResult ? (
@@ -87,7 +82,7 @@ export const ActionButtons = ({
 										<TooltipTrigger asChild>
 											<div>
 												<Button
-													className="gap-2 border-border text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+													className="gap-2 disabled:cursor-not-allowed disabled:border disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
 													disabled={!canMerge}
 													onClick={() => setShowMergeConfirm(true)}
 													variant="outline"
