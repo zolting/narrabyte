@@ -56,8 +56,8 @@ function RootLayout() {
 				<Toaster />
 				<ThemeSync />
 				<AppSidebar />
-				<SidebarInset className="flex flex-col">
-					<main>
+				<SidebarInset className="flex w-full flex-col overflow-x-hidden">
+					<main className="w-full overflow-x-hidden">
 						<ProjectCacheHost />
 						<Outlet />
 						<TanStackRouterDevtools position="bottom-right" />

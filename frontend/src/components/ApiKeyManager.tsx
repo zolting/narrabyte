@@ -131,7 +131,7 @@ const ApiKeyManager = forwardRef<ApiKeyManagerHandle, ApiKeyManagerProps>(
 		}));
 
 		return (
-			<Card>
+			<Card className="overflow-hidden">
 				<CardHeader>
 					<div className="flex items-center justify-between">
 						<div>
@@ -153,7 +153,7 @@ const ApiKeyManager = forwardRef<ApiKeyManagerHandle, ApiKeyManagerProps>(
 						</Button>
 					</div>
 				</CardHeader>
-				<CardContent>
+				<CardContent className="overflow-hidden">
 					{loading && (
 						<div className="text-center text-muted-foreground text-sm">
 							{t("settings.loading")}
@@ -165,21 +165,21 @@ const ApiKeyManager = forwardRef<ApiKeyManagerHandle, ApiKeyManagerProps>(
 						</div>
 					)}
 					{!loading && apiKeys.length > 0 && (
-						<div className="space-y-2">
+						<div className="space-y-2 overflow-hidden">
 							{apiKeys.map((key) => (
 								<div
-									className="flex items-center justify-between gap-3 rounded-lg border p-3"
+									className="flex items-center gap-3 overflow-hidden rounded-lg border p-3"
 									key={key.provider}
 								>
 									<div className="min-w-0 flex-1">
 										<div className="font-medium">{key.provider}</div>
-										<div className="mt-1 truncate font-mono text-sm">
+										<div className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-sm">
 											{revealedKeys.has(key.provider)
 												? visibleKeys[key.provider] || "***"
 												: "••••••••••••••••"}
 										</div>
 									</div>
-									<div className="flex gap-1">
+									<div className="flex shrink-0 gap-1">
 										<Button
 											onClick={() => toggleKeyVisibility(key.provider)}
 											size="sm"
