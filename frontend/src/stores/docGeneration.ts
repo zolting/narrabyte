@@ -1,15 +1,15 @@
 import type { models } from "@go/models";
-import i18n from "i18next";
-import { parseDiff } from "react-diff-view";
-import { create } from "zustand";
-import { type DemoEvent, demoEventSchema } from "@/types/events";
 import {
 	CommitDocs,
 	GenerateDocs,
 	MergeDocsIntoSource,
 	RefineDocs,
 	StopStream,
-} from "../../wailsjs/go/services/ClientService";
+} from "@go/services/ClientService";
+import i18n from "i18next";
+import { parseDiff } from "react-diff-view";
+import { create } from "zustand";
+import { type DemoEvent, demoEventSchema } from "@/types/events";
 import { EventsOn } from "../../wailsjs/runtime";
 
 export type DocGenerationStatus =
@@ -25,6 +25,7 @@ type StartArgs = {
 	sourceBranch: string;
 	targetBranch: string;
 	provider: string;
+	userInstructions: string;
 };
 
 type CommitArgs = {
@@ -242,6 +243,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			sourceBranch,
 			targetBranch,
 			provider,
+			userInstructions,
 		}: StartArgs) => {
 			const key = toKey(projectId);
 			const currentState = get().docStates[key] ?? EMPTY_DOC_STATE;
@@ -302,7 +304,8 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					projectId,
 					sourceBranch,
 					targetBranch,
-					provider
+					provider,
+					userInstructions
 				);
 				setDocState(key, {
 					result,

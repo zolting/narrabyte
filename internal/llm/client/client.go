@@ -31,6 +31,64 @@ import (
 
 const llmInstructionsNamePrefix = "llm_instructions"
 
+type promptBuilderConfig struct {
+	ProjectName   string
+	DocRoot       string
+	CodeRoot      string
+	DocListing    string
+	CodeListing   string
+	ProjectInstr  string
+	SpecificInstr string
+	ExtraContext  map[string]string // For additional sections like "Source branch", "Changed Files", etc.
+}
+
+// buildPromptWithInstructions constructs a prompt with common sections for documentation tasks
+func buildPromptWithInstructions(ctx context.Context, cfg promptBuilderConfig) string {
+	var b strings.Builder
+
+	// Section 1: Custom Instructions
+	if strings.TrimSpace(cfg.ProjectInstr) != "" {
+		b.WriteString("# Project-specific documentation instructions\n")
+		b.WriteString(strings.TrimSpace(cfg.ProjectInstr))
+		b.WriteString("\n\n")
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("added repo instructions"))
+	}
+
+	if strings.TrimSpace(cfg.SpecificInstr) != "" {
+		b.WriteString("# Generation-specific documentation instructions\n")
+		b.WriteString(strings.TrimSpace(cfg.SpecificInstr))
+		b.WriteString("\n\n")
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("added specific instructions"))
+	}
+
+	// Section 2: Project Context
+	b.WriteString("# Project Context\n")
+	b.WriteString(fmt.Sprintf("Project: %s\n", strings.TrimSpace(cfg.ProjectName)))
+
+	// Add extra context fields if provided
+	for key, value := range cfg.ExtraContext {
+		if strings.TrimSpace(value) != "" {
+			b.WriteString(fmt.Sprintf("%s: %s\n", key, strings.TrimSpace(value)))
+		}
+	}
+
+	b.WriteString(fmt.Sprintf("Documentation repository root: %s\n", filepath.ToSlash(cfg.DocRoot)))
+	b.WriteString(fmt.Sprintf("Codebase repository root: %s\n\n", filepath.ToSlash(cfg.CodeRoot)))
+
+	// Section 3: Repository Structure
+	b.WriteString("# Repository Structure\n\n")
+	b.WriteString("## Documentation Repository\n")
+	b.WriteString("<documentation_repo_listing>\n")
+	b.WriteString(cfg.DocListing)
+	b.WriteString("\n</documentation_repo_listing>\n\n")
+	b.WriteString("## Codebase Repository\n")
+	b.WriteString("<codebase_repo_listing>\n")
+	b.WriteString(cfg.CodeListing)
+	b.WriteString("\n</codebase_repo_listing>\n\n")
+
+	return b.String()
+}
+
 type LLMClient struct {
 	chatModel       model.ToolCallingChatModel
 	Key             string
@@ -63,6 +121,7 @@ type DocGenerationRequest struct {
 	SourceCommit         string
 	Diff                 string
 	ChangedFiles         []string
+	SpecificInstr        string
 }
 
 type DocRefineRequest struct {
@@ -72,6 +131,7 @@ type DocRefineRequest struct {
 	DocumentationRelPath string
 	SourceBranch         string
 	Instruction          string
+	SpecificInstr        string
 }
 
 type DocGenerationResponse struct {
@@ -260,17 +320,14 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		return nil, err
 	}
 
-	systemPrompt, err := o.loadPrompt("generate_docs.txt")
+	systemInstr, err := o.loadPrompt("generate_docs.txt")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load system instructions: %w", err)
 	}
 
-	if repoInstr, ierr := o.loadRepoLLMInstructions(docRoot); ierr == nil && strings.TrimSpace(repoInstr) != "" {
-		// Prepend repo-specific instructions so they take priority
-		systemPrompt = systemPrompt + "\n\n# User-provided documentation instructions\n" + strings.TrimSpace(repoInstr)
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("loaded repo llm instructions"))
-	} else if ierr != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo llm instructions: %v", ierr)))
+	projectInstr, repoErr := o.loadRepoLLMInstructions(docRoot)
+	if repoErr != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo LLM instructions: %v", repoErr)))
 	}
 
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
@@ -282,7 +339,7 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		},
 		Name:          "Documentation Assistant",
 		Description:   "Analyzes code diffs and proposes documentation updates",
-		Instruction:   systemPrompt,
+		Instruction:   systemInstr,
 		MaxIterations: 100,
 	})
 	if err != nil {
@@ -300,28 +357,35 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		changedList = strings.TrimSpace(b.String())
 	}
 
-	var promptBuilder strings.Builder
-	promptBuilder.WriteString(fmt.Sprintf("Project: %s\n", strings.TrimSpace(req.ProjectName)))
-	promptBuilder.WriteString(fmt.Sprintf("Source branch: %s\n", strings.TrimSpace(req.SourceBranch)))
-	if commit := strings.TrimSpace(req.SourceCommit); commit != "" {
-		promptBuilder.WriteString(fmt.Sprintf("Source branch commit: %s\n", commit))
+	extraContext := map[string]string{
+		"Source branch": req.SourceBranch,
+		"Target branch": req.TargetBranch,
 	}
-	promptBuilder.WriteString(fmt.Sprintf("Target branch: %s\n\n", strings.TrimSpace(req.TargetBranch)))
-	promptBuilder.WriteString("Documentation repository root: \n")
-	promptBuilder.WriteString(filepath.ToSlash(docRoot))
-	promptBuilder.WriteString("\n\n")
-	promptBuilder.WriteString("Codebase repository root: \n")
-	promptBuilder.WriteString(filepath.ToSlash(codeRoot))
-	promptBuilder.WriteString("\n\n")
-	promptBuilder.WriteString("Changed source files (relative to codebase root):\n")
+	if commit := strings.TrimSpace(req.SourceCommit); commit != "" {
+		extraContext["Source commit"] = commit
+	}
+
+	prompt := buildPromptWithInstructions(ctx, promptBuilderConfig{
+		ProjectName:   req.ProjectName,
+		DocRoot:       docRoot,
+		CodeRoot:      codeRoot,
+		DocListing:    docListing,
+		CodeListing:   codeListing,
+		ProjectInstr:  projectInstr,
+		SpecificInstr: req.SpecificInstr,
+		ExtraContext:  extraContext,
+	})
+
+	var promptBuilder strings.Builder
+	promptBuilder.WriteString(prompt)
+
+	// Section 4: Changed Files
+	promptBuilder.WriteString("# Changed Files\n")
 	promptBuilder.WriteString(changedList)
 	promptBuilder.WriteString("\n\n")
-	promptBuilder.WriteString("<documentation_repo_listing>\n")
-	promptBuilder.WriteString(docListing)
-	promptBuilder.WriteString("\n</documentation_repo_listing>\n\n")
-	promptBuilder.WriteString("<codebase_repo_listing>\n")
-	promptBuilder.WriteString(codeListing)
-	promptBuilder.WriteString("\n</codebase_repo_listing>\n\n")
+
+	// Section 5: Code Changes
+	promptBuilder.WriteString("# Code Changes\n")
 	promptBuilder.WriteString("<git_diff>\n")
 	promptBuilder.WriteString(req.Diff)
 	promptBuilder.WriteString("\n</git_diff>")
@@ -448,6 +512,11 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 		return nil, err
 	}
 
+	projectInstr, repoErr := o.loadRepoLLMInstructions(docRoot)
+	if repoErr != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo LLM instructions: %v", repoErr)))
+	}
+
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Model: o.chatModel,
 		ToolsConfig: adk.ToolsConfig{
@@ -463,23 +532,30 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 		return nil, err
 	}
 
-	var b strings.Builder
-	b.WriteString(fmt.Sprintf("Project: %s\n", strings.TrimSpace(req.ProjectName)))
+	extraContext := map[string]string{}
 	if sb := strings.TrimSpace(req.SourceBranch); sb != "" {
-		b.WriteString(fmt.Sprintf("Docs branch: %s\n", sb))
+		extraContext["Docs branch"] = sb
 	}
-	b.WriteString("Documentation repository root:\n")
-	b.WriteString(filepath.ToSlash(docRoot))
-	b.WriteString("\n\n")
-	b.WriteString("Codebase repository root:\n")
-	b.WriteString(filepath.ToSlash(codeRoot))
-	b.WriteString("\n\n")
-	b.WriteString("<documentation_repo_listing>\n")
-	b.WriteString(docListing)
-	b.WriteString("\n</documentation_repo_listing>\n\n")
-	b.WriteString("<codebase_repo_listing>\n")
-	b.WriteString(codeListing)
-	b.WriteString("\n</codebase_repo_listing>\n\n")
+
+	prompt := buildPromptWithInstructions(ctx, promptBuilderConfig{
+		ProjectName:   req.ProjectName,
+		DocRoot:       docRoot,
+		CodeRoot:      codeRoot,
+		DocListing:    docListing,
+		CodeListing:   codeListing,
+		ProjectInstr:  projectInstr,
+		SpecificInstr: req.SpecificInstr,
+		ExtraContext:  extraContext,
+	})
+
+	var b strings.Builder
+	b.WriteString(prompt)
+
+	// Section 4: User Instruction
+	b.WriteString("# User Refinement Request\n\n")
+	b.WriteString("The user is requesting specific changes to the documentation. ")
+	b.WriteString("Focus on applying the requested edits directly. ")
+	b.WriteString("You have access to both repositories if needed, but prioritize making the requested documentation changes efficiently.\n\n")
 	b.WriteString("<user_instruction>\n")
 	b.WriteString(strings.TrimSpace(req.Instruction))
 	b.WriteString("\n</user_instruction>")

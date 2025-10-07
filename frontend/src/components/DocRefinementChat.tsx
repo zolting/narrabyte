@@ -2,6 +2,7 @@ import { Send } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 
@@ -122,8 +123,8 @@ export function DocRefinementChat({
 					</div>
 
 					<div className="relative flex overflow-hidden border-2 border-border">
-						<textarea
-							className="flex-1 resize-none border-0 bg-background px-3 py-2 text-xs outline-none disabled:opacity-60"
+						<Textarea
+							className="flex-1 resize-none border-0 px-3 py-2 text-xs shadow-none outline-none focus-visible:ring-0"
 							disabled={disabled}
 							onChange={(e) => setInput(e.target.value)}
 							onKeyDown={(e) => {
