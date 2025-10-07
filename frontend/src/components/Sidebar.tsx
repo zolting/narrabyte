@@ -371,14 +371,14 @@ function AppSidebarContent() {
 				<SidebarTrigger />
 			</SidebarHeader>
 
-			<SidebarContent className="pt-4">
-				<SidebarGroup>
+			<SidebarContent className="pt-2">
+				<SidebarGroup className="pb-2">
 					<SidebarMenu>
 						<SidebarMenuItem>
 							<SidebarMenuButton
 								asChild
 								isActive={location.pathname === "/"}
-								size="sm"
+								size="default"
 								tooltip={t("sidebar.home")}
 							>
 								<Link to="/">
@@ -389,7 +389,7 @@ function AppSidebarContent() {
 						</SidebarMenuItem>
 					</SidebarMenu>
 				</SidebarGroup>
-				<SidebarGroup>
+				<SidebarGroup className="border-sidebar-border border-t pt-2">
 					<div className="mb-2 space-y-2">
 						<div className="flex items-center justify-between px-2">
 							<SidebarGroupLabel className="mb-0 flex-1 p-0 font-semibold text-sidebar-foreground">
