@@ -522,7 +522,7 @@ function AppSidebarContent() {
 						<SidebarMenuButton
 							asChild
 							isActive={location.pathname === "/settings"}
-							size="sm"
+							size="default"
 							tooltip={t("sidebar.settings")}
 						>
 							<Link to="/settings">
