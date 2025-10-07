@@ -32,7 +32,6 @@ import {
 	Search,
 	Settings,
 	Trash2,
-	X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -399,10 +398,7 @@ function AppSidebarContent() {
 									<Input
 										className="h-7 pr-2 pl-8 text-xs"
 										onChange={(e) => setSearchQuery(e.target.value)}
-										placeholder={t(
-											"sidebar.searchProjects",
-											"Search projects..."
-										)}
+										placeholder={t("sidebar.searchProjects")}
 										type="search"
 										value={searchQuery}
 									/>
@@ -411,9 +407,7 @@ function AppSidebarContent() {
 											className="-translate-y-1/2 absolute top-1/2 right-2 rounded-sm text-muted-foreground hover:text-foreground"
 											onClick={() => setSearchQuery("")}
 											type="button"
-										>
-											<X size={14} />
-										</button>
+										/>
 									)}
 								</div>
 							</div>

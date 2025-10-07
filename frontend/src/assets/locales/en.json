@@ -110,6 +110,7 @@
   "sidebar": {
     "home": "Home",
     "projects": "Projects",
+    "searchProjects": "Search...",
     "settings": "Settings",
     "loading": "Loading…",
     "noProjects": "No projects",
