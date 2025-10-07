@@ -28,6 +28,7 @@ import {
 	Folder,
 	Folders,
 	GripVertical,
+	Home,
 	Plus,
 	Search,
 	Settings,
@@ -371,6 +372,23 @@ function AppSidebarContent() {
 			</SidebarHeader>
 
 			<SidebarContent className="pt-4">
+				<SidebarGroup>
+					<SidebarMenu>
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								asChild
+								isActive={location.pathname === "/"}
+								size="sm"
+								tooltip={t("sidebar.home")}
+							>
+								<Link to="/">
+									<Home size={16} />
+									<span>{t("sidebar.home")}</span>
+								</Link>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					</SidebarMenu>
+				</SidebarGroup>
 				<SidebarGroup>
 					<div className="mb-2 space-y-2">
 						<div className="flex items-center justify-between px-2">
