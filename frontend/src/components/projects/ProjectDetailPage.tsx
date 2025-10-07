@@ -258,7 +258,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					</Button>
 				</header>
 
-				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
+				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
 					{(() => {
 						if (docManager.commitCompleted) {
 							return (
