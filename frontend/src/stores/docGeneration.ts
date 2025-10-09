@@ -740,7 +740,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					targetBranch: targetBranch || null,
 					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
 					changedSinceInitial: [],
-					docsInCodeRepo: Boolean(result?.docsInCodeRepo),
+					docsInCodeRepo: result?.docsInCodeRepo,
 					docsBranch: result?.docsBranch ?? null,
 					events: [
 						createLocalEvent(

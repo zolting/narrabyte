@@ -168,10 +168,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			branchManager.targetBranch ||
 			"";
 		if (source && target) {
-			// Best effort cleanup; ignore errors
-			Promise.resolve(
-				Delete(Number(projectId), source, target)
-			).catch(() => {});
+			Promise.resolve(Delete(Number(projectId), source, target))
+				.catch(() => {});
 		}
 	}, [branchManager.sourceBranch, branchManager.targetBranch, docManager, projectId]);
 

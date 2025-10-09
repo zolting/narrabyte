@@ -36,7 +36,7 @@ function RouteComponent() {
 		Promise.resolve(List(Number(projectId)))
 			.then((list) => {
 				if (!mounted) return;
-				setSessions(Array.isArray(list) ? list : []);
+				setSessions(list);
 			})
 			.finally(() => {
 				if (mounted) setLoading(false);
@@ -81,7 +81,7 @@ function RouteComponent() {
 	const refreshSessions = useCallback(() => {
 		setLoading(true);
 		Promise.resolve(List(Number(projectId)))
-			.then((list) => setSessions(Array.isArray(list) ? list : []))
+			.then((list) => setSessions(list))
 			.finally(() => setLoading(false));
 	}, [projectId]);
 
@@ -157,7 +157,7 @@ function RouteComponent() {
 												{s.SourceBranch} → {s.TargetBranch}
 											</div>
 											<div className="text-muted-foreground text-xs">
-												{t("generations.lastUpdated")}: {formatUpdated(s.UpdatedAt as unknown as string)}
+												{t("generations.lastUpdated")}: {formatUpdated(s.UpdatedAt)}
 											</div>
 										</div>
 									</CardContent>
