@@ -5,6 +5,7 @@ import {
 } from "@go/services/GitService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
+import { Delete } from "@go/services/generationSessionService";
 import { useNavigate } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -156,7 +157,23 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const handleApprove = useCallback(() => {
 		docManager.approveCommit();
-	}, [docManager]);
+		const source =
+			docManager.sourceBranch ||
+			docManager.completedCommitInfo?.sourceBranch ||
+			branchManager.sourceBranch ||
+			"";
+		const target =
+			docManager.targetBranch ||
+			docManager.completedCommitInfo?.targetBranch ||
+			branchManager.targetBranch ||
+			"";
+		if (source && target) {
+			// Best effort cleanup; ignore errors
+			Promise.resolve(
+				Delete(Number(projectId), source, target)
+			).catch(() => {});
+		}
+	}, [branchManager.sourceBranch, branchManager.targetBranch, docManager, projectId]);
 
 	const handleReset = useCallback(() => {
 		docManager.reset();
@@ -243,19 +260,35 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							{t("common.generateDocsDescription")}
 						</p>
 					</div>
-					<Button
-						onClick={() =>
-							navigate({
-								to: "/projects/$projectId/settings",
-								params: { projectId },
-							})
-						}
-						size="sm"
-						variant="outline"
-					>
-						<Settings size={16} />
-						{t("common.settings")}
-					</Button>
+					<div className="flex items-center gap-2">
+						<Button
+							onClick={() =>
+								navigate({
+									to: "/projects/$projectId/generations",
+									params: { projectId },
+								})
+							}
+							size="sm"
+							variant="outline"
+							type="button"
+						>
+							{t("sidebar.ongoingGenerations")}
+						</Button>
+						<Button
+							onClick={() =>
+								navigate({
+									to: "/projects/$projectId/settings",
+									params: { projectId },
+								})
+							}
+							size="sm"
+							variant="outline"
+							type="button"
+						>
+							<Settings size={16} />
+							{t("common.settings")}
+						</Button>
+					</div>
 				</header>
 
 				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">

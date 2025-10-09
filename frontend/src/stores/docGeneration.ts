@@ -2,6 +2,7 @@ import type { models } from "@go/models";
 import {
 	CommitDocs,
 	GenerateDocs,
+	LoadGenerationSession,
 	MergeDocsIntoSource,
 	RefineDocs,
 	StopStream,
@@ -92,6 +93,7 @@ type State = {
 		instruction: string;
 	}) => Promise<void>;
 	mergeDocs: (args: { projectId: number; branch: string }) => Promise<void>;
+	restoreSession: (projectId: number, sourceBranch: string, targetBranch: string) => Promise<boolean>;
 };
 
 const EMPTY_DOC_STATE: DocGenerationData = {
@@ -699,6 +701,70 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			} finally {
 				clearSubscriptions(key);
 				setDocState(key, { cancellationRequested: false });
+			}
+		},
+
+		restoreSession: async (
+			projectId: number,
+			sourceBranch: string,
+			targetBranch: string
+		): Promise<boolean> => {
+			const key = toKey(projectId);
+			const currentState = get().docStates[key];
+
+			if (currentState && (currentState.status !== "idle" || currentState.result)) {
+				return false;
+			}
+
+			try {
+				setDocState(key, {
+					status: "running",
+					events: [
+						createLocalEvent(
+							"info",
+							`Restoring documentation session for branches: ${sourceBranch} → ${targetBranch}`
+						),
+					],
+				});
+
+				const result = await LoadGenerationSession(
+					projectId,
+					sourceBranch,
+					targetBranch
+				);
+
+				setDocState(key, {
+					result,
+					status: "success",
+					sourceBranch: sourceBranch || null,
+					targetBranch: targetBranch || null,
+					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
+					changedSinceInitial: [],
+					docsInCodeRepo: Boolean(result?.docsInCodeRepo),
+					docsBranch: result?.docsBranch ?? null,
+					events: [
+						createLocalEvent(
+							"info",
+							`Session restored successfully - ${result.files?.length ?? 0} file(s) modified`
+						),
+					],
+					activeTab: "review",
+				});
+
+				return true;
+			} catch (error) {
+				const message = messageFromError(error);
+				console.error("Failed to restore generation session", error);
+				setDocState(key, {
+					status: "idle",
+					events: [
+						createLocalEvent(
+							"warn",
+							`Could not restore session: ${message}`
+						),
+					],
+				});
+				return false;
 			}
 		},
 	};

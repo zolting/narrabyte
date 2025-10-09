@@ -14,6 +14,10 @@ export function InitializeLLMClient(arg1) {
   return window['go']['services']['ClientService']['InitializeLLMClient'](arg1);
 }
 
+export function LoadGenerationSession(arg1, arg2, arg3) {
+  return window['go']['services']['ClientService']['LoadGenerationSession'](arg1, arg2, arg3);
+}
+
 export function MergeDocsIntoSource(arg1, arg2) {
   return window['go']['services']['ClientService']['MergeDocsIntoSource'](arg1, arg2);
 }

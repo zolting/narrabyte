@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -1205,4 +1206,55 @@ func (o *LLMClient) loadRepoLLMInstructions(docRoot string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+type persistableMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// ConversationHistoryJSON returns a compact JSON array of messages containing
+// only role and content, suitable for persistence.
+func (o *LLMClient) ConversationHistoryJSON() (string, error) {
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+	msgs := make([]persistableMessage, 0, len(o.conversationHistory))
+	for _, m := range o.conversationHistory {
+		msgs = append(msgs, persistableMessage{Role: string(m.Role), Content: m.Content})
+	}
+	data, err := json.Marshal(msgs)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// LoadConversationHistoryJSON restores conversation history from a JSON array
+// created by ConversationHistoryJSON. It replaces any existing history.
+func (o *LLMClient) LoadConversationHistoryJSON(jsonStr string) error {
+	if strings.TrimSpace(jsonStr) == "" {
+		return nil
+	}
+	var msgs []persistableMessage
+	if err := json.Unmarshal([]byte(jsonStr), &msgs); err != nil {
+		return err
+	}
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+	o.conversationHistory = nil
+	for _, pm := range msgs {
+		if strings.TrimSpace(pm.Role) == "" && strings.TrimSpace(pm.Content) == "" {
+			continue
+		}
+		msg := &schema.Message{Role: schema.RoleType(pm.Role), Content: pm.Content}
+		o.conversationHistory = append(o.conversationHistory, msg)
+	}
+	return nil
+}
+
+// HasConversationHistory reports whether any conversation history is present.
+func (o *LLMClient) HasConversationHistory() bool {
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+	return len(o.conversationHistory) > 0
 }

@@ -55,7 +55,8 @@
     "confirmApprovalDescription": "The documentation has been automatically committed. Click Approve to confirm and view the success message.",
     "docsBranch": "Documentation branch",
     "docInstructionsLabel": "Precisions or instructions for this specific documentation generation",
-    "docInstructionsPlaceholder": "Ex: Only document the end-user aspect of the PR. Do not cover package updates. Pay special attention to changes in how X feature works."
+    "docInstructionsPlaceholder": "Ex: Only document the end-user aspect of the PR. Do not cover package updates. Pay special attention to changes in how X feature works.",
+    "backToProject": "Back to Project"
   },
   "projectManager": {
     "addProject": "Add Project",
@@ -125,7 +126,8 @@
     "deleteProjectDescription": "Are you sure you want to delete \"{{projectName}}\"? This action cannot be undone and will only remove the project link from Narrabyte, not the actual files.",
     "deleteSuccess": "Project deleted successfully",
     "deleteError": "Failed to delete project",
-    "reorderError": "Failed to update project order"
+    "reorderError": "Failed to update project order",
+    "ongoingGenerations": "Ongoing generations"
   },
   "apiDialog": {
     "keySaved": "API key saved successfully!",
@@ -153,6 +155,20 @@
     "editKey": "Edit API key",
     "add": "Add",
     "allProvidersConfigured": "All providers already have API keys configured"
+  },
+  "generations": {
+    "title": "Ongoing Generations",
+    "description": "Resume documentation generation sessions that haven't been committed yet",
+    "noSessions": "No Active Sessions",
+    "noSessionsDescription": "There are no pending documentation generation sessions for this project.",
+    "sessionTitle": "Documentation Generation Session",
+    "sessionDescription": "Click to resume this generation session",
+    "branches": "Branches",
+    "lastUpdated": "Last updated",
+    "loading": "Loading Session...",
+    "loadSession": "Load Session",
+    "deleteSession": "Delete Session",
+    "deleteConfirm": "Are you sure you want to delete this session ?"
   },
   "projectSettings": {
     "title": "Project Settings",
