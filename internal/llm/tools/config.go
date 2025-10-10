@@ -80,14 +80,28 @@ func safeJoinUnderBase(base, p string) (abs string, ok bool) {
 	if err != nil {
 		return "", false
 	}
+	// Resolve symlinks for consistent comparison
+	evalBase, err := filepath.EvalSymlinks(absBase)
+	if err != nil {
+		// If symlink evaluation fails, fall back to absolute path
+		evalBase = absBase
+	}
+
 	// Join and clean the target
-	candidate := filepath.Join(absBase, p)
+	candidate := filepath.Join(evalBase, p)
 	absCandidate, err := filepath.Abs(candidate)
 	if err != nil {
 		return "", false
 	}
-	// Ensure absCandidate is within absBase
-	relToBase, err := filepath.Rel(absBase, absCandidate)
+	// Resolve symlinks for the candidate path
+	evalCandidate, err := filepath.EvalSymlinks(absCandidate)
+	if err != nil {
+		// If symlink evaluation fails (e.g., file doesn't exist yet), fall back to absolute path
+		evalCandidate = absCandidate
+	}
+
+	// Ensure evalCandidate is within evalBase
+	relToBase, err := filepath.Rel(evalBase, evalCandidate)
 	if err != nil {
 		return "", false
 	}

@@ -64,30 +64,38 @@ func TestGenerationSessionService_Upsert_Validation(t *testing.T) {
 	svc := services.NewGenerationSessionService(&mocks.GenerationSessionRepositoryMock{})
 	svc.Startup(ctx)
 
-	_, err := svc.Upsert(1, "", "t", "[]")
+	_, err := svc.Upsert(1, "", "t", "anthropic", "[]")
 	utils.Equal(t, err.Error(), "source and target branches are required")
 
-	_, err = svc.Upsert(1, "s", "\n\t ", "[]")
+	_, err = svc.Upsert(1, "s", "\n\t ", "anthropic", "[]")
 	utils.Equal(t, err.Error(), "source and target branches are required")
+
+	_, err = svc.Upsert(1, "s", "t", "", "[]")
+	utils.Equal(t, err.Error(), "provider is required")
+
+	_, err = svc.Upsert(1, "s", "t", "  \t", "[]")
+	utils.Equal(t, err.Error(), "provider is required")
 }
 
 func TestGenerationSessionService_Upsert_TrimsAndDelegates(t *testing.T) {
 	ctx := context.Background()
 	repo := &mocks.GenerationSessionRepositoryMock{}
-	repo.UpsertFunc = func(projectID uint, s, tBranch, msg string) (*models.GenerationSession, error) {
+	repo.UpsertFunc = func(projectID uint, s, tBranch, prov, msg string) (*models.GenerationSession, error) {
 		utils.Equal(t, s, "src")
 		utils.Equal(t, tBranch, "tgt")
+		utils.Equal(t, prov, "anthropic")
 		utils.Equal(t, msg, "{}")
-		return &models.GenerationSession{ProjectID: projectID, SourceBranch: s, TargetBranch: tBranch, MessagesJSON: msg}, nil
+		return &models.GenerationSession{ProjectID: projectID, SourceBranch: s, TargetBranch: tBranch, Provider: prov, MessagesJSON: msg}, nil
 	}
 
 	svc := services.NewGenerationSessionService(repo)
 	svc.Startup(ctx)
 
-	res, err := svc.Upsert(9, " src ", " tgt ", "{}")
+	res, err := svc.Upsert(9, " src ", " tgt ", " anthropic ", "{}")
 	utils.NilError(t, err)
 	utils.Equal(t, res.SourceBranch, "src")
 	utils.Equal(t, res.TargetBranch, "tgt")
+	utils.Equal(t, res.Provider, "anthropic")
 	utils.Equal(t, res.MessagesJSON, "{}")
 }
 

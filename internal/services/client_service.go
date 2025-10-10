@@ -287,7 +287,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 
 	if s.LLMClient != nil {
 		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
-			_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, jsonStr)
+			_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, provider, jsonStr)
 		}
 	}
 
@@ -355,9 +355,20 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		projectID, docsBranch,
 	)))
 
-	// Ensure LLM client is initialized
+	// Ensure LLM client is initialized - try to initialize from session if needed
+	var sessionProvider string
 	if s.LLMClient == nil {
-		return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first")
+		// Try to get provider from existing session
+		session, err := s.generationSessions.Get(projectID, sourceBranch, "")
+		if err == nil && session != nil && session.Provider != "" {
+			sessionProvider = session.Provider
+			if initErr := s.InitializeLLMClient(session.Provider); initErr != nil {
+				return nil, fmt.Errorf("failed to initialize LLM client from session: %w", initErr)
+			}
+			events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s client from session", session.Provider)))
+		} else {
+			return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first or restore a session")
+		}
 	}
 
 	project, err := s.repoLinks.Get(projectID)
@@ -438,7 +449,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	}
 
 	// Create a temporary workspace checked out to the current docs branch head
-	tempWorkspace, cleanup, err := createTempDocRepo(ctx, docCfg, docsBranch, "", plumbing.Hash{})
+	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, docCfg, docsBranch)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary documentation workspace: %w", err)
 	}
@@ -458,6 +469,9 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 			for _, sess := range sessions {
 				if strings.TrimSpace(sess.SourceBranch) == sourceBranch {
 					_ = s.LLMClient.LoadConversationHistoryJSON(sess.MessagesJSON)
+					if sessionProvider == "" && sess.Provider != "" {
+						sessionProvider = sess.Provider
+					}
 					break
 				}
 			}
@@ -479,7 +493,16 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 
 	if s.LLMClient != nil {
 		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
-			_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, jsonStr)
+			// Get provider from session if we don't have it yet
+			provider := sessionProvider
+			if provider == "" {
+				if sess, getErr := s.generationSessions.Get(projectID, sourceBranch, baseBranch); getErr == nil && sess != nil {
+					provider = sess.Provider
+				}
+			}
+			if provider != "" {
+				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, provider, jsonStr)
+			}
 		}
 	}
 
@@ -889,6 +912,14 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 	}
 	if session == nil {
 		return nil, fmt.Errorf("no active generation session found for project %d (%s -> %s)", projectID, sourceBranch, targetBranch)
+	}
+
+	// Initialize LLM client with the provider from the session
+	if session.Provider != "" {
+		if err := s.InitializeLLMClient(session.Provider); err != nil {
+			return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s client from session", session.Provider)))
 	}
 
 	project, err := s.repoLinks.Get(projectID)

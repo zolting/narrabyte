@@ -12,7 +12,7 @@ type GenerationSessionService interface {
 	Startup(ctx context.Context)
 	List(projectID uint) ([]models.GenerationSession, error)
 	Get(projectID uint, sourceBranch, targetBranch string) (*models.GenerationSession, error)
-	Upsert(projectID uint, sourceBranch, targetBranch, messagesJSON string) (*models.GenerationSession, error)
+	Upsert(projectID uint, sourceBranch, targetBranch, provider, messagesJSON string) (*models.GenerationSession, error)
 	Delete(projectID uint, sourceBranch, targetBranch string) error
 	DeleteAll(projectID uint) error
 }
@@ -44,14 +44,18 @@ func (s *generationSessionService) Get(projectID uint, sourceBranch, targetBranc
 	return s.repo.GetByProjectAndBranches(projectID, sourceBranch, targetBranch)
 }
 
-func (s *generationSessionService) Upsert(projectID uint, sourceBranch, targetBranch, messagesJSON string) (*models.GenerationSession, error) {
+func (s *generationSessionService) Upsert(projectID uint, sourceBranch, targetBranch, provider, messagesJSON string) (*models.GenerationSession, error) {
 	sourceBranch = strings.TrimSpace(sourceBranch)
 	targetBranch = strings.TrimSpace(targetBranch)
+	provider = strings.TrimSpace(provider)
 	if sourceBranch == "" || targetBranch == "" {
 		return nil, fmt.Errorf("source and target branches are required")
 	}
+	if provider == "" {
+		return nil, fmt.Errorf("provider is required")
+	}
 
-	return s.repo.Upsert(projectID, sourceBranch, targetBranch, messagesJSON)
+	return s.repo.Upsert(projectID, sourceBranch, targetBranch, provider, messagesJSON)
 }
 
 func (s *generationSessionService) Delete(projectID uint, sourceBranch, targetBranch string) error {

@@ -131,6 +131,7 @@ export namespace models {
 	    ProjectID: number;
 	    SourceBranch: string;
 	    TargetBranch: string;
+	    Provider: string;
 	    MessagesJSON: string;
 	    // Go type: time
 	    CreatedAt: any;
@@ -147,6 +148,7 @@ export namespace models {
 	        this.ProjectID = source["ProjectID"];
 	        this.SourceBranch = source["SourceBranch"];
 	        this.TargetBranch = source["TargetBranch"];
+	        this.Provider = source["Provider"];
 	        this.MessagesJSON = source["MessagesJSON"];
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
 	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);

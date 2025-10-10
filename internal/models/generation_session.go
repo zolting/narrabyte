@@ -7,6 +7,7 @@ type GenerationSession struct {
 	ProjectID    uint   `gorm:"index:idx_session_project_source_target,unique"`
 	SourceBranch string `gorm:"size:255;not null;index:idx_session_project_source_target,unique"`
 	TargetBranch string `gorm:"size:255;not null;index:idx_session_project_source_target,unique"`
+	Provider     string `gorm:"size:50;not null"`
 	MessagesJSON string `gorm:"type:text"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
