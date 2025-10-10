@@ -143,7 +143,7 @@ func NewOpenAIClient(ctx context.Context, key string) (*LLMClient, error) {
 	// temperature := float32(0)
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		APIKey:          key,
-		Model:           "gpt-5",
+		Model:           "gpt-5-mini",
 		ReasoningEffort: openai.ReasoningEffortLevelMedium,
 	})
 
