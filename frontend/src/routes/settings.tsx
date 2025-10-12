@@ -89,7 +89,7 @@ function Settings() {
 								<div>
 									<div className="font-medium">{t("settings.theme")}</div>
 									<div className="text-muted-foreground text-sm">
-										Choose your interface theme
+										{t("settings.selectTheme")}
 									</div>
 								</div>
 								<Select
@@ -114,7 +114,7 @@ function Settings() {
 								<div>
 									<div className="font-medium">{t("settings.language")}</div>
 									<div className="text-muted-foreground text-sm">
-										Select your preferred language
+										{t("settings.selectLanguage")}
 									</div>
 								</div>
 								<Select
