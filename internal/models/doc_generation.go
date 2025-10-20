@@ -9,6 +9,7 @@ type DocChangedFile struct {
 // DocGenerationResult captures the outcome of a documentation generation run.
 type DocGenerationResult struct {
 	Branch         string           `json:"branch"`
+	TargetBranch   string           `json:"targetBranch"`
 	DocsBranch     string           `json:"docsBranch"`
 	DocsInCodeRepo bool             `json:"docsInCodeRepo"`
 	Files          []DocChangedFile `json:"files"`

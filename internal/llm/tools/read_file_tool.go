@@ -92,6 +92,12 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 				},
 			}, nil
 		}
+		// Resolve symlinks for consistent comparison
+		evalBase, err := filepath.EvalSymlinks(absBase)
+		if err != nil {
+			evalBase = absBase
+		}
+
 		absCandidate, e := filepath.Abs(pathArg)
 		if e != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: abs path resolve error: %v", e)))
@@ -103,7 +109,13 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 				},
 			}, nil
 		}
-		relToBase, e := filepath.Rel(absBase, absCandidate)
+		// Resolve symlinks for the candidate path
+		evalCandidate, err := filepath.EvalSymlinks(absCandidate)
+		if err != nil {
+			evalCandidate = absCandidate
+		}
+
+		relToBase, e := filepath.Rel(evalBase, evalCandidate)
 		if e != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: rel path error: %v", e)))
 			return &ReadFileOutput{

@@ -33,6 +33,7 @@ import {
 	Search,
 	Settings,
 	Trash2,
+	FileText,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -84,6 +85,7 @@ function SortableProjectItem({
 	onDelete: () => void;
 	onNavigateToSettings: () => void;
 }) {
+	const navigate = useNavigate();
 	const { t } = useTranslation();
 	const projectId = String(project.ID);
 
@@ -135,6 +137,17 @@ function SortableProjectItem({
 					<ContextMenuItem onSelect={onNavigateToSettings}>
 						<Settings size={16} />
 						<span>{t("sidebar.projectSettings")}</span>
+					</ContextMenuItem>
+					<ContextMenuItem
+						onSelect={() => {
+							navigate({
+								to: "/projects/$projectId/generations",
+								params: { projectId },
+							});
+						}}
+					>
+						<FileText size={16} />
+						<span>{t("sidebar.ongoingGenerations")}</span>
 					</ContextMenuItem>
 					<ContextMenuItem onSelect={onDelete} variant="destructive">
 						<Trash2 size={16} />

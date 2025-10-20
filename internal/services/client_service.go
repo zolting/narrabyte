@@ -27,11 +27,12 @@ import (
 // On pourrait lowkey rendre ca plus generique pour n'importe quel client
 // Interface pour clients?
 type ClientService struct {
-	LLMClient      *client.LLMClient
-	context        context.Context
-	repoLinks      RepoLinkService
-	gitService     *GitService
-	keyringService *KeyringService
+	LLMClient          *client.LLMClient
+	context            context.Context
+	repoLinks          RepoLinkService
+	gitService         *GitService
+	keyringService     *KeyringService
+	generationSessions GenerationSessionService
 }
 
 func (s *ClientService) Startup(ctx context.Context) error {
@@ -45,14 +46,18 @@ func (s *ClientService) Startup(ctx context.Context) error {
 	if s.keyringService == nil {
 		return fmt.Errorf("keyring service not configured")
 	}
+	if s.generationSessions == nil {
+		return fmt.Errorf("generation session service not configured")
+	}
 	return nil
 }
 
-func NewClientService(repoLinks RepoLinkService, gitService *GitService, keyringService *KeyringService) *ClientService {
+func NewClientService(repoLinks RepoLinkService, gitService *GitService, keyringService *KeyringService, genSessions GenerationSessionService) *ClientService {
 	return &ClientService{
-		repoLinks:      repoLinks,
-		gitService:     gitService,
-		keyringService: keyringService,
+		repoLinks:          repoLinks,
+		gitService:         gitService,
+		keyringService:     keyringService,
+		generationSessions: genSessions,
 	}
 }
 
@@ -280,6 +285,12 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
 
+	if s.LLMClient != nil {
+		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
+			_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, provider, jsonStr)
+		}
+	}
+
 	// Get status from temporary repository to report changed files
 	tempRepo, err := git.PlainOpen(tempWorkspace.repoPath)
 	if err != nil {
@@ -309,6 +320,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	}
 	return &models.DocGenerationResult{
 		Branch:         sourceBranch,
+		TargetBranch:   targetBranch,
 		DocsBranch:     docsBranch,
 		DocsInCodeRepo: docCfg.SharedWithCode,
 		Files:          files,
@@ -343,9 +355,20 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		projectID, docsBranch,
 	)))
 
-	// Ensure LLM client is initialized
+	// Ensure LLM client is initialized - try to initialize from session if needed
+	var sessionProvider string
 	if s.LLMClient == nil {
-		return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first")
+		// Try to get provider from existing session
+		session, err := s.generationSessions.Get(projectID, sourceBranch, "")
+		if err == nil && session != nil && session.Provider != "" {
+			sessionProvider = session.Provider
+			if initErr := s.InitializeLLMClient(session.Provider); initErr != nil {
+				return nil, fmt.Errorf("failed to initialize LLM client from session: %w", initErr)
+			}
+			events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s client from session", session.Provider)))
+		} else {
+			return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first or restore a session")
+		}
 	}
 
 	project, err := s.repoLinks.Get(projectID)
@@ -440,6 +463,21 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	streamCtx := s.LLMClient.StartStream(ctx)
 	defer s.LLMClient.StopStream()
 
+	if s.LLMClient != nil && !s.LLMClient.HasConversationHistory() {
+		sessions, err := s.generationSessions.List(projectID)
+		if err == nil {
+			for _, sess := range sessions {
+				if strings.TrimSpace(sess.SourceBranch) == sourceBranch {
+					_ = s.LLMClient.LoadConversationHistoryJSON(sess.MessagesJSON)
+					if sessionProvider == "" && sess.Provider != "" {
+						sessionProvider = sess.Provider
+					}
+					break
+				}
+			}
+		}
+	}
+
 	// Run the refinement agent focused on applying user edits
 	llmResult, err := s.LLMClient.DocRefine(streamCtx, &client.DocRefineRequest{
 		ProjectName:          project.ProjectName,
@@ -451,6 +489,21 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if s.LLMClient != nil {
+		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
+			// Get provider from session if we don't have it yet
+			provider := sessionProvider
+			if provider == "" {
+				if sess, getErr := s.generationSessions.Get(projectID, sourceBranch, baseBranch); getErr == nil && sess != nil {
+					provider = sess.Provider
+				}
+			}
+			if provider != "" {
+				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, provider, jsonStr)
+			}
+		}
 	}
 
 	// Propagate changes back to the main documentation repository
@@ -487,6 +540,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	}
 	return &models.DocGenerationResult{
 		Branch:         sourceBranch,
+		TargetBranch:   baseBranch,
 		DocsBranch:     docsBranch,
 		DocsInCodeRepo: docCfg.SharedWithCode,
 		Files:          files,
@@ -836,6 +890,141 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 	)))
 
 	return nil
+}
+
+// LoadGenerationSession restores an existing generation session for a specific branch pair and computes the current
+// documentation state (diff, changed files, etc.) for display in the UI.
+func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targetBranch string) (*models.DocGenerationResult, error) {
+	ctx := s.context
+	if ctx == nil {
+		return nil, fmt.Errorf("client service not initialized")
+	}
+
+	sourceBranch = strings.TrimSpace(sourceBranch)
+	targetBranch = strings.TrimSpace(targetBranch)
+	if sourceBranch == "" || targetBranch == "" {
+		return nil, fmt.Errorf("source and target branches are required")
+	}
+
+	session, err := s.generationSessions.Get(projectID, sourceBranch, targetBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get generation session: %w", err)
+	}
+	if session == nil {
+		return nil, fmt.Errorf("no active generation session found for project %d (%s -> %s)", projectID, sourceBranch, targetBranch)
+	}
+
+	// Initialize LLM client with the provider from the session
+	if session.Provider != "" {
+		if err := s.InitializeLLMClient(session.Provider); err != nil {
+			return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s client from session", session.Provider)))
+	}
+
+	project, err := s.repoLinks.Get(projectID)
+	if err != nil {
+		return nil, err
+	}
+	if project == nil {
+		return nil, fmt.Errorf("project not found")
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+		"LoadSession: restoring documentation session for project %s (%s → %s)",
+		project.ProjectName, targetBranch, sourceBranch,
+	)))
+
+	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
+	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
+	if codeRepoPath == "" || docRepoPath == "" {
+		return nil, fmt.Errorf("project repositories are not configured")
+	}
+
+	if !utils.DirectoryExists(codeRepoPath) {
+		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
+	}
+	if !utils.DirectoryExists(docRepoPath) {
+		return nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
+	}
+
+	codeRootAbs, err := filepath.Abs(codeRepoPath)
+	if err != nil {
+		return nil, err
+	}
+	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
+	if !ok {
+		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
+	}
+
+	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	docRepo, err := s.gitService.Open(docCfg.RepoRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open documentation repository: %w", err)
+	}
+
+	docsBranch := documentationBranchName(sourceBranch)
+	refName := plumbing.NewBranchReferenceName(docsBranch)
+
+	if _, err := docRepo.Reference(refName, true); err != nil {
+		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			return nil, fmt.Errorf("documentation branch '%s' does not exist - session may be stale", docsBranch)
+		}
+		return nil, fmt.Errorf("failed to resolve documentation branch '%s': %w", docsBranch, err)
+	}
+
+	var baseBranch string
+	if docCfg.SharedWithCode {
+		baseBranch = sourceBranch
+	} else {
+		_, baseBranch, err = ensureBaseBranch(docRepo)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	docWorktree, err := docRepo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load documentation worktree: %w", err)
+	}
+
+	docStatus, err := docWorktree.Status()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read documentation repo status: %w", err)
+	}
+
+	files := collectDocChangedFiles(docStatus, docCfg.DocsRelative)
+
+	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, baseBranch, docsBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
+	}
+
+	if session.MessagesJSON != "" && s.LLMClient != nil {
+		if err := s.LLMClient.LoadConversationHistoryJSON(session.MessagesJSON); err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf(
+				"Failed to restore conversation history: %v", err,
+			)))
+		} else {
+			events.Emit(ctx, events.LLMEventTool, events.NewInfo("Restored LLM conversation history"))
+		}
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("LoadSession: session restored successfully"))
+
+	return &models.DocGenerationResult{
+		Branch:         sourceBranch,
+		TargetBranch:   targetBranch,
+		DocsBranch:     docsBranch,
+		DocsInCodeRepo: docCfg.SharedWithCode,
+		Files:          files,
+		Diff:           docDiff,
+		Summary:        "Restored from previous session",
+	}, nil
 }
 
 func (s *ClientService) StopStream() {

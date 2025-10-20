@@ -95,7 +95,18 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 			events.Emit(ctx, events.LLMEventTool, events.NewError("Edit: resolve error"))
 			return nil, fmt.Errorf("resolve error")
 		}
-		relToBase, e3 := filepath.Rel(absBase, absReq)
+		// Resolve symlinks for consistent comparison
+		evalBase, err := filepath.EvalSymlinks(absBase)
+		if err != nil {
+			evalBase = absBase
+		}
+		evalReq, err := filepath.EvalSymlinks(absReq)
+		if err != nil {
+			// If file doesn't exist yet, fall back to absolute path
+			evalReq = absReq
+		}
+
+		relToBase, e3 := filepath.Rel(evalBase, evalReq)
 		if e3 != nil || strings.HasPrefix(relToBase, "..") {
 			events.Emit(ctx, events.LLMEventTool, events.NewWarn("Edit: path escapes the configured project root"))
 			return &EditOutput{

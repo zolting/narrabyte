@@ -65,12 +65,25 @@ func WriteFile(ctx context.Context, in *WriteFileInput) (*WriteFileOutput, error
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: base resolve error: %v", err)))
 			return nil, err
 		}
+		// Resolve symlinks for consistent comparison
+		evalBase, err := filepath.EvalSymlinks(absBase)
+		if err != nil {
+			evalBase = absBase
+		}
+
 		absCandidate, err := filepath.Abs(p)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: abs path error: %v", err)))
 			return nil, err
 		}
-		relToBase, err := filepath.Rel(absBase, absCandidate)
+		// Resolve symlinks for the candidate path
+		evalCandidate, err := filepath.EvalSymlinks(absCandidate)
+		if err != nil {
+			// If file doesn't exist yet, fall back to absolute path
+			evalCandidate = absCandidate
+		}
+
+		relToBase, err := filepath.Rel(evalBase, evalCandidate)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: rel error: %v", err)))
 			return nil, err

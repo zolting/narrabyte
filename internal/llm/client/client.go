@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -394,9 +395,17 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
 	println("=== GenerateDocs: Created runner ===")
 
+	// Store the user query as the first message in conversation history
+	// This ensures when history is restored, the first message is always a user message
+	userQueryMessage := &schema.Message{
+		Role:    schema.User,
+		Content: promptBuilder.String(),
+	}
+
 	iter := runner.Query(ctx, promptBuilder.String())
 
-	var conversationHistory []adk.Message
+	// Initialize conversation history with the user query
+	conversationHistory := []adk.Message{userQueryMessage}
 	var lastMessage string
 	for {
 		event, ok := iter.Next()
@@ -473,20 +482,6 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 		return nil, err
 	}
 
-	// Check if we have conversation history from GenerateDocs
-	o.conversationHistoryMu.Lock()
-	conversationHistory := o.conversationHistory
-	o.conversationHistoryMu.Unlock()
-
-	println("=== DocRefine: Checking conversation history ===")
-	println("conversationHistory length:", len(conversationHistory))
-
-	if len(conversationHistory) > 0 {
-		println("DocRefine: will include", len(conversationHistory), "previous messages for context")
-	} else {
-		println("DocRefine: no conversation history available, starting fresh")
-	}
-
 	// Always create a new session for refinement, but include conversation history if available
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("DocRefine: creating refinement session"))
 
@@ -547,6 +542,21 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 		SpecificInstr: req.SpecificInstr,
 		ExtraContext:  extraContext,
 	})
+
+	conversationHistory, historyAdjusted := o.conversationHistoryForRun(prompt)
+
+	println("=== DocRefine: Checking conversation history ===")
+	println("conversationHistory length:", len(conversationHistory))
+
+	if len(conversationHistory) > 0 {
+		println("DocRefine: will include", len(conversationHistory), "previous messages for context")
+	} else {
+		println("DocRefine: no conversation history available, starting fresh")
+	}
+
+	if historyAdjusted {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("DocRefine: normalized stored conversation history"))
+	}
 
 	var b strings.Builder
 	b.WriteString(prompt)
@@ -1205,4 +1215,134 @@ func (o *LLMClient) loadRepoLLMInstructions(docRoot string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+type persistableMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// ConversationHistoryJSON returns a compact JSON array of messages containing
+// only role and content, suitable for persistence.
+func (o *LLMClient) ConversationHistoryJSON() (string, error) {
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+	msgs := make([]persistableMessage, 0, len(o.conversationHistory))
+	for _, m := range o.conversationHistory {
+		// Skip messages with empty content (e.g., tool-call-only messages)
+		// since we can't properly restore them without tool call details
+		if strings.TrimSpace(m.Content) == "" {
+			continue
+		}
+		msgs = append(msgs, persistableMessage{Role: string(m.Role), Content: m.Content})
+	}
+	data, err := json.Marshal(msgs)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// LoadConversationHistoryJSON restores conversation history from a JSON array
+// created by ConversationHistoryJSON. It replaces any existing history.
+func (o *LLMClient) LoadConversationHistoryJSON(jsonStr string) error {
+	if strings.TrimSpace(jsonStr) == "" {
+		return nil
+	}
+	var msgs []persistableMessage
+	if err := json.Unmarshal([]byte(jsonStr), &msgs); err != nil {
+		return err
+	}
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+	o.conversationHistory = nil
+
+	var history []adk.Message
+	for _, pm := range msgs {
+		// Skip messages with empty content
+		if strings.TrimSpace(pm.Content) == "" {
+			continue
+		}
+
+		msg := &schema.Message{Role: schema.RoleType(pm.Role), Content: pm.Content}
+		history = append(history, msg)
+	}
+
+	// Validate that first message is a user message (required by Anthropic and good practice for all providers)
+	if len(history) > 0 && history[0].Role != schema.User {
+		return fmt.Errorf("invalid conversation history: first message must be a user message (got %s)", history[0].Role)
+	}
+
+	o.conversationHistory = history
+	return nil
+}
+
+// HasConversationHistory reports whether any conversation history is present.
+func (o *LLMClient) HasConversationHistory() bool {
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+	return len(o.conversationHistory) > 0
+}
+
+func (o *LLMClient) conversationHistoryForRun(fallbackFirstUser string) ([]adk.Message, bool) {
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+
+	if len(o.conversationHistory) == 0 {
+		return nil, false
+	}
+
+	normalized, changed := normalizeConversationHistory(o.conversationHistory, fallbackFirstUser)
+	if changed {
+		o.conversationHistory = normalized
+	}
+
+	snapshot := make([]adk.Message, len(o.conversationHistory))
+	copy(snapshot, o.conversationHistory)
+	return snapshot, changed
+}
+
+func normalizeConversationHistory(history []adk.Message, fallbackFirstUser string) ([]adk.Message, bool) {
+	if len(history) == 0 {
+		return history, false
+	}
+
+	firstUserIdx := -1
+	for i, msg := range history {
+		if msg.Role == schema.User {
+			firstUserIdx = i
+			break
+		}
+	}
+
+	if firstUserIdx == 0 {
+		return history, false
+	}
+
+	normalized := make([]adk.Message, 0, len(history)+1)
+	changed := false
+
+	if firstUserIdx == -1 {
+		trimmed := strings.TrimSpace(fallbackFirstUser)
+		if trimmed == "" {
+			trimmed = "Previous session restored without the original user prompt. Continue the documentation workflow from the latest assistant response."
+		}
+		normalized = append(normalized, &schema.Message{Role: schema.User, Content: trimmed})
+		normalized = append(normalized, history...)
+		return normalized, true
+	}
+
+	for _, msg := range history[:firstUserIdx] {
+		if msg.Role == schema.System {
+			normalized = append(normalized, msg)
+			continue
+		}
+		changed = true
+	}
+
+	normalized = append(normalized, history[firstUserIdx:]...)
+	if !changed && len(normalized) == len(history) {
+		return history, false
+	}
+	return normalized, true
 }

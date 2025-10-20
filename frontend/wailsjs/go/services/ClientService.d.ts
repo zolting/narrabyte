@@ -9,6 +9,8 @@ export function GenerateDocs(arg1:number,arg2:string,arg3:string,arg4:string,arg
 
 export function InitializeLLMClient(arg1:string):Promise<void>;
 
+export function LoadGenerationSession(arg1:number,arg2:string,arg3:string):Promise<models.DocGenerationResult>;
+
 export function MergeDocsIntoSource(arg1:number,arg2:string):Promise<void>;
 
 export function RefineDocs(arg1:number,arg2:string,arg3:string):Promise<models.DocGenerationResult>;

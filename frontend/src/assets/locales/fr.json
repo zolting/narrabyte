@@ -55,7 +55,8 @@
     "confirmApprovalDescription": "La documentation a été automatiquement validée. Cliquez sur Approuver pour confirmer et voir le message de succès.",
     "docsBranch": "Branche de documentation",
     "docInstructionsLabel": "Précisions ou instructions pour cette génération de documentation spécifique",
-    "docInstructionsPlaceholder": "Ex: Seulement documenter l'aspect end-user de la PR. Ne pas couvrir les mises à jour de package. Porter une attention particulière aux modifications du fonctionnement de X fonctionnalité."
+    "docInstructionsPlaceholder": "Ex: Seulement documenter l'aspect end-user de la PR. Ne pas couvrir les mises à jour de package. Porter une attention particulière aux modifications du fonctionnement de X fonctionnalité.",
+    "backToProject": "Retour au projet"
   },
   "projectManager": {
     "addProject": "Ajouter un projet",
@@ -95,7 +96,9 @@
     "userPreferences": "Préférences utilisateur",
     "loading": "Chargement des paramètres...",
     "theme": "Thème",
+    "selectTheme": "Choisir le thème",
     "language": "Langue",
+    "selectLanguage": "Choisir la langue",
     "light": "Clair",
     "dark": "Sombre",
     "system": "Système",
@@ -125,7 +128,8 @@
     "deleteProjectDescription": "Êtes-vous sûr de vouloir supprimer \"{{projectName}}\" ? Cette action ne peut pas être annulée et supprimera uniquement le lien du projet dans Narrabyte, pas les fichiers réels.",
     "deleteSuccess": "Projet supprimé avec succès",
     "deleteError": "Échec de la suppression du projet",
-    "reorderError": "Échec de la réorganisation de l'ordre des projets"
+    "reorderError": "Échec de la réorganisation de l'ordre des projets",
+    "ongoingGenerations": "Générations en cours"
   },
   "apiDialog": {
     "keySaved": "Clé API sauvegardée avec succès!",
@@ -153,6 +157,20 @@
     "editKey": "Modifier la clé API",
     "add": "Ajouter",
     "allProvidersConfigured": "Tous les fournisseurs ont déjà des clés API configurées"
+  },
+  "generations": {
+    "title": "Générations en cours",
+    "description": "Reprendre les sessions de génération de documentation qui n'ont pas encore été validées",
+    "noSessions": "Aucune session active",
+    "noSessionsDescription": "Il n'y a aucune session de génération de documentation en attente pour ce projet.",
+    "sessionTitle": "Session de génération de documentation",
+    "sessionDescription": "Cliquez pour reprendre cette session de génération",
+    "branches": "Branches",
+    "lastUpdated": "Dernière mise à jour",
+    "loading": "Chargement de la session...",
+    "loadSession": "Charger la session",
+    "deleteSession": "Supprimer la session",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cette session ?"
   },
   "projectSettings": {
     "title": "Paramètres du projet",
