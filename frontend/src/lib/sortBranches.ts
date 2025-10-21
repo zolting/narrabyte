@@ -1,6 +1,6 @@
 import type { models } from "@go/models";
 
-const PRIORITY_BRANCHES = ["main", "master"] as const;
+const PRIORITY_BRANCHES = ["main", "master", "develop"] as const;
 
 const priorityOrder = new Map<string, number>(
 	PRIORITY_BRANCHES.map((branch, index) => [branch, index])
@@ -30,20 +30,16 @@ export function sortBranches(
 		return [];
 	}
 
-	const sortedByRecency = [...branches].sort(compareByLastCommit);
+	const sortedByRecency = branches.sort(compareByLastCommit);
 	if (!prioritizeMainMaster) {
 		return sortedByRecency;
 	}
 
 	const prioritized: models.BranchInfo[] = [];
-	const seen = new Set<string>();
 	const remaining: models.BranchInfo[] = [];
 
 	for (const branch of sortedByRecency) {
 		const name = branchName(branch);
-		if (!name || seen.has(name)) {
-			continue;
-		}
 		const priorityIndex = priorityOrder.get(name);
 		if (priorityIndex === undefined) {
 			remaining.push(branch);
@@ -55,16 +51,9 @@ export function sortBranches(
 		} else {
 			prioritized.push(branch);
 		}
-		seen.add(name);
 	}
 
-	for (const branch of remaining) {
-		const name = branchName(branch);
-		if (!seen.has(name)) {
-			prioritized.push(branch);
-			seen.add(name);
-		}
-	}
+	prioritized.push(...remaining);
 
 	return prioritized;
 }
