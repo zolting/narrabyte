@@ -35,6 +35,207 @@ export const Route = createFileRoute("/projects/$projectId/settings")({
 	component: ProjectSettings,
 });
 
+// Component for repository paths section
+function RepositoryPathsSection({
+	project,
+	docDirectory,
+	codebaseDirectory,
+	docBaseBranch,
+	docBranchOptions,
+	docValidationError,
+	codebaseValidationError,
+	docBranchError,
+	requiresDocBaseBranch,
+	missingDocBaseBranch,
+	pathsChanged,
+	hasValidationErrors,
+	saving,
+	handleDocDirectoryChange,
+	handleCodebaseDirectoryChange,
+	setDocBaseBranch,
+	handleSavePaths,
+}: {
+	project: models.RepoLink;
+	docDirectory: string;
+	codebaseDirectory: string;
+	docBaseBranch: string;
+	docBranchOptions: models.BranchInfo[];
+	docValidationError: string | null;
+	codebaseValidationError: string | null;
+	docBranchError: string | null;
+	requiresDocBaseBranch: boolean;
+	missingDocBaseBranch: boolean;
+	pathsChanged: boolean;
+	hasValidationErrors: boolean;
+	saving: boolean;
+	handleDocDirectoryChange: (path: string) => void;
+	handleCodebaseDirectoryChange: (path: string) => void;
+	setDocBaseBranch: (branch: string) => void;
+	handleSavePaths: (
+		docDir: string,
+		codebaseDir: string,
+		baseBranch: string,
+	) => void;
+}) {
+	const { t } = useTranslation();
+
+	return (
+		<section className="space-y-4">
+			<h3 className="font-semibold text-lg">
+				{t("projectSettings.repositoryPaths")}
+			</h3>
+
+			<div className="space-y-4 rounded-lg border border-border bg-muted/50 p-4">
+				<RepositoryPathField
+					currentPath={project.DocumentationRepo}
+					label={t("projectSettings.documentationRepo")}
+					newPath={docDirectory}
+					onDirectoryChange={handleDocDirectoryChange}
+					validationError={docValidationError}
+				/>
+
+				{requiresDocBaseBranch && (
+					<div className="space-y-2">
+						<DocumentationBranchSelector
+							branches={docBranchOptions}
+							description={t(
+								"projectSettings.documentationBaseBranchDescription",
+							)}
+							disabled={!docDirectory || Boolean(docValidationError)}
+							onChange={setDocBaseBranch}
+							value={docBaseBranch}
+						/>
+						{docBranchError && (
+							<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
+								<TriangleAlert size={14} />
+								<span>{docBranchError}</span>
+							</div>
+						)}
+						{!docBranchError && missingDocBaseBranch && (
+							<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
+								<TriangleAlert size={14} />
+								<span>
+									{t("projectSettings.documentationBaseBranchRequired")}
+								</span>
+							</div>
+						)}
+					</div>
+				)}
+
+				<RepositoryPathField
+					currentPath={project.CodebaseRepo}
+					label={t("projectSettings.codebaseRepo")}
+					newPath={codebaseDirectory}
+					onDirectoryChange={handleCodebaseDirectoryChange}
+					validationError={codebaseValidationError}
+				/>
+
+				{pathsChanged && (
+					<Button
+						className="w-full"
+						disabled={saving || hasValidationErrors}
+						onClick={() =>
+							handleSavePaths(docDirectory, codebaseDirectory, docBaseBranch)
+						}
+						size="lg"
+					>
+						{saving
+							? t("projectSettings.saving")
+							: t("projectSettings.savePaths")}
+					</Button>
+				)}
+			</div>
+		</section>
+	);
+}
+
+// Component for LLM instructions section
+function LLMInstructionsSection({
+	project,
+	hasLLMInstructions,
+	llmInstructionsFile,
+	setLlmInstructionsFile,
+	handleImportLLMInstructions,
+}: {
+	project: models.RepoLink;
+	hasLLMInstructions: boolean;
+	llmInstructionsFile: string;
+	setLlmInstructionsFile: (file: string) => void;
+	handleImportLLMInstructions: () => void;
+}) {
+	const { t } = useTranslation();
+
+	return (
+		<section className="space-y-4">
+			<h3 className="font-semibold text-lg">
+				{t("projectSettings.llmInstructions")}
+			</h3>
+
+			<div className="space-y-3 border border-border bg-muted/50 p-4">
+				<div className="flex items-center gap-2">
+					<span className="text-sm">
+						{t("projectSettings.llmInstructionsStatus")}:
+					</span>
+					<span
+						className={`font-semibold text-sm ${hasLLMInstructions ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}
+					>
+						{hasLLMInstructions
+							? t("projectSettings.detected")
+							: t("projectSettings.notDetected")}
+					</span>
+				</div>
+
+				{hasLLMInstructions && (
+					<div className="text-muted-foreground text-xs">
+						{project.DocumentationRepo}/.narrabyte/llm_instructions.*
+					</div>
+				)}
+
+				{!hasLLMInstructions && (
+					<>
+						<p className="text-muted-foreground text-sm">
+							{t("projectSettings.llmInstructionsDescription")}
+						</p>
+
+						<FilePicker
+							accept={{
+								label: "LLM Instructions",
+								extensions: [
+									"md",
+									"mdx",
+									"txt",
+									"json",
+									"yaml",
+									"yml",
+									"prompt",
+								],
+							}}
+							onFileSelected={setLlmInstructionsFile}
+						/>
+						{llmInstructionsFile && (
+							<>
+								<div className="rounded bg-background p-2 text-xs">
+									<span className="text-muted-foreground">
+										{t("projectSettings.selected")}:{" "}
+									</span>
+									<span className="font-medium">{llmInstructionsFile}</span>
+								</div>
+								<Button
+									className="w-full"
+									onClick={handleImportLLMInstructions}
+									size="lg"
+								>
+									{t("projectSettings.importConfirm")}
+								</Button>
+							</>
+						)}
+					</>
+				)}
+			</div>
+		</section>
+	);
+}
+
 function RepositoryPathField({
 	label,
 	currentPath,
@@ -78,28 +279,34 @@ function RepositoryPathField({
 	);
 }
 
-function ProjectSettings() {
+// Helper function to get error message from error code
+function getErrorMessageFromCode(errorCode: string): {
+	key: string;
+} {
+	switch (errorCode) {
+		case "NO_GIT_REPO":
+			return { key: "projectSettings.noGitRepoFound" };
+		case "DIR_NOT_EXIST":
+			return { key: "projectSettings.dirNotExist" };
+		case "EMPTY_PATH":
+			return { key: "projectSettings.dirNotExist" };
+		default:
+			return { key: "projectSettings.validationFailed" };
+	}
+}
+
+// Custom hook for project data management
+function useProjectData(projectId: string) {
 	const { t } = useTranslation();
-	const navigate = useNavigate();
-	const { projectId } = Route.useParams();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
-		undefined
+		undefined,
 	);
 	const [hasLLMInstructions, setHasLLMInstructions] = useState(false);
 	const [docDirectory, setDocDirectory] = useState("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState("");
-	const [llmInstructionsFile, setLlmInstructionsFile] = useState("");
-	const [saving, setSaving] = useState(false);
-	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-	const [docValidationError, setDocValidationError] = useState<string | null>(
-		null
-	);
-	const [codebaseValidationError, setCodebaseValidationError] = useState<
-		string | null
-	>(null);
 	const [docBaseBranch, setDocBaseBranch] = useState("");
 	const [docBranchOptions, setDocBranchOptions] = useState<models.BranchInfo[]>(
-		[]
+		[],
 	);
 	const [docBranchError, setDocBranchError] = useState<string | null>(null);
 
@@ -113,16 +320,15 @@ function ProjectSettings() {
 			try {
 				const branches = await ListBranchesByPath(path);
 				setDocBranchOptions(
-					sortBranches(branches, { prioritizeMainMaster: true })
+					sortBranches(branches, { prioritizeMainMaster: true }),
 				);
 				setDocBranchError(null);
-			} catch (error) {
-				console.error("Failed to list documentation branches:", error);
+			} catch {
 				setDocBranchOptions([]);
 				setDocBranchError(t("projectSettings.branchLoadFailed"));
 			}
 		},
-		[t]
+		[t],
 	);
 
 	useEffect(() => {
@@ -136,14 +342,13 @@ function ProjectSettings() {
 				setDocBaseBranch(proj.DocumentationBaseBranch ?? "");
 				const shared = pathsShareRoot(
 					proj.DocumentationRepo,
-					proj.CodebaseRepo
+					proj.CodebaseRepo,
 				);
 				await fetchDocBranches(proj.DocumentationRepo, !shared);
 
 				const hasFile = await CheckLLMInstructions(Number(projectId));
 				setHasLLMInstructions(hasFile);
-			} catch (error) {
-				console.error("Failed to load project:", error);
+			} catch {
 				toast.error(t("projectSettings.loadError"));
 				setProject(null);
 			}
@@ -151,24 +356,61 @@ function ProjectSettings() {
 		loadProject();
 	}, [projectId, t, fetchDocBranches]);
 
+	return {
+		project,
+		setProject,
+		hasLLMInstructions,
+		setHasLLMInstructions,
+		docDirectory,
+		setDocDirectory,
+		codebaseDirectory,
+		setCodebaseDirectory,
+		docBaseBranch,
+		setDocBaseBranch,
+		docBranchOptions,
+		setDocBranchOptions,
+		docBranchError,
+		setDocBranchError,
+		fetchDocBranches,
+	};
+}
+
+// Custom hook for path operations
+function usePathOperations(options: {
+	projectId: string;
+	project: models.RepoLink | null | undefined;
+	setProject: (proj: models.RepoLink) => void;
+	setDocDirectory: (path: string) => void;
+	setCodebaseDirectory: (path: string) => void;
+	setDocBaseBranch: (branch: string) => void;
+	fetchDocBranches: (path: string, shouldFetch: boolean) => Promise<void>;
+}) {
+	const { t } = useTranslation();
+	const [docValidationError, setDocValidationError] = useState<string | null>(
+		null,
+	);
+	const [codebaseValidationError, setCodebaseValidationError] = useState<
+		string | null
+	>(null);
+	const [saving, setSaving] = useState(false);
+
 	const handleSavePathsSuccess = async () => {
 		toast.success(t("projectSettings.pathsUpdated"));
 		setDocValidationError(null);
 		setCodebaseValidationError(null);
-		const updated = (await Get(Number(projectId))) as models.RepoLink;
-		setProject(updated);
-		setDocDirectory(updated.DocumentationRepo);
-		setCodebaseDirectory(updated.CodebaseRepo);
-		setDocBaseBranch(updated.DocumentationBaseBranch ?? "");
+		const updated = (await Get(Number(options.projectId))) as models.RepoLink;
+		options.setProject(updated);
+		options.setDocDirectory(updated.DocumentationRepo);
+		options.setCodebaseDirectory(updated.CodebaseRepo);
+		options.setDocBaseBranch(updated.DocumentationBaseBranch ?? "");
 		const shared = pathsShareRoot(
 			updated.DocumentationRepo,
-			updated.CodebaseRepo
+			updated.CodebaseRepo,
 		);
-		await fetchDocBranches(updated.DocumentationRepo, !shared);
+		await options.fetchDocBranches(updated.DocumentationRepo, !shared);
 	};
 
 	const handleSavePathsError = (error: unknown) => {
-		console.error("Failed to update paths:", error);
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
 		const errorMap: Record<string, () => void> = {
@@ -194,7 +436,7 @@ function ProjectSettings() {
 		};
 
 		const matchedError = Object.keys(errorMap).find((key) =>
-			errorMessage.includes(key)
+			errorMessage.includes(key),
 		);
 		if (matchedError) {
 			errorMap[matchedError]();
@@ -203,18 +445,22 @@ function ProjectSettings() {
 		}
 	};
 
-	const handleSavePaths = async () => {
-		if (!project) {
+	const handleSavePaths = async (
+		docDirectory: string,
+		codebaseDirectory: string,
+		docBaseBranch: string,
+	) => {
+		if (!options.project) {
 			return;
 		}
 
 		setSaving(true);
 		try {
 			await UpdateProjectPaths(
-				Number(project.ID),
+				Number(options.project.ID),
 				docDirectory,
 				codebaseDirectory,
-				docBaseBranch.trim()
+				docBaseBranch.trim(),
 			);
 			await handleSavePathsSuccess();
 		} catch (error) {
@@ -224,22 +470,158 @@ function ProjectSettings() {
 		}
 	};
 
+	return {
+		docValidationError,
+		setDocValidationError,
+		codebaseValidationError,
+		setCodebaseValidationError,
+		saving,
+		handleSavePaths,
+	};
+}
+
+// Custom hook for directory validation
+function useDirectoryValidation(options: {
+	project: models.RepoLink | null | undefined;
+	codebaseDirectory: string;
+	docDirectory: string;
+	setDocDirectory: (path: string) => void;
+	setCodebaseDirectory: (path: string) => void;
+	setDocBaseBranch: (branch: string) => void;
+	setDocBranchOptions: (opts: models.BranchInfo[]) => void;
+	setDocValidationError: (error: string | null) => void;
+	setCodebaseValidationError: (error: string | null) => void;
+	fetchDocBranches: (path: string, shouldFetch: boolean) => Promise<void>;
+}) {
+	const { t } = useTranslation();
+
+	const handleDocDirectoryChange = async (path: string) => {
+		options.setDocDirectory(path);
+		options.setDocValidationError(null);
+		options.setDocBaseBranch("");
+
+		if (!path) {
+			options.setDocBranchOptions([]);
+			return;
+		}
+
+		if (path && path !== options.project?.DocumentationRepo) {
+			try {
+				const result = await ValidateDirectory(path);
+				if (!result.isValid) {
+					options.setDocBranchOptions([]);
+					const errorMsg = getErrorMessageFromCode(result.errorCode);
+					options.setDocValidationError(t(errorMsg.key as never));
+					return;
+				}
+			} catch {
+				options.setDocValidationError(t("projectSettings.validationFailed"));
+				options.setDocBranchOptions([]);
+				return;
+			}
+		}
+
+		const shared = pathsShareRoot(path, options.codebaseDirectory);
+		await options.fetchDocBranches(path, !shared);
+	};
+
+	const handleCodebaseDirectoryChange = async (path: string) => {
+		options.setCodebaseDirectory(path);
+		options.setCodebaseValidationError(null);
+
+		if (path && path !== options.project?.CodebaseRepo) {
+			try {
+				const result = await ValidateDirectory(path);
+				if (!result.isValid) {
+					const errorMsg = getErrorMessageFromCode(result.errorCode);
+					options.setCodebaseValidationError(t(errorMsg.key as never));
+				}
+			} catch {
+				options.setCodebaseValidationError(
+					t("projectSettings.validationFailed"),
+				);
+			}
+		}
+
+		const shared = pathsShareRoot(options.docDirectory, path);
+		await options.fetchDocBranches(options.docDirectory, !shared);
+	};
+
+	return {
+		handleDocDirectoryChange,
+		handleCodebaseDirectoryChange,
+	};
+}
+
+function ProjectSettings() {
+	const { t } = useTranslation();
+	const navigate = useNavigate();
+	const { projectId } = Route.useParams();
+
+	const {
+		project,
+		setProject,
+		hasLLMInstructions,
+		setHasLLMInstructions,
+		docDirectory,
+		setDocDirectory,
+		codebaseDirectory,
+		setCodebaseDirectory,
+		docBaseBranch,
+		setDocBaseBranch,
+		docBranchOptions,
+		setDocBranchOptions,
+		docBranchError,
+		setDocBranchError,
+		fetchDocBranches,
+	} = useProjectData(projectId);
+
+	const {
+		docValidationError,
+		setDocValidationError,
+		codebaseValidationError,
+		setCodebaseValidationError,
+		saving,
+		handleSavePaths,
+	} = usePathOperations({
+		projectId,
+		project,
+		setProject,
+		setDocDirectory,
+		setCodebaseDirectory,
+		setDocBaseBranch,
+		fetchDocBranches,
+	});
+
+	const { handleDocDirectoryChange, handleCodebaseDirectoryChange } =
+		useDirectoryValidation({
+			project,
+			codebaseDirectory,
+			docDirectory,
+			setDocDirectory,
+			setCodebaseDirectory,
+			setDocBaseBranch,
+			setDocBranchOptions,
+			setDocValidationError,
+			setCodebaseValidationError,
+			fetchDocBranches,
+		});
+
+	const [llmInstructionsFile, setLlmInstructionsFile] = useState("");
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
 	const handleImportLLMInstructions = async () => {
 		if (!(project && llmInstructionsFile)) {
 			return;
 		}
 
-		setSaving(true);
 		try {
-			await ImportLLMInstructions(Number(project.ID), llmInstructionsFile);
+			await ImportLLMInstructions(project.ID, llmInstructionsFile);
 			toast.success(t("projectSettings.llmInstructionsImported"));
 			setHasLLMInstructions(true);
 			setLlmInstructionsFile("");
-		} catch (error) {
-			console.error("Failed to import LLM instructions:", error);
+		} catch (_error) {
 			toast.error(t("projectSettings.llmInstructionsImportError"));
-		} finally {
-			setSaving(false);
 		}
 	};
 
@@ -252,81 +634,17 @@ function ProjectSettings() {
 			await Delete(project.ID);
 			toast.success(t("sidebar.deleteSuccess"));
 			navigate({ to: "/" });
-		} catch (error) {
-			console.error("Error deleting project:", error);
+		} catch (_error) {
 			toast.error(t("sidebar.deleteError"));
 		} finally {
 			setIsDeleteDialogOpen(false);
 		}
 	};
 
-	const getErrorMessageFromCode = (errorCode: string): string => {
-		switch (errorCode) {
-			case "NO_GIT_REPO":
-				return t("projectSettings.noGitRepoFound");
-			case "DIR_NOT_EXIST":
-				return t("projectSettings.dirNotExist");
-			case "EMPTY_PATH":
-				return t("projectSettings.dirNotExist");
-			default:
-				return t("projectSettings.validationFailed");
-		}
-	};
-
 	const sharedRepo = useMemo(
 		() => pathsShareRoot(docDirectory, codebaseDirectory),
-		[docDirectory, codebaseDirectory]
+		[docDirectory, codebaseDirectory],
 	);
-
-	const handleDocDirectoryChange = async (path: string) => {
-		setDocDirectory(path);
-		setDocValidationError(null);
-		setDocBaseBranch("");
-
-		if (!path) {
-			setDocBranchOptions([]);
-			return;
-		}
-
-		if (path && path !== project?.DocumentationRepo) {
-			try {
-				const result = await ValidateDirectory(path);
-				if (!result.isValid) {
-					setDocBranchOptions([]);
-					setDocValidationError(getErrorMessageFromCode(result.errorCode));
-					return;
-				}
-			} catch (error) {
-				console.error("Failed to validate documentation directory:", error);
-				setDocValidationError(t("projectSettings.validationFailed"));
-				setDocBranchOptions([]);
-				return;
-			}
-		}
-
-		const shared = pathsShareRoot(path, codebaseDirectory);
-		await fetchDocBranches(path, !shared);
-	};
-
-	const handleCodebaseDirectoryChange = async (path: string) => {
-		setCodebaseDirectory(path);
-		setCodebaseValidationError(null);
-
-		if (path && path !== project?.CodebaseRepo) {
-			try {
-				const result = await ValidateDirectory(path);
-				if (!result.isValid) {
-					setCodebaseValidationError(getErrorMessageFromCode(result.errorCode));
-				}
-			} catch (error) {
-				console.error("Failed to validate codebase directory:", error);
-				setCodebaseValidationError(t("projectSettings.validationFailed"));
-			}
-		}
-
-		const shared = pathsShareRoot(docDirectory, path);
-		await fetchDocBranches(docDirectory, !shared);
-	};
 
 	useEffect(() => {
 		if (sharedRepo) {
@@ -334,10 +652,10 @@ function ProjectSettings() {
 			setDocBranchOptions([]);
 			setDocBranchError(null);
 		}
-	}, [sharedRepo]);
+	}, [sharedRepo, setDocBaseBranch, setDocBranchOptions, setDocBranchError]);
 
 	const requiresDocBaseBranch = Boolean(
-		docDirectory && codebaseDirectory && !sharedRepo
+		docDirectory && codebaseDirectory && !sharedRepo,
 	);
 
 	const originalDocBaseBranch = project?.DocumentationBaseBranch ?? "";
@@ -345,11 +663,12 @@ function ProjectSettings() {
 	const missingDocBaseBranch =
 		requiresDocBaseBranch && docBaseBranch.trim() === "";
 
-	const pathsChanged =
+	const pathsChanged = Boolean(
 		project &&
-		(docDirectory !== project.DocumentationRepo ||
-			codebaseDirectory !== project.CodebaseRepo ||
-			(requiresDocBaseBranch && docBaseBranch !== originalDocBaseBranch));
+			(docDirectory !== project.DocumentationRepo ||
+				codebaseDirectory !== project.CodebaseRepo ||
+				(requiresDocBaseBranch && docBaseBranch !== originalDocBaseBranch)),
+	);
 
 	const hasValidationErrors =
 		docValidationError !== null ||
@@ -386,143 +705,33 @@ function ProjectSettings() {
 					</p>
 				</CardHeader>
 				<CardContent className="space-y-6">
-					<section className="space-y-4">
-						<h3 className="font-semibold text-lg">
-							{t("projectSettings.repositoryPaths")}
-						</h3>
+					<RepositoryPathsSection
+						codebaseDirectory={codebaseDirectory}
+						codebaseValidationError={codebaseValidationError}
+						docBaseBranch={docBaseBranch}
+						docBranchError={docBranchError}
+						docBranchOptions={docBranchOptions}
+						docDirectory={docDirectory}
+						docValidationError={docValidationError}
+						handleCodebaseDirectoryChange={handleCodebaseDirectoryChange}
+						handleDocDirectoryChange={handleDocDirectoryChange}
+						handleSavePaths={handleSavePaths}
+						hasValidationErrors={hasValidationErrors}
+						missingDocBaseBranch={missingDocBaseBranch}
+						pathsChanged={pathsChanged}
+						project={project}
+						requiresDocBaseBranch={requiresDocBaseBranch}
+						saving={saving}
+						setDocBaseBranch={setDocBaseBranch}
+					/>
 
-						<div className="space-y-4 rounded-lg border border-border bg-muted/50 p-4">
-							<RepositoryPathField
-								currentPath={project.DocumentationRepo}
-								label={t("projectSettings.documentationRepo")}
-								newPath={docDirectory}
-								onDirectoryChange={handleDocDirectoryChange}
-								validationError={docValidationError}
-							/>
-
-							{requiresDocBaseBranch && (
-								<div className="space-y-2">
-									<DocumentationBranchSelector
-										branches={docBranchOptions}
-										description={t(
-											"projectSettings.documentationBaseBranchDescription"
-										)}
-										disabled={!docDirectory || Boolean(docValidationError)}
-										onChange={setDocBaseBranch}
-										value={docBaseBranch}
-									/>
-									{docBranchError && (
-										<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
-											<TriangleAlert size={14} />
-											<span>{docBranchError}</span>
-										</div>
-									)}
-									{!docBranchError && missingDocBaseBranch && (
-										<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
-											<TriangleAlert size={14} />
-											<span>
-												{t("projectSettings.documentationBaseBranchRequired")}
-											</span>
-										</div>
-									)}
-								</div>
-							)}
-
-							<RepositoryPathField
-								currentPath={project.CodebaseRepo}
-								label={t("projectSettings.codebaseRepo")}
-								newPath={codebaseDirectory}
-								onDirectoryChange={handleCodebaseDirectoryChange}
-								validationError={codebaseValidationError}
-							/>
-
-							{pathsChanged && (
-								<Button
-									className="w-full"
-									disabled={saving || hasValidationErrors}
-									onClick={handleSavePaths}
-									size="lg"
-								>
-									{saving
-										? t("projectSettings.saving")
-										: t("projectSettings.savePaths")}
-								</Button>
-							)}
-						</div>
-					</section>
-
-					<section className="space-y-4">
-						<h3 className="font-semibold text-lg">
-							{t("projectSettings.llmInstructions")}
-						</h3>
-
-						<div className="space-y-3 border border-border bg-muted/50 p-4">
-							<div className="flex items-center gap-2">
-								<span className="text-sm">
-									{t("projectSettings.llmInstructionsStatus")}:
-								</span>
-								<span
-									className={`font-semibold text-sm ${hasLLMInstructions ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}
-								>
-									{hasLLMInstructions
-										? t("projectSettings.detected")
-										: t("projectSettings.notDetected")}
-								</span>
-							</div>
-
-							{hasLLMInstructions && (
-								<div className="text-muted-foreground text-xs">
-									{project.DocumentationRepo}/.narrabyte/llm_instructions.*
-								</div>
-							)}
-
-							{!hasLLMInstructions && (
-								<>
-									<p className="text-muted-foreground text-sm">
-										{t("projectSettings.llmInstructionsDescription")}
-									</p>
-
-									<FilePicker
-										accept={{
-											label: "LLM Instructions",
-											extensions: [
-												"md",
-												"mdx",
-												"txt",
-												"json",
-												"yaml",
-												"yml",
-												"prompt",
-											],
-										}}
-										onFileSelected={setLlmInstructionsFile}
-									/>
-									{llmInstructionsFile && (
-										<>
-											<div className="rounded bg-background p-2 text-xs">
-												<span className="text-muted-foreground">
-													{t("projectSettings.selected")}:{" "}
-												</span>
-												<span className="font-medium">
-													{llmInstructionsFile}
-												</span>
-											</div>
-											<Button
-												className="w-full"
-												disabled={saving}
-												onClick={handleImportLLMInstructions}
-												size="lg"
-											>
-												{saving
-													? t("projectSettings.importing")
-													: t("projectSettings.importConfirm")}
-											</Button>
-										</>
-									)}
-								</>
-							)}
-						</div>
-					</section>
+					<LLMInstructionsSection
+						handleImportLLMInstructions={handleImportLLMInstructions}
+						hasLLMInstructions={hasLLMInstructions}
+						llmInstructionsFile={llmInstructionsFile}
+						project={project}
+						setLlmInstructionsFile={setLlmInstructionsFile}
+					/>
 
 					<div className="flex gap-3">
 						<Button
