@@ -240,7 +240,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		baseHash = sourceHash
 		baseBranch = sourceBranch
 	} else {
-		baseHash, baseBranch, err = ensureBaseBranch(docRepo)
+		baseHash, baseBranch, err = resolveDocumentationBase(project, docRepo)
 		if err != nil {
 			return nil, err
 		}
@@ -429,7 +429,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 			return nil, fmt.Errorf("failed to resolve source branch '%s': %w", sourceBranch, err)
 		}
 	} else {
-		baseHash, baseBranch, err = ensureBaseBranch(docRepo)
+		baseHash, baseBranch, err = resolveDocumentationBase(project, docRepo)
 		if err != nil {
 			return nil, err
 		}
@@ -449,7 +449,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	}
 
 	// Create a temporary workspace checked out to the current docs branch head
-	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, docCfg, docsBranch)
+	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, docCfg, docsBranch, baseBranch, baseHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary documentation workspace: %w", err)
 	}
@@ -693,7 +693,7 @@ func (s *ClientService) MergeDocsIntoSource(projectID uint, sourceBranch string)
 
 // createTempDocRepoAtBranchHead clones the documentation repository into a temp directory
 // and checks out the specified branch at its current HEAD.
-func createTempDocRepoAtBranchHead(ctx context.Context, cfg *docRepoConfig, branch string) (workspace tempDocWorkspace, cleanup func(), err error) {
+func createTempDocRepoAtBranchHead(ctx context.Context, cfg *docRepoConfig, branch string, baseBranch string, baseHash plumbing.Hash) (workspace tempDocWorkspace, cleanup func(), err error) {
 	if cfg == nil {
 		return tempDocWorkspace{}, nil, fmt.Errorf("documentation repository configuration is required")
 	}
@@ -735,10 +735,12 @@ func createTempDocRepoAtBranchHead(ctx context.Context, cfg *docRepoConfig, bran
 		if srcRef, refErr := srcRepo.Reference(refName, true); refErr == nil {
 			headHash = srcRef.Hash()
 		} else {
-			baseHash, _, baseErr := ensureBaseBranch(srcRepo)
-			if baseErr != nil {
+			if baseHash == plumbing.ZeroHash {
 				cleanup()
 				return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
+			}
+			if baseBranch != "" {
+				events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Creating docs branch '%s' from base '%s'", branch, baseBranch)))
 			}
 			headHash = baseHash
 		}
@@ -981,7 +983,7 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 	if docCfg.SharedWithCode {
 		baseBranch = sourceBranch
 	} else {
-		_, baseBranch, err = ensureBaseBranch(docRepo)
+		_, baseBranch, err = resolveDocumentationBase(project, docRepo)
 		if err != nil {
 			return nil, err
 		}
@@ -1054,6 +1056,21 @@ func resolveBranchHash(repo *git.Repository, branch string) (plumbing.Hash, erro
 	return plumbing.Hash{}, fmt.Errorf("branch '%s' not found", branch)
 }
 
+func resolveDocumentationBase(project *models.RepoLink, repo *git.Repository) (plumbing.Hash, string, error) {
+	if project == nil {
+		return plumbing.Hash{}, "", fmt.Errorf("project is not configured")
+	}
+	branch := strings.TrimSpace(project.DocumentationBaseBranch)
+	if branch == "" {
+		return plumbing.Hash{}, "", fmt.Errorf("documentation base branch is not configured for project '%s'", project.ProjectName)
+	}
+	hash, err := resolveBranchHash(repo, branch)
+	if err != nil {
+		return plumbing.Hash{}, "", fmt.Errorf("failed to resolve documentation base branch '%s': %w", branch, err)
+	}
+	return hash, branch, nil
+}
+
 func extractPathsFromDiff(diff string) []string {
 	seen := map[string]struct{}{}
 	scanner := bufio.NewScanner(strings.NewReader(diff))
@@ -1082,31 +1099,6 @@ func extractPathsFromDiff(diff string) []string {
 	return paths
 }
 
-func ensureBaseBranch(repo *git.Repository) (plumbing.Hash, string, error) {
-	// Try "main" first
-	branchName := "main"
-	refName := plumbing.NewBranchReferenceName(branchName)
-	ref, err := repo.Reference(refName, true)
-	if err == nil {
-		return ref.Hash(), branchName, nil
-	}
-	if !errors.Is(err, plumbing.ErrReferenceNotFound) {
-		return plumbing.Hash{}, "", fmt.Errorf("failed to resolve main branch: %w", err)
-	}
-
-	// Try "master" if "main" not found
-	branchName = "master"
-	refName = plumbing.NewBranchReferenceName(branchName)
-	ref, err = repo.Reference(refName, true)
-	if err != nil {
-		if errors.Is(err, plumbing.ErrReferenceNotFound) {
-			return plumbing.Hash{}, "", fmt.Errorf("neither main nor master branch found in documentation repo")
-		}
-		return plumbing.Hash{}, "", fmt.Errorf("failed to resolve master branch: %w", err)
-	}
-	return ref.Hash(), branchName, nil
-}
-
 func newDocRepoConfig(docPath, codeRepoRoot string) (*docRepoConfig, error) {
 	absDoc, err := filepath.Abs(docPath)
 	if err != nil {
@@ -1127,28 +1119,13 @@ func newDocRepoConfig(docPath, codeRepoRoot string) (*docRepoConfig, error) {
 	if rel == "" {
 		rel = "."
 	}
-	shared := codeRepoRoot != "" && samePath(root, codeRepoRoot)
+	shared := codeRepoRoot != "" && utils.SamePath(root, codeRepoRoot)
 	return &docRepoConfig{
 		RepoRoot:       root,
 		DocsPath:       absDoc,
 		DocsRelative:   rel,
 		SharedWithCode: shared,
 	}, nil
-}
-
-func samePath(a, b string) bool {
-	if strings.TrimSpace(a) == "" || strings.TrimSpace(b) == "" {
-		return false
-	}
-	absA, errA := filepath.Abs(a)
-	if errA != nil {
-		absA = filepath.Clean(a)
-	}
-	absB, errB := filepath.Abs(b)
-	if errB != nil {
-		absB = filepath.Clean(b)
-	}
-	return absA == absB
 }
 
 func documentationBranchName(sourceBranch string) string {

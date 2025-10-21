@@ -210,6 +210,7 @@ function AppSidebarContent() {
 		name: string;
 		docDirectory: string;
 		codebaseDirectory: string;
+		docBaseBranch: string;
 	}) => {
 		if (!(data.docDirectory && data.codebaseDirectory)) {
 			toast(t("home.selectBothDirectories"));
@@ -217,6 +218,12 @@ function AppSidebarContent() {
 		}
 		if (!data.name) {
 			toast(t("home.projectNameRequired"));
+			return false;
+		}
+		const separateRepos =
+			data.docDirectory.trim() !== data.codebaseDirectory.trim();
+		if (separateRepos && !data.docBaseBranch.trim()) {
+			toast(t("projectManager.documentationBaseBranchRequired"));
 			return false;
 		}
 		return true;
@@ -238,6 +245,7 @@ function AppSidebarContent() {
 			codebaseDirectory: string;
 			initFumaDocs: boolean;
 			llmInstructions?: string;
+			docBaseBranch: string;
 		}
 	) => {
 		const errorMsg = error instanceof Error ? error.message : String(error);
@@ -265,7 +273,8 @@ function AppSidebarContent() {
 				data.docDirectory,
 				data.codebaseDirectory,
 				data.initFumaDocs,
-				data.llmInstructions ?? ""
+				data.llmInstructions ?? "",
+				data.docBaseBranch
 			);
 			return true;
 		} catch (initError) {
@@ -277,6 +286,12 @@ function AppSidebarContent() {
 
 	// Helper function to handle general errors
 	const handleError = (error: unknown) => {
+		const message = error instanceof Error ? error.message : String(error);
+		if (message.includes("documentation base branch is required")) {
+			console.error("Error linking repositories:", error);
+			toast(t("projectManager.documentationBaseBranchRequired"));
+			return;
+		}
 		console.error("Error linking repositories:", error);
 		toast(t("home.linkError"));
 	};
@@ -287,6 +302,7 @@ function AppSidebarContent() {
 		codebaseDirectory: string;
 		initFumaDocs: boolean;
 		llmInstructions?: string;
+		docBaseBranch: string;
 	}) => {
 		if (!validateProjectData(data)) {
 			return;
@@ -298,7 +314,8 @@ function AppSidebarContent() {
 				data.docDirectory,
 				data.codebaseDirectory,
 				data.initFumaDocs,
-				data.llmInstructions ?? ""
+				data.llmInstructions ?? "",
+				data.docBaseBranch
 			);
 			handleSuccess();
 		} catch (error) {

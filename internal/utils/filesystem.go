@@ -50,3 +50,20 @@ func FindGitRepoRoot(path string) (string, bool) {
 		current = parent
 	}
 }
+
+// SamePath returns true when two filesystem paths resolve to the same absolute
+// location.
+func SamePath(a, b string) bool {
+	if strings.TrimSpace(a) == "" || strings.TrimSpace(b) == "" {
+		return false
+	}
+	absA, errA := filepath.Abs(a)
+	if errA != nil {
+		absA = filepath.Clean(a)
+	}
+	absB, errB := filepath.Abs(b)
+	if errB != nil {
+		absB = filepath.Clean(b)
+	}
+	return absA == absB
+}

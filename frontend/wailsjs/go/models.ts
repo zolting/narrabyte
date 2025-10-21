@@ -177,6 +177,7 @@ export namespace models {
 	    DocumentationRepo: string;
 	    CodebaseRepo: string;
 	    ProjectName: string;
+	    DocumentationBaseBranch: string;
 	    index: number;
 	
 	    static createFrom(source: any = {}) {
@@ -189,6 +190,7 @@ export namespace models {
 	        this.DocumentationRepo = source["DocumentationRepo"];
 	        this.CodebaseRepo = source["CodebaseRepo"];
 	        this.ProjectName = source["ProjectName"];
+	        this.DocumentationBaseBranch = source["DocumentationBaseBranch"];
 	        this.index = source["index"];
 	    }
 	}

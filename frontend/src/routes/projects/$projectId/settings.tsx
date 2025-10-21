@@ -1,4 +1,5 @@
 import type { models } from "@go/models";
+import { ListBranchesByPath } from "@go/services/GitService";
 import {
 	CheckLLMInstructions,
 	Delete,
@@ -9,10 +10,11 @@ import {
 } from "@go/services/repoLinkService";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Trash2, TriangleAlert } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import DirectoryPicker from "@/components/DirectoryPicker";
+import { DocumentationBranchSelector } from "@/components/DocumentationBranchSelector";
 import FilePicker from "@/components/FilePicker";
 import {
 	AlertDialog,
@@ -26,6 +28,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { sortBranches } from "@/lib/sortBranches";
+import { pathsShareRoot } from "@/lib/pathUtils";
 
 export const Route = createFileRoute("/projects/$projectId/settings")({
 	component: ProjectSettings,
@@ -93,6 +97,33 @@ function ProjectSettings() {
 	const [codebaseValidationError, setCodebaseValidationError] = useState<
 		string | null
 	>(null);
+	const [docBaseBranch, setDocBaseBranch] = useState("");
+	const [docBranchOptions, setDocBranchOptions] = useState<
+		models.BranchInfo[]
+	>([]);
+	const [docBranchError, setDocBranchError] = useState<string | null>(null);
+
+	const fetchDocBranches = useCallback(
+		async (path: string, shouldFetch: boolean) => {
+			if (!path || !shouldFetch) {
+				setDocBranchOptions([]);
+				setDocBranchError(null);
+				return;
+			}
+			try {
+				const branches = await ListBranchesByPath(path);
+				setDocBranchOptions(
+					sortBranches(branches, { prioritizeMainMaster: true })
+				);
+				setDocBranchError(null);
+			} catch (error) {
+				console.error("Failed to list documentation branches:", error);
+				setDocBranchOptions([]);
+				setDocBranchError(t("projectSettings.branchLoadFailed"));
+			}
+		},
+		[t]
+	);
 
 	useEffect(() => {
 		const loadProject = async () => {
@@ -102,6 +133,12 @@ function ProjectSettings() {
 				setProject(proj);
 				setDocDirectory(proj.DocumentationRepo);
 				setCodebaseDirectory(proj.CodebaseRepo);
+				setDocBaseBranch(proj.DocumentationBaseBranch ?? "");
+				const shared = pathsShareRoot(
+					proj.DocumentationRepo,
+					proj.CodebaseRepo
+				);
+				await fetchDocBranches(proj.DocumentationRepo, !shared);
 
 				const hasFile = await CheckLLMInstructions(Number(projectId));
 				setHasLLMInstructions(hasFile);
@@ -112,38 +149,49 @@ function ProjectSettings() {
 			}
 		};
 		loadProject();
-	}, [projectId, t]);
+	}, [projectId, t, fetchDocBranches]);
 
 	const handleSavePathsSuccess = async () => {
 		toast.success(t("projectSettings.pathsUpdated"));
 		setDocValidationError(null);
 		setCodebaseValidationError(null);
-		const updated = (await Get(Number(projectId))) as models.RepoLink;
-		setProject(updated);
+			const updated = (await Get(Number(projectId))) as models.RepoLink;
+			setProject(updated);
+			setDocDirectory(updated.DocumentationRepo);
+			setCodebaseDirectory(updated.CodebaseRepo);
+			setDocBaseBranch(updated.DocumentationBaseBranch ?? "");
+			const shared = pathsShareRoot(
+				updated.DocumentationRepo,
+				updated.CodebaseRepo
+			);
+			await fetchDocBranches(updated.DocumentationRepo, !shared);
 	};
 
 	const handleSavePathsError = (error: unknown) => {
 		console.error("Failed to update paths:", error);
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
-		const errorMap: Record<string, () => void> = {
-			"missing_git_repo: documentation": () => {
-				toast.error(t("projectSettings.noGitRepoDoc"));
-				setDocValidationError(t("projectSettings.noGitRepoFound"));
-			},
-			"missing_git_repo: codebase": () => {
-				toast.error(t("projectSettings.noGitRepoCodebase"));
-				setCodebaseValidationError(t("projectSettings.noGitRepoFound"));
-			},
-			"documentation repo path does not exist": () => {
-				toast.error(t("projectSettings.docDirNotExist"));
-				setDocValidationError(t("projectSettings.dirNotExist"));
-			},
-			"codebase repo path does not exist": () => {
-				toast.error(t("projectSettings.codebaseDirNotExist"));
-				setCodebaseValidationError(t("projectSettings.dirNotExist"));
-			},
-		};
+	const errorMap: Record<string, () => void> = {
+		"missing_git_repo: documentation": () => {
+			toast.error(t("projectSettings.noGitRepoDoc"));
+			setDocValidationError(t("projectSettings.noGitRepoFound"));
+		},
+		"missing_git_repo: codebase": () => {
+			toast.error(t("projectSettings.noGitRepoCodebase"));
+			setCodebaseValidationError(t("projectSettings.noGitRepoFound"));
+		},
+		"documentation repo path does not exist": () => {
+			toast.error(t("projectSettings.docDirNotExist"));
+			setDocValidationError(t("projectSettings.dirNotExist"));
+		},
+		"codebase repo path does not exist": () => {
+			toast.error(t("projectSettings.codebaseDirNotExist"));
+			setCodebaseValidationError(t("projectSettings.dirNotExist"));
+		},
+		"documentation base branch is required": () => {
+			toast.error(t("projectSettings.documentationBaseBranchRequired"));
+		},
+	};
 
 		const matchedError = Object.keys(errorMap).find((key) =>
 			errorMessage.includes(key)
@@ -165,7 +213,8 @@ function ProjectSettings() {
 			await UpdateProjectPaths(
 				Number(project.ID),
 				docDirectory,
-				codebaseDirectory
+				codebaseDirectory,
+				docBaseBranch.trim()
 			);
 			await handleSavePathsSuccess();
 		} catch (error) {
@@ -224,21 +273,39 @@ function ProjectSettings() {
 		}
 	};
 
+	const sharedRepo = useMemo(
+		() => pathsShareRoot(docDirectory, codebaseDirectory),
+		[docDirectory, codebaseDirectory]
+	);
+
 	const handleDocDirectoryChange = async (path: string) => {
 		setDocDirectory(path);
 		setDocValidationError(null);
+		setDocBaseBranch("");
+
+		if (!path) {
+			setDocBranchOptions([]);
+			return;
+		}
 
 		if (path && path !== project?.DocumentationRepo) {
 			try {
 				const result = await ValidateDirectory(path);
 				if (!result.isValid) {
+					setDocBranchOptions([]);
 					setDocValidationError(getErrorMessageFromCode(result.errorCode));
+					return;
 				}
 			} catch (error) {
 				console.error("Failed to validate documentation directory:", error);
 				setDocValidationError(t("projectSettings.validationFailed"));
+				setDocBranchOptions([]);
+				return;
 			}
 		}
+
+		const shared = pathsShareRoot(path, codebaseDirectory);
+		await fetchDocBranches(path, !shared);
 	};
 
 	const handleCodebaseDirectoryChange = async (path: string) => {
@@ -256,15 +323,38 @@ function ProjectSettings() {
 				setCodebaseValidationError(t("projectSettings.validationFailed"));
 			}
 		}
+
+		const shared = pathsShareRoot(docDirectory, path);
+		await fetchDocBranches(docDirectory, !shared);
 	};
+
+	useEffect(() => {
+		if (sharedRepo) {
+			setDocBaseBranch("");
+			setDocBranchOptions([]);
+			setDocBranchError(null);
+		}
+	}, [sharedRepo]);
+
+	const requiresDocBaseBranch = Boolean(
+		docDirectory && codebaseDirectory && !sharedRepo
+	);
+
+	const originalDocBaseBranch = project?.DocumentationBaseBranch ?? "";
+
+	const missingDocBaseBranch =
+		requiresDocBaseBranch && docBaseBranch.trim() === "";
 
 	const pathsChanged =
 		project &&
 		(docDirectory !== project.DocumentationRepo ||
-			codebaseDirectory !== project.CodebaseRepo);
+			codebaseDirectory !== project.CodebaseRepo ||
+			(requiresDocBaseBranch && docBaseBranch !== originalDocBaseBranch));
 
 	const hasValidationErrors =
-		docValidationError !== null || codebaseValidationError !== null;
+		docValidationError !== null ||
+		codebaseValidationError !== null ||
+		missingDocBaseBranch;
 
 	if (project === undefined) {
 		return <div className="p-8" />;
@@ -309,6 +399,34 @@ function ProjectSettings() {
 								onDirectoryChange={handleDocDirectoryChange}
 								validationError={docValidationError}
 							/>
+
+							{requiresDocBaseBranch && (
+								<div className="space-y-2">
+									<DocumentationBranchSelector
+										branches={docBranchOptions}
+										description={t(
+											"projectSettings.documentationBaseBranchDescription"
+										)}
+										disabled={!docDirectory || Boolean(docValidationError)}
+										onChange={setDocBaseBranch}
+										value={docBaseBranch}
+									/>
+									{docBranchError && (
+										<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
+											<TriangleAlert size={14} />
+											<span>{docBranchError}</span>
+										</div>
+									)}
+									{!docBranchError && missingDocBaseBranch && (
+										<div className="flex items-center gap-2 rounded bg-destructive/10 p-2 text-destructive text-xs">
+											<TriangleAlert size={14} />
+											<span>
+												{t("projectSettings.documentationBaseBranchRequired")}
+											</span>
+										</div>
+									)}
+								</div>
+							)}
 
 							<RepositoryPathField
 								currentPath={project.CodebaseRepo}

@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import type { models } from "@go/models";
+import { ListBranchesByPath } from "@go/services/GitService";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import DirectoryPicker from "@/components/DirectoryPicker";
+import { DocumentationBranchSelector } from "@/components/DocumentationBranchSelector";
 import FilePicker from "@/components/FilePicker";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +14,8 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { sortBranches } from "@/lib/sortBranches";
+import { pathsShareRoot } from "@/lib/pathUtils";
 
 type AddProjectDialogProps = {
 	open: boolean;
@@ -21,6 +26,7 @@ type AddProjectDialogProps = {
 		codebaseDirectory: string;
 		initFumaDocs: boolean;
 		llmInstructions?: string;
+		docBaseBranch: string;
 	}) => void;
 };
 
@@ -35,24 +41,42 @@ export default function AddProjectDialog({
 	const [codebaseDirectory, setCodebaseDirectory] = useState("");
 	const [llmInstructions, setLlmInstructions] = useState("");
 	const [initFumaDocs, setInitFumaDocs] = useState<boolean>(false);
+	const [docBaseBranch, setDocBaseBranch] = useState("");
+	const [availableDocBranches, setAvailableDocBranches] = useState<
+		models.BranchInfo[]
+	>([]);
 
-	const computedDocDirectory = () => {
+	const docRepoPath = useMemo(() => {
 		if (!initFumaDocs) {
 			return docDirectory;
 		}
+		if (!docDirectory || !name) {
+			return "";
+		}
+		const separator = docDirectory.endsWith("/") ? "" : "/";
+		return `${docDirectory}${separator}${name}`.trim();
+	}, [docDirectory, initFumaDocs, name]);
 
-		const sep = docDirectory.endsWith("/") ? "" : "/";
-		return `${docDirectory}${sep}${name}`;
-	};
+	const sharedRepo = useMemo(
+		() => pathsShareRoot(docRepoPath, codebaseDirectory),
+		[docRepoPath, codebaseDirectory]
+	);
+
+	const showDocBranchSelector = Boolean(docRepoPath && !sharedRepo);
+
+	const requiresDocBaseBranch = Boolean(
+		docRepoPath && codebaseDirectory && !sharedRepo
+	);
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		onSubmit({
 			name,
-			docDirectory: computedDocDirectory(),
+			docDirectory: docRepoPath,
 			codebaseDirectory,
 			initFumaDocs,
 			llmInstructions: llmInstructions?.trim() ? llmInstructions : undefined,
+			docBaseBranch: docBaseBranch.trim(),
 		});
 	};
 
@@ -63,8 +87,52 @@ export default function AddProjectDialog({
 			setCodebaseDirectory("");
 			setLlmInstructions("");
 			setInitFumaDocs(false);
+			setDocBaseBranch("");
+			setAvailableDocBranches([]);
 		}
 	}, [open]);
+
+	useEffect(() => {
+		setDocBaseBranch("");
+	}, [docDirectory, initFumaDocs]);
+
+	useEffect(() => {
+		if (sharedRepo) {
+			setDocBaseBranch("");
+		}
+	}, [sharedRepo]);
+
+	useEffect(() => {
+		if (!docRepoPath || initFumaDocs || sharedRepo) {
+			setAvailableDocBranches([]);
+			return;
+		}
+
+		let cancelled = false;
+
+		ListBranchesByPath(docRepoPath)
+			.then((branches) => {
+				if (!cancelled) {
+					setAvailableDocBranches(
+						sortBranches(branches, { prioritizeMainMaster: true })
+					);
+				}
+			})
+			.catch((error) => {
+				console.error("Failed to list documentation branches:", error);
+				if (!cancelled) {
+					setAvailableDocBranches([]);
+				}
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [docRepoPath, initFumaDocs, sharedRepo]);
+
+	const submitDisabled =
+			!(name && docDirectory && codebaseDirectory) ||
+			(requiresDocBaseBranch && !docBaseBranch.trim());
 
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
@@ -131,10 +199,31 @@ export default function AddProjectDialog({
 								onDirectorySelected={setDocDirectory}
 							/>
 							{docDirectory && (
-								<div className="mt-1 text-xs">{computedDocDirectory()}</div>
+								<div className="mt-1 text-xs">
+									{docRepoPath || docDirectory}
+								</div>
 							)}
 						</div>
 					</div>
+
+					{showDocBranchSelector && (
+						<>
+							<DocumentationBranchSelector
+								branches={availableDocBranches}
+								description={t(
+									"projectManager.documentationBaseBranchDescription"
+								)}
+								disabled={!docRepoPath}
+								onChange={setDocBaseBranch}
+								value={docBaseBranch}
+							/>
+							{requiresDocBaseBranch && !docBaseBranch.trim() && (
+								<p className="text-destructive text-xs">
+									{t("projectManager.documentationBaseBranchRequired")}
+								</p>
+							)}
+						</>
+					)}
 
 					<div>
 						<label
@@ -185,7 +274,7 @@ export default function AddProjectDialog({
 						{t("common.cancel")}
 					</Button>
 					<Button
-						disabled={!(name && docDirectory && codebaseDirectory)}
+						disabled={submitDisabled}
 						onClick={handleSubmit}
 						type="button"
 					>
