@@ -3,9 +3,9 @@ import {
 	GetCurrentBranch,
 	HasUncommittedChanges,
 } from "@go/services/GitService";
+import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
-import { Delete } from "@go/services/generationSessionService";
 import { useNavigate } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -168,10 +168,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			branchManager.targetBranch ||
 			"";
 		if (source && target) {
-			Promise.resolve(Delete(Number(projectId), source, target))
-				.catch(() => {});
+			Promise.resolve(Delete(Number(projectId), source, target)).catch(() => {
+				// Silently ignore deletion errors
+			});
 		}
-	}, [branchManager.sourceBranch, branchManager.targetBranch, docManager, projectId]);
+	}, [
+		branchManager.sourceBranch,
+		branchManager.targetBranch,
+		docManager,
+		projectId,
+	]);
 
 	const handleReset = useCallback(() => {
 		docManager.reset();
@@ -267,8 +273,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 								})
 							}
 							size="sm"
-							variant="outline"
 							type="button"
+							variant="outline"
 						>
 							{t("sidebar.ongoingGenerations")}
 						</Button>
@@ -280,8 +286,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 								})
 							}
 							size="sm"
-							variant="outline"
 							type="button"
+							variant="outline"
 						>
 							<Settings size={16} />
 							{t("common.settings")}

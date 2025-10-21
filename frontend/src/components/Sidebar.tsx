@@ -25,6 +25,7 @@ import {
 } from "@go/services/repoLinkService";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
+	FileText,
 	Folder,
 	Folders,
 	GripVertical,
@@ -33,7 +34,6 @@ import {
 	Search,
 	Settings,
 	Trash2,
-	FileText,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";

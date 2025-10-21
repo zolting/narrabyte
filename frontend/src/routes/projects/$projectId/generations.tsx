@@ -1,5 +1,5 @@
 import type { models } from "@go/models";
-import { List, Delete } from "@go/services/generationSessionService";
+import { Delete, List } from "@go/services/generationSessionService";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -35,11 +35,13 @@ function RouteComponent() {
 		setLoading(true);
 		Promise.resolve(List(Number(projectId)))
 			.then((list) => {
-				if (!mounted) return;
+				if (!mounted) {
+					return;
+				}
 				setSessions(list);
 			})
 			.finally(() => {
-				if (mounted) setLoading(false);
+				setLoading(false);
 			});
 		return () => {
 			mounted = false;
@@ -54,11 +56,7 @@ function RouteComponent() {
 		async (s: models.GenerationSession) => {
 			setRestoringId(Number(s.ID));
 			try {
-				await restoreSession(
-					Number(projectId),
-					s.SourceBranch,
-					s.TargetBranch
-				);
+				await restoreSession(Number(projectId), s.SourceBranch, s.TargetBranch);
 				navigate({ to: "/projects/$projectId", params: { projectId } });
 			} finally {
 				setRestoringId(null);
@@ -68,10 +66,14 @@ function RouteComponent() {
 	);
 
 	const formatUpdated = useCallback((raw: unknown) => {
-		if (!raw) return null;
+		if (!raw) {
+			return null;
+		}
 		try {
 			const d = new Date(raw as string);
-			if (Number.isNaN(d.getTime())) return null;
+			if (Number.isNaN(d.getTime())) {
+				return null;
+			}
 			return d.toLocaleString();
 		} catch {
 			return null;
@@ -87,14 +89,12 @@ function RouteComponent() {
 
 	const handleDelete = useCallback(
 		async (s: models.GenerationSession) => {
-			if (!window.confirm(t("generations.deleteConfirm"))) return;
+			if (!window.confirm(t("generations.deleteConfirm"))) {
+				return;
+			}
 			setDeletingId(Number(s.ID));
 			try {
-				await Delete(
-					Number(projectId),
-					s.SourceBranch,
-					s.TargetBranch
-				);
+				await Delete(Number(projectId), s.SourceBranch, s.TargetBranch);
 				await refreshSessions();
 			} finally {
 				setDeletingId(null);
@@ -115,28 +115,33 @@ function RouteComponent() {
 							{t("generations.description")}
 						</p>
 					</div>
-					<Button onClick={handleBack} size="sm" type="button" variant="outline">
+					<Button
+						onClick={handleBack}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
 						{t("common.backToProject")}
 					</Button>
 				</header>
 
 				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden pr-2">
-					{loading ? (
+					{loading && (
 						<div className="p-2 text-muted-foreground text-sm">
 							{t("generations.loading")}
 						</div>
-					) : !sessions || sessions.length === 0 ? (
+					)}
+					{!loading && (!sessions || sessions.length === 0) && (
 						<div className="p-2 text-muted-foreground text-sm">
 							{t("generations.noSessions")}
 						</div>
-					) : (
+					)}
+					{!loading && sessions && sessions.length > 0 && (
 						<div className="grid grid-cols-1 gap-3">
 							{sessions.map((s) => (
 								<Card key={String(s.ID)}>
 									<CardHeader>
-										<CardTitle>
-											{t("generations.sessionTitle")}
-										</CardTitle>
+										<CardTitle>{t("generations.sessionTitle")}</CardTitle>
 										<CardDescription>
 											{t("generations.sessionDescription")}
 										</CardDescription>
@@ -157,17 +162,18 @@ function RouteComponent() {
 												{s.SourceBranch} → {s.TargetBranch}
 											</div>
 											<div className="text-muted-foreground text-xs">
-												{t("generations.lastUpdated")}: {formatUpdated(s.UpdatedAt)}
+												{t("generations.lastUpdated")}:{" "}
+												{formatUpdated(s.UpdatedAt)}
 											</div>
 										</div>
 									</CardContent>
-									<div className="px-6 pb-4 flex gap-2">
+									<div className="flex gap-2 px-6 pb-4">
 										<Button
-											variant="destructive"
-											size="sm"
 											disabled={deletingId === Number(s.ID)}
 											onClick={() => handleDelete(s)}
+											size="sm"
 											type="button"
+											variant="destructive"
 										>
 											{t("generations.deleteSession")}
 										</Button>

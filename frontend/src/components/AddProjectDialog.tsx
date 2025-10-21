@@ -14,8 +14,8 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { sortBranches } from "@/lib/sortBranches";
 import { pathsShareRoot } from "@/lib/pathUtils";
+import { sortBranches } from "@/lib/sortBranches";
 
 type AddProjectDialogProps = {
 	open: boolean;
@@ -50,7 +50,7 @@ export default function AddProjectDialog({
 		if (!initFumaDocs) {
 			return docDirectory;
 		}
-		if (!docDirectory || !name) {
+		if (!(docDirectory && name)) {
 			return "";
 		}
 		const separator = docDirectory.endsWith("/") ? "" : "/";
@@ -131,8 +131,8 @@ export default function AddProjectDialog({
 	}, [docRepoPath, initFumaDocs, sharedRepo]);
 
 	const submitDisabled =
-			!(name && docDirectory && codebaseDirectory) ||
-			(requiresDocBaseBranch && !docBaseBranch.trim());
+		!(name && docDirectory && codebaseDirectory) ||
+		(requiresDocBaseBranch && !docBaseBranch.trim());
 
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>

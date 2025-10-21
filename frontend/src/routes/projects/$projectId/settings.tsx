@@ -28,8 +28,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { sortBranches } from "@/lib/sortBranches";
 import { pathsShareRoot } from "@/lib/pathUtils";
+import { sortBranches } from "@/lib/sortBranches";
 
 export const Route = createFileRoute("/projects/$projectId/settings")({
 	component: ProjectSettings,
@@ -98,14 +98,14 @@ function ProjectSettings() {
 		string | null
 	>(null);
 	const [docBaseBranch, setDocBaseBranch] = useState("");
-	const [docBranchOptions, setDocBranchOptions] = useState<
-		models.BranchInfo[]
-	>([]);
+	const [docBranchOptions, setDocBranchOptions] = useState<models.BranchInfo[]>(
+		[]
+	);
 	const [docBranchError, setDocBranchError] = useState<string | null>(null);
 
 	const fetchDocBranches = useCallback(
 		async (path: string, shouldFetch: boolean) => {
-			if (!path || !shouldFetch) {
+			if (!(path && shouldFetch)) {
 				setDocBranchOptions([]);
 				setDocBranchError(null);
 				return;
@@ -155,43 +155,43 @@ function ProjectSettings() {
 		toast.success(t("projectSettings.pathsUpdated"));
 		setDocValidationError(null);
 		setCodebaseValidationError(null);
-			const updated = (await Get(Number(projectId))) as models.RepoLink;
-			setProject(updated);
-			setDocDirectory(updated.DocumentationRepo);
-			setCodebaseDirectory(updated.CodebaseRepo);
-			setDocBaseBranch(updated.DocumentationBaseBranch ?? "");
-			const shared = pathsShareRoot(
-				updated.DocumentationRepo,
-				updated.CodebaseRepo
-			);
-			await fetchDocBranches(updated.DocumentationRepo, !shared);
+		const updated = (await Get(Number(projectId))) as models.RepoLink;
+		setProject(updated);
+		setDocDirectory(updated.DocumentationRepo);
+		setCodebaseDirectory(updated.CodebaseRepo);
+		setDocBaseBranch(updated.DocumentationBaseBranch ?? "");
+		const shared = pathsShareRoot(
+			updated.DocumentationRepo,
+			updated.CodebaseRepo
+		);
+		await fetchDocBranches(updated.DocumentationRepo, !shared);
 	};
 
 	const handleSavePathsError = (error: unknown) => {
 		console.error("Failed to update paths:", error);
 		const errorMessage = error instanceof Error ? error.message : String(error);
 
-	const errorMap: Record<string, () => void> = {
-		"missing_git_repo: documentation": () => {
-			toast.error(t("projectSettings.noGitRepoDoc"));
-			setDocValidationError(t("projectSettings.noGitRepoFound"));
-		},
-		"missing_git_repo: codebase": () => {
-			toast.error(t("projectSettings.noGitRepoCodebase"));
-			setCodebaseValidationError(t("projectSettings.noGitRepoFound"));
-		},
-		"documentation repo path does not exist": () => {
-			toast.error(t("projectSettings.docDirNotExist"));
-			setDocValidationError(t("projectSettings.dirNotExist"));
-		},
-		"codebase repo path does not exist": () => {
-			toast.error(t("projectSettings.codebaseDirNotExist"));
-			setCodebaseValidationError(t("projectSettings.dirNotExist"));
-		},
-		"documentation base branch is required": () => {
-			toast.error(t("projectSettings.documentationBaseBranchRequired"));
-		},
-	};
+		const errorMap: Record<string, () => void> = {
+			"missing_git_repo: documentation": () => {
+				toast.error(t("projectSettings.noGitRepoDoc"));
+				setDocValidationError(t("projectSettings.noGitRepoFound"));
+			},
+			"missing_git_repo: codebase": () => {
+				toast.error(t("projectSettings.noGitRepoCodebase"));
+				setCodebaseValidationError(t("projectSettings.noGitRepoFound"));
+			},
+			"documentation repo path does not exist": () => {
+				toast.error(t("projectSettings.docDirNotExist"));
+				setDocValidationError(t("projectSettings.dirNotExist"));
+			},
+			"codebase repo path does not exist": () => {
+				toast.error(t("projectSettings.codebaseDirNotExist"));
+				setCodebaseValidationError(t("projectSettings.dirNotExist"));
+			},
+			"documentation base branch is required": () => {
+				toast.error(t("projectSettings.documentationBaseBranchRequired"));
+			},
+		};
 
 		const matchedError = Object.keys(errorMap).find((key) =>
 			errorMessage.includes(key)
