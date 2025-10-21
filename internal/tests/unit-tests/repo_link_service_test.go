@@ -272,3 +272,26 @@ func TestRepoLinkService_UpdateProjectPaths_UpdatesBaseBranch(t *testing.T) {
 		assert.Equal(t, "docs", updated.DocumentationBaseBranch)
 	}
 }
+
+func TestRepoLinkService_Register_NestedPathsSameRepo(t *testing.T) {
+	mockRepo := &mocks.RepoLinkRepositoryMock{
+		CreateFunc: func(ctx context.Context, link *models.RepoLink) error {
+			link.ID = 100
+			return nil
+		},
+	}
+	service := services.NewRepoLinkService(mockRepo, services.FumadocsService{}, services.GitService{})
+	service.Startup(context.Background())
+
+	// Create a shared repo with docs subdirectory
+	repoDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(repoDir, ".git"), 0o755))
+	docsDir := filepath.Join(repoDir, "docs")
+	assert.NoError(t, os.Mkdir(docsDir, 0o755))
+
+	link, err := service.Register("nested", docsDir, repoDir, "")
+	assert.NoError(t, err)
+	assert.NotNil(t, link)
+	assert.Equal(t, uint(100), link.ID)
+	assert.Equal(t, "", link.DocumentationBaseBranch) // Should allow empty since same repo
+}

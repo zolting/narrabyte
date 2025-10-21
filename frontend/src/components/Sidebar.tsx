@@ -205,30 +205,6 @@ function AppSidebarContent() {
 		loadProjects();
 	}, [loadProjects]);
 
-	// Helper function to validate project data
-	const validateProjectData = (data: {
-		name: string;
-		docDirectory: string;
-		codebaseDirectory: string;
-		docBaseBranch: string;
-	}) => {
-		if (!(data.docDirectory && data.codebaseDirectory)) {
-			toast(t("home.selectBothDirectories"));
-			return false;
-		}
-		if (!data.name) {
-			toast(t("home.projectNameRequired"));
-			return false;
-		}
-		const separateRepos =
-			data.docDirectory.trim() !== data.codebaseDirectory.trim();
-		if (separateRepos && !data.docBaseBranch.trim()) {
-			toast(t("projectManager.documentationBaseBranchRequired"));
-			return false;
-		}
-		return true;
-	};
-
 	// Helper function to handle successful project linking
 	const handleSuccess = () => {
 		toast(t("home.linkSuccess"));
@@ -251,7 +227,7 @@ function AppSidebarContent() {
 		const errorMsg = error instanceof Error ? error.message : String(error);
 
 		if (!errorMsg.startsWith("missing_git_repo")) {
-			throw error;
+			return false;
 		}
 
 		const missingDocRepo = errorMsg.endsWith("documentation");
@@ -304,10 +280,6 @@ function AppSidebarContent() {
 		llmInstructions?: string;
 		docBaseBranch: string;
 	}) => {
-		if (!validateProjectData(data)) {
-			return;
-		}
-
 		try {
 			await LinkRepositories(
 				data.name,

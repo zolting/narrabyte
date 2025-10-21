@@ -74,7 +74,7 @@ function RepositoryPathsSection({
 	handleSavePaths: (
 		docDir: string,
 		codebaseDir: string,
-		baseBranch: string,
+		baseBranch: string
 	) => void;
 }) {
 	const { t } = useTranslation();
@@ -99,7 +99,7 @@ function RepositoryPathsSection({
 						<DocumentationBranchSelector
 							branches={docBranchOptions}
 							description={t(
-								"projectSettings.documentationBaseBranchDescription",
+								"projectSettings.documentationBaseBranchDescription"
 							)}
 							disabled={!docDirectory || Boolean(docValidationError)}
 							onChange={setDocBaseBranch}
@@ -299,14 +299,14 @@ function getErrorMessageFromCode(errorCode: string): {
 function useProjectData(projectId: string) {
 	const { t } = useTranslation();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
-		undefined,
+		undefined
 	);
 	const [hasLLMInstructions, setHasLLMInstructions] = useState(false);
 	const [docDirectory, setDocDirectory] = useState("");
 	const [codebaseDirectory, setCodebaseDirectory] = useState("");
 	const [docBaseBranch, setDocBaseBranch] = useState("");
 	const [docBranchOptions, setDocBranchOptions] = useState<models.BranchInfo[]>(
-		[],
+		[]
 	);
 	const [docBranchError, setDocBranchError] = useState<string | null>(null);
 
@@ -320,7 +320,7 @@ function useProjectData(projectId: string) {
 			try {
 				const branches = await ListBranchesByPath(path);
 				setDocBranchOptions(
-					sortBranches(branches, { prioritizeMainMaster: true }),
+					sortBranches(branches, { prioritizeMainMaster: true })
 				);
 				setDocBranchError(null);
 			} catch {
@@ -328,7 +328,7 @@ function useProjectData(projectId: string) {
 				setDocBranchError(t("projectSettings.branchLoadFailed"));
 			}
 		},
-		[t],
+		[t]
 	);
 
 	useEffect(() => {
@@ -342,7 +342,7 @@ function useProjectData(projectId: string) {
 				setDocBaseBranch(proj.DocumentationBaseBranch ?? "");
 				const shared = pathsShareRoot(
 					proj.DocumentationRepo,
-					proj.CodebaseRepo,
+					proj.CodebaseRepo
 				);
 				await fetchDocBranches(proj.DocumentationRepo, !shared);
 
@@ -387,7 +387,7 @@ function usePathOperations(options: {
 }) {
 	const { t } = useTranslation();
 	const [docValidationError, setDocValidationError] = useState<string | null>(
-		null,
+		null
 	);
 	const [codebaseValidationError, setCodebaseValidationError] = useState<
 		string | null
@@ -405,7 +405,7 @@ function usePathOperations(options: {
 		options.setDocBaseBranch(updated.DocumentationBaseBranch ?? "");
 		const shared = pathsShareRoot(
 			updated.DocumentationRepo,
-			updated.CodebaseRepo,
+			updated.CodebaseRepo
 		);
 		await options.fetchDocBranches(updated.DocumentationRepo, !shared);
 	};
@@ -436,7 +436,7 @@ function usePathOperations(options: {
 		};
 
 		const matchedError = Object.keys(errorMap).find((key) =>
-			errorMessage.includes(key),
+			errorMessage.includes(key)
 		);
 		if (matchedError) {
 			errorMap[matchedError]();
@@ -448,7 +448,7 @@ function usePathOperations(options: {
 	const handleSavePaths = async (
 		docDirectory: string,
 		codebaseDirectory: string,
-		docBaseBranch: string,
+		docBaseBranch: string
 	) => {
 		if (!options.project) {
 			return;
@@ -460,7 +460,7 @@ function usePathOperations(options: {
 				Number(options.project.ID),
 				docDirectory,
 				codebaseDirectory,
-				docBaseBranch.trim(),
+				docBaseBranch.trim()
 			);
 			await handleSavePathsSuccess();
 		} catch (error) {
@@ -538,7 +538,7 @@ function useDirectoryValidation(options: {
 				}
 			} catch {
 				options.setCodebaseValidationError(
-					t("projectSettings.validationFailed"),
+					t("projectSettings.validationFailed")
 				);
 			}
 		}
@@ -643,7 +643,7 @@ function ProjectSettings() {
 
 	const sharedRepo = useMemo(
 		() => pathsShareRoot(docDirectory, codebaseDirectory),
-		[docDirectory, codebaseDirectory],
+		[docDirectory, codebaseDirectory]
 	);
 
 	useEffect(() => {
@@ -655,7 +655,7 @@ function ProjectSettings() {
 	}, [sharedRepo, setDocBaseBranch, setDocBranchOptions, setDocBranchError]);
 
 	const requiresDocBaseBranch = Boolean(
-		docDirectory && codebaseDirectory && !sharedRepo,
+		docDirectory && codebaseDirectory && !sharedRepo
 	);
 
 	const originalDocBaseBranch = project?.DocumentationBaseBranch ?? "";
@@ -667,7 +667,7 @@ function ProjectSettings() {
 		project &&
 			(docDirectory !== project.DocumentationRepo ||
 				codebaseDirectory !== project.CodebaseRepo ||
-				(requiresDocBaseBranch && docBaseBranch !== originalDocBaseBranch)),
+				(requiresDocBaseBranch && docBaseBranch !== originalDocBaseBranch))
 	);
 
 	const hasValidationErrors =

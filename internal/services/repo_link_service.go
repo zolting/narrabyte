@@ -16,6 +16,20 @@ import (
 
 const llmInstructionsBaseName = "llm_instructions"
 
+// sameGitRepository checks if two paths belong to the same Git repository
+func sameGitRepository(path1, path2 string) (bool, error) {
+	root1, ok1 := utils.FindGitRepoRoot(path1)
+	if !ok1 {
+		return false, fmt.Errorf("no git repository found for path: %s", path1)
+	}
+	root2, ok2 := utils.FindGitRepoRoot(path2)
+	if !ok2 {
+		return false, fmt.Errorf("no git repository found for path: %s", path2)
+	}
+
+	return root1 == root2, nil
+}
+
 type DirectoryValidationResult struct {
 	IsValid   bool   `json:"isValid"`
 	ErrorCode string `json:"errorCode"`
@@ -73,8 +87,11 @@ func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo,
 	}
 
 	trimmedBaseBranch := strings.TrimSpace(documentationBaseBranch)
-	separateRepos := !utils.SamePath(documentationRepo, codebaseRepo)
-	if separateRepos && trimmedBaseBranch == "" {
+	sameRepo, err := sameGitRepository(documentationRepo, codebaseRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check git repositories: %w", err)
+	}
+	if !sameRepo && trimmedBaseBranch == "" {
 		return nil, errors.New("documentation base branch is required")
 	}
 
@@ -254,7 +271,11 @@ func (s *repoLinkService) UpdateProjectPaths(id uint, docRepo, codebaseRepo stri
 		project.CodebaseRepo = codebaseRepo
 	}
 
-	separateRepos := !utils.SamePath(project.DocumentationRepo, project.CodebaseRepo)
+	sameRepo, err := sameGitRepository(project.DocumentationRepo, project.CodebaseRepo)
+	if err != nil {
+		return fmt.Errorf("failed to check git repositories: %w", err)
+	}
+	separateRepos := !sameRepo
 	trimmedBaseBranch := strings.TrimSpace(documentationBaseBranch)
 	if separateRepos {
 		if trimmedBaseBranch == "" {
