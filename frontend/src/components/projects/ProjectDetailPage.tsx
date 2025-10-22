@@ -418,28 +418,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 											))}
 										</SelectContent>
 									</Select>
-									{selectedModel && (
-										<p className="text-muted-foreground text-xs">
-											{[
-												selectedModel.reasoningEffort
-													? t("models.reasoningEffort", {
-															value: t(
-																`models.reasoningEffortOptions.${selectedModel.reasoningEffort.toLowerCase()}`,
-																selectedModel.reasoningEffort.toLowerCase()
-															),
-														})
-													: null,
-												typeof selectedModel.thinking === "boolean"
-													? selectedModel.thinking
-														? t("models.thinkingEnabled")
-														: t("models.thinkingDisabled")
-													: null,
-												t("models.apiName", { value: selectedModel.apiName }),
-											]
-												.filter(Boolean)
-												.join(" • ")}
-										</p>
-									)}
 									{modelsLoading && (
 										<p className="text-muted-foreground text-xs">
 											{t("models.loading")}

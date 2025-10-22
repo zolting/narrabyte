@@ -19,8 +19,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
 import { type AppTheme, useAppSettingsStore } from "@/stores/appSettings";
 import { useModelSettingsStore } from "@/stores/modelSettings";
 
@@ -181,7 +181,7 @@ function ModelsConfiguration() {
 
 	useEffect(() => {
 		if (!initialized) {
-			void init();
+			init();
 		}
 	}, [init, initialized]);
 
@@ -191,7 +191,7 @@ function ModelsConfiguration() {
 				<CardTitle>{t("models.title")}</CardTitle>
 				<CardDescription>{t("models.description")}</CardDescription>
 			</CardHeader>
-			<CardContent className="space-y-6">
+			<CardContent className="space-y-4">
 				{error && (
 					<p className="text-destructive text-sm" role="alert">
 						{t("models.error")}
@@ -203,12 +203,9 @@ function ModelsConfiguration() {
 				{!loading && groups.length === 0 && (
 					<p className="text-muted-foreground text-sm">{t("models.empty")}</p>
 				)}
-				<div className="space-y-4">
+				<div className="space-y-3">
 					{groups.map((group) => {
-						const providerLabel =
-							group.providerName?.trim() && group.providerName !== ""
-								? group.providerName
-								: group.providerId;
+						const providerLabel = group.providerName;
 						const allEnabled = group.models.every((model) => model.enabled);
 						const noneEnabled = group.models.every((model) => !model.enabled);
 						const actionLabel = allEnabled
@@ -216,19 +213,12 @@ function ModelsConfiguration() {
 							: t("models.enableAll");
 						return (
 							<div
-								className="space-y-3 rounded-lg border border-border/70 p-4"
+								className="space-y-2 rounded-lg border border-border/70 p-3"
 								key={group.providerId}
 							>
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-									<div>
-										<div className="font-medium text-muted-foreground text-sm uppercase tracking-wide">
-											{providerLabel}
-										</div>
-										<div className="font-semibold text-base text-foreground">
-											{t("models.providerSectionTitle", {
-												provider: providerLabel,
-											})}
-										</div>
+								<div className="flex items-center justify-between gap-2">
+									<div className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+										{providerLabel}
 									</div>
 									<Button
 										aria-label={actionLabel}
@@ -243,72 +233,27 @@ function ModelsConfiguration() {
 									</Button>
 								</div>
 								{group.models.length > 0 ? (
-									<div className="space-y-3">
-										{group.models.map((model) => {
-											const details: string[] = [];
-											if (model.reasoningEffort) {
-												const effortKey = model.reasoningEffort.toLowerCase();
-												const effortLabel = t(
-													`models.reasoningEffortOptions.${effortKey}`,
-													effortKey
-												);
-												details.push(
-													t("models.reasoningEffort", { value: effortLabel })
-												);
-											}
-											if (typeof model.thinking === "boolean") {
-												details.push(
-													model.thinking
-														? t("models.thinkingEnabled")
-														: t("models.thinkingDisabled")
-												);
-											}
-											details.push(
-												t("models.apiName", { value: model.apiName })
-											);
-
-											return (
-												<div
-													className="flex flex-col gap-3 rounded-md border border-border/50 p-3 sm:flex-row sm:items-center sm:justify-between"
-													key={model.key}
-												>
-													<div className="space-y-1">
-														<div className="font-medium text-foreground text-sm">
-															{model.displayName}
-														</div>
-														<div className="text-muted-foreground text-xs">
-															{details.join(" • ")}
-														</div>
-													</div>
-													<button
-														aria-checked={model.enabled}
-														aria-label={t("models.toggleModel", {
-															model: model.displayName,
-														})}
-														className={cn(
-															"relative inline-flex h-6 w-11 items-center rounded-full border border-border transition-all",
-															model.enabled ? "bg-primary/80" : "bg-muted",
-															"disabled:cursor-not-allowed disabled:opacity-50"
-														)}
-														disabled={!initialized}
-														onClick={() =>
-															toggleModel(model.key, !model.enabled)
-														}
-														role="switch"
-														type="button"
-													>
-														<span
-															className={cn(
-																"inline-block h-4 w-4 rounded-full bg-background shadow transition-transform",
-																model.enabled
-																	? "translate-x-5"
-																	: "translate-x-1"
-															)}
-														/>
-													</button>
+									<div className="space-y-1.5">
+										{group.models.map((model) => (
+											<div
+												className="flex items-center justify-between gap-3 rounded-md border border-border/50 px-2.5 py-1.5"
+												key={model.key}
+											>
+												<div className="font-medium text-foreground text-sm">
+													{model.displayName}
 												</div>
-											);
-										})}
+												<Switch
+													aria-label={t("models.toggleModel", {
+														model: model.displayName,
+													})}
+													checked={model.enabled}
+													disabled={!initialized}
+													onCheckedChange={(checked) =>
+														toggleModel(model.key, checked)
+													}
+												/>
+											</div>
+										))}
 									</div>
 								) : (
 									<p className="text-muted-foreground text-sm">

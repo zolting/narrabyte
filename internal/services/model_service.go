@@ -53,6 +53,7 @@ type rawProvider struct {
 }
 
 type rawModel struct {
+	Key             string `json:"key"`
 	DisplayName     string `json:"displayName"`
 	APIName         string `json:"apiName"`
 	ReasoningEffort string `json:"reasoningEffort,omitempty"`
@@ -90,7 +91,10 @@ func (s *modelConfigService) Startup(ctx context.Context) error {
 		s.providerNames[providerID] = providerName
 		s.providerOrder = append(s.providerOrder, providerID)
 		for _, mdl := range provider.Models {
-			key := computeModelKey(providerID, mdl)
+			key := strings.TrimSpace(mdl.Key)
+			if key == "" {
+				continue
+			}
 			s.models[key] = &catalogModel{
 				Key:             key,
 				ProviderID:      providerID,
@@ -234,22 +238,4 @@ func (s *modelConfigService) toLLMModel(mdl *catalogModel) models.LLMModel {
 		Thinking:        mdl.Thinking,
 		Enabled:         enabled,
 	}
-}
-
-func computeModelKey(providerID string, mdl rawModel) string {
-	apiName := strings.TrimSpace(mdl.APIName)
-	parts := []string{strings.TrimSpace(providerID), apiName}
-
-	var attrs []string
-	if re := strings.TrimSpace(mdl.ReasoningEffort); re != "" {
-		attrs = append(attrs, "reasoning="+re)
-	}
-	if mdl.Thinking != nil {
-		attrs = append(attrs, fmt.Sprintf("thinking=%t", *mdl.Thinking))
-	}
-	if len(attrs) > 0 {
-		sort.Strings(attrs)
-		parts = append(parts, strings.Join(attrs, ","))
-	}
-	return strings.Join(parts, "|")
 }

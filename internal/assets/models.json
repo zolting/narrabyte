@@ -5,31 +5,37 @@
 			"displayName": "OpenAI",
 			"models": [
 				{
+					"key": "openai:gpt-5:high",
 					"displayName": "GPT-5 High",
 					"apiName": "gpt-5",
 					"reasoningEffort": "high"
 				},
 				{
+					"key": "openai:gpt-5:medium",
 					"displayName": "GPT-5 Medium",
 					"apiName": "gpt-5",
 					"reasoningEffort": "medium"
 				},
 				{
+					"key": "openai:gpt-5:low",
 					"displayName": "GPT-5 Low",
 					"apiName": "gpt-5",
 					"reasoningEffort": "low"
 				},
 				{
+					"key": "openai:gpt-5-mini:high",
 					"displayName": "GPT-5 Mini High",
 					"apiName": "gpt-5-mini",
 					"reasoningEffort": "high"
 				},
 				{
+					"key": "openai:gpt-5-mini:medium",
 					"displayName": "GPT-5 Mini Medium",
 					"apiName": "gpt-5-mini",
 					"reasoningEffort": "medium"
 				},
 				{
+					"key": "openai:gpt-5-mini:low",
 					"displayName": "GPT-5 Mini Low",
 					"apiName": "gpt-5-mini",
 					"reasoningEffort": "low"
@@ -41,21 +47,25 @@
 			"displayName": "Anthropic",
 			"models": [
 				{
+					"key": "anthropic:claude-sonnet-4-5",
 					"displayName": "Claude Sonnet 4.5",
 					"apiName": "claude-sonnet-4-5",
 					"thinking": false
 				},
 				{
+					"key": "anthropic:claude-sonnet-4-5:thinking",
 					"displayName": "Claude Sonnet 4.5 Thinking",
 					"apiName": "claude-sonnet-4-5",
 					"thinking": true
 				},
 				{
+					"key": "anthropic:claude-haiku-4-5",
 					"displayName": "Claude Haiku 4.5",
 					"apiName": "claude-haiku-4-5",
 					"thinking": false
 				},
 				{
+					"key": "anthropic:claude-haiku-4-5:thinking",
 					"displayName": "Claude Haiku 4.5 Thinking",
 					"apiName": "claude-haiku-4-5",
 					"thinking": true
@@ -67,16 +77,19 @@
 			"displayName": "Google Gemini",
 			"models": [
 				{
+					"key": "gemini:gemini-2.5-pro:thinking",
 					"displayName": "Gemini 2.5 Pro",
 					"apiName": "gemini-2.5-pro",
 					"thinking": true
 				},
 				{
+					"key": "gemini:gemini-flash-latest:thinking",
 					"displayName": "Gemini 2.5 Flash Thinking",
 					"apiName": "gemini-flash-latest",
 					"thinking": true
 				},
 				{
+					"key": "gemini:gemini-flash-latest",
 					"displayName": "Gemini 2.5 Flash",
 					"apiName": "gemini-flash-latest",
 					"thinking": false
