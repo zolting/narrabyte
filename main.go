@@ -40,7 +40,7 @@ func main() {
 	gitService := services.NewGitService()
 	keyringService := services.NewKeyringService()
 	dbService := services.NewDbServices(db, *fumadocsService, *gitService)
-	clientService := services.NewClientService(dbService.RepoLinks, gitService, keyringService, dbService.GenerationSessions)
+	clientService := services.NewClientService(dbService.RepoLinks, gitService, keyringService, dbService.GenerationSessions, dbService.ModelConfigs)
 
 	// Create application with options
 	err = wails.Run(&options.App{
@@ -70,6 +70,7 @@ func main() {
 			dbService.RepoLinks,
 			dbService.AppSettings,
 			dbService.GenerationSessions,
+			dbService.ModelConfigs,
 			fumadocsService,
 			gitService,
 			clientService,

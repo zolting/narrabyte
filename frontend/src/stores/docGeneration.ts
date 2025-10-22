@@ -25,7 +25,7 @@ type StartArgs = {
 	projectId: number;
 	sourceBranch: string;
 	targetBranch: string;
-	provider: string;
+	modelKey: string;
 	userInstructions: string;
 };
 
@@ -93,7 +93,11 @@ type State = {
 		instruction: string;
 	}) => Promise<void>;
 	mergeDocs: (args: { projectId: number; branch: string }) => Promise<void>;
-	restoreSession: (projectId: number, sourceBranch: string, targetBranch: string) => Promise<boolean>;
+	restoreSession: (
+		projectId: number,
+		sourceBranch: string,
+		targetBranch: string
+	) => Promise<boolean>;
 };
 
 const EMPTY_DOC_STATE: DocGenerationData = {
@@ -244,7 +248,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			projectId,
 			sourceBranch,
 			targetBranch,
-			provider,
+			modelKey,
 			userInstructions,
 		}: StartArgs) => {
 			const key = toKey(projectId);
@@ -306,7 +310,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					projectId,
 					sourceBranch,
 					targetBranch,
-					provider,
+					modelKey,
 					userInstructions
 				);
 				setDocState(key, {
@@ -712,7 +716,10 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			const key = toKey(projectId);
 			const currentState = get().docStates[key];
 
-			if (currentState && (currentState.status !== "idle" || currentState.result)) {
+			if (
+				currentState &&
+				(currentState.status !== "idle" || currentState.result)
+			) {
 				return false;
 			}
 
@@ -758,10 +765,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				setDocState(key, {
 					status: "idle",
 					events: [
-						createLocalEvent(
-							"warn",
-							`Could not restore session: ${message}`
-						),
+						createLocalEvent("warn", `Could not restore session: ${message}`),
 					],
 				});
 				return false;

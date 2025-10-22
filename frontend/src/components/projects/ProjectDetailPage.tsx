@@ -3,9 +3,9 @@ import {
 	GetCurrentBranch,
 	HasUncommittedChanges,
 } from "@go/services/GitService";
+import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
-import { Delete } from "@go/services/generationSessionService";
 import { useNavigate } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -20,21 +20,33 @@ import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
+	SelectLabel,
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useBranchManager } from "@/hooks/useBranchManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
+import {
+	type ModelOption,
+	useModelSettingsStore,
+} from "@/stores/modelSettings";
 
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { t } = useTranslation();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
 		undefined
 	);
-	const [provider, setProvider] = useState<string>("anthropic");
-	const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+	const [modelKey, setModelKey] = useState<string | null>(null);
+	const [providerKeys, setProviderKeys] = useState<string[]>([]);
+	const {
+		groups: modelGroups,
+		init: initModelSettings,
+		initialized: modelsInitialized,
+		loading: modelsLoading,
+	} = useModelSettingsStore();
 	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
@@ -59,21 +71,71 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	useEffect(() => {
 		ListApiKeys()
 			.then((keys) => {
-				const providers = keys.map((k) => k.provider);
-				setAvailableProviders(providers);
-				if (providers.length > 0 && !providers.includes(provider)) {
-					setProvider(providers[0]);
+				if (!keys) {
+					setProviderKeys([]);
+					return;
 				}
+				setProviderKeys(keys.map((k) => k.provider));
 			})
-			.catch((err) => {
-				console.error("Failed to load API keys:", err);
-				setAvailableProviders([]);
+			.catch(() => {
+				setProviderKeys([]);
 			});
 	}, []);
 
 	useEffect(() => {
+		if (!modelsInitialized) {
+			void initModelSettings();
+		}
+	}, [initModelSettings, modelsInitialized]);
+
+	useEffect(() => {
 		branchManager.resetBranches();
 	}, [branchManager.resetBranches]);
+
+	const groupedModelOptions = useMemo(() => {
+		if (providerKeys.length === 0) {
+			return [] as Array<{
+				providerId: string;
+				providerName: string;
+				models: ModelOption[];
+			}>;
+		}
+		const providers = new Set(providerKeys);
+		return modelGroups
+			.filter((group) => providers.has(group.providerId))
+			.map((group) => ({
+				providerId: group.providerId,
+				providerName:
+					group.providerName?.trim() && group.providerName !== ""
+						? group.providerName
+						: group.providerId,
+				models: group.models.filter((model) => model.enabled),
+			}))
+			.filter((group) => group.models.length > 0);
+	}, [modelGroups, providerKeys]);
+
+	const availableModels = useMemo<ModelOption[]>(
+		() => groupedModelOptions.flatMap((group) => group.models),
+		[groupedModelOptions]
+	);
+
+	useEffect(() => {
+		if (availableModels.length === 0) {
+			setModelKey(null);
+			return;
+		}
+		setModelKey((current) => {
+			if (current && availableModels.some((model) => model.key === current)) {
+				return current;
+			}
+			return availableModels[0]?.key ?? null;
+		});
+	}, [availableModels]);
+
+	const selectedModel = useMemo(
+		() => availableModels.find((model) => model.key === modelKey) ?? null,
+		[availableModels, modelKey]
+	);
 
 	useEffect(() => {
 		if (docManager.docResult) {
@@ -127,10 +189,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					branchManager.sourceBranch &&
 					branchManager.targetBranch &&
 					branchManager.sourceBranch !== branchManager.targetBranch &&
+					modelKey &&
 					!docManager.isBusy
 			),
 		[
 			docManager.isBusy,
+			modelKey,
 			project,
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
@@ -139,7 +203,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const handleGenerate = useCallback(() => {
 		if (
-			!(project && branchManager.sourceBranch && branchManager.targetBranch)
+			!(
+				project &&
+				branchManager.sourceBranch &&
+				branchManager.targetBranch &&
+				modelKey
+			)
 		) {
 			return;
 		}
@@ -150,10 +219,10 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			projectId: Number(project.ID),
 			sourceBranch: branchManager.sourceBranch,
 			targetBranch: branchManager.targetBranch,
-			provider,
+			modelKey,
 			userInstructions,
 		});
-	}, [project, branchManager, docManager, provider, userInstructions]);
+	}, [project, branchManager, docManager, modelKey, userInstructions]);
 
 	const handleApprove = useCallback(() => {
 		docManager.approveCommit();
@@ -168,10 +237,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			branchManager.targetBranch ||
 			"";
 		if (source && target) {
-			Promise.resolve(Delete(Number(projectId), source, target))
-				.catch(() => {});
+			Promise.resolve(Delete(Number(projectId), source, target)).catch(
+				() => {}
+			);
 		}
-	}, [branchManager.sourceBranch, branchManager.targetBranch, docManager, projectId]);
+	}, [
+		branchManager.sourceBranch,
+		branchManager.targetBranch,
+		docManager,
+		projectId,
+	]);
 
 	const handleReset = useCallback(() => {
 		docManager.reset();
@@ -267,8 +342,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 								})
 							}
 							size="sm"
-							variant="outline"
 							type="button"
+							variant="outline"
 						>
 							{t("sidebar.ongoingGenerations")}
 						</Button>
@@ -280,8 +355,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 								})
 							}
 							size="sm"
-							variant="outline"
 							type="button"
+							variant="outline"
 						>
 							<Settings size={16} />
 							{t("common.settings")}
@@ -313,50 +388,74 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						return (
 							<>
 								<div className="shrink-0 space-y-2">
-									<Label
-										className="font-medium text-sm"
-										htmlFor="provider-select"
-									>
-										{t("common.llmProvider")}
+									<Label className="font-medium text-sm" htmlFor="model-select">
+										{t("common.llmModel", "LLM Model")}
 									</Label>
 									<Select
 										disabled={
-											disableControls || availableProviders.length === 0
+											disableControls ||
+											modelsLoading ||
+											availableModels.length === 0
 										}
-										onValueChange={setProvider}
-										value={provider}
+										onValueChange={(value: string) => setModelKey(value)}
+										value={modelKey ?? undefined}
 									>
-										<SelectTrigger className="w-full" id="provider-select">
+										<SelectTrigger className="w-full" id="model-select">
 											<SelectValue
-												placeholder={t(
-													"common.selectProvider",
-													"Select a provider"
-												)}
+												placeholder={t("common.selectModel", "Select a model")}
 											/>
 										</SelectTrigger>
 										<SelectContent>
-											{availableProviders.includes("anthropic") && (
-												<SelectItem value="anthropic">
-													Anthropic (Claude)
-												</SelectItem>
-											)}
-											{availableProviders.includes("openai") && (
-												<SelectItem value="openai">OpenAI</SelectItem>
-											)}
-											{availableProviders.includes("gemini") && (
-												<SelectItem value="gemini">Google Gemini</SelectItem>
-											)}
-											{availableProviders.includes("openrouter") && (
-												<SelectItem value="openrouter">OpenRouter</SelectItem>
-											)}
+											{groupedModelOptions.map((group) => (
+												<SelectGroup key={group.providerId}>
+													<SelectLabel>{group.providerName}</SelectLabel>
+													{group.models.map((model) => (
+														<SelectItem key={model.key} value={model.key}>
+															{model.displayName}
+														</SelectItem>
+													))}
+												</SelectGroup>
+											))}
 										</SelectContent>
 									</Select>
-									{availableProviders.length === 0 && (
+									{selectedModel && (
 										<p className="text-muted-foreground text-xs">
-											{t(
-												"common.noProvidersConfigured",
-												"No API keys configured. Please add one in settings."
-											)}
+											{[
+												selectedModel.reasoningEffort
+													? t("models.reasoningEffort", {
+															value: t(
+																`models.reasoningEffortOptions.${selectedModel.reasoningEffort.toLowerCase()}`,
+																selectedModel.reasoningEffort.toLowerCase()
+															),
+														})
+													: null,
+												typeof selectedModel.thinking === "boolean"
+													? selectedModel.thinking
+														? t("models.thinkingEnabled")
+														: t("models.thinkingDisabled")
+													: null,
+												t("models.apiName", { value: selectedModel.apiName }),
+											]
+												.filter(Boolean)
+												.join(" • ")}
+										</p>
+									)}
+									{modelsLoading && (
+										<p className="text-muted-foreground text-xs">
+											{t("models.loading")}
+										</p>
+									)}
+									{!modelsLoading && availableModels.length === 0 && (
+										<p className="text-muted-foreground text-xs">
+											{providerKeys.length === 0
+												? t(
+														"common.noProvidersConfigured",
+														"No API keys configured. Please add one in settings."
+													)
+												: t(
+														"common.noModelsAvailable",
+														"No enabled models available for your configured providers."
+													)}
 										</p>
 									)}
 								</div>

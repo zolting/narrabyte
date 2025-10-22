@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AddApiKeyDialog from "@/components/AddApiKeyDialog";
 import ApiKeyManager from "@/components/ApiKeyManager";
@@ -19,7 +19,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { type AppTheme, useAppSettingsStore } from "@/stores/appSettings";
+import { useModelSettingsStore } from "@/stores/modelSettings";
 
 export const Route = createFileRoute("/settings")({
 	component: Settings,
@@ -76,70 +79,82 @@ function Settings() {
 					</h1>
 				</div>
 
-				<div className="space-y-8">
-					<Card>
-						<CardHeader>
-							<CardTitle>{t("settings.preferences")}</CardTitle>
-							<CardDescription>
-								{t("settings.preferencesDescription")}
-							</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-6">
-							<div className="flex items-center justify-between">
-								<div>
-									<div className="font-medium">{t("settings.theme")}</div>
-									<div className="text-muted-foreground text-sm">
-										{t("settings.selectTheme")}
+				<Tabs className="space-y-8" defaultValue="general">
+					<TabsList className="grid w-full max-w-sm grid-cols-2">
+						<TabsTrigger value="general">
+							{t("settings.generalTab")}
+						</TabsTrigger>
+						<TabsTrigger value="models">{t("settings.modelsTab")}</TabsTrigger>
+					</TabsList>
+					<TabsContent value="general">
+						<Card>
+							<CardHeader>
+								<CardTitle>{t("settings.preferences")}</CardTitle>
+								<CardDescription>
+									{t("settings.preferencesDescription")}
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-6">
+								<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+									<div>
+										<div className="font-medium">{t("settings.theme")}</div>
+										<div className="text-muted-foreground text-sm">
+											{t("settings.selectTheme")}
+										</div>
 									</div>
+									<Select
+										disabled={isLoading}
+										onValueChange={(value) => setTheme(value as AppTheme)}
+										value={theme}
+									>
+										<SelectTrigger className="w-full sm:w-[180px]">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="light">
+												{t("settings.light")}
+											</SelectItem>
+											<SelectItem value="dark">{t("settings.dark")}</SelectItem>
+											<SelectItem value="system">
+												{t("settings.system")}
+											</SelectItem>
+										</SelectContent>
+									</Select>
 								</div>
-								<Select
-									disabled={isLoading}
-									onValueChange={(value) => setTheme(value as AppTheme)}
-									value={theme}
-								>
-									<SelectTrigger className="w-[180px]">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="light">{t("settings.light")}</SelectItem>
-										<SelectItem value="dark">{t("settings.dark")}</SelectItem>
-										<SelectItem value="system">
-											{t("settings.system")}
-										</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
 
-							<div className="flex items-center justify-between">
-								<div>
-									<div className="font-medium">{t("settings.language")}</div>
-									<div className="text-muted-foreground text-sm">
-										{t("settings.selectLanguage")}
+								<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+									<div>
+										<div className="font-medium">{t("settings.language")}</div>
+										<div className="text-muted-foreground text-sm">
+											{t("settings.selectLanguage")}
+										</div>
 									</div>
+									<Select
+										disabled={isLoading}
+										onValueChange={setLocale}
+										value={locale}
+									>
+										<SelectTrigger className="w-full sm:w-[180px]">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="en">English</SelectItem>
+											<SelectItem value="fr">Français</SelectItem>
+										</SelectContent>
+									</Select>
 								</div>
-								<Select
-									disabled={isLoading}
-									onValueChange={setLocale}
-									value={locale}
-								>
-									<SelectTrigger className="w-[180px]">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="en">English</SelectItem>
-										<SelectItem value="fr">Français</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-						</CardContent>
-					</Card>
-
-					<ApiKeyManager
-						onAddClick={handleAddClick}
-						onEditClick={handleEditClick}
-						ref={apiKeyManagerRef}
-					/>
-				</div>
+							</CardContent>
+						</Card>
+					</TabsContent>
+					<TabsContent className="space-y-8" value="models">
+						<ApiKeyManager
+							onAddClick={handleAddClick}
+							onEditClick={handleEditClick}
+							ref={apiKeyManagerRef}
+						/>
+						<ModelsConfiguration />
+					</TabsContent>
+				</Tabs>
 
 				<AddApiKeyDialog
 					editProvider={editingProvider}
@@ -149,5 +164,167 @@ function Settings() {
 				/>
 			</div>
 		</div>
+	);
+}
+
+function ModelsConfiguration() {
+	const { t } = useTranslation();
+	const {
+		groups,
+		initialized,
+		loading,
+		error,
+		init,
+		toggleModel,
+		toggleProvider,
+	} = useModelSettingsStore();
+
+	useEffect(() => {
+		if (!initialized) {
+			void init();
+		}
+	}, [init, initialized]);
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>{t("models.title")}</CardTitle>
+				<CardDescription>{t("models.description")}</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-6">
+				{error && (
+					<p className="text-destructive text-sm" role="alert">
+						{t("models.error")}
+					</p>
+				)}
+				{loading && !initialized && (
+					<p className="text-muted-foreground text-sm">{t("models.loading")}</p>
+				)}
+				{!loading && groups.length === 0 && (
+					<p className="text-muted-foreground text-sm">{t("models.empty")}</p>
+				)}
+				<div className="space-y-4">
+					{groups.map((group) => {
+						const providerLabel =
+							group.providerName?.trim() && group.providerName !== ""
+								? group.providerName
+								: group.providerId;
+						const allEnabled = group.models.every((model) => model.enabled);
+						const noneEnabled = group.models.every((model) => !model.enabled);
+						const actionLabel = allEnabled
+							? t("models.disableAll")
+							: t("models.enableAll");
+						return (
+							<div
+								className="space-y-3 rounded-lg border border-border/70 p-4"
+								key={group.providerId}
+							>
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+									<div>
+										<div className="font-medium text-muted-foreground text-sm uppercase tracking-wide">
+											{providerLabel}
+										</div>
+										<div className="font-semibold text-base text-foreground">
+											{t("models.providerSectionTitle", {
+												provider: providerLabel,
+											})}
+										</div>
+									</div>
+									<Button
+										aria-label={actionLabel}
+										disabled={group.models.length === 0}
+										onClick={() =>
+											toggleProvider(group.providerId, !allEnabled)
+										}
+										size="sm"
+										variant="outline"
+									>
+										{actionLabel}
+									</Button>
+								</div>
+								{group.models.length > 0 ? (
+									<div className="space-y-3">
+										{group.models.map((model) => {
+											const details: string[] = [];
+											if (model.reasoningEffort) {
+												const effortKey = model.reasoningEffort.toLowerCase();
+												const effortLabel = t(
+													`models.reasoningEffortOptions.${effortKey}`,
+													effortKey
+												);
+												details.push(
+													t("models.reasoningEffort", { value: effortLabel })
+												);
+											}
+											if (typeof model.thinking === "boolean") {
+												details.push(
+													model.thinking
+														? t("models.thinkingEnabled")
+														: t("models.thinkingDisabled")
+												);
+											}
+											details.push(
+												t("models.apiName", { value: model.apiName })
+											);
+
+											return (
+												<div
+													className="flex flex-col gap-3 rounded-md border border-border/50 p-3 sm:flex-row sm:items-center sm:justify-between"
+													key={model.key}
+												>
+													<div className="space-y-1">
+														<div className="font-medium text-foreground text-sm">
+															{model.displayName}
+														</div>
+														<div className="text-muted-foreground text-xs">
+															{details.join(" • ")}
+														</div>
+													</div>
+													<button
+														aria-checked={model.enabled}
+														aria-label={t("models.toggleModel", {
+															model: model.displayName,
+														})}
+														className={cn(
+															"relative inline-flex h-6 w-11 items-center rounded-full border border-border transition-all",
+															model.enabled ? "bg-primary/80" : "bg-muted",
+															"disabled:cursor-not-allowed disabled:opacity-50"
+														)}
+														disabled={!initialized}
+														onClick={() =>
+															toggleModel(model.key, !model.enabled)
+														}
+														role="switch"
+														type="button"
+													>
+														<span
+															className={cn(
+																"inline-block h-4 w-4 rounded-full bg-background shadow transition-transform",
+																model.enabled
+																	? "translate-x-5"
+																	: "translate-x-1"
+															)}
+														/>
+													</button>
+												</div>
+											);
+										})}
+									</div>
+								) : (
+									<p className="text-muted-foreground text-sm">
+										{t("models.noModelsForProvider")}
+									</p>
+								)}
+								{noneEnabled && (
+									<p className="text-amber-600 text-xs">
+										{t("models.providerDisabledHint")}
+									</p>
+								)}
+							</div>
+						);
+					})}
+				</div>
+			</CardContent>
+		</Card>
 	);
 }

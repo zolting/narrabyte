@@ -139,12 +139,39 @@ type DocGenerationResponse struct {
 	Summary string
 }
 
-func NewOpenAIClient(ctx context.Context, key string) (*LLMClient, error) {
-	// temperature := float32(0)
-	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
+type OpenAIModelOptions struct {
+	Model           string
+	ReasoningEffort string
+}
+
+type ClaudeModelOptions struct {
+	Model    string
+	Thinking bool
+}
+
+type GeminiModelOptions struct {
+	Model    string
+	Thinking bool
+}
+
+func NewOpenAIClient(ctx context.Context, key string, opts OpenAIModelOptions) (*LLMClient, error) {
+	modelName := strings.TrimSpace(opts.Model)
+	if modelName == "" {
+		modelName = "gpt-5-mini"
+	}
+	var effort openai.ReasoningEffortLevel
+	switch strings.ToLower(strings.TrimSpace(opts.ReasoningEffort)) {
+	case "low":
+		effort = openai.ReasoningEffortLevelLow
+	case "high":
+		effort = openai.ReasoningEffortLevelHigh
+	case "medium":
+		effort = openai.ReasoningEffortLevelMedium
+	}
+	chatModel, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		APIKey:          key,
-		Model:           "gpt-5-mini",
-		ReasoningEffort: openai.ReasoningEffortLevelMedium,
+		Model:           modelName,
+		ReasoningEffort: effort,
 	})
 
 	if err != nil {
@@ -152,14 +179,21 @@ func NewOpenAIClient(ctx context.Context, key string) (*LLMClient, error) {
 		return nil, err
 	}
 
-	return &LLMClient{chatModel: model, Key: key}, err
+	return &LLMClient{chatModel: chatModel, Key: key}, err
 }
 
-func NewClaudeClient(ctx context.Context, key string) (*LLMClient, error) {
-	model, err := claude.NewChatModel(ctx, &claude.Config{
+func NewClaudeClient(ctx context.Context, key string, opts ClaudeModelOptions) (*LLMClient, error) {
+	modelName := strings.TrimSpace(opts.Model)
+	if modelName == "" {
+		modelName = "claude-sonnet-4-5"
+	}
+	chatModel, err := claude.NewChatModel(ctx, &claude.Config{
 		APIKey:    key,
-		Model:     "claude-sonnet-4-5",
+		Model:     modelName,
 		MaxTokens: 4096,
+		Thinking: &claude.Thinking{
+			Enable: opts.Thinking,
+		},
 	})
 
 	if err != nil {
@@ -167,11 +201,11 @@ func NewClaudeClient(ctx context.Context, key string) (*LLMClient, error) {
 		return nil, err
 	}
 
-	return &LLMClient{chatModel: model, Key: key}, err
+	return &LLMClient{chatModel: chatModel, Key: key}, err
 }
 
-func NewGeminiClient(ctx context.Context, key string) (*LLMClient, error) {
-	genai, err := genai.NewClient(ctx, &genai.ClientConfig{
+func NewGeminiClient(ctx context.Context, key string, opts GeminiModelOptions) (*LLMClient, error) {
+	genaiClient, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey: key,
 	})
 
@@ -180,9 +214,23 @@ func NewGeminiClient(ctx context.Context, key string) (*LLMClient, error) {
 		return nil, err
 	}
 
-	model, err := gemini.NewChatModel(ctx, &gemini.Config{
-		Client: genai,
-		Model:  "gemini-flash-latest",
+	modelName := strings.TrimSpace(opts.Model)
+	if modelName == "" {
+		modelName = "gemini-flash-latest"
+	}
+	var thinkingBudget *int32
+	includeThoughts := opts.Thinking
+	if !opts.Thinking {
+		zero := int32(0)
+		thinkingBudget = &zero
+	}
+	chatModel, err := gemini.NewChatModel(ctx, &gemini.Config{
+		Client: genaiClient,
+		Model:  modelName,
+		ThinkingConfig: &genai.ThinkingConfig{
+			IncludeThoughts: includeThoughts,
+			ThinkingBudget:  thinkingBudget,
+		},
 	})
 
 	if err != nil {
@@ -190,7 +238,7 @@ func NewGeminiClient(ctx context.Context, key string) (*LLMClient, error) {
 		return nil, err
 	}
 
-	return &LLMClient{chatModel: model, Key: key}, err
+	return &LLMClient{chatModel: chatModel, Key: key}, err
 }
 
 // watch out pour le contexte ici
