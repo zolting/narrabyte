@@ -132,11 +132,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		});
 	}, [availableModels]);
 
-	const selectedModel = useMemo(
-		() => availableModels.find((model) => model.key === modelKey) ?? null,
-		[availableModels, modelKey]
-	);
-
 	useEffect(() => {
 		if (docManager.docResult) {
 			const node = containerRef.current;
