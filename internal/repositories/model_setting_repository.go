@@ -58,8 +58,11 @@ func (r *modelSettingRepository) Upsert(modelKey, provider string, enabled bool)
 		Enabled:  enabled,
 	}
 	if err := r.db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "model_key"}},
-		DoUpdates: clause.AssignmentColumns([]string{"enabled", "updated_at"}),
+		Columns: []clause.Column{{Name: "model_key"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"enabled":    enabled,
+			"updated_at": gorm.Expr("CURRENT_TIMESTAMP"),
+		}),
 	}).Create(&record).Error; err != nil {
 		return nil, err
 	}
