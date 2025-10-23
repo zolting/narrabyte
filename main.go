@@ -70,6 +70,7 @@ func main() {
 			dbService.RepoLinks,
 			dbService.AppSettings,
 			dbService.GenerationSessions,
+			dbService.Templates,
 			fumadocsService,
 			gitService,
 			clientService,

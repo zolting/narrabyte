@@ -3,9 +3,9 @@ import {
 	GetCurrentBranch,
 	HasUncommittedChanges,
 } from "@go/services/GitService";
+import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
-import { Delete } from "@go/services/generationSessionService";
 import { useNavigate } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +15,7 @@ import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
 import { GenerationTabs } from "@/components/GenerationTabs";
 import { SuccessPanel } from "@/components/SuccessPanel";
+import { TemplateSelector } from "@/components/TemplateSelector";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -44,6 +45,32 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const branchManager = useBranchManager(repoPath);
 	const docManager = useDocGenerationManager(projectId);
 	const navigate = useNavigate();
+
+	const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(
+		undefined
+	);
+
+	const dummyTemplates = useMemo<models.Template[]>(
+		() => [
+			{
+				id: 0,
+				name: t("common.template.defaultName", "Default Template"),
+				content: t(
+					"common.template.defaultContent",
+					"A simple starter template for documentation generation."
+				),
+			} as unknown as models.Template,
+			{
+				id: 1,
+				name: t("common.template.defaultName", "Default fdas"),
+				content: t(
+					"common.template.defaultContent",
+					"A simple starter template for documentation generation."
+				),
+			} as unknown as models.Template,
+		],
+		[t]
+	);
 
 	useEffect(() => {
 		setProject(undefined);
@@ -168,10 +195,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			branchManager.targetBranch ||
 			"";
 		if (source && target) {
-			Promise.resolve(Delete(Number(projectId), source, target))
-				.catch(() => {});
+			Promise.resolve(Delete(Number(projectId), source, target)).catch(
+				() => {}
+			);
 		}
-	}, [branchManager.sourceBranch, branchManager.targetBranch, docManager, projectId]);
+	}, [
+		branchManager.sourceBranch,
+		branchManager.targetBranch,
+		docManager,
+		projectId,
+	]);
 
 	const handleReset = useCallback(() => {
 		docManager.reset();
@@ -267,8 +300,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 								})
 							}
 							size="sm"
-							variant="outline"
 							type="button"
+							variant="outline"
 						>
 							{t("sidebar.ongoingGenerations")}
 						</Button>
@@ -280,15 +313,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 								})
 							}
 							size="sm"
-							variant="outline"
 							type="button"
+							variant="outline"
 						>
 							<Settings size={16} />
 							{t("common.settings")}
 						</Button>
 					</div>
 				</header>
-
 				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
 					{(() => {
 						if (docManager.commitCompleted) {
@@ -360,6 +392,11 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										</p>
 									)}
 								</div>
+								<TemplateSelector
+									selectedTemplate={selectedTemplate}
+									setSelectedTemplate={setSelectedTemplate}
+									templates={dummyTemplates}
+								/>
 								<BranchSelector
 									branches={branchManager.branches}
 									disableControls={disableControls}
@@ -404,7 +441,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						/>
 					)}
 				</div>
-
 				{!docManager.commitCompleted && (
 					<ActionButtons
 						canGenerate={canGenerate}

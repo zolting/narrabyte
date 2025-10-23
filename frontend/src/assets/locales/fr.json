@@ -56,7 +56,10 @@
     "docsBranch": "Branche de documentation",
     "docInstructionsLabel": "Précisions ou instructions pour cette génération de documentation spécifique",
     "docInstructionsPlaceholder": "Ex: Seulement documenter l'aspect end-user de la PR. Ne pas couvrir les mises à jour de package. Porter une attention particulière aux modifications du fonctionnement de X fonctionnalité.",
-    "backToProject": "Retour au projet"
+    "backToProject": "Retour au projet",
+    "templateLabel": "Template",
+    "selectTemplate": "Sélectionnez un Template",
+    "noTemplateFound": "Template introuvable."
   },
   "projectManager": {
     "addProject": "Ajouter un projet",
