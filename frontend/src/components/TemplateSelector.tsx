@@ -1,7 +1,7 @@
 // TypeScript
 
 import type { models } from "@go/models";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -75,9 +75,11 @@ export const TemplateSelector = ({
 						variant="outline"
 					>
 						{currentName ?? t("common.selectTemplate")}
+						<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent className="w-[320px]">
+
+				<PopoverContent className="w-[var(--radix-popover-trigger-width)] max-w-none">
 					<Command>
 						<CommandInput placeholder={t("common.selectTemplate")} />
 						<CommandList>
@@ -88,7 +90,6 @@ export const TemplateSelector = ({
 										key={template.name}
 										onSelect={(value: string) => {
 											handleSelect(value);
-											// keep popover open so user can edit after selecting
 										}}
 										value={template.name}
 									>
