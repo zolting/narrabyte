@@ -54,15 +54,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		() => [
 			{
 				id: 0,
-				name: t("common.template.defaultName", "Default Template"),
-				content: t(
-					"common.template.defaultContent",
-					"A simple starter template for documentation generation."
-				),
+				name: t("common.defaultTemplate", "Default Template"),
+				content: "",
 			} as unknown as models.Template,
 			{
 				id: 1,
-				name: t("common.template.defaultName", "Default fdas"),
+				name: t("common.template.defaultName", "Default Template"),
 				content: t(
 					"common.template.defaultContent",
 					"A simple starter template for documentation generation."
@@ -395,6 +392,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 								<TemplateSelector
 									selectedTemplate={selectedTemplate}
 									setSelectedTemplate={setSelectedTemplate}
+									setUserInstructions={setUserInstructions}
 									templates={dummyTemplates}
 								/>
 								<BranchSelector

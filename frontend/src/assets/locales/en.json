@@ -59,7 +59,10 @@
     "backToProject": "Back to Project",
     "templateLabel": "Template",
     "selectTemplate": "Select a Template",
-    "noTemplateFound": "No template found."
+    "noTemplateFound": "No template found.",
+    "defaultTemplate": "None",
+    "addTemplate": "Add Template",
+    "editTemplate": "Edit Template"
   },
   "projectManager": {
     "addProject": "Add Project",

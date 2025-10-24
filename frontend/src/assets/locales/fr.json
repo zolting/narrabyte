@@ -59,7 +59,10 @@
     "backToProject": "Retour au projet",
     "templateLabel": "Template",
     "selectTemplate": "Sélectionnez un Template",
-    "noTemplateFound": "Template introuvable."
+    "noTemplateFound": "Template introuvable.",
+    "defaultTemplate": "Aucun",
+    "addTemplate": "Ajouter un template",
+    "editTemplate": "Modifier le template"
   },
   "projectManager": {
     "addProject": "Ajouter un projet",
