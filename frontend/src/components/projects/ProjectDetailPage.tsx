@@ -46,29 +46,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const docManager = useDocGenerationManager(projectId);
 	const navigate = useNavigate();
 
-	const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(
-		undefined
-	);
-
-	const dummyTemplates = useMemo<models.Template[]>(
-		() => [
-			{
-				id: 0,
-				name: t("common.defaultTemplate", "Default Template"),
-				content: "",
-			} as unknown as models.Template,
-			{
-				id: 1,
-				name: t("common.template.defaultName", "Default Template"),
-				content: t(
-					"common.template.defaultContent",
-					"A simple starter template for documentation generation."
-				),
-			} as unknown as models.Template,
-		],
-		[t]
-	);
-
 	useEffect(() => {
 		setProject(undefined);
 		Promise.resolve(Get(Number(projectId)))
@@ -389,12 +366,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										</p>
 									)}
 								</div>
-								<TemplateSelector
-									selectedTemplate={selectedTemplate}
-									setSelectedTemplate={setSelectedTemplate}
-									setUserInstructions={setUserInstructions}
-									templates={dummyTemplates}
-								/>
+								<TemplateSelector setUserInstructions={setUserInstructions} />
 								<BranchSelector
 									branches={branchManager.branches}
 									disableControls={disableControls}

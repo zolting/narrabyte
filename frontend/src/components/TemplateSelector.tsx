@@ -30,27 +30,26 @@ import {
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useTemplateStore } from "@/stores/template";
 
 interface TemplateSelectorProps {
-	templates: models.Template[];
-	selectedTemplate: string | undefined;
-	setSelectedTemplate: (template: string) => void;
-	onUpdateTemplate?: (name: string, content: string) => void;
-	onDeleteTemplate?: (name: string) => void;
-	onAddTemplate?: (name: string, content: string) => void;
 	setUserInstructions: (instructions: string) => void;
 }
 
 export const TemplateSelector = ({
-	templates,
-	selectedTemplate,
-	setSelectedTemplate,
-	onUpdateTemplate,
-	onDeleteTemplate,
-	onAddTemplate,
 	setUserInstructions,
 }: TemplateSelectorProps) => {
 	const { t } = useTranslation();
+	const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(
+		undefined
+	);
+	const loadTemplates = useTemplateStore((state) => state.loadTemplates);
+	const createTemplate = useTemplateStore((state) => state.createTemplate);
+	const editTemplate = useTemplateStore((state) => state.editTemplate);
+	const deleteTemplate = useTemplateStore((state) => state.deleteTemplate);
+
+	const templates = useTemplateStore((state) => state.templates);
+
 	const [open, setOpen] = useState(false);
 	const [editOpen, setEditOpen] = useState(false);
 	const [addOpen, setAddOpen] = useState(false);
@@ -81,25 +80,40 @@ export const TemplateSelector = ({
 		setSelectedTemplate(name);
 	};
 
-	const handleSave = () => {
+	const handleSave = async () => {
 		const targetName = editingName.trim();
 		if (!targetName) {
 			return;
 		}
 
-		onUpdateTemplate?.(targetName, editingContent);
+		const found = templates.find((tp) => tp.name === deleteTargetName);
+		if (!found) {
+			return;
+		}
+
+		await editTemplate({
+			id: found.id,
+			name: targetName,
+			content: editingContent,
+		});
+
 		setSelectedTemplate(targetName);
 		setCurrentName(targetName);
 		setEditOpen(false);
 		setOpen(false);
 	};
 
-	const handleAddSave = () => {
+	const handleAddSave = async () => {
 		const nameTrim = newName.trim();
 		if (!nameTrim) {
 			return;
 		}
-		onAddTemplate?.(nameTrim, newContent);
+
+		await createTemplate({
+			name: nameTrim,
+			content: newContent,
+		});
+
 		setSelectedTemplate(nameTrim);
 		setCurrentName(nameTrim);
 		setUserInstructions(newContent);
@@ -109,11 +123,17 @@ export const TemplateSelector = ({
 		setNewContent("");
 	};
 
-	const handleConfirmDelete = () => {
+	const handleConfirmDelete = async () => {
 		if (!deleteTargetName) {
 			return;
 		}
-		onDeleteTemplate?.(deleteTargetName);
+
+		const found = templates.find((tp) => tp.name === deleteTargetName);
+		if (!found) {
+			return;
+		}
+
+		await deleteTemplate(found.id);
 
 		if (currentName === deleteTargetName) {
 			setSelectedTemplate(templates.length ? templates[0]?.name : "");
