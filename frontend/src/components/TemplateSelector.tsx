@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronsUpDownIcon, EditIcon, Trash } from "lucide-react";
+import { CheckIcon, ChevronsUpDownIcon, EditIcon, Trash, AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -35,11 +35,9 @@ interface TemplateSelectorProps {
 }
 
 export const TemplateSelector = ({
-	setTemplateInstructions,
-}: TemplateSelectorProps) => {
+									 setTemplateInstructions,
+								 }: TemplateSelectorProps) => {
 	const { t } = useTranslation();
-
-	const reservedTemplateIds = new Set<number>([-1, -2, -3, -4]);
 
 	const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(
 		undefined
@@ -49,6 +47,10 @@ export const TemplateSelector = ({
 	const deleteTemplate = useTemplateStore((state) => state.deleteTemplate);
 	const loadTemplates = useTemplateStore((state) => state.loadTemplates);
 	const templates = useTemplateStore((state) => state.templates);
+
+	const error = useTemplateStore((state) => state.error);
+	const loading = useTemplateStore((state) => state.loading);
+	const clearError = useTemplateStore((state) => state.clearError);
 
 	const [open, setOpen] = useState(false);
 	const [editOpen, setEditOpen] = useState(false);
@@ -95,7 +97,6 @@ export const TemplateSelector = ({
 		if (!(targetName && editTargetId)) {
 			return;
 		}
-
 		await editTemplate({
 			id: editTargetId,
 			name: targetName,
@@ -135,6 +136,8 @@ export const TemplateSelector = ({
 
 		const found = templates.find((tp) => tp.name === deleteTargetName);
 		if (!found) {
+			setDeleteOpen(false);
+			setDeleteTargetName(null);
 			return;
 		}
 
@@ -156,6 +159,21 @@ export const TemplateSelector = ({
 
 	return (
 		<div className="shrink-0 space-y-2">
+			{error && (
+				<div
+					role="alert"
+					aria-live="assertive"
+					className="mb-2 flex items-center gap-2 rounded-lg border border-destructive bg-destructive/10 px-4 py-3 text-destructive"
+				>
+					<AlertCircle className="h-5 w-5" aria-hidden="true">
+						<title>{t("common.errorIconTitle", "Error")}</title>
+					</AlertCircle>
+					<span>
+            {t("common.backendError", "An error occurred:")} {error}
+          </span>
+				</div>
+			)}
+		<div className="shrink-0 space-y-2">
 			<Label className="font-medium text-sm" htmlFor="provider-select">
 				{t("common.templateLabel")}
 			</Label>
@@ -167,6 +185,7 @@ export const TemplateSelector = ({
 						className="w-full justify-between"
 						type="button"
 						variant="outline"
+						onClick={clearError}
 					>
 						{currentName ?? t("common.selectTemplate")}
 						<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -201,41 +220,39 @@ export const TemplateSelector = ({
 												/>
 												<span className="truncate">{template.name}</span>
 											</div>
-											{!reservedTemplateIds.has(Number(template.id)) && (
-												<div className="ml-2 hidden items-center gap-1 group-hover:flex">
-													<Button
-														className="h-7 w-7"
-														onClick={(e) => {
-															e.stopPropagation();
-															setEditTargetId(template.id);
-															setEditingName(template.name);
-															setEditingContent(template.content);
-															setEditOpen(true);
-														}}
-														size="icon"
-														title={t("common.editTemplate", "Edit Template")}
-														type="button"
-														variant="secondary"
-													>
-														<EditIcon className="h-4 w-4" />
-													</Button>
+											<div className="ml-2 hidden items-center gap-1 group-hover:flex">
+												<Button
+													className="h-7 w-7"
+													onClick={(e) => {
+														e.stopPropagation();
+														setEditTargetId(template.id);
+														setEditingName(template.name);
+														setEditingContent(template.content);
+														setEditOpen(true);
+													}}
+													size="icon"
+													title={t("common.editTemplate", "Edit Template")}
+													type="button"
+													variant="secondary"
+												>
+													<EditIcon className="h-4 w-4" />
+												</Button>
 
-													<Button
-														className="h-7 w-7"
-														onClick={(e) => {
-															e.stopPropagation();
-															setDeleteTargetName(template.name);
-															setDeleteOpen(true);
-														}}
-														size="icon"
-														title={t("common.delete", "Delete")}
-														type="button"
-														variant="secondary"
-													>
-														<Trash className="h-4 w-4" />
-													</Button>
-												</div>
-											)}
+												<Button
+													className="h-7 w-7"
+													onClick={(e) => {
+														e.stopPropagation();
+														setDeleteTargetName(template.name);
+														setDeleteOpen(true);
+													}}
+													size="icon"
+													title={t("common.delete", "Delete")}
+													type="button"
+													variant="secondary"
+												>
+													<Trash className="h-4 w-4" />
+												</Button>
+											</div>
 										</CommandItem>
 									))}
 								</CommandGroup>
@@ -297,9 +314,9 @@ export const TemplateSelector = ({
 													{t("common.templateContent", "Template Content")}
 												</Label>
 												<span className="text-muted-foreground text-xs">
-													{t("common.characters", "Characters")}{" "}
+                          {t("common.characters", "Characters")}{" "}
 													{editingContent.length}
-												</span>
+                        </span>
 											</div>
 											<Textarea
 												className="h-56 w-full resize-none rounded-xl border bg-muted/30 font-mono text-sm shadow-inner"
@@ -424,9 +441,9 @@ export const TemplateSelector = ({
 													{t("common.templateContent", "Template Content")}
 												</Label>
 												<span className="text-muted-foreground text-xs">
-													{t("common.characters", "Characters")}{" "}
+                          {t("common.characters", "Characters")}{" "}
 													{newContent.length}
-												</span>
+                        </span>
 											</div>
 											<Textarea
 												className="h-56 w-full resize-none rounded-xl border bg-muted/30 font-mono text-sm shadow-inner"
@@ -477,5 +494,6 @@ export const TemplateSelector = ({
 				</PopoverContent>
 			</Popover>
 		</div>
+	</div>
 	);
 };
