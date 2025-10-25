@@ -1,5 +1,3 @@
-// TypeScript
-import type { models } from "@go/models";
 import { CheckIcon, ChevronsUpDownIcon, EditIcon, Trash } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -33,21 +31,23 @@ import { cn } from "@/lib/utils";
 import { useTemplateStore } from "@/stores/template";
 
 interface TemplateSelectorProps {
-	setUserInstructions: (instructions: string) => void;
+	setTemplateInstructions: (instructions: string) => void;
 }
 
 export const TemplateSelector = ({
-	setUserInstructions,
+	setTemplateInstructions,
 }: TemplateSelectorProps) => {
 	const { t } = useTranslation();
+
+	const reservedTemplateIds = new Set<number>([-1, -2, -3, -4]);
+
 	const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(
 		undefined
 	);
-	const loadTemplates = useTemplateStore((state) => state.loadTemplates);
 	const createTemplate = useTemplateStore((state) => state.createTemplate);
 	const editTemplate = useTemplateStore((state) => state.editTemplate);
 	const deleteTemplate = useTemplateStore((state) => state.deleteTemplate);
-
+	const loadTemplates = useTemplateStore((state) => state.loadTemplates);
 	const templates = useTemplateStore((state) => state.templates);
 
 	const [open, setOpen] = useState(false);
@@ -63,7 +63,17 @@ export const TemplateSelector = ({
 	const [editingContent, setEditingContent] = useState("");
 	const [newName, setNewName] = useState("");
 	const [newContent, setNewContent] = useState("");
+	const [editTargetId, setEditTargetId] = useState<number | null>(null);
 	const [deleteTargetName, setDeleteTargetName] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (!open || templates.length !== 0) return;
+
+		async function loadOnce() {
+			await loadTemplates();
+		}
+		loadOnce();
+	}, [open, templates.length, loadTemplates]);
 
 	useEffect(() => {
 		setCurrentName(selectedTemplate);
@@ -82,17 +92,12 @@ export const TemplateSelector = ({
 
 	const handleSave = async () => {
 		const targetName = editingName.trim();
-		if (!targetName) {
-			return;
-		}
-
-		const found = templates.find((tp) => tp.name === deleteTargetName);
-		if (!found) {
+		if (!(targetName && editTargetId)) {
 			return;
 		}
 
 		await editTemplate({
-			id: found.id,
+			id: editTargetId,
 			name: targetName,
 			content: editingContent,
 		});
@@ -116,7 +121,7 @@ export const TemplateSelector = ({
 
 		setSelectedTemplate(nameTrim);
 		setCurrentName(nameTrim);
-		setUserInstructions(newContent);
+		setTemplateInstructions(newContent);
 		setAddOpen(false);
 		setOpen(false);
 		setNewName("");
@@ -138,7 +143,7 @@ export const TemplateSelector = ({
 		if (currentName === deleteTargetName) {
 			setSelectedTemplate(templates.length ? templates[0]?.name : "");
 			setCurrentName(undefined);
-			setUserInstructions("");
+			setTemplateInstructions("");
 		}
 
 		setDeleteOpen(false);
@@ -181,7 +186,7 @@ export const TemplateSelector = ({
 											key={template.name}
 											onSelect={(value: string) => {
 												handleSelect(value);
-												setUserInstructions(template.content);
+												setTemplateInstructions(template.content);
 											}}
 											value={template.name}
 										>
@@ -196,39 +201,41 @@ export const TemplateSelector = ({
 												/>
 												<span className="truncate">{template.name}</span>
 											</div>
+											{!reservedTemplateIds.has(Number(template.id)) && (
+												<div className="ml-2 hidden items-center gap-1 group-hover:flex">
+													<Button
+														className="h-7 w-7"
+														onClick={(e) => {
+															e.stopPropagation();
+															setEditTargetId(template.id);
+															setEditingName(template.name);
+															setEditingContent(template.content);
+															setEditOpen(true);
+														}}
+														size="icon"
+														title={t("common.editTemplate", "Edit Template")}
+														type="button"
+														variant="secondary"
+													>
+														<EditIcon className="h-4 w-4" />
+													</Button>
 
-											<div className="ml-2 hidden items-center gap-1 group-hover:flex">
-												<Button
-													className="h-7 w-7"
-													onClick={(e) => {
-														e.stopPropagation();
-														setEditingName(template.name);
-														setEditingContent(template.content);
-														setEditOpen(true);
-													}}
-													size="icon"
-													title={t("common.editTemplate", "Edit Template")}
-													type="button"
-													variant="secondary"
-												>
-													<EditIcon className="h-4 w-4" />
-												</Button>
-
-												<Button
-													className="h-7 w-7"
-													onClick={(e) => {
-														e.stopPropagation();
-														setDeleteTargetName(template.name);
-														setDeleteOpen(true);
-													}}
-													size="icon"
-													title={t("common.delete", "Delete")}
-													type="button"
-													variant="secondary"
-												>
-													<Trash className="h-4 w-4" />
-												</Button>
-											</div>
+													<Button
+														className="h-7 w-7"
+														onClick={(e) => {
+															e.stopPropagation();
+															setDeleteTargetName(template.name);
+															setDeleteOpen(true);
+														}}
+														size="icon"
+														title={t("common.delete", "Delete")}
+														type="button"
+														variant="secondary"
+													>
+														<Trash className="h-4 w-4" />
+													</Button>
+												</div>
+											)}
 										</CommandItem>
 									))}
 								</CommandGroup>
@@ -310,14 +317,7 @@ export const TemplateSelector = ({
 									</div>
 
 									<DialogFooter className="gap-2 sm:justify-between">
-										<div className="text-muted-foreground text-xs">
-											{currentName && (
-												<span>
-													{t("common.currentSelection", "Current selection:")}{" "}
-													{currentName}
-												</span>
-											)}
-										</div>
+										<div className="text-muted-foreground text-xs" />
 										<div className="flex w-full justify-end gap-2 sm:w-auto">
 											<Button
 												onClick={() => setEditOpen(false)}

@@ -39,6 +39,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
+	const [templateInstructions, setTemplateInstructions] = useState<string>("");
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
@@ -56,6 +57,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				setProject(null);
 			});
 	}, [projectId]);
+
+	useEffect(() => {}, []);
 
 	useEffect(() => {
 		ListApiKeys()
@@ -144,6 +147,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		) {
 			return;
 		}
+
+		const instructions = `<DOCUMENTATION_TEMPLATE>${templateInstructions ?? ""}</DOCUMENTATION_TEMPLATE><USER_INSTRUCTIONS>${userInstructions ?? ""}</USER_INSTRUCTIONS>`;
+
 		branchManager.setSourceOpen(false);
 		branchManager.setTargetOpen(false);
 		docManager.setActiveTab("activity");
@@ -152,9 +158,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			sourceBranch: branchManager.sourceBranch,
 			targetBranch: branchManager.targetBranch,
 			provider,
-			userInstructions,
+			userInstructions: instructions,
 		});
-	}, [project, branchManager, docManager, provider, userInstructions]);
+	}, [
+		project,
+		branchManager,
+		docManager,
+		provider,
+		userInstructions,
+		templateInstructions,
+	]);
 
 	const handleApprove = useCallback(() => {
 		docManager.approveCommit();
@@ -366,7 +379,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										</p>
 									)}
 								</div>
-								<TemplateSelector setUserInstructions={setUserInstructions} />
+								<TemplateSelector
+									setTemplateInstructions={setTemplateInstructions}
+								/>
 								<BranchSelector
 									branches={branchManager.branches}
 									disableControls={disableControls}
