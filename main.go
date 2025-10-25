@@ -10,6 +10,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"gorm.io/gorm/logger"
 )
 
@@ -40,15 +41,20 @@ func main() {
 	gitService := services.NewGitService()
 	keyringService := services.NewKeyringService()
 	dbService := services.NewDbServices(db, *fumadocsService, *gitService)
-	clientService := services.NewClientService(dbService.RepoLinks, gitService, keyringService, dbService.GenerationSessions)
+	clientService := services.NewClientService(dbService.RepoLinks, gitService, keyringService, dbService.GenerationSessions, dbService.ModelConfigs)
 
 	// Create application with options
 	err = wails.Run(&options.App{
-		Title:  "narrabyte",
+		Title:  "Narrabyte",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
+		},
+		Linux: &linux.Options{
+			WindowIsTranslucent: false,
+			WebviewGpuPolicy:    linux.WebviewGpuPolicyAlways,
+			ProgramName:         "Narrabyte",
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup: func(ctx context.Context) {
@@ -70,6 +76,7 @@ func main() {
 			dbService.RepoLinks,
 			dbService.AppSettings,
 			dbService.GenerationSessions,
+			dbService.ModelConfigs,
 			fumadocsService,
 			gitService,
 			clientService,
