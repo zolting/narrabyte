@@ -19,8 +19,10 @@
     "llmProvider": "Fournisseur de LLM",
     "llmModel": "Modèle LLM",
     "selectModel": "Sélectionner un modèle",
+    "noProvidersConfigured": "Aucune clé d'API configurée. Ajoutez-en dans les paramètres.",
     "noModelsAvailable": "Aucun modèle activé n'est disponible pour vos fournisseurs configurés.",
-    "generateDocsDescription": "Générer la documentation d'une branche source vers la branche ciblée pour le projet choisi.",
+    "generateDocsDescriptionSingle": "Rafiner la documentation d'une branche. Ajoutez des instructions ou explications pour clarifier ce qu'il faut rafiner.",
+    "generateDocsDescriptionDiff": "Générer la documentation d'une branche source vers la branche ciblée pour le projet choisi.",
     "sourceBranch": "Branche source",
     "targetBranch": "Branche ciblée",
     "project": "Projet",
@@ -59,7 +61,11 @@
     "docsBranch": "Branche de documentation",
     "docInstructionsLabel": "Précisions ou instructions pour cette génération de documentation spécifique",
     "docInstructionsPlaceholder": "Ex: Seulement documenter l'aspect end-user de la PR. Ne pas couvrir les mises à jour de package. Porter une attention particulière aux modifications du fonctionnement de X fonctionnalité.",
-    "backToProject": "Retour au projet"
+    "backToProject": "Retour au projet",
+    "diffMode": "Mode diff",
+    "singleBranchMode": "Mode branche unique",
+    "generationMode": "Mode de génération",
+    "instructionsRequired": "Des instructions sont requises en mode branche unique."
   },
   "projectManager": {
     "addProject": "Ajouter un projet",

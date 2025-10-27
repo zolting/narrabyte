@@ -14,6 +14,7 @@ import { ActionButtons } from "@/components/ActionButtons";
 import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
 import { GenerationTabs } from "@/components/GenerationTabs";
+import { SingleBranchSelector } from "@/components/SingleBranchSelector";
 import { SuccessPanel } from "@/components/SuccessPanel";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -50,6 +51,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
+	const [mode, setMode] = useState<"diff" | "single">("diff");
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
@@ -181,43 +183,55 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		() =>
 			Boolean(
 				project &&
-					branchManager.sourceBranch &&
-					branchManager.targetBranch &&
-					branchManager.sourceBranch !== branchManager.targetBranch &&
 					modelKey &&
-					!docManager.isBusy
+					!docManager.isBusy &&
+					((mode === "diff" &&
+						branchManager.sourceBranch &&
+						branchManager.targetBranch &&
+						branchManager.sourceBranch !== branchManager.targetBranch) ||
+						(mode === "single" &&
+							branchManager.sourceBranch &&
+							userInstructions.trim()))
 			),
 		[
 			docManager.isBusy,
 			modelKey,
 			project,
+			mode,
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
+			userInstructions,
 		]
 	);
 
 	const handleGenerate = useCallback(() => {
-		if (
-			!(
-				project &&
-				branchManager.sourceBranch &&
-				branchManager.targetBranch &&
-				modelKey
-			)
-		) {
+		if (!(project && branchManager.sourceBranch && modelKey)) {
 			return;
 		}
 		branchManager.setSourceOpen(false);
 		branchManager.setTargetOpen(false);
 		docManager.setActiveTab("activity");
-		docManager.startDocGeneration({
-			projectId: Number(project.ID),
-			sourceBranch: branchManager.sourceBranch,
-			targetBranch: branchManager.targetBranch,
-			modelKey,
-			userInstructions,
-		});
-	}, [project, branchManager, docManager, modelKey, userInstructions]);
+		if (mode === "diff") {
+			if (!branchManager.targetBranch) {
+				return;
+			}
+			docManager.startDocGeneration({
+				projectId: Number(project.ID),
+				sourceBranch: branchManager.sourceBranch,
+				targetBranch: branchManager.targetBranch,
+				modelKey,
+				userInstructions,
+			});
+		} else if (mode === "single") {
+			docManager.startSingleBranchGeneration?.({
+				projectId: Number(project.ID),
+				sourceBranch: branchManager.sourceBranch,
+				targetBranch: "",
+				modelKey,
+				userInstructions,
+			});
+		}
+	}, [project, branchManager, docManager, modelKey, userInstructions, mode]);
 
 	const handleApprove = useCallback(() => {
 		docManager.approveCommit();
@@ -325,7 +339,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							{t("common.generateDocs")}
 						</h2>
 						<p className="text-muted-foreground text-sm">
-							{t("common.generateDocsDescription")}
+							{mode === "diff"
+								? t("common.generateDocsDescriptionDiff")
+								: t("common.generateDocsDescriptionSingle")}
 						</p>
 					</div>
 					<div className="flex items-center gap-2">
@@ -384,7 +400,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							<>
 								<div className="shrink-0 space-y-2">
 									<Label className="font-medium text-sm" htmlFor="model-select">
-										{t("common.llmModel", "LLM Model")}
+										{t("common.llmModel")}
 									</Label>
 									<Select
 										disabled={
@@ -396,9 +412,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										value={modelKey ?? undefined}
 									>
 										<SelectTrigger className="w-full" id="model-select">
-											<SelectValue
-												placeholder={t("common.selectModel", "Select a model")}
-											/>
+											<SelectValue placeholder={t("common.selectModel")} />
 										</SelectTrigger>
 										<SelectContent>
 											{groupedModelOptions.map((group) => (
@@ -421,30 +435,58 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 									{!modelsLoading && availableModels.length === 0 && (
 										<p className="text-muted-foreground text-xs">
 											{providerKeys.length === 0
-												? t(
-														"common.noProvidersConfigured",
-														"No API keys configured. Please add one in settings."
-													)
-												: t(
-														"common.noModelsAvailable",
-														"No enabled models available for your configured providers."
-													)}
+												? t("common.noProvidersConfigured")
+												: t("common.noModelsAvailable")}
 										</p>
 									)}
 								</div>
-								<BranchSelector
-									branches={branchManager.branches}
-									disableControls={disableControls}
-									setSourceBranch={branchManager.setSourceBranch}
-									setSourceOpen={branchManager.setSourceOpen}
-									setTargetBranch={branchManager.setTargetBranch}
-									setTargetOpen={branchManager.setTargetOpen}
-									sourceBranch={branchManager.sourceBranch}
-									sourceOpen={branchManager.sourceOpen}
-									swapBranches={branchManager.swapBranches}
-									targetBranch={branchManager.targetBranch}
-									targetOpen={branchManager.targetOpen}
-								/>
+								<div className="flex items-center gap-2">
+									<Label className="text-muted-foreground text-xs">
+										{t("common.generationMode")}
+									</Label>
+									<div className="flex gap-2">
+										<Button
+											onClick={() => setMode("diff")}
+											size="sm"
+											type="button"
+											variant={mode === "diff" ? "default" : "outline"}
+										>
+											{t("common.diffMode")}
+										</Button>
+										<Button
+											onClick={() => setMode("single")}
+											size="sm"
+											type="button"
+											variant={mode === "single" ? "default" : "outline"}
+										>
+											{t("common.singleBranchMode")}
+										</Button>
+									</div>
+								</div>
+								{mode === "diff" ? (
+									<BranchSelector
+										branches={branchManager.branches}
+										disableControls={disableControls}
+										setSourceBranch={branchManager.setSourceBranch}
+										setSourceOpen={branchManager.setSourceOpen}
+										setTargetBranch={branchManager.setTargetBranch}
+										setTargetOpen={branchManager.setTargetOpen}
+										sourceBranch={branchManager.sourceBranch}
+										sourceOpen={branchManager.sourceOpen}
+										swapBranches={branchManager.swapBranches}
+										targetBranch={branchManager.targetBranch}
+										targetOpen={branchManager.targetOpen}
+									/>
+								) : (
+									<SingleBranchSelector
+										branch={branchManager.sourceBranch}
+										branches={branchManager.branches}
+										disableControls={disableControls}
+										open={branchManager.sourceOpen}
+										setBranch={branchManager.setSourceBranch}
+										setOpen={branchManager.setSourceOpen}
+									/>
+								)}
 								<div className="space-y-2">
 									<Label
 										className="font-medium text-sm"
@@ -460,6 +502,11 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										placeholder={t("common.docInstructionsPlaceholder")}
 										value={userInstructions}
 									/>
+									{mode === "single" && (
+										<p className="text-muted-foreground text-xs">
+											{t("common.instructionsRequired")}
+										</p>
+									)}
 								</div>
 							</>
 						);
