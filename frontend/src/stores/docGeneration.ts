@@ -25,7 +25,7 @@ type StartArgs = {
 	projectId: number;
 	sourceBranch: string;
 	targetBranch: string;
-	provider: string;
+	modelKey: string;
 	userInstructions: string;
 };
 
@@ -248,7 +248,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			projectId,
 			sourceBranch,
 			targetBranch,
-			provider,
+			modelKey,
 			userInstructions,
 		}: StartArgs) => {
 			const key = toKey(projectId);
@@ -310,7 +310,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					projectId,
 					sourceBranch,
 					targetBranch,
-					provider,
+					modelKey,
 					userInstructions
 				);
 				setDocState(key, {

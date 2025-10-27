@@ -1,11 +1,12 @@
 package models
 
 type RepoLink struct {
-	ID                uint `gorm:"primaryKey"`
-	DocumentationRepo string
-	CodebaseRepo      string
-	ProjectName       string
-	Index             int `json:"index"`
+	ID                      uint `gorm:"primaryKey"`
+	DocumentationRepo       string
+	CodebaseRepo            string
+	ProjectName             string
+	DocumentationBaseBranch string
+	Index                   int `json:"index"`
 }
 
 type RepoLinkOrderUpdate struct {

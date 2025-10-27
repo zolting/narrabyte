@@ -132,6 +132,7 @@ export namespace models {
 	    SourceBranch: string;
 	    TargetBranch: string;
 	    Provider: string;
+	    ModelKey: string;
 	    MessagesJSON: string;
 	    // Go type: time
 	    CreatedAt: any;
@@ -149,9 +150,70 @@ export namespace models {
 	        this.SourceBranch = source["SourceBranch"];
 	        this.TargetBranch = source["TargetBranch"];
 	        this.Provider = source["Provider"];
+	        this.ModelKey = source["ModelKey"];
 	        this.MessagesJSON = source["MessagesJSON"];
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
 	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class LLMModel {
+	    key: string;
+	    displayName: string;
+	    apiName: string;
+	    providerId: string;
+	    providerName: string;
+	    reasoningEffort?: string;
+	    thinking?: boolean;
+	    enabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new LLMModel(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.displayName = source["displayName"];
+	        this.apiName = source["apiName"];
+	        this.providerId = source["providerId"];
+	        this.providerName = source["providerName"];
+	        this.reasoningEffort = source["reasoningEffort"];
+	        this.thinking = source["thinking"];
+	        this.enabled = source["enabled"];
+	    }
+	}
+	export class LLMModelGroup {
+	    providerId: string;
+	    providerName: string;
+	    models: LLMModel[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LLMModelGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.providerId = source["providerId"];
+	        this.providerName = source["providerName"];
+	        this.models = this.convertValues(source["models"], LLMModel);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -177,6 +239,7 @@ export namespace models {
 	    DocumentationRepo: string;
 	    CodebaseRepo: string;
 	    ProjectName: string;
+	    DocumentationBaseBranch: string;
 	    index: number;
 	
 	    static createFrom(source: any = {}) {
@@ -189,6 +252,7 @@ export namespace models {
 	        this.DocumentationRepo = source["DocumentationRepo"];
 	        this.CodebaseRepo = source["CodebaseRepo"];
 	        this.ProjectName = source["ProjectName"];
+	        this.DocumentationBaseBranch = source["DocumentationBaseBranch"];
 	        this.index = source["index"];
 	    }
 	}

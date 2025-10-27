@@ -21,21 +21,33 @@ import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
+	SelectLabel,
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useBranchManager } from "@/hooks/useBranchManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
+import {
+	type ModelOption,
+	useModelSettingsStore,
+} from "@/stores/modelSettings";
 
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { t } = useTranslation();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
-		undefined
+		undefined,
 	);
-	const [provider, setProvider] = useState<string>("anthropic");
-	const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+	const [modelKey, setModelKey] = useState<string | null>(null);
+	const [providerKeys, setProviderKeys] = useState<string[]>([]);
+	const {
+		groups: modelGroups,
+		init: initModelSettings,
+		initialized: modelsInitialized,
+		loading: modelsLoading,
+	} = useModelSettingsStore();
 	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
@@ -63,21 +75,66 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	useEffect(() => {
 		ListApiKeys()
 			.then((keys) => {
-				const providers = keys.map((k) => k.provider);
-				setAvailableProviders(providers);
-				if (providers.length > 0 && !providers.includes(provider)) {
-					setProvider(providers[0]);
+				if (!keys) {
+					setProviderKeys([]);
+					return;
 				}
+				setProviderKeys(keys.map((k) => k.provider));
 			})
-			.catch((err) => {
-				console.error("Failed to load API keys:", err);
-				setAvailableProviders([]);
+			.catch(() => {
+				setProviderKeys([]);
 			});
 	}, []);
 
 	useEffect(() => {
+		if (!modelsInitialized) {
+			void initModelSettings();
+		}
+	}, [initModelSettings, modelsInitialized]);
+
+	useEffect(() => {
 		branchManager.resetBranches();
 	}, [branchManager.resetBranches]);
+
+	const groupedModelOptions = useMemo(() => {
+		if (providerKeys.length === 0) {
+			return [] as Array<{
+				providerId: string;
+				providerName: string;
+				models: ModelOption[];
+			}>;
+		}
+		const providers = new Set(providerKeys);
+		return modelGroups
+			.filter((group) => providers.has(group.providerId))
+			.map((group) => ({
+				providerId: group.providerId,
+				providerName:
+					group.providerName?.trim() && group.providerName !== ""
+						? group.providerName
+						: group.providerId,
+				models: group.models.filter((model) => model.enabled),
+			}))
+			.filter((group) => group.models.length > 0);
+	}, [modelGroups, providerKeys]);
+
+	const availableModels = useMemo<ModelOption[]>(
+		() => groupedModelOptions.flatMap((group) => group.models),
+		[groupedModelOptions],
+	);
+
+	useEffect(() => {
+		if (availableModels.length === 0) {
+			setModelKey(null);
+			return;
+		}
+		setModelKey((current) => {
+			if (current && availableModels.some((model) => model.key === current)) {
+				return current;
+			}
+			return availableModels[0]?.key ?? null;
+		});
+	}, [availableModels]);
 
 	useEffect(() => {
 		if (docManager.docResult) {
@@ -97,7 +154,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		) {
 			docManager.setCompletedCommit(
 				branchManager.sourceBranch,
-				branchManager.targetBranch
+				branchManager.targetBranch,
 			);
 		}
 	}, [
@@ -131,19 +188,26 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					branchManager.sourceBranch &&
 					branchManager.targetBranch &&
 					branchManager.sourceBranch !== branchManager.targetBranch &&
-					!docManager.isBusy
+					modelKey &&
+					!docManager.isBusy,
 			),
 		[
 			docManager.isBusy,
+			modelKey,
 			project,
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
-		]
+		],
 	);
 
 	const handleGenerate = useCallback(() => {
 		if (
-			!(project && branchManager.sourceBranch && branchManager.targetBranch)
+			!(
+				project &&
+				branchManager.sourceBranch &&
+				branchManager.targetBranch &&
+				modelKey
+			)
 		) {
 			return;
 		}
@@ -157,14 +221,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			projectId: Number(project.ID),
 			sourceBranch: branchManager.sourceBranch,
 			targetBranch: branchManager.targetBranch,
-			provider,
+			modelKey,
 			userInstructions: instructions,
 		});
 	}, [
 		project,
 		branchManager,
 		docManager,
-		provider,
+		modelKey,
 		userInstructions,
 		templateInstructions,
 	]);
@@ -183,7 +247,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			"";
 		if (source && target) {
 			Promise.resolve(Delete(Number(projectId), source, target)).catch(
-				() => {}
+				() => {},
 			);
 		}
 	}, [
@@ -332,50 +396,52 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						return (
 							<>
 								<div className="shrink-0 space-y-2">
-									<Label
-										className="font-medium text-sm"
-										htmlFor="provider-select"
-									>
-										{t("common.llmProvider")}
+									<Label className="font-medium text-sm" htmlFor="model-select">
+										{t("common.llmModel", "LLM Model")}
 									</Label>
 									<Select
 										disabled={
-											disableControls || availableProviders.length === 0
+											disableControls ||
+											modelsLoading ||
+											availableModels.length === 0
 										}
-										onValueChange={setProvider}
-										value={provider}
+										onValueChange={(value: string) => setModelKey(value)}
+										value={modelKey ?? undefined}
 									>
-										<SelectTrigger className="w-full" id="provider-select">
+										<SelectTrigger className="w-full" id="model-select">
 											<SelectValue
-												placeholder={t(
-													"common.selectProvider",
-													"Select a provider"
-												)}
+												placeholder={t("common.selectModel", "Select a model")}
 											/>
 										</SelectTrigger>
 										<SelectContent>
-											{availableProviders.includes("anthropic") && (
-												<SelectItem value="anthropic">
-													Anthropic (Claude)
-												</SelectItem>
-											)}
-											{availableProviders.includes("openai") && (
-												<SelectItem value="openai">OpenAI</SelectItem>
-											)}
-											{availableProviders.includes("gemini") && (
-												<SelectItem value="gemini">Google Gemini</SelectItem>
-											)}
-											{availableProviders.includes("openrouter") && (
-												<SelectItem value="openrouter">OpenRouter</SelectItem>
-											)}
+											{groupedModelOptions.map((group) => (
+												<SelectGroup key={group.providerId}>
+													<SelectLabel>{group.providerName}</SelectLabel>
+													{group.models.map((model) => (
+														<SelectItem key={model.key} value={model.key}>
+															{model.displayName}
+														</SelectItem>
+													))}
+												</SelectGroup>
+											))}
 										</SelectContent>
 									</Select>
-									{availableProviders.length === 0 && (
+									{modelsLoading && (
 										<p className="text-muted-foreground text-xs">
-											{t(
-												"common.noProvidersConfigured",
-												"No API keys configured. Please add one in settings."
-											)}
+											{t("models.loading")}
+										</p>
+									)}
+									{!modelsLoading && availableModels.length === 0 && (
+										<p className="text-muted-foreground text-xs">
+											{providerKeys.length === 0
+												? t(
+														"common.noProvidersConfigured",
+														"No API keys configured. Please add one in settings.",
+													)
+												: t(
+														"common.noModelsAvailable",
+														"No enabled models available for your configured providers.",
+													)}
 										</p>
 									)}
 								</div>

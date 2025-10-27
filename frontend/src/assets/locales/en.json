@@ -17,6 +17,9 @@
     "hideChat": "Hide Chat",
     "generateDocs": "Generate Documentation",
     "llmProvider": "LLM Provider",
+    "llmModel": "LLM Model",
+    "selectModel": "Select a model",
+    "noModelsAvailable": "No enabled models available for your configured providers.",
     "generateDocsDescription": "Generate documentation from source branch to target branch for selected project.",
     "sourceBranch": "Source Branch",
     "targetBranch": "Target Branch",
@@ -56,6 +59,13 @@
     "docsBranch": "Documentation branch",
     "docInstructionsLabel": "Precisions or instructions for this specific documentation generation",
     "docInstructionsPlaceholder": "Ex: Only document the end-user aspect of the PR. Do not cover package updates. Pay special attention to changes in how X feature works.",
+    "documentationBaseBranch": "Documentation base branch",
+    "documentationBaseBranchPlaceholder": "Select documentation branch",
+    "searchBranchPlaceholder": "Search branch…",
+    "noMatchingBranches": "No matching branches.",
+    "noBranchesFound": "No branches available in this repository.",
+    "customBranchHeader": "Custom branch",
+    "useBranchOption": "Use \"{{branch}}\"",
     "backToProject": "Back to Project",
     "templateLabel": "Template",
     "selectTemplate": "Select a template",
@@ -68,14 +78,15 @@
     "characters": "Characters",
     "templateContent": "Template Content",
     "templateContentHelp": "Describe how the assistant should behave. Markdown is supported.",
-    "cancel": "Cancel",
     "saveChanges": "Save Changes",
     "confirmDelete": "Delete this template?",
     "confirmDeleteHelp": "This action cannot be undone. This will permanently remove the template.",
-    "delete": "Delete",
     "addTemplate": "Add Template",
     "addTemplateHelp": "Create a new template by providing a name and content. You can edit it later.",
-    "close": "Close"
+    "close": "Close",
+    "errorIconTitle": "Error",
+    "backendError": "An error occurred:",
+    "noProvidersConfigured": "No API keys configured. Please add one in settings."
   },
   "projectManager": {
     "addProject": "Add Project",
@@ -89,7 +100,9 @@
     "newDocumentationRepository": "New Fumadocs repository",
     "creationPath": "Creation Path",
     "chooseNewOrExisitingDoc": "Choose if you want to create a new documentation repository or link an existing one.",
-    "llmInstructions": "LLM instructions specific to this project (optional)"
+    "llmInstructions": "LLM instructions specific to this project (optional)",
+    "documentationBaseBranchDescription": "Select the branch in your documentation repository that new documentation branches will be based on.",
+    "documentationBaseBranchRequired": "Select the documentation base branch before continuing."
   },
   "home": {
     "greeting": "Please enter your name below 👇",
@@ -122,7 +135,9 @@
     "dark": "Dark",
     "system": "System",
     "preferences": "Preferences",
-    "preferencesDescription": "Customize your appearance and language settings"
+    "preferencesDescription": "Customize your appearance and language settings",
+    "generalTab": "General",
+    "modelsTab": "Models"
   },
   "demoEvents": {
     "title": "Demo Events",
@@ -177,6 +192,28 @@
     "add": "Add",
     "allProvidersConfigured": "All providers already have API keys configured"
   },
+  "models": {
+    "title": "Models",
+    "description": "Enable or disable individual models for each provider.",
+    "error": "Unable to load models. Try again later.",
+    "loading": "Loading models…",
+    "empty": "No models are available yet.",
+    "providerSectionTitle": "Models provided by {{provider}}",
+    "enableAll": "Enable all",
+    "disableAll": "Disable all",
+    "reasoningEffort": "Reasoning effort: {{value}}",
+    "reasoningEffortOptions": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "thinkingEnabled": "Thinking enabled",
+    "thinkingDisabled": "Thinking disabled",
+    "apiName": "API identifier: {{value}}",
+    "toggleModel": "Toggle {{model}}",
+    "noModelsForProvider": "No models available for this provider.",
+    "providerDisabledHint": "All models for this provider are currently disabled."
+  },
   "generations": {
     "title": "Ongoing Generations",
     "description": "Resume documentation generation sessions that haven't been committed yet",
@@ -222,6 +259,9 @@
     "dirNotExist": "Directory does not exist",
     "docDirNotExist": "Documentation directory does not exist",
     "codebaseDirNotExist": "Codebase directory does not exist",
-    "validationFailed": "Failed to validate directory"
+    "validationFailed": "Failed to validate directory",
+    "documentationBaseBranchDescription": "Select the branch in your documentation repository that new documentation branches should be based on.",
+    "documentationBaseBranchRequired": "Select the documentation base branch.",
+    "branchLoadFailed": "Unable to list branches for the documentation repository."
   }
 }

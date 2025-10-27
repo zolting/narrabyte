@@ -18,16 +18,16 @@ export function ImportLLMInstructions(arg1, arg2) {
   return window['go']['services']['repoLinkService']['ImportLLMInstructions'](arg1, arg2);
 }
 
-export function LinkRepositories(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['services']['repoLinkService']['LinkRepositories'](arg1, arg2, arg3, arg4, arg5);
+export function LinkRepositories(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['services']['repoLinkService']['LinkRepositories'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function List(arg1, arg2) {
   return window['go']['services']['repoLinkService']['List'](arg1, arg2);
 }
 
-export function Register(arg1, arg2, arg3) {
-  return window['go']['services']['repoLinkService']['Register'](arg1, arg2, arg3);
+export function Register(arg1, arg2, arg3, arg4) {
+  return window['go']['services']['repoLinkService']['Register'](arg1, arg2, arg3, arg4);
 }
 
 export function Startup(arg1) {
@@ -38,8 +38,8 @@ export function UpdateProjectOrder(arg1) {
   return window['go']['services']['repoLinkService']['UpdateProjectOrder'](arg1);
 }
 
-export function UpdateProjectPaths(arg1, arg2, arg3) {
-  return window['go']['services']['repoLinkService']['UpdateProjectPaths'](arg1, arg2, arg3);
+export function UpdateProjectPaths(arg1, arg2, arg3, arg4) {
+  return window['go']['services']['repoLinkService']['UpdateProjectPaths'](arg1, arg2, arg3, arg4);
 }
 
 export function ValidateDirectory(arg1) {

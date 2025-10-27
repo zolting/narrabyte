@@ -17,6 +17,9 @@
     "hideChat": "Cacher le chat",
     "generateDocs": "Générer documentation",
     "llmProvider": "Fournisseur de LLM",
+    "llmModel": "Modèle LLM",
+    "selectModel": "Sélectionner un modèle",
+    "noModelsAvailable": "Aucun modèle activé n'est disponible pour vos fournisseurs configurés.",
     "generateDocsDescription": "Générer la documentation d'une branche source vers la branche ciblée pour le projet choisi.",
     "sourceBranch": "Branche source",
     "targetBranch": "Branche ciblée",
@@ -56,26 +59,34 @@
     "docsBranch": "Branche de documentation",
     "docInstructionsLabel": "Précisions ou instructions pour cette génération de documentation spécifique",
     "docInstructionsPlaceholder": "Ex: Seulement documenter l'aspect end-user de la PR. Ne pas couvrir les mises à jour de package. Porter une attention particulière aux modifications du fonctionnement de X fonctionnalité.",
+    "documentationBaseBranch": "Branche de base de la documentation",
+    "documentationBaseBranchPlaceholder": "Sélectionner une branche de documentation",
+    "searchBranchPlaceholder": "Rechercher une branche…",
+    "noMatchingBranches": "Aucune branche correspondante.",
+    "noBranchesFound": "Aucune branche disponible dans ce dépôt.",
+    "customBranchHeader": "Branche personnalisée",
+    "useBranchOption": "Utiliser « {{branch}} »",
     "backToProject": "Retour au projet",
-    "templateLabel": "Template",
-    "selectTemplate": "Sélectionner un template",
-    "noTemplateFound": "Aucun template trouvé",
-    "editTemplate": "Modifier le template",
-    "editTemplateHelp": "Mettez à jour le nom et le contenu du template. Vos modifications s'appliqueront immédiatement après l'enregistrement.",
-    "templateName": "Nom du template",
+    "templateLabel": "Modèle",
+    "selectTemplate": "Sélectionner un modèle",
+    "noTemplateFound": "Aucun modèle trouvé",
+    "editTemplate": "Modifier le modèle",
+    "editTemplateHelp": "Mettez à jour le nom et le contenu du modèle. Vos modifications s'appliqueront immédiatement après l'enregistrement.",
+    "templateName": "Nom du modèle",
     "templateNamePlaceholder": "ex. : Instructions par défaut",
     "nameRequired": "Un nom est requis pour enregistrer.",
     "characters": "Caractères",
-    "templateContent": "Contenu du template",
+    "templateContent": "Contenu du modèle",
     "templateContentHelp": "Décrivez le comportement attendu de l'assistant. Le Markdown est pris en charge.",
-    "cancel": "Annuler",
     "saveChanges": "Enregistrer les modifications",
-    "confirmDelete": "Supprimer ce template ?",
-    "confirmDeleteHelp": "Cette action est irréversible. Cela supprimera définitivement le template.",
-    "delete": "Supprimer",
-    "addTemplate": "Ajouter un template",
-    "addTemplateHelp": "Créez un nouveau template en fournissant un nom et un contenu. Vous pouvez le modifier plus tard.",
-    "close": "Fermer"
+    "confirmDelete": "Supprimer ce modèle ?",
+    "confirmDeleteHelp": "Cette action est irréversible. Cela supprimera définitivement le modèle.",
+    "addTemplate": "Ajouter un modèle",
+    "addTemplateHelp": "Créez un nouveau modèle en fournissant un nom et un contenu. Vous pourrez le modifier plus tard.",
+    "close": "Fermer",
+    "errorIconTitle": "Erreur",
+    "backendError": "Une erreur s'est produite :",
+    "noProvidersConfigured": "Aucune clé API configurée. Veuillez en ajouter dans les paramètres."
   },
   "projectManager": {
     "addProject": "Ajouter un projet",
@@ -89,7 +100,9 @@
     "newDocumentationRepository": "Nouveau dépôt Fumadocs",
     "creationPath": "Chemin de création",
     "chooseNewOrExisitingDoc": "Choisir si vous voulez créer un nouveau dépôt de documentation ou lier un existant.",
-    "llmInstructions": "Instructions LLM spécifiques à ce projet (optionnel)"
+    "llmInstructions": "Instructions LLM spécifiques à ce projet (optionnel)",
+    "documentationBaseBranchDescription": "Sélectionnez la branche du dépôt de documentation qui servira de base aux nouvelles branches de documentation.",
+    "documentationBaseBranchRequired": "Veuillez sélectionner la branche de base de la documentation."
   },
   "home": {
     "greeting": "Veuillez entrer votre nom ci-dessous 👇",
@@ -122,7 +135,9 @@
     "dark": "Sombre",
     "system": "Système",
     "preferences": "Préférences",
-    "preferencesDescription": "Personnalisez vos paramètres d'apparence et de langue"
+    "preferencesDescription": "Personnalisez vos paramètres d'apparence et de langue",
+    "generalTab": "Général",
+    "modelsTab": "Modèles"
   },
   "demoEvents": {
     "title": "Événements de démonstration",
@@ -177,6 +192,28 @@
     "add": "Ajouter",
     "allProvidersConfigured": "Tous les fournisseurs ont déjà des clés API configurées"
   },
+  "models": {
+    "title": "Modèles",
+    "description": "Activez ou désactivez les modèles disponibles pour chaque fournisseur.",
+    "error": "Impossible de charger les modèles. Réessayez plus tard.",
+    "loading": "Chargement des modèles…",
+    "empty": "Aucun modèle n'est disponible pour le moment.",
+    "providerSectionTitle": "Modèles du fournisseur {{provider}}",
+    "enableAll": "Tout activer",
+    "disableAll": "Tout désactiver",
+    "reasoningEffort": "Effort de raisonnement : {{value}}",
+    "reasoningEffortOptions": {
+      "low": "Faible",
+      "medium": "Moyen",
+      "high": "Élevé"
+    },
+    "thinkingEnabled": "Pensée activée",
+    "thinkingDisabled": "Pensée désactivée",
+    "apiName": "Identifiant API : {{value}}",
+    "toggleModel": "Activer {{model}}",
+    "noModelsForProvider": "Aucun modèle disponible pour ce fournisseur.",
+    "providerDisabledHint": "Tous les modèles de ce fournisseur sont actuellement désactivés."
+  },
   "generations": {
     "title": "Générations en cours",
     "description": "Reprendre les sessions de génération de documentation qui n'ont pas encore été validées",
@@ -222,6 +259,9 @@
     "dirNotExist": "Le répertoire n'existe pas",
     "docDirNotExist": "Le répertoire de documentation n'existe pas",
     "codebaseDirNotExist": "Le répertoire du code source n'existe pas",
-    "validationFailed": "Échec de la validation du répertoire"
+    "validationFailed": "Échec de la validation du répertoire",
+    "documentationBaseBranchDescription": "Choisissez la branche de votre dépôt de documentation à partir de laquelle seront créées les nouvelles branches de documentation.",
+    "documentationBaseBranchRequired": "Veuillez sélectionner la branche de base de la documentation.",
+    "branchLoadFailed": "Impossible de lister les branches du dépôt de documentation."
   }
 }
