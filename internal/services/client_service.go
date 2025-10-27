@@ -28,11 +28,13 @@ import (
 // Interface pour clients?
 type ClientService struct {
 	LLMClient          *client.LLMClient
+	currentModelKey    string
 	context            context.Context
 	repoLinks          RepoLinkService
 	gitService         *GitService
 	keyringService     *KeyringService
 	generationSessions GenerationSessionService
+	modelConfigs       ModelConfigService
 }
 
 func (s *ClientService) Startup(ctx context.Context) error {
@@ -49,15 +51,19 @@ func (s *ClientService) Startup(ctx context.Context) error {
 	if s.generationSessions == nil {
 		return fmt.Errorf("generation session service not configured")
 	}
+	if s.modelConfigs == nil {
+		return fmt.Errorf("model configuration service not configured")
+	}
 	return nil
 }
 
-func NewClientService(repoLinks RepoLinkService, gitService *GitService, keyringService *KeyringService, genSessions GenerationSessionService) *ClientService {
+func NewClientService(repoLinks RepoLinkService, gitService *GitService, keyringService *KeyringService, genSessions GenerationSessionService, modelConfigs ModelConfigService) *ClientService {
 	return &ClientService{
 		repoLinks:          repoLinks,
 		gitService:         gitService,
 		keyringService:     keyringService,
 		generationSessions: genSessions,
+		modelConfigs:       modelConfigs,
 	}
 }
 
@@ -73,8 +79,8 @@ type tempDocWorkspace struct {
 	docsPath string
 }
 
-// InitializeLLMClient initializes the LLM client for the specified provider
-func (s *ClientService) InitializeLLMClient(provider string) error {
+// InitializeLLMClient initializes the LLM client for the specified model.
+func (s *ClientService) InitializeLLMClient(modelKey string) error {
 	if s.context == nil {
 		return fmt.Errorf("client service not initialized")
 	}
@@ -82,51 +88,68 @@ func (s *ClientService) InitializeLLMClient(provider string) error {
 		return fmt.Errorf("keyring service not configured")
 	}
 
-	// Map frontend provider names to keyring provider names
-	keyringProvider := provider
-	if provider == "anthropic" {
-		keyringProvider = "anthropic"
-	} else if provider == "openai" {
-		keyringProvider = "openai"
-	} else if provider == "gemini" {
-		keyringProvider = "gemini"
-	} else {
-		return fmt.Errorf("unsupported provider: %s", provider)
+	model, err := s.modelConfigs.GetModel(modelKey)
+	if err != nil {
+		return err
+	}
+	if model == nil {
+		return fmt.Errorf("model %s not found", modelKey)
+	}
+	if !model.Enabled {
+		return fmt.Errorf("model %s is disabled", model.DisplayName)
 	}
 
-	apiKey, err := s.keyringService.GetApiKey(keyringProvider)
+	providerID := strings.TrimSpace(model.ProviderID)
+	if providerID == "" {
+		return fmt.Errorf("model %s is missing provider information", model.DisplayName)
+	}
+
+	apiKey, err := s.keyringService.GetApiKey(providerID)
 	if err != nil {
-		return fmt.Errorf("failed to get API key for %s: %w", provider, err)
+		return fmt.Errorf("failed to get API key for %s: %w", providerID, err)
 	}
 	if apiKey == "" {
-		return fmt.Errorf("API key for %s is not configured", provider)
+		return fmt.Errorf("API key for %s is not configured", providerID)
 	}
 
 	var llmClient *client.LLMClient
-	if provider == "anthropic" {
-		llmClient, err = client.NewClaudeClient(s.context, apiKey)
-	} else if provider == "openai" {
-		llmClient, err = client.NewOpenAIClient(s.context, apiKey)
-	} else if provider == "gemini" {
-		llmClient, err = client.NewGeminiClient(s.context, apiKey)
+	switch providerID {
+	case "anthropic":
+		llmClient, err = client.NewClaudeClient(s.context, apiKey, client.ClaudeModelOptions{
+			Model:    model.APIName,
+			Thinking: model.Thinking != nil && *model.Thinking,
+		})
+	case "openai":
+		llmClient, err = client.NewOpenAIClient(s.context, apiKey, client.OpenAIModelOptions{
+			Model:           model.APIName,
+			ReasoningEffort: model.ReasoningEffort,
+		})
+	case "gemini":
+		llmClient, err = client.NewGeminiClient(s.context, apiKey, client.GeminiModelOptions{
+			Model:    model.APIName,
+			Thinking: model.Thinking != nil && *model.Thinking,
+		})
+	default:
+		return fmt.Errorf("unsupported provider: %s", providerID)
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to create %s client: %w", provider, err)
+		return fmt.Errorf("failed to create %s client: %w", providerID, err)
 	}
 
 	s.LLMClient = llmClient
+	s.currentModelKey = modelKey
 	return nil
 }
 
-func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, provider string, userInstructions string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, modelKey string, userInstructions string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
 	}
 	sourceBranch = strings.TrimSpace(sourceBranch)
 	targetBranch = strings.TrimSpace(targetBranch)
-	provider = strings.TrimSpace(provider)
+	modelKey = strings.TrimSpace(modelKey)
 	if projectID == 0 {
 		return nil, fmt.Errorf("project id is required")
 	}
@@ -136,12 +159,29 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	if sourceBranch == targetBranch {
 		return nil, fmt.Errorf("source and target branches must differ")
 	}
-	if provider == "" {
-		return nil, fmt.Errorf("provider is required")
+	if modelKey == "" {
+		return nil, fmt.Errorf("model is required")
 	}
 
-	// Initialize LLM client with the specified provider
-	if err := s.InitializeLLMClient(provider); err != nil {
+	modelInfo, err := s.modelConfigs.GetModel(modelKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve model: %w", err)
+	}
+	if modelInfo == nil {
+		return nil, fmt.Errorf("model not found: %s", modelKey)
+	}
+	if !modelInfo.Enabled {
+		return nil, fmt.Errorf("model %s is disabled", modelInfo.DisplayName)
+	}
+	providerID := strings.TrimSpace(modelInfo.ProviderID)
+	providerName := strings.TrimSpace(modelInfo.ProviderName)
+	providerLabel := providerName
+	if providerLabel == "" {
+		providerLabel = providerID
+	}
+
+	// Initialize LLM client with the specified model
+	if err := s.InitializeLLMClient(modelKey); err != nil {
 		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
 	}
 
@@ -154,8 +194,8 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	}
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
-		"GenerateDocs: starting for project %s (%s -> %s)",
-		project.ProjectName, targetBranch, sourceBranch,
+		"GenerateDocs: starting for project %s (%s -> %s) using %s via %s",
+		project.ProjectName, targetBranch, sourceBranch, modelInfo.DisplayName, providerLabel,
 	)))
 
 	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
@@ -287,7 +327,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 
 	if s.LLMClient != nil {
 		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
-			_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, provider, jsonStr)
+			_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, modelKey, providerID, jsonStr)
 		}
 	}
 
@@ -356,17 +396,40 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	)))
 
 	// Ensure LLM client is initialized - try to initialize from session if needed
-	var sessionProvider string
-	if s.LLMClient == nil {
-		// Try to get provider from existing session
-		session, err := s.generationSessions.Get(projectID, sourceBranch, "")
-		if err == nil && session != nil && session.Provider != "" {
-			sessionProvider = session.Provider
-			if initErr := s.InitializeLLMClient(session.Provider); initErr != nil {
+	activeModelKey := strings.TrimSpace(s.currentModelKey)
+	if s.LLMClient == nil || activeModelKey == "" {
+		sessions, err := s.generationSessions.List(projectID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load generation sessions: %w", err)
+		}
+		for _, sess := range sessions {
+			if strings.TrimSpace(sess.SourceBranch) != sourceBranch {
+				continue
+			}
+			candidateModelKey := strings.TrimSpace(sess.ModelKey)
+			if candidateModelKey == "" && strings.TrimSpace(sess.Provider) != "" {
+				if fallback, fbErr := s.findDefaultModelForProvider(strings.TrimSpace(sess.Provider)); fbErr == nil && fallback != nil {
+					candidateModelKey = fallback.Key
+				}
+			}
+			if candidateModelKey == "" {
+				continue
+			}
+			if initErr := s.InitializeLLMClient(candidateModelKey); initErr != nil {
 				return nil, fmt.Errorf("failed to initialize LLM client from session: %w", initErr)
 			}
-			events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s client from session", session.Provider)))
-		} else {
+			modelInfo, modelErr := s.modelConfigs.GetModel(candidateModelKey)
+			if modelErr == nil && modelInfo != nil {
+				label := modelInfo.ProviderName
+				if strings.TrimSpace(label) == "" {
+					label = modelInfo.ProviderID
+				}
+				events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s via %s from session", modelInfo.DisplayName, label)))
+			}
+			activeModelKey = candidateModelKey
+			break
+		}
+		if s.LLMClient == nil || activeModelKey == "" {
 			return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first or restore a session")
 		}
 	}
@@ -469,8 +532,8 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 			for _, sess := range sessions {
 				if strings.TrimSpace(sess.SourceBranch) == sourceBranch {
 					_ = s.LLMClient.LoadConversationHistoryJSON(sess.MessagesJSON)
-					if sessionProvider == "" && sess.Provider != "" {
-						sessionProvider = sess.Provider
+					if activeModelKey == "" && strings.TrimSpace(sess.ModelKey) != "" {
+						activeModelKey = strings.TrimSpace(sess.ModelKey)
 					}
 					break
 				}
@@ -493,15 +556,30 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 
 	if s.LLMClient != nil {
 		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
-			// Get provider from session if we don't have it yet
-			provider := sessionProvider
-			if provider == "" {
-				if sess, getErr := s.generationSessions.Get(projectID, sourceBranch, baseBranch); getErr == nil && sess != nil {
-					provider = sess.Provider
+			modelKeyForSession := strings.TrimSpace(activeModelKey)
+			providerForSession := ""
+			if modelKeyForSession != "" {
+				if modelInfo, getErr := s.modelConfigs.GetModel(modelKeyForSession); getErr == nil && modelInfo != nil {
+					providerForSession = strings.TrimSpace(modelInfo.ProviderID)
 				}
 			}
-			if provider != "" {
-				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, provider, jsonStr)
+			if modelKeyForSession == "" || providerForSession == "" {
+				if sess, getErr := s.generationSessions.Get(projectID, sourceBranch, baseBranch); getErr == nil && sess != nil {
+					if modelKeyForSession == "" {
+						modelKeyForSession = strings.TrimSpace(sess.ModelKey)
+					}
+					if providerForSession == "" {
+						providerForSession = strings.TrimSpace(sess.Provider)
+					}
+				}
+			}
+			if modelKeyForSession != "" && providerForSession == "" {
+				if modelInfo, getErr := s.modelConfigs.GetModel(modelKeyForSession); getErr == nil && modelInfo != nil {
+					providerForSession = strings.TrimSpace(modelInfo.ProviderID)
+				}
+			}
+			if modelKeyForSession != "" && providerForSession != "" {
+				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, modelKeyForSession, providerForSession, jsonStr)
 			}
 		}
 	}
@@ -770,6 +848,33 @@ func createTempDocRepoAtBranchHead(ctx context.Context, cfg *docRepoConfig, bran
 	return tempDocWorkspace{repoPath: repoPath, docsPath: tempDocsPath}, cleanup, nil
 }
 
+func (s *ClientService) findDefaultModelForProvider(provider string) (*models.LLMModel, error) {
+	if s.modelConfigs == nil {
+		return nil, fmt.Errorf("model configuration service not available")
+	}
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		return nil, nil
+	}
+	groups, err := s.modelConfigs.ListModelGroups()
+	if err != nil {
+		return nil, err
+	}
+	for _, group := range groups {
+		if strings.TrimSpace(group.ProviderID) != provider {
+			continue
+		}
+		sorted := group.Models
+		for i := range sorted {
+			if sorted[i].Enabled {
+				modelCopy := sorted[i]
+				return &modelCopy, nil
+			}
+		}
+	}
+	return nil, nil
+}
+
 func (s *ClientService) CommitDocs(projectID uint, branch string, files []string) error {
 	ctx := s.context
 	if ctx == nil {
@@ -916,12 +1021,33 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 		return nil, fmt.Errorf("no active generation session found for project %d (%s -> %s)", projectID, sourceBranch, targetBranch)
 	}
 
-	// Initialize LLM client with the provider from the session
-	if session.Provider != "" {
-		if err := s.InitializeLLMClient(session.Provider); err != nil {
-			return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
+	// Initialize LLM client with the model stored in the session (falls back to provider if necessary)
+	modelKey := strings.TrimSpace(session.ModelKey)
+	providerID := strings.TrimSpace(session.Provider)
+	if modelKey == "" && providerID != "" {
+		if fallback, fbErr := s.findDefaultModelForProvider(providerID); fbErr == nil && fallback != nil {
+			modelKey = fallback.Key
 		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s client from session", session.Provider)))
+	}
+	if modelKey == "" {
+		return nil, fmt.Errorf("session is missing model information")
+	}
+	if err := s.InitializeLLMClient(modelKey); err != nil {
+		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
+	}
+	if modelInfo, getErr := s.modelConfigs.GetModel(modelKey); getErr == nil && modelInfo != nil {
+		label := modelInfo.ProviderName
+		if strings.TrimSpace(label) == "" {
+			label = modelInfo.ProviderID
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s via %s from session", modelInfo.DisplayName, label)))
+	}
+	if session.ModelKey == "" {
+		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
+			if modelInfo, getErr := s.modelConfigs.GetModel(modelKey); getErr == nil && modelInfo != nil {
+				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, modelKey, modelInfo.ProviderID, jsonStr)
+			}
+		}
 	}
 
 	project, err := s.repoLinks.Get(projectID)

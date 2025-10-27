@@ -17,6 +17,9 @@
     "hideChat": "Cacher le chat",
     "generateDocs": "Générer documentation",
     "llmProvider": "Fournisseur de LLM",
+    "llmModel": "Modèle LLM",
+    "selectModel": "Sélectionner un modèle",
+    "noModelsAvailable": "Aucun modèle activé n'est disponible pour vos fournisseurs configurés.",
     "generateDocsDescription": "Générer la documentation d'une branche source vers la branche ciblée pour le projet choisi.",
     "sourceBranch": "Branche source",
     "targetBranch": "Branche ciblée",
@@ -112,7 +115,9 @@
     "dark": "Sombre",
     "system": "Système",
     "preferences": "Préférences",
-    "preferencesDescription": "Personnalisez vos paramètres d'apparence et de langue"
+    "preferencesDescription": "Personnalisez vos paramètres d'apparence et de langue",
+    "generalTab": "Général",
+    "modelsTab": "Modèles"
   },
   "demoEvents": {
     "title": "Événements de démonstration",
@@ -166,6 +171,28 @@
     "editKey": "Modifier la clé API",
     "add": "Ajouter",
     "allProvidersConfigured": "Tous les fournisseurs ont déjà des clés API configurées"
+  },
+  "models": {
+    "title": "Modèles",
+    "description": "Activez ou désactivez les modèles disponibles pour chaque fournisseur.",
+    "error": "Impossible de charger les modèles. Réessayez plus tard.",
+    "loading": "Chargement des modèles…",
+    "empty": "Aucun modèle n'est disponible pour le moment.",
+    "providerSectionTitle": "Modèles du fournisseur {{provider}}",
+    "enableAll": "Tout activer",
+    "disableAll": "Tout désactiver",
+    "reasoningEffort": "Effort de raisonnement : {{value}}",
+    "reasoningEffortOptions": {
+      "low": "Faible",
+      "medium": "Moyen",
+      "high": "Élevé"
+    },
+    "thinkingEnabled": "Pensée activée",
+    "thinkingDisabled": "Pensée désactivée",
+    "apiName": "Identifiant API : {{value}}",
+    "toggleModel": "Activer {{model}}",
+    "noModelsForProvider": "Aucun modèle disponible pour ce fournisseur.",
+    "providerDisabledHint": "Tous les modèles de ce fournisseur sont actuellement désactivés."
   },
   "generations": {
     "title": "Générations en cours",
