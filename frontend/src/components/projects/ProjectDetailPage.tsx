@@ -70,7 +70,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			});
 	}, [projectId]);
 
-	useEffect(() => {}, []);
 
 	useEffect(() => {
 		ListApiKeys()
