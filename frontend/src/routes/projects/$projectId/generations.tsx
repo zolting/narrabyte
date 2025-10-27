@@ -1,5 +1,5 @@
 import type { models } from "@go/models";
-import { List, Delete } from "@go/services/generationSessionService";
+import { Delete, List } from "@go/services/generationSessionService";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -54,11 +54,7 @@ function RouteComponent() {
 		async (s: models.GenerationSession) => {
 			setRestoringId(Number(s.ID));
 			try {
-				await restoreSession(
-					Number(projectId),
-					s.SourceBranch,
-					s.TargetBranch
-				);
+				await restoreSession(Number(projectId), s.SourceBranch, s.TargetBranch);
 				navigate({ to: "/projects/$projectId", params: { projectId } });
 			} finally {
 				setRestoringId(null);
@@ -90,11 +86,7 @@ function RouteComponent() {
 			if (!window.confirm(t("generations.deleteConfirm"))) return;
 			setDeletingId(Number(s.ID));
 			try {
-				await Delete(
-					Number(projectId),
-					s.SourceBranch,
-					s.TargetBranch
-				);
+				await Delete(Number(projectId), s.SourceBranch, s.TargetBranch);
 				await refreshSessions();
 			} finally {
 				setDeletingId(null);
@@ -115,7 +107,12 @@ function RouteComponent() {
 							{t("generations.description")}
 						</p>
 					</div>
-					<Button onClick={handleBack} size="sm" type="button" variant="outline">
+					<Button
+						onClick={handleBack}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
 						{t("common.backToProject")}
 					</Button>
 				</header>
@@ -134,9 +131,7 @@ function RouteComponent() {
 							{sessions.map((s) => (
 								<Card key={String(s.ID)}>
 									<CardHeader>
-										<CardTitle>
-											{t("generations.sessionTitle")}
-										</CardTitle>
+										<CardTitle>{t("generations.sessionTitle")}</CardTitle>
 										<CardDescription>
 											{t("generations.sessionDescription")}
 										</CardDescription>
@@ -157,17 +152,18 @@ function RouteComponent() {
 												{s.SourceBranch} → {s.TargetBranch}
 											</div>
 											<div className="text-muted-foreground text-xs">
-												{t("generations.lastUpdated")}: {formatUpdated(s.UpdatedAt)}
+												{t("generations.lastUpdated")}:{" "}
+												{formatUpdated(s.UpdatedAt)}
 											</div>
 										</div>
 									</CardContent>
-									<div className="px-6 pb-4 flex gap-2">
+									<div className="flex gap-2 px-6 pb-4">
 										<Button
-											variant="destructive"
-											size="sm"
 											disabled={deletingId === Number(s.ID)}
 											onClick={() => handleDelete(s)}
+											size="sm"
 											type="button"
+											variant="destructive"
 										>
 											{t("generations.deleteSession")}
 										</Button>
