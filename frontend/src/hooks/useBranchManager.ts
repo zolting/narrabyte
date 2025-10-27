@@ -1,6 +1,7 @@
 import type { models } from "@go/models";
 import { ListBranchesByPath } from "@go/services/GitService";
 import { useCallback, useEffect, useState } from "react";
+import { sortBranches } from "@/lib/sortBranches";
 
 export const useBranchManager = (repoPath: string | undefined) => {
 	const [branches, setBranches] = useState<models.BranchInfo[]>([]);
@@ -39,13 +40,7 @@ export const useBranchManager = (repoPath: string | undefined) => {
 				if (!isActive) {
 					return;
 				}
-				setBranches(
-					[...arr].sort(
-						(a, b) =>
-							new Date(b.lastCommitDate as unknown as string).getTime() -
-							new Date(a.lastCommitDate as unknown as string).getTime()
-					)
-				);
+				setBranches(sortBranches(arr));
 			})
 			.catch((err) => console.error("failed to fetch branches:", err));
 

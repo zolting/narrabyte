@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -233,8 +232,6 @@ func (g *GitService) ListBranches(repo *git.Repository) ([]models.BranchInfo, er
 		return nil, err
 	}
 
-	// Keep alphabetical order by branch name; frontend can sort by recency
-	sort.Slice(branches, func(i, j int) bool { return branches[i].Name < branches[j].Name })
 	return branches, nil
 }
 

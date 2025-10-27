@@ -37,7 +37,7 @@ import {
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { t } = useTranslation();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
-		undefined
+		undefined,
 	);
 	const [modelKey, setModelKey] = useState<string | null>(null);
 	const [providerKeys, setProviderKeys] = useState<string[]>([]);
@@ -116,7 +116,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const availableModels = useMemo<ModelOption[]>(
 		() => groupedModelOptions.flatMap((group) => group.models),
-		[groupedModelOptions]
+		[groupedModelOptions],
 	);
 
 	useEffect(() => {
@@ -150,7 +150,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		) {
 			docManager.setCompletedCommit(
 				branchManager.sourceBranch,
-				branchManager.targetBranch
+				branchManager.targetBranch,
 			);
 		}
 	}, [
@@ -185,7 +185,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					branchManager.targetBranch &&
 					branchManager.sourceBranch !== branchManager.targetBranch &&
 					modelKey &&
-					!docManager.isBusy
+					!docManager.isBusy,
 			),
 		[
 			docManager.isBusy,
@@ -193,7 +193,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			project,
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
-		]
+		],
 	);
 
 	const handleGenerate = useCallback(() => {
@@ -233,7 +233,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			"";
 		if (source && target) {
 			Promise.resolve(Delete(Number(projectId), source, target)).catch(
-				() => {}
+				() => {},
 			);
 		}
 	}, [
@@ -423,11 +423,11 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 											{providerKeys.length === 0
 												? t(
 														"common.noProvidersConfigured",
-														"No API keys configured. Please add one in settings."
+														"No API keys configured. Please add one in settings.",
 													)
 												: t(
 														"common.noModelsAvailable",
-														"No enabled models available for your configured providers."
+														"No enabled models available for your configured providers.",
 													)}
 										</p>
 									)}
