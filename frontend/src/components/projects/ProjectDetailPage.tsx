@@ -70,7 +70,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			});
 	}, [projectId]);
 
-
 	useEffect(() => {
 		ListApiKeys()
 			.then((keys) => {
@@ -394,59 +393,69 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 						return (
 							<>
-								<div className="shrink-0 space-y-2">
-									<Label className="font-medium text-sm" htmlFor="model-select">
-										{t("common.llmModel", "LLM Model")}
-									</Label>
-									<Select
-										disabled={
-											disableControls ||
-											modelsLoading ||
-											availableModels.length === 0
-										}
-										onValueChange={(value: string) => setModelKey(value)}
-										value={modelKey ?? undefined}
-									>
-										<SelectTrigger className="w-full" id="model-select">
-											<SelectValue
-												placeholder={t("common.selectModel", "Select a model")}
-											/>
-										</SelectTrigger>
-										<SelectContent>
-											{groupedModelOptions.map((group) => (
-												<SelectGroup key={group.providerId}>
-													<SelectLabel>{group.providerName}</SelectLabel>
-													{group.models.map((model) => (
-														<SelectItem key={model.key} value={model.key}>
-															{model.displayName}
-														</SelectItem>
-													))}
-												</SelectGroup>
-											))}
-										</SelectContent>
-									</Select>
-									{modelsLoading && (
-										<p className="text-muted-foreground text-xs">
-											{t("models.loading")}
-										</p>
-									)}
-									{!modelsLoading && availableModels.length === 0 && (
-										<p className="text-muted-foreground text-xs">
-											{providerKeys.length === 0
-												? t(
-														"common.noProvidersConfigured",
-														"No API keys configured. Please add one in settings."
-													)
-												: t(
-														"common.noModelsAvailable",
-														"No enabled models available for your configured providers."
+								<div className="flex shrink-0 items-start gap-4">
+									<div className="w-1/2 shrink-0 space-y-2">
+										<Label
+											className="font-medium text-sm"
+											htmlFor="model-select"
+										>
+											{t("common.llmModel", "LLM Model")}
+										</Label>
+										<Select
+											disabled={
+												disableControls ||
+												modelsLoading ||
+												availableModels.length === 0
+											}
+											onValueChange={(value: string) => setModelKey(value)}
+											value={modelKey ?? undefined}
+										>
+											<SelectTrigger className="w-full" id="model-select">
+												<SelectValue
+													placeholder={t(
+														"common.selectModel",
+														"Select a model"
 													)}
-										</p>
-									)}
+												/>
+											</SelectTrigger>
+											<SelectContent>
+												{groupedModelOptions.map((group) => (
+													<SelectGroup key={group.providerId}>
+														<SelectLabel>{group.providerName}</SelectLabel>
+														{group.models.map((model) => (
+															<SelectItem key={model.key} value={model.key}>
+																{model.displayName}
+															</SelectItem>
+														))}
+													</SelectGroup>
+												))}
+											</SelectContent>
+										</Select>
+										{modelsLoading && (
+											<p className="text-muted-foreground text-xs">
+												{t("models.loading")}
+											</p>
+										)}
+										{!modelsLoading && availableModels.length === 0 && (
+											<p className="text-muted-foreground text-xs">
+												{providerKeys.length === 0
+													? t(
+															"common.noProvidersConfigured",
+															"No API keys configured. Please add one in settings."
+														)
+													: t(
+															"common.noModelsAvailable",
+															"No enabled models available for your configured providers."
+														)}
+											</p>
+										)}
+									</div>
+									<div className="w-1/2 shrink-0 space-y-2">
+										<TemplateSelector
+											setTemplateInstructions={setTemplateInstructions}
+										/>
+									</div>
 								</div>
-								<TemplateSelector
-									setTemplateInstructions={setTemplateInstructions}
-								/>
 								<BranchSelector
 									branches={branchManager.branches}
 									disableControls={disableControls}
