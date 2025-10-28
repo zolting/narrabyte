@@ -61,6 +61,13 @@
     "docsBranch": "Documentation branch",
     "docInstructionsLabel": "Precisions or instructions for this specific documentation generation",
     "docInstructionsPlaceholder": "Ex: Only document the end-user aspect of the PR. Do not cover package updates. Pay special attention to changes in how X feature works.",
+    "documentationBaseBranch": "Documentation base branch",
+    "documentationBaseBranchPlaceholder": "Select documentation branch",
+    "searchBranchPlaceholder": "Search branch…",
+    "noMatchingBranches": "No matching branches.",
+    "noBranchesFound": "No branches available in this repository.",
+    "customBranchHeader": "Custom branch",
+    "useBranchOption": "Use \"{{branch}}\"",
     "backToProject": "Back to Project",
     "diffMode": "Diff mode",
     "singleBranchMode": "Single-branch mode",
@@ -79,7 +86,9 @@
     "newDocumentationRepository": "New Fumadocs repository",
     "creationPath": "Creation Path",
     "chooseNewOrExisitingDoc": "Choose if you want to create a new documentation repository or link an existing one.",
-    "llmInstructions": "LLM instructions specific to this project (optional)"
+    "llmInstructions": "LLM instructions specific to this project (optional)",
+    "documentationBaseBranchDescription": "Select the branch in your documentation repository that new documentation branches will be based on.",
+    "documentationBaseBranchRequired": "Select the documentation base branch before continuing."
   },
   "home": {
     "greeting": "Please enter your name below 👇",
@@ -236,6 +245,9 @@
     "dirNotExist": "Directory does not exist",
     "docDirNotExist": "Documentation directory does not exist",
     "codebaseDirNotExist": "Codebase directory does not exist",
-    "validationFailed": "Failed to validate directory"
+    "validationFailed": "Failed to validate directory",
+    "documentationBaseBranchDescription": "Select the branch in your documentation repository that new documentation branches should be based on.",
+    "documentationBaseBranchRequired": "Select the documentation base branch.",
+    "branchLoadFailed": "Unable to list branches for the documentation repository."
   }
 }

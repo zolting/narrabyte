@@ -205,23 +205,6 @@ function AppSidebarContent() {
 		loadProjects();
 	}, [loadProjects]);
 
-	// Helper function to validate project data
-	const validateProjectData = (data: {
-		name: string;
-		docDirectory: string;
-		codebaseDirectory: string;
-	}) => {
-		if (!(data.docDirectory && data.codebaseDirectory)) {
-			toast(t("home.selectBothDirectories"));
-			return false;
-		}
-		if (!data.name) {
-			toast(t("home.projectNameRequired"));
-			return false;
-		}
-		return true;
-	};
-
 	// Helper function to handle successful project linking
 	const handleSuccess = () => {
 		toast(t("home.linkSuccess"));
@@ -238,12 +221,13 @@ function AppSidebarContent() {
 			codebaseDirectory: string;
 			initFumaDocs: boolean;
 			llmInstructions?: string;
+			docBaseBranch: string;
 		}
 	) => {
 		const errorMsg = error instanceof Error ? error.message : String(error);
 
 		if (!errorMsg.startsWith("missing_git_repo")) {
-			throw error;
+			return false;
 		}
 
 		const missingDocRepo = errorMsg.endsWith("documentation");
@@ -265,7 +249,8 @@ function AppSidebarContent() {
 				data.docDirectory,
 				data.codebaseDirectory,
 				data.initFumaDocs,
-				data.llmInstructions ?? ""
+				data.llmInstructions ?? "",
+				data.docBaseBranch
 			);
 			return true;
 		} catch (initError) {
@@ -277,6 +262,12 @@ function AppSidebarContent() {
 
 	// Helper function to handle general errors
 	const handleError = (error: unknown) => {
+		const message = error instanceof Error ? error.message : String(error);
+		if (message.includes("documentation base branch is required")) {
+			console.error("Error linking repositories:", error);
+			toast(t("projectManager.documentationBaseBranchRequired"));
+			return;
+		}
 		console.error("Error linking repositories:", error);
 		toast(t("home.linkError"));
 	};
@@ -287,18 +278,16 @@ function AppSidebarContent() {
 		codebaseDirectory: string;
 		initFumaDocs: boolean;
 		llmInstructions?: string;
+		docBaseBranch: string;
 	}) => {
-		if (!validateProjectData(data)) {
-			return;
-		}
-
 		try {
 			await LinkRepositories(
 				data.name,
 				data.docDirectory,
 				data.codebaseDirectory,
 				data.initFumaDocs,
-				data.llmInstructions ?? ""
+				data.llmInstructions ?? "",
+				data.docBaseBranch
 			);
 			handleSuccess();
 		} catch (error) {

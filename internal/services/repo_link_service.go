@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"narrabyte/internal/models"
 	"narrabyte/internal/repositories"
@@ -15,19 +16,33 @@ import (
 
 const llmInstructionsBaseName = "llm_instructions"
 
+// sameGitRepository checks if two paths belong to the same Git repository
+func sameGitRepository(path1, path2 string) (bool, error) {
+	root1, ok1 := utils.FindGitRepoRoot(path1)
+	if !ok1 {
+		return false, fmt.Errorf("no git repository found for path: %s", path1)
+	}
+	root2, ok2 := utils.FindGitRepoRoot(path2)
+	if !ok2 {
+		return false, fmt.Errorf("no git repository found for path: %s", path2)
+	}
+
+	return root1 == root2, nil
+}
+
 type DirectoryValidationResult struct {
 	IsValid   bool   `json:"isValid"`
 	ErrorCode string `json:"errorCode"`
 }
 
 type RepoLinkService interface {
-	Register(projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error)
+	Register(projectName, documentationRepo, codebaseRepo, documentationBaseBranch string) (*models.RepoLink, error)
 	Get(id uint) (*models.RepoLink, error)
 	List(limit, offset int) ([]models.RepoLink, error)
-	LinkRepositories(projectName, docRepo, codebaseRepo string, initFumaDocs bool, llmInstructionsPath string) error
+	LinkRepositories(projectName, docRepo, codebaseRepo string, initFumaDocs bool, llmInstructionsPath string, documentationBaseBranch string) error
 	Startup(ctx context.Context)
 	CheckLLMInstructions(id uint) (bool, error)
-	UpdateProjectPaths(id uint, docRepo, codebaseRepo string) error
+	UpdateProjectPaths(id uint, docRepo, codebaseRepo, documentationBaseBranch string) error
 	ImportLLMInstructions(id uint, llmInstructionsPath string) error
 	Delete(id uint) error
 	ValidateDirectory(path string) (*DirectoryValidationResult, error)
@@ -48,7 +63,7 @@ func NewRepoLinkService(repoLinks repositories.RepoLinkRepository, fumaDocsServi
 	return &repoLinkService{repoLinks: repoLinks, fumadocsService: fumaDocsService, gitService: gitService}
 }
 
-func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo string) (*models.RepoLink, error) {
+func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo, documentationBaseBranch string) (*models.RepoLink, error) {
 	if projectName == "" {
 		return nil, errors.New("project name is required")
 	}
@@ -71,6 +86,15 @@ func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo 
 		return nil, errors.New("codebase repo path does not exist")
 	}
 
+	trimmedBaseBranch := strings.TrimSpace(documentationBaseBranch)
+	sameRepo, err := sameGitRepository(documentationRepo, codebaseRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check git repositories: %w", err)
+	}
+	if !sameRepo && trimmedBaseBranch == "" {
+		return nil, errors.New("documentation base branch is required")
+	}
+
 	narrabyteDir := filepath.Join(documentationRepo, ".narrabyte")
 	if st, err := os.Stat(narrabyteDir); err == nil {
 		if !st.IsDir() {
@@ -91,10 +115,11 @@ func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo 
 	}
 
 	link := &models.RepoLink{
-		ProjectName:       projectName,
-		DocumentationRepo: documentationRepo,
-		CodebaseRepo:      codebaseRepo,
-		Index:             0,
+		ProjectName:             projectName,
+		DocumentationRepo:       documentationRepo,
+		CodebaseRepo:            codebaseRepo,
+		DocumentationBaseBranch: trimmedBaseBranch,
+		Index:                   0,
 	}
 	if err := s.repoLinks.Create(ctx, link); err != nil {
 		return nil, err
@@ -111,7 +136,7 @@ func (s *repoLinkService) List(limit, offset int) ([]models.RepoLink, error) {
 }
 
 // LinkRepositories links the given repositories
-func (s *repoLinkService) LinkRepositories(projectName string, docRepo string, codebaseRepo string, initFumaDocs bool, llmInstructionsPath string) error {
+func (s *repoLinkService) LinkRepositories(projectName string, docRepo string, codebaseRepo string, initFumaDocs bool, llmInstructionsPath string, documentationBaseBranch string) error {
 	if s == nil {
 		return fmt.Errorf("repo link service not available")
 	}
@@ -127,7 +152,7 @@ func (s *repoLinkService) LinkRepositories(projectName string, docRepo string, c
 		}
 	}
 
-	_, err := s.Register(projectName, docRepo, codebaseRepo)
+	_, err := s.Register(projectName, docRepo, codebaseRepo, documentationBaseBranch)
 	if err != nil {
 		return err
 	}
@@ -220,7 +245,7 @@ func (s *repoLinkService) CheckLLMInstructions(id uint) (bool, error) {
 }
 
 // UpdateProjectPaths updates the documentation and codebase repository paths for a project
-func (s *repoLinkService) UpdateProjectPaths(id uint, docRepo, codebaseRepo string) error {
+func (s *repoLinkService) UpdateProjectPaths(id uint, docRepo, codebaseRepo string, documentationBaseBranch string) error {
 	project, err := s.Get(id)
 	if err != nil {
 		return fmt.Errorf("failed to get project: %w", err)
@@ -244,6 +269,21 @@ func (s *repoLinkService) UpdateProjectPaths(id uint, docRepo, codebaseRepo stri
 			return errors.New("codebase repo path does not exist")
 		}
 		project.CodebaseRepo = codebaseRepo
+	}
+
+	sameRepo, err := sameGitRepository(project.DocumentationRepo, project.CodebaseRepo)
+	if err != nil {
+		return fmt.Errorf("failed to check git repositories: %w", err)
+	}
+	separateRepos := !sameRepo
+	trimmedBaseBranch := strings.TrimSpace(documentationBaseBranch)
+	if separateRepos {
+		if trimmedBaseBranch == "" {
+			return errors.New("documentation base branch is required")
+		}
+		project.DocumentationBaseBranch = trimmedBaseBranch
+	} else {
+		project.DocumentationBaseBranch = ""
 	}
 
 	return s.repoLinks.Update(context.Background(), project)

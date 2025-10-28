@@ -38,7 +38,7 @@ import {
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { t } = useTranslation();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
-		undefined
+		undefined,
 	);
 	const [modelKey, setModelKey] = useState<string | null>(null);
 	const [providerKeys, setProviderKeys] = useState<string[]>([]);
@@ -118,7 +118,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const availableModels = useMemo<ModelOption[]>(
 		() => groupedModelOptions.flatMap((group) => group.models),
-		[groupedModelOptions]
+		[groupedModelOptions],
 	);
 
 	useEffect(() => {
@@ -152,7 +152,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		) {
 			docManager.setCompletedCommit(
 				branchManager.sourceBranch,
-				branchManager.targetBranch
+				branchManager.targetBranch,
 			);
 		}
 	}, [
@@ -247,7 +247,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			"";
 		if (source && target) {
 			Promise.resolve(Delete(Number(projectId), source, target)).catch(
-				() => {}
+				() => {},
 			);
 		}
 	}, [

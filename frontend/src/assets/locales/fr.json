@@ -61,6 +61,13 @@
     "docsBranch": "Branche de documentation",
     "docInstructionsLabel": "Précisions ou instructions pour cette génération de documentation spécifique",
     "docInstructionsPlaceholder": "Ex: Seulement documenter l'aspect end-user de la PR. Ne pas couvrir les mises à jour de package. Porter une attention particulière aux modifications du fonctionnement de X fonctionnalité.",
+    "documentationBaseBranch": "Branche de base de la documentation",
+    "documentationBaseBranchPlaceholder": "Sélectionner une branche de documentation",
+    "searchBranchPlaceholder": "Rechercher une branche…",
+    "noMatchingBranches": "Aucune branche correspondante.",
+    "noBranchesFound": "Aucune branche disponible dans ce dépôt.",
+    "customBranchHeader": "Branche personnalisée",
+    "useBranchOption": "Utiliser « {{branch}} »",
     "backToProject": "Retour au projet",
     "diffMode": "Mode diff",
     "singleBranchMode": "Mode branche unique",
@@ -79,7 +86,9 @@
     "newDocumentationRepository": "Nouveau dépôt Fumadocs",
     "creationPath": "Chemin de création",
     "chooseNewOrExisitingDoc": "Choisir si vous voulez créer un nouveau dépôt de documentation ou lier un existant.",
-    "llmInstructions": "Instructions LLM spécifiques à ce projet (optionnel)"
+    "llmInstructions": "Instructions LLM spécifiques à ce projet (optionnel)",
+    "documentationBaseBranchDescription": "Sélectionnez la branche du dépôt de documentation qui servira de base aux nouvelles branches de documentation.",
+    "documentationBaseBranchRequired": "Veuillez sélectionner la branche de base de la documentation."
   },
   "home": {
     "greeting": "Veuillez entrer votre nom ci-dessous 👇",
@@ -236,6 +245,9 @@
     "dirNotExist": "Le répertoire n'existe pas",
     "docDirNotExist": "Le répertoire de documentation n'existe pas",
     "codebaseDirNotExist": "Le répertoire du code source n'existe pas",
-    "validationFailed": "Échec de la validation du répertoire"
+    "validationFailed": "Échec de la validation du répertoire",
+    "documentationBaseBranchDescription": "Choisissez la branche de votre dépôt de documentation à partir de laquelle seront créées les nouvelles branches de documentation.",
+    "documentationBaseBranchRequired": "Veuillez sélectionner la branche de base de la documentation.",
+    "branchLoadFailed": "Impossible de lister les branches du dépôt de documentation."
   }
 }

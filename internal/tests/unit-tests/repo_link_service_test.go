@@ -34,9 +34,10 @@ func TestRepoLinkService_Register_Success(t *testing.T) {
 	assert.NoError(t, os.Mkdir(filepath.Join(docDir, ".git"), 0o755))
 	assert.NoError(t, os.Mkdir(filepath.Join(codeDir, ".git"), 0o755))
 
-	link, err := service.Register("name", docDir, codeDir)
+	link, err := service.Register("name", docDir, codeDir, "main")
 	assert.NoError(t, err)
 	assert.Equal(t, uint(99), link.ID)
+	assert.Equal(t, "main", link.DocumentationBaseBranch)
 
 	// Assert .narrabyte directory created
 	ni := filepath.Join(docDir, ".narrabyte")
@@ -54,7 +55,7 @@ func TestRepoLinkService_Register_MissingGitRepo(t *testing.T) {
 	ctx := context.Background()
 	service.Startup(ctx)
 
-	link, err := service.Register("name", "docs", "code")
+	link, err := service.Register("name", "docs", "code", "main")
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "missing_git_repo: documentation", err.Error())
@@ -69,7 +70,7 @@ func TestRepoLinkService_Register_MissingDocumentationRepo(t *testing.T) {
 	ctx := context.Background()
 	service.Startup(ctx)
 
-	link, err := service.Register("name", "", "code")
+	link, err := service.Register("name", "", "code", "main")
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "documentation repo is required", err.Error())
@@ -84,7 +85,7 @@ func TestRepoLinkService_Register_MissingCodebaseRepo(t *testing.T) {
 	ctx := context.Background()
 	service.Startup(ctx)
 
-	link, err := service.Register("name", "docs", "")
+	link, err := service.Register("name", "docs", "", "main")
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "codebase repo is required", err.Error())
@@ -99,10 +100,50 @@ func TestRepoLinkService_Register_MissingProjectName(t *testing.T) {
 	ctx := context.Background()
 	service.Startup(ctx)
 
-	link, err := service.Register("", "docs", "code")
+	link, err := service.Register("", "docs", "code", "main")
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "project name is required", err.Error())
+}
+
+func TestRepoLinkService_Register_MissingBaseBranchForSeparateRepos(t *testing.T) {
+	mockRepo := &mocks.RepoLinkRepositoryMock{}
+	fumaTest := services.FumadocsService{}
+	gitSvc := services.GitService{}
+	service := services.NewRepoLinkService(mockRepo, fumaTest, gitSvc)
+
+	ctx := context.Background()
+	service.Startup(ctx)
+
+	docDir := t.TempDir()
+	codeDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(docDir, ".git"), 0o755))
+	assert.NoError(t, os.Mkdir(filepath.Join(codeDir, ".git"), 0o755))
+
+	link, err := service.Register("name", docDir, codeDir, "")
+	assert.Nil(t, link)
+	assert.Error(t, err)
+	assert.Equal(t, "documentation base branch is required", err.Error())
+}
+
+func TestRepoLinkService_Register_SharedRepoAllowsEmptyBaseBranch(t *testing.T) {
+	mockRepo := &mocks.RepoLinkRepositoryMock{
+		CreateFunc: func(ctx context.Context, link *models.RepoLink) error {
+			link.ID = 42
+			return nil
+		},
+	}
+	service := services.NewRepoLinkService(mockRepo, services.FumadocsService{}, services.GitService{})
+	service.Startup(context.Background())
+
+	sharedDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(sharedDir, ".git"), 0o755))
+
+	link, err := service.Register("name", sharedDir, sharedDir, "")
+	assert.NoError(t, err)
+	assert.NotNil(t, link)
+	assert.Equal(t, uint(42), link.ID)
+	assert.Equal(t, "", link.DocumentationBaseBranch)
 }
 
 func TestRepoLinkService_LinkRepositories_WithLLMInstructions(t *testing.T) {
@@ -124,7 +165,7 @@ func TestRepoLinkService_LinkRepositories_WithLLMInstructions(t *testing.T) {
 	content := []byte("Project specific LLM instructions.")
 	assert.NoError(t, os.WriteFile(instFile, content, 0o644))
 
-	err := service.LinkRepositories("proj", docDir, codeDir, false, instFile)
+	err := service.LinkRepositories("proj", docDir, codeDir, false, instFile, "main")
 	assert.NoError(t, err)
 
 	// Verify copied
@@ -148,7 +189,7 @@ func TestRepoLinkService_LinkRepositories_NoLLMInstructions(t *testing.T) {
 	assert.NoError(t, os.Mkdir(filepath.Join(docDir, ".git"), 0o755))
 	assert.NoError(t, os.Mkdir(filepath.Join(codeDir, ".git"), 0o755))
 
-	err := service.LinkRepositories("proj", docDir, codeDir, false, "")
+	err := service.LinkRepositories("proj", docDir, codeDir, false, "", "main")
 	assert.NoError(t, err)
 
 	// .narrabyte still created
@@ -170,7 +211,87 @@ func TestRepoLinkService_LinkRepositories_LLMInstructionsIsDirectory(t *testing.
 	assert.NoError(t, os.Mkdir(filepath.Join(docDir, ".git"), 0o755))
 	assert.NoError(t, os.Mkdir(filepath.Join(codeDir, ".git"), 0o755))
 
-	err := service.LinkRepositories("proj", docDir, codeDir, false, instDir)
+	err := service.LinkRepositories("proj", docDir, codeDir, false, instDir, "main")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to store llm instructions")
+}
+
+func TestRepoLinkService_UpdateProjectPaths_RequiresBaseBranch(t *testing.T) {
+	docDir := t.TempDir()
+	codeDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(docDir, ".git"), 0o755))
+	assert.NoError(t, os.Mkdir(filepath.Join(codeDir, ".git"), 0o755))
+
+	repo := &mocks.RepoLinkRepositoryMock{
+		FindByIDFunc: func(ctx context.Context, id uint) (*models.RepoLink, error) {
+			return &models.RepoLink{
+				ID:                      id,
+				ProjectName:             "proj",
+				DocumentationRepo:       docDir,
+				CodebaseRepo:            codeDir,
+				DocumentationBaseBranch: "main",
+			}, nil
+		},
+	}
+	service := services.NewRepoLinkService(repo, services.FumadocsService{}, services.GitService{})
+	service.Startup(context.Background())
+
+	err := service.UpdateProjectPaths(1, "", "", "")
+	assert.Error(t, err)
+	assert.Equal(t, "documentation base branch is required", err.Error())
+}
+
+func TestRepoLinkService_UpdateProjectPaths_UpdatesBaseBranch(t *testing.T) {
+	docDir := t.TempDir()
+	codeDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(docDir, ".git"), 0o755))
+	assert.NoError(t, os.Mkdir(filepath.Join(codeDir, ".git"), 0o755))
+
+	var updated *models.RepoLink
+	repo := &mocks.RepoLinkRepositoryMock{
+		FindByIDFunc: func(ctx context.Context, id uint) (*models.RepoLink, error) {
+			return &models.RepoLink{
+				ID:                      id,
+				ProjectName:             "proj",
+				DocumentationRepo:       docDir,
+				CodebaseRepo:            codeDir,
+				DocumentationBaseBranch: "main",
+			}, nil
+		},
+		UpdateFunc: func(ctx context.Context, link *models.RepoLink) error {
+			updated = link
+			return nil
+		},
+	}
+	service := services.NewRepoLinkService(repo, services.FumadocsService{}, services.GitService{})
+	service.Startup(context.Background())
+
+	err := service.UpdateProjectPaths(2, "", "", " docs ")
+	assert.NoError(t, err)
+	if assert.NotNil(t, updated) {
+		assert.Equal(t, "docs", updated.DocumentationBaseBranch)
+	}
+}
+
+func TestRepoLinkService_Register_NestedPathsSameRepo(t *testing.T) {
+	mockRepo := &mocks.RepoLinkRepositoryMock{
+		CreateFunc: func(ctx context.Context, link *models.RepoLink) error {
+			link.ID = 100
+			return nil
+		},
+	}
+	service := services.NewRepoLinkService(mockRepo, services.FumadocsService{}, services.GitService{})
+	service.Startup(context.Background())
+
+	// Create a shared repo with docs subdirectory
+	repoDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(repoDir, ".git"), 0o755))
+	docsDir := filepath.Join(repoDir, "docs")
+	assert.NoError(t, os.Mkdir(docsDir, 0o755))
+
+	link, err := service.Register("nested", docsDir, repoDir, "")
+	assert.NoError(t, err)
+	assert.NotNil(t, link)
+	assert.Equal(t, uint(100), link.ID)
+	assert.Equal(t, "", link.DocumentationBaseBranch) // Should allow empty since same repo
 }

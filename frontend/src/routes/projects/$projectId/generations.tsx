@@ -35,11 +35,13 @@ function RouteComponent() {
 		setLoading(true);
 		Promise.resolve(List(Number(projectId)))
 			.then((list) => {
-				if (!mounted) return;
+				if (!mounted) {
+					return;
+				}
 				setSessions(list);
 			})
 			.finally(() => {
-				if (mounted) setLoading(false);
+				setLoading(false);
 			});
 		return () => {
 			mounted = false;
@@ -64,10 +66,14 @@ function RouteComponent() {
 	);
 
 	const formatUpdated = useCallback((raw: unknown) => {
-		if (!raw) return null;
+		if (!raw) {
+			return null;
+		}
 		try {
 			const d = new Date(raw as string);
-			if (Number.isNaN(d.getTime())) return null;
+			if (Number.isNaN(d.getTime())) {
+				return null;
+			}
 			return d.toLocaleString();
 		} catch {
 			return null;
@@ -83,7 +89,9 @@ function RouteComponent() {
 
 	const handleDelete = useCallback(
 		async (s: models.GenerationSession) => {
-			if (!window.confirm(t("generations.deleteConfirm"))) return;
+			if (!window.confirm(t("generations.deleteConfirm"))) {
+				return;
+			}
 			setDeletingId(Number(s.ID));
 			try {
 				await Delete(Number(projectId), s.SourceBranch, s.TargetBranch);
@@ -118,15 +126,17 @@ function RouteComponent() {
 				</header>
 
 				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden pr-2">
-					{loading ? (
+					{loading && (
 						<div className="p-2 text-muted-foreground text-sm">
 							{t("generations.loading")}
 						</div>
-					) : !sessions || sessions.length === 0 ? (
+					)}
+					{!loading && (!sessions || sessions.length === 0) && (
 						<div className="p-2 text-muted-foreground text-sm">
 							{t("generations.noSessions")}
 						</div>
-					) : (
+					)}
+					{!loading && sessions && sessions.length > 0 && (
 						<div className="grid grid-cols-1 gap-3">
 							{sessions.map((s) => (
 								<Card key={String(s.ID)}>
