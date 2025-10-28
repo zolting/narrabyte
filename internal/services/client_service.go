@@ -1786,7 +1786,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 			return nil, fmt.Errorf("failed to resolve branch '%s': %w", branch, err)
 		}
 	} else {
-		baseHash, baseBranch, err = ensureBaseBranch(docRepo)
+		baseHash, baseBranch, err = resolveDocumentationBase(project, docRepo)
 		if err != nil {
 			return nil, err
 		}
@@ -1807,7 +1807,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 	}
 
 	// Create temporary documentation workspace checked out at current docs branch head
-	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, docCfg, docsBranch)
+	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, docCfg, docsBranch, baseBranch, baseHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary documentation workspace: %w", err)
 	}
