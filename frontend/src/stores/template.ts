@@ -30,10 +30,6 @@ export const useTemplateStore = create<TemplateState>((set, get) => ({
 
 	loadFirstTime: async () => {
 		await get().createTemplate({
-			name: "None",
-			content: "No specific template selected.",
-		});
-		await get().createTemplate({
 			name: "End user — Non technique",
 			content:
 				"Documentation destinée aux utilisateurs finaux. Expliquez la navigation de l'application, les fonctionnalités clés et fournissez des exemples d'utilisation pas à pas. " +

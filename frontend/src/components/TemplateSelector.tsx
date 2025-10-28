@@ -5,7 +5,8 @@ import {
 	EditIcon,
 	Trash,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import type { KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,7 @@ import {
 	CommandInput,
 	CommandItem,
 	CommandList,
+	CommandSeparator,
 } from "@/components/ui/command";
 import {
 	Dialog,
@@ -23,7 +25,6 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-	DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,27 +41,31 @@ interface TemplateSelectorProps {
 	setTemplateInstructions: (instructions: string) => void;
 }
 
+const triggerClasses =
+	"h-10 w-full justify-between overflow-hidden bg-card text-card-foreground border border-border hover:bg-muted data-[state=open]:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+const contentClasses =
+	"bg-popover text-popover-foreground border border-border shadow-md";
+
 export const TemplateSelector = ({
 	setTemplateInstructions,
 }: TemplateSelectorProps) => {
 	const { t } = useTranslation();
+	const comboboxId = useId();
+	const listId = useId();
 
 	const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(
 		undefined
 	);
-	const createTemplate = useTemplateStore((state) => state.createTemplate);
 	const editTemplate = useTemplateStore((state) => state.editTemplate);
 	const deleteTemplate = useTemplateStore((state) => state.deleteTemplate);
 	const loadTemplates = useTemplateStore((state) => state.loadTemplates);
 	const templates = useTemplateStore((state) => state.templates);
 
 	const error = useTemplateStore((state) => state.error);
-	const loading = useTemplateStore((state) => state.loading);
 	const clearError = useTemplateStore((state) => state.clearError);
 
 	const [open, setOpen] = useState(false);
 	const [editOpen, setEditOpen] = useState(false);
-	const [addOpen, setAddOpen] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
 
 	const [currentName, setCurrentName] = useState<string | undefined>(
@@ -69,8 +74,6 @@ export const TemplateSelector = ({
 
 	const [editingName, setEditingName] = useState("");
 	const [editingContent, setEditingContent] = useState("");
-	const [newName, setNewName] = useState("");
-	const [newContent, setNewContent] = useState("");
 	const [editTargetId, setEditTargetId] = useState<number | null>(null);
 	const [deleteTargetName, setDeleteTargetName] = useState<string | null>(null);
 
@@ -96,6 +99,7 @@ export const TemplateSelector = ({
 		setEditingName(found?.name ?? name);
 		setEditingContent(found?.content ?? "");
 		setSelectedTemplate(name);
+		setOpen(false);
 	};
 
 	const handleSave = async () => {
@@ -115,26 +119,6 @@ export const TemplateSelector = ({
 		setOpen(false);
 	};
 
-	const handleAddSave = async () => {
-		const nameTrim = newName.trim();
-		if (!nameTrim) {
-			return;
-		}
-
-		await createTemplate({
-			name: nameTrim,
-			content: newContent,
-		});
-
-		setSelectedTemplate(nameTrim);
-		setCurrentName(nameTrim);
-		setTemplateInstructions(newContent);
-		setAddOpen(false);
-		setOpen(false);
-		setNewName("");
-		setNewContent("");
-	};
-
 	const handleConfirmDelete = async () => {
 		if (!deleteTargetName) {
 			return;
@@ -150,7 +134,7 @@ export const TemplateSelector = ({
 		await deleteTemplate(found.id);
 
 		if (currentName === deleteTargetName) {
-			setSelectedTemplate(templates.length ? templates[0]?.name : "");
+			setSelectedTemplate(undefined);
 			setCurrentName(undefined);
 			setTemplateInstructions("");
 		}
@@ -158,10 +142,33 @@ export const TemplateSelector = ({
 		setDeleteOpen(false);
 		setDeleteTargetName(null);
 	};
-
-	const addDisabled =
-		newName.trim().length === 0 || newContent.trim().length === 0;
+	const handleEditContentKeyDown = useCallback(
+		(event: KeyboardEvent<HTMLTextAreaElement>) => {
+			if (event.key !== "Tab") {
+				return;
+			}
+			event.preventDefault();
+			const textarea = event.currentTarget;
+			const { selectionStart, selectionEnd } = textarea;
+			setEditingContent((previous) => {
+				const nextValue =
+					previous.slice(0, selectionStart) +
+					"\t" +
+					previous.slice(selectionEnd);
+				window.requestAnimationFrame(() => {
+					textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+				});
+				return nextValue;
+			});
+		},
+		[setEditingContent]
+	);
 	const editDisabled = editingName.trim().length === 0;
+	const displayLabel =
+		currentName ??
+		(templates.length > 0
+			? t("common.noTemplateSelection")
+			: t("common.selectTemplate"));
 
 	return (
 		<div className="shrink-0 space-y-2">
@@ -179,326 +186,237 @@ export const TemplateSelector = ({
 					</span>
 				</div>
 			)}
-			<div className="shrink-0 space-y-2">
-				<Label className="font-medium text-sm" htmlFor="provider-select">
+			<div className="min-w-0 space-y-2 rounded-lg border border-border/50 bg-muted/30 p-3">
+				<Label className="text-muted-foreground text-xs" htmlFor={comboboxId}>
 					{t("common.templateLabel")}
 				</Label>
 
-				<Popover onOpenChange={setOpen} open={open}>
+				<Popover modal={true} onOpenChange={setOpen} open={open}>
 					<PopoverTrigger asChild>
 						<Button
+							aria-controls={listId}
 							aria-expanded={open}
-							className="w-full justify-between"
+							className={cn(
+								"w-full justify-between overflow-hidden hover:text-foreground",
+								triggerClasses
+							)}
+							id={comboboxId}
 							onClick={clearError}
+							role="combobox"
 							type="button"
 							variant="outline"
 						>
-							{currentName ?? t("common.selectTemplate")}
+							<span className="min-w-0 flex-1 truncate text-left">
+								{displayLabel}
+							</span>
 							<ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
 						</Button>
 					</PopoverTrigger>
 
-					<PopoverContent className="w-[var(--radix-popover-trigger-width)] max-w-none p-2">
-						<div className="rounded-2xl border bg-background shadow-sm">
-							<Command className="rounded-2xl">
-								<CommandInput placeholder={t("common.selectTemplate")} />
-								<CommandList>
-									<CommandEmpty>{t("common.noTemplateFound")}</CommandEmpty>
-									<CommandGroup>
-										{templates.map((template) => (
-											<CommandItem
-												className="group flex items-center justify-between"
-												key={template.name}
-												onSelect={(value: string) => {
-													handleSelect(value);
-													setTemplateInstructions(template.content);
-												}}
-												value={template.name}
-											>
-												<div className="flex min-w-0 items-center gap-2">
-													<CheckIcon
-														className={cn(
-															"h-4 w-4 flex-shrink-0",
-															currentName === template.name
-																? "opacity-100"
-																: "opacity-0"
-														)}
-													/>
-													<span className="truncate">{template.name}</span>
-												</div>
-												<div className="ml-2 hidden items-center gap-1 group-hover:flex">
-													<Button
-														className="h-7 w-7"
-														onClick={(e) => {
-															e.stopPropagation();
-															setEditTargetId(template.id);
-															setEditingName(template.name);
-															setEditingContent(template.content);
-															setEditOpen(true);
-														}}
-														size="icon"
-														title={t("common.editTemplate", "Edit Template")}
-														type="button"
-														variant="secondary"
-													>
-														<EditIcon className="h-4 w-4" />
-													</Button>
+					<PopoverContent
+						align="start"
+						className={cn(
+							"w-[var(--radix-popover-trigger-width)] p-0",
+							contentClasses
+						)}
+					>
+						<Command>
+							<CommandInput placeholder={t("common.selectTemplate")} />
+							<CommandList className="max-h-[240px]" id={listId}>
+								<CommandEmpty>{t("common.noTemplateFound")}</CommandEmpty>
+								<CommandGroup>
+									<CommandItem
+										onSelect={() => {
+											setSelectedTemplate(undefined);
+											setCurrentName(undefined);
+											setTemplateInstructions("");
+											setOpen(false);
+										}}
+										value="__clear-template"
+									>
+										{t("common.noTemplateSelection")}
+									</CommandItem>
+									<CommandSeparator />
+									{templates.map((template) => (
+										<CommandItem
+											className="group flex items-center justify-between"
+											key={template.name}
+											onSelect={(value: string) => {
+												handleSelect(value);
+												setTemplateInstructions(template.content);
+											}}
+											value={template.name}
+										>
+											<div className="flex min-w-0 items-center gap-2">
+												<CheckIcon
+													className={cn(
+														"h-4 w-4 flex-shrink-0",
+														currentName === template.name
+															? "opacity-100"
+															: "opacity-0"
+													)}
+												/>
+												<span className="truncate">{template.name}</span>
+											</div>
+											<div className="ml-2 hidden items-center gap-1 group-hover:flex">
+												<Button
+													className="h-7 w-7"
+													onClick={(e) => {
+														e.stopPropagation();
+														setEditTargetId(template.id);
+														setEditingName(template.name);
+														setEditingContent(template.content);
+														setEditOpen(true);
+													}}
+													size="icon"
+													title={t("common.editTemplate", "Edit Template")}
+													type="button"
+													variant="secondary"
+												>
+													<EditIcon className="h-4 w-4" />
+												</Button>
 
-													<Button
-														className="h-7 w-7"
-														onClick={(e) => {
-															e.stopPropagation();
-															setDeleteTargetName(template.name);
-															setDeleteOpen(true);
-														}}
-														size="icon"
-														title={t("common.delete", "Delete")}
-														type="button"
-														variant="secondary"
-													>
-														<Trash className="h-4 w-4" />
-													</Button>
-												</div>
-											</CommandItem>
-										))}
-									</CommandGroup>
-								</CommandList>
-							</Command>
+												<Button
+													className="h-7 w-7"
+													onClick={(e) => {
+														e.stopPropagation();
+														setDeleteTargetName(template.name);
+														setDeleteOpen(true);
+													}}
+													size="icon"
+													title={t("common.delete", "Delete")}
+													type="button"
+													variant="secondary"
+												>
+													<Trash className="h-4 w-4" />
+												</Button>
+											</div>
+										</CommandItem>
+									))}
+								</CommandGroup>
+							</CommandList>
+						</Command>
+					</PopoverContent>
+				</Popover>
 
-							<div className="border-t" />
+				<Dialog onOpenChange={setEditOpen} open={editOpen}>
+					<DialogContent className="sm:max-w-3xl">
+						<DialogHeader>
+							<DialogTitle className="text-lg">
+								{t("common.editTemplate", "Edit Template")}
+							</DialogTitle>
+							<DialogDescription className="text-muted-foreground">
+								{t(
+									"common.editTemplateHelp",
+									"Update the template name and content. Your changes will apply immediately after saving."
+								)}
+							</DialogDescription>
+						</DialogHeader>
 
-							<div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-end">
+						<div className="grid gap-4 py-2">
+							<div className="grid gap-2">
+								<Label htmlFor="template-name">
+									{t("common.templateName", "Template Name")}
+								</Label>
+								<Input
+									id="template-name"
+									onChange={(e) => setEditingName(e.target.value)}
+									placeholder={t(
+										"common.templateNamePlaceholder",
+										"e.g., Default Instructions"
+									)}
+									value={editingName}
+								/>
+								{editingName.trim().length === 0 && (
+									<p className="text-muted-foreground text-xs">
+										{t("common.nameRequired", "A name is required to save.")}
+									</p>
+								)}
+							</div>
+
+							<div className="grid gap-2">
+								<div className="flex items-center justify-between">
+									<Label htmlFor="template-content">
+										{t("common.templateContent", "Template Content")}
+									</Label>
+									<span className="text-muted-foreground text-xs">
+										{t("common.characters", "Characters")}{" "}
+										{editingContent.length}
+									</span>
+								</div>
+								<Textarea
+									className="h-56 w-full resize-none rounded-xl border bg-muted/30 font-mono text-sm shadow-inner"
+									id="template-content"
+									onChange={(e) => setEditingContent(e.target.value)}
+									onKeyDown={handleEditContentKeyDown}
+									value={editingContent}
+								/>
+								<p className="text-muted-foreground text-xs">
+									{t(
+										"common.templateContentHelp",
+										"Describe how the assistant should behave. Markdown is supported."
+									)}
+								</p>
+							</div>
+						</div>
+
+						<DialogFooter className="gap-2 sm:justify-between">
+							<div className="text-muted-foreground text-xs" />
+							<div className="flex w-full justify-end gap-2 sm:w-auto">
 								<Button
-									onClick={() => setOpen(false)}
+									onClick={() => setEditOpen(false)}
 									type="button"
 									variant="ghost"
 								>
-									{t("common.close", "Close")}
+									{t("common.cancel", "Cancel")}
 								</Button>
-
-								<Dialog onOpenChange={setEditOpen} open={editOpen}>
-									<DialogContent className="sm:max-w-3xl">
-										<DialogHeader>
-											<DialogTitle className="text-lg">
-												{t("common.editTemplate", "Edit Template")}
-											</DialogTitle>
-											<DialogDescription className="text-muted-foreground">
-												{t(
-													"common.editTemplateHelp",
-													"Update the template name and content. Your changes will apply immediately after saving."
-												)}
-											</DialogDescription>
-										</DialogHeader>
-
-										<div className="grid gap-4 py-2">
-											<div className="grid gap-2">
-												<Label htmlFor="template-name">
-													{t("common.templateName", "Template Name")}
-												</Label>
-												<Input
-													id="template-name"
-													onChange={(e) => setEditingName(e.target.value)}
-													placeholder={t(
-														"common.templateNamePlaceholder",
-														"e.g., Default Instructions"
-													)}
-													value={editingName}
-												/>
-												{editingName.trim().length === 0 && (
-													<p className="text-muted-foreground text-xs">
-														{t(
-															"common.nameRequired",
-															"A name is required to save."
-														)}
-													</p>
-												)}
-											</div>
-
-											<div className="grid gap-2">
-												<div className="flex items-center justify-between">
-													<Label htmlFor="template-content">
-														{t("common.templateContent", "Template Content")}
-													</Label>
-													<span className="text-muted-foreground text-xs">
-														{t("common.characters", "Characters")}{" "}
-														{editingContent.length}
-													</span>
-												</div>
-												<Textarea
-													className="h-56 w-full resize-none rounded-xl border bg-muted/30 font-mono text-sm shadow-inner"
-													id="template-content"
-													onChange={(e) => setEditingContent(e.target.value)}
-													value={editingContent}
-												/>
-												<p className="text-muted-foreground text-xs">
-													{t(
-														"common.templateContentHelp",
-														"Describe how the assistant should behave. Markdown is supported."
-													)}
-												</p>
-											</div>
-										</div>
-
-										<DialogFooter className="gap-2 sm:justify-between">
-											<div className="text-muted-foreground text-xs" />
-											<div className="flex w-full justify-end gap-2 sm:w-auto">
-												<Button
-													onClick={() => setEditOpen(false)}
-													type="button"
-													variant="ghost"
-												>
-													{t("common.cancel", "Cancel")}
-												</Button>
-												<Button
-													disabled={editDisabled}
-													onClick={handleSave}
-													type="button"
-												>
-													{t("common.saveChanges", "Save Changes")}
-												</Button>
-											</div>
-										</DialogFooter>
-									</DialogContent>
-								</Dialog>
-
-								<Dialog onOpenChange={setDeleteOpen} open={deleteOpen}>
-									<DialogTrigger asChild>
-										<span className="hidden" />
-									</DialogTrigger>
-									<DialogContent className="sm:max-w-md">
-										<DialogHeader>
-											<DialogTitle>
-												{t("common.confirmDelete", "Delete this template?")}
-											</DialogTitle>
-											<DialogDescription>
-												{t(
-													"common.confirmDeleteHelp",
-													"This action cannot be undone. This will permanently remove the template."
-												)}
-											</DialogDescription>
-										</DialogHeader>
-										<div className="rounded-md border bg-muted/40 p-3 text-sm">
-											{deleteTargetName}
-										</div>
-										<DialogFooter className="gap-2">
-											<Button
-												onClick={() => setDeleteOpen(false)}
-												type="button"
-												variant="ghost"
-											>
-												{t("common.cancel", "Cancel")}
-											</Button>
-											<Button
-												disabled={!deleteTargetName}
-												onClick={handleConfirmDelete}
-												type="button"
-												variant="destructive"
-											>
-												{t("common.delete", "Delete")}
-											</Button>
-										</DialogFooter>
-									</DialogContent>
-								</Dialog>
-
-								<Dialog onOpenChange={setAddOpen} open={addOpen}>
-									<DialogTrigger asChild>
-										<span className="hidden" />
-									</DialogTrigger>
-									<DialogContent className="sm:max-w-3xl">
-										<DialogHeader>
-											<DialogTitle className="text-lg">
-												{t("common.addTemplate", "Add Template")}
-											</DialogTitle>
-											<DialogDescription className="text-muted-foreground">
-												{t(
-													"common.addTemplateHelp",
-													"Create a new template by providing a name and content. You can edit it later."
-												)}
-											</DialogDescription>
-										</DialogHeader>
-
-										<div className="grid gap-4 py-2">
-											<div className="grid gap-2">
-												<Label htmlFor="new-template-name">
-													{t("common.templateName", "Template Name")}
-												</Label>
-												<Input
-													id="new-template-name"
-													onChange={(e) => setNewName(e.target.value)}
-													placeholder={t(
-														"common.templateNamePlaceholder",
-														"e.g., Default Instructions"
-													)}
-													value={newName}
-												/>
-												{newName.trim().length === 0 && (
-													<p className="text-muted-foreground text-xs">
-														{t(
-															"common.nameRequired",
-															"A name is required to save."
-														)}
-													</p>
-												)}
-											</div>
-
-											<div className="grid gap-2">
-												<div className="flex items-center justify-between">
-													<Label htmlFor="new-template-content">
-														{t("common.templateContent", "Template Content")}
-													</Label>
-													<span className="text-muted-foreground text-xs">
-														{t("common.characters", "Characters")}{" "}
-														{newContent.length}
-													</span>
-												</div>
-												<Textarea
-													className="h-56 w-full resize-none rounded-xl border bg-muted/30 font-mono text-sm shadow-inner"
-													id="new-template-content"
-													onChange={(e) => setNewContent(e.target.value)}
-													value={newContent}
-												/>
-												<p className="text-muted-foreground text-xs">
-													{t(
-														"common.templateContentHelp",
-														"Describe how the assistant should behave. Markdown is supported."
-													)}
-												</p>
-											</div>
-										</div>
-
-										<DialogFooter className="gap-2 sm:justify-between">
-											<div className="text-muted-foreground text-xs" />
-											<div className="flex w-full justify-end gap-2 sm:w-auto">
-												<Button
-													onClick={() => {
-														setAddOpen(false);
-														setNewName("");
-														setNewContent("");
-													}}
-													type="button"
-													variant="ghost"
-												>
-													{t("common.cancel", "Cancel")}
-												</Button>
-												<Button
-													disabled={addDisabled}
-													onClick={handleAddSave}
-													type="button"
-												>
-													{t("common.addTemplate", "Add Template")}
-												</Button>
-											</div>
-										</DialogFooter>
-									</DialogContent>
-								</Dialog>
-
-								<Button onClick={() => setAddOpen(true)} type="button">
-									{t("common.addTemplate", "Add Template")}
+								<Button
+									disabled={editDisabled}
+									onClick={handleSave}
+									type="button"
+								>
+									{t("common.saveChanges", "Save Changes")}
 								</Button>
 							</div>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+
+				<Dialog onOpenChange={setDeleteOpen} open={deleteOpen}>
+					<DialogContent className="sm:max-w-md">
+						<DialogHeader>
+							<DialogTitle>
+								{t("common.confirmDelete", "Delete this template?")}
+							</DialogTitle>
+							<DialogDescription>
+								{t(
+									"common.confirmDeleteHelp",
+									"This action cannot be undone. This will permanently remove the template."
+								)}
+							</DialogDescription>
+						</DialogHeader>
+						<div className="rounded-md border bg-muted/40 p-3 text-sm">
+							{deleteTargetName}
 						</div>
-					</PopoverContent>
-				</Popover>
+						<DialogFooter className="gap-2">
+							<Button
+								onClick={() => setDeleteOpen(false)}
+								type="button"
+								variant="ghost"
+							>
+								{t("common.cancel", "Cancel")}
+							</Button>
+							<Button
+								disabled={!deleteTargetName}
+								onClick={handleConfirmDelete}
+								type="button"
+								variant="destructive"
+							>
+								{t("common.delete", "Delete")}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
 			</div>
 		</div>
 	);

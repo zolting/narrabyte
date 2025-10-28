@@ -82,6 +82,7 @@
     "confirmDelete": "Supprimer ce modèle ?",
     "confirmDeleteHelp": "Cette action est irréversible. Cela supprimera définitivement le modèle.",
     "addTemplate": "Ajouter un modèle",
+    "noTemplateSelection": "Aucun modèle",
     "addTemplateHelp": "Créez un nouveau modèle en fournissant un nom et un contenu. Vous pourrez le modifier plus tard.",
     "close": "Fermer",
     "errorIconTitle": "Erreur",
@@ -116,7 +117,27 @@
     "linkError": "Échec de la liaison des répertoires",
     "initGitError": "Erreur lors de l'initialisation du répertoire Git.",
     "unexistantGitRepoCreate": "n'est pas un répertoire Git existant. Voulez-vous en créer un nouveau?",
-    "selectBothDirectories": "Veuillez d'abord sélectionner les deux répertoires"
+    "selectBothDirectories": "Veuillez d'abord sélectionner les deux répertoires",
+    "templateManagerTitle": "Modèles",
+    "templateManagerDescription": "Créez des modèles d'instructions réutilisables pour vos générations de documentation.",
+    "templateCount_one": "1 modèle disponible",
+    "templateCount_other": "{{count}} modèles disponibles",
+    "loadingTemplates": "Chargement des modèles…",
+    "noTemplates": "Aucun modèle disponible pour le moment. Ajoutez votre premier modèle pour commencer.",
+    "manageTemplatesButton": "Gérer les modèles",
+    "welcomeMessage": "Sélectionnez un projet dans la barre latérale pour lancer une génération de documentation, ou gérez vos modèles réutilisables depuis la page Modèles."
+  },
+  "templates": {
+    "subtitle": "Gérez des instructions réutilisables qui définissent la manière de produire la documentation.",
+    "listTitle": "Modèles disponibles",
+    "listDescription": "Choisissez un modèle pour l’afficher et le modifier.",
+    "emptyState": "Aucun modèle pour le moment. Créez-en un ci-dessous pour commencer.",
+    "detailsTitle": "Détails du modèle",
+    "detailsDescription": "Mettez à jour le contenu du modèle puis enregistrez vos modifications.",
+    "selectPrompt": "Sélectionnez un modèle à gauche pour consulter ses détails.",
+    "createTitle": "Créer un nouveau modèle",
+    "createDescription": "Définissez des instructions réutilisables applicables à toutes vos générations de documentation.",
+    "openCreateButton": "Créer un modèle"
   },
   "settings": {
     "title": "Paramètres",
@@ -150,6 +171,7 @@
   "sidebar": {
     "home": "Accueil",
     "projects": "Projets",
+    "templates": "Modèles",
     "searchProjects": "Rechercher...",
     "settings": "Paramètres",
     "loading": "Chargement…",
