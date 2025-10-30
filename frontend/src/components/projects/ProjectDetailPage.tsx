@@ -15,6 +15,7 @@ import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
 import { GenerationTabs } from "@/components/GenerationTabs";
 import { SuccessPanel } from "@/components/SuccessPanel";
+import { TemplateSelector } from "@/components/TemplateSelector";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -37,7 +38,7 @@ import {
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { t } = useTranslation();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
-		undefined,
+		undefined
 	);
 	const [modelKey, setModelKey] = useState<string | null>(null);
 	const [providerKeys, setProviderKeys] = useState<string[]>([]);
@@ -50,6 +51,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
+	const [templateInstructions, setTemplateInstructions] = useState<string>("");
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
@@ -116,7 +118,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const availableModels = useMemo<ModelOption[]>(
 		() => groupedModelOptions.flatMap((group) => group.models),
-		[groupedModelOptions],
+		[groupedModelOptions]
 	);
 
 	useEffect(() => {
@@ -150,7 +152,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		) {
 			docManager.setCompletedCommit(
 				branchManager.sourceBranch,
-				branchManager.targetBranch,
+				branchManager.targetBranch
 			);
 		}
 	}, [
@@ -185,7 +187,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					branchManager.targetBranch &&
 					branchManager.sourceBranch !== branchManager.targetBranch &&
 					modelKey &&
-					!docManager.isBusy,
+					!docManager.isBusy
 			),
 		[
 			docManager.isBusy,
@@ -193,7 +195,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			project,
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
-		],
+		]
 	);
 
 	const handleGenerate = useCallback(() => {
@@ -207,6 +209,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		) {
 			return;
 		}
+
+		const instructions = `<DOCUMENTATION_TEMPLATE>${templateInstructions ?? ""}</DOCUMENTATION_TEMPLATE><USER_INSTRUCTIONS>${userInstructions ?? ""}</USER_INSTRUCTIONS>`;
+
 		branchManager.setSourceOpen(false);
 		branchManager.setTargetOpen(false);
 		docManager.setActiveTab("activity");
@@ -215,9 +220,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			sourceBranch: branchManager.sourceBranch,
 			targetBranch: branchManager.targetBranch,
 			modelKey,
-			userInstructions,
+			userInstructions: instructions,
 		});
-	}, [project, branchManager, docManager, modelKey, userInstructions]);
+	}, [
+		project,
+		branchManager,
+		docManager,
+		modelKey,
+		userInstructions,
+		templateInstructions,
+	]);
 
 	const handleApprove = useCallback(() => {
 		docManager.approveCommit();
@@ -233,7 +245,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			"";
 		if (source && target) {
 			Promise.resolve(Delete(Number(projectId), source, target)).catch(
-				() => {},
+				() => {}
 			);
 		}
 	}, [
@@ -358,7 +370,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						</Button>
 					</div>
 				</header>
-
 				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
 					{(() => {
 						if (docManager.commitCompleted) {
@@ -382,55 +393,68 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 						return (
 							<>
-								<div className="shrink-0 space-y-2">
-									<Label className="font-medium text-sm" htmlFor="model-select">
-										{t("common.llmModel", "LLM Model")}
-									</Label>
-									<Select
-										disabled={
-											disableControls ||
-											modelsLoading ||
-											availableModels.length === 0
-										}
-										onValueChange={(value: string) => setModelKey(value)}
-										value={modelKey ?? undefined}
-									>
-										<SelectTrigger className="w-full" id="model-select">
-											<SelectValue
-												placeholder={t("common.selectModel", "Select a model")}
-											/>
-										</SelectTrigger>
-										<SelectContent>
-											{groupedModelOptions.map((group) => (
-												<SelectGroup key={group.providerId}>
-													<SelectLabel>{group.providerName}</SelectLabel>
-													{group.models.map((model) => (
-														<SelectItem key={model.key} value={model.key}>
-															{model.displayName}
-														</SelectItem>
-													))}
-												</SelectGroup>
-											))}
-										</SelectContent>
-									</Select>
-									{modelsLoading && (
-										<p className="text-muted-foreground text-xs">
-											{t("models.loading")}
-										</p>
-									)}
-									{!modelsLoading && availableModels.length === 0 && (
-										<p className="text-muted-foreground text-xs">
-											{providerKeys.length === 0
-												? t(
-														"common.noProvidersConfigured",
-														"No API keys configured. Please add one in settings.",
-													)
-												: t(
-														"common.noModelsAvailable",
-														"No enabled models available for your configured providers.",
+								<div className="flex shrink-0 items-start gap-4">
+									<div className="w-1/2 shrink-0 space-y-2">
+										<Label
+											className="font-medium text-sm"
+											htmlFor="model-select"
+										>
+											{t("common.llmModel", "LLM Model")}
+										</Label>
+										<Select
+											disabled={
+												disableControls ||
+												modelsLoading ||
+												availableModels.length === 0
+											}
+											onValueChange={(value: string) => setModelKey(value)}
+											value={modelKey ?? undefined}
+										>
+											<SelectTrigger className="w-full" id="model-select">
+												<SelectValue
+													placeholder={t(
+														"common.selectModel",
+														"Select a model"
 													)}
-										</p>
-									)}
+												/>
+											</SelectTrigger>
+											<SelectContent>
+												{groupedModelOptions.map((group) => (
+													<SelectGroup key={group.providerId}>
+														<SelectLabel>{group.providerName}</SelectLabel>
+														{group.models.map((model) => (
+															<SelectItem key={model.key} value={model.key}>
+																{model.displayName}
+															</SelectItem>
+														))}
+													</SelectGroup>
+												))}
+											</SelectContent>
+										</Select>
+										{modelsLoading && (
+											<p className="text-muted-foreground text-xs">
+												{t("models.loading")}
+											</p>
+										)}
+										{!modelsLoading && availableModels.length === 0 && (
+											<p className="text-muted-foreground text-xs">
+												{providerKeys.length === 0
+													? t(
+															"common.noProvidersConfigured",
+															"No API keys configured. Please add one in settings."
+														)
+													: t(
+															"common.noModelsAvailable",
+															"No enabled models available for your configured providers."
+														)}
+											</p>
+										)}
+									</div>
+									<div className="w-1/2 shrink-0 space-y-2">
+										<TemplateSelector
+											setTemplateInstructions={setTemplateInstructions}
+										/>
+									</div>
 								</div>
 								<BranchSelector
 									branches={branchManager.branches}
@@ -476,7 +500,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						/>
 					)}
 				</div>
-
 				{!docManager.commitCompleted && (
 					<ActionButtons
 						canGenerate={canGenerate}

@@ -389,6 +389,19 @@ function AppSidebarContent() {
 								</Link>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								asChild
+								isActive={location.pathname.startsWith("/templates")}
+								size="default"
+								tooltip={t("sidebar.templates", "Templates")}
+							>
+								<Link to="/templates">
+									<FileText size={16} />
+									<span>{t("sidebar.templates", "Templates")}</span>
+								</Link>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
 					</SidebarMenu>
 				</SidebarGroup>
 				<SidebarGroup className="border-sidebar-border border-t pt-2">
