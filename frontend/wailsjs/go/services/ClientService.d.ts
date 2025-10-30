@@ -7,6 +7,8 @@ export function CommitDocs(arg1:number,arg2:string,arg3:Array<string>):Promise<v
 
 export function GenerateDocs(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string):Promise<models.DocGenerationResult>;
 
+export function GenerateDocsFromBranch(arg1:number,arg2:string,arg3:string,arg4:string):Promise<models.DocGenerationResult>;
+
 export function InitializeLLMClient(arg1:string):Promise<void>;
 
 export function LoadGenerationSession(arg1:number,arg2:string,arg3:string):Promise<models.DocGenerationResult>;

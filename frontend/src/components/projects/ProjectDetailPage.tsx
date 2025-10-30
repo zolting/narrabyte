@@ -14,6 +14,7 @@ import { ActionButtons } from "@/components/ActionButtons";
 import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
 import { GenerationTabs } from "@/components/GenerationTabs";
+import { SingleBranchSelector } from "@/components/SingleBranchSelector";
 import { SuccessPanel } from "@/components/SuccessPanel";
 import { TemplateSelector } from "@/components/TemplateSelector";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
+	const [mode, setMode] = useState<"diff" | "single">("diff");
 	const [templateInstructions, setTemplateInstructions] = useState<string>("");
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -121,6 +123,29 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		[groupedModelOptions]
 	);
 
+	const hasInstructionContent = useMemo(() => {
+		const template = templateInstructions.trim();
+		const user = userInstructions.trim();
+		return template.length > 0 || user.length > 0;
+	}, [templateInstructions, userInstructions]);
+
+	const buildInstructionPayload = useCallback(() => {
+		const sections: string[] = [];
+		const template = templateInstructions.trim();
+		const user = userInstructions.trim();
+
+		if (template.length > 0) {
+			sections.push(
+				`<DOCUMENTATION_TEMPLATE>${template}</DOCUMENTATION_TEMPLATE>`
+			);
+		}
+		if (user.length > 0) {
+			sections.push(`<USER_INSTRUCTIONS>${user}</USER_INSTRUCTIONS>`);
+		}
+
+		return sections.join("");
+	}, [templateInstructions, userInstructions]);
+
 	useEffect(() => {
 		if (availableModels.length === 0) {
 			setModelKey(null);
@@ -183,52 +208,64 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		() =>
 			Boolean(
 				project &&
-					branchManager.sourceBranch &&
-					branchManager.targetBranch &&
-					branchManager.sourceBranch !== branchManager.targetBranch &&
 					modelKey &&
-					!docManager.isBusy
+					!docManager.isBusy &&
+					((mode === "diff" &&
+						branchManager.sourceBranch &&
+						branchManager.targetBranch &&
+						branchManager.sourceBranch !== branchManager.targetBranch) ||
+						(mode === "single" &&
+							branchManager.sourceBranch &&
+							hasInstructionContent))
 			),
 		[
-			docManager.isBusy,
-			modelKey,
-			project,
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
+			docManager.isBusy,
+			hasInstructionContent,
+			mode,
+			modelKey,
+			project,
 		]
 	);
 
 	const handleGenerate = useCallback(() => {
-		if (
-			!(
-				project &&
-				branchManager.sourceBranch &&
-				branchManager.targetBranch &&
-				modelKey
-			)
-		) {
+		if (!(project && branchManager.sourceBranch && modelKey)) {
 			return;
 		}
 
-		const instructions = `<DOCUMENTATION_TEMPLATE>${templateInstructions ?? ""}</DOCUMENTATION_TEMPLATE><USER_INSTRUCTIONS>${userInstructions ?? ""}</USER_INSTRUCTIONS>`;
+		const instructions = buildInstructionPayload();
 
 		branchManager.setSourceOpen(false);
 		branchManager.setTargetOpen(false);
 		docManager.setActiveTab("activity");
-		docManager.startDocGeneration({
-			projectId: Number(project.ID),
-			sourceBranch: branchManager.sourceBranch,
-			targetBranch: branchManager.targetBranch,
-			modelKey,
-			userInstructions: instructions,
-		});
+		if (mode === "diff") {
+			if (!branchManager.targetBranch) {
+				return;
+			}
+			docManager.startDocGeneration({
+				projectId: Number(project.ID),
+				sourceBranch: branchManager.sourceBranch,
+				targetBranch: branchManager.targetBranch,
+				modelKey,
+				userInstructions: instructions,
+			});
+		} else if (mode === "single") {
+			docManager.startSingleBranchGeneration?.({
+				projectId: Number(project.ID),
+				sourceBranch: branchManager.sourceBranch,
+				targetBranch: "",
+				modelKey,
+				userInstructions: instructions,
+			});
+		}
 	}, [
 		project,
 		branchManager,
 		docManager,
 		modelKey,
-		userInstructions,
-		templateInstructions,
+		buildInstructionPayload,
+		mode,
 	]);
 
 	const handleApprove = useCallback(() => {
@@ -337,7 +374,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							{t("common.generateDocs")}
 						</h2>
 						<p className="text-muted-foreground text-sm">
-							{t("common.generateDocsDescription")}
+							{mode === "diff"
+								? t("common.generateDocsDescriptionDiff")
+								: t("common.generateDocsDescriptionSingle")}
 						</p>
 					</div>
 					<div className="flex items-center gap-2">
@@ -393,13 +432,13 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 						return (
 							<>
-								<div className="flex shrink-0 items-start gap-4">
-									<div className="w-1/2 shrink-0 space-y-2">
+								<div className="flex flex-col gap-4 md:flex-row">
+									<div className="space-y-2 md:w-1/2">
 										<Label
 											className="font-medium text-sm"
 											htmlFor="model-select"
 										>
-											{t("common.llmModel", "LLM Model")}
+											{t("common.llmModel")}
 										</Label>
 										<Select
 											disabled={
@@ -411,12 +450,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 											value={modelKey ?? undefined}
 										>
 											<SelectTrigger className="w-full" id="model-select">
-												<SelectValue
-													placeholder={t(
-														"common.selectModel",
-														"Select a model"
-													)}
-												/>
+												<SelectValue placeholder={t("common.selectModel")} />
 											</SelectTrigger>
 											<SelectContent>
 												{groupedModelOptions.map((group) => (
@@ -439,36 +473,64 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										{!modelsLoading && availableModels.length === 0 && (
 											<p className="text-muted-foreground text-xs">
 												{providerKeys.length === 0
-													? t(
-															"common.noProvidersConfigured",
-															"No API keys configured. Please add one in settings."
-														)
-													: t(
-															"common.noModelsAvailable",
-															"No enabled models available for your configured providers."
-														)}
+													? t("common.noProvidersConfigured")
+													: t("common.noModelsAvailable")}
 											</p>
 										)}
 									</div>
-									<div className="w-1/2 shrink-0 space-y-2">
+									<div className="space-y-2 md:w-1/2">
 										<TemplateSelector
 											setTemplateInstructions={setTemplateInstructions}
 										/>
 									</div>
 								</div>
-								<BranchSelector
-									branches={branchManager.branches}
-									disableControls={disableControls}
-									setSourceBranch={branchManager.setSourceBranch}
-									setSourceOpen={branchManager.setSourceOpen}
-									setTargetBranch={branchManager.setTargetBranch}
-									setTargetOpen={branchManager.setTargetOpen}
-									sourceBranch={branchManager.sourceBranch}
-									sourceOpen={branchManager.sourceOpen}
-									swapBranches={branchManager.swapBranches}
-									targetBranch={branchManager.targetBranch}
-									targetOpen={branchManager.targetOpen}
-								/>
+								<div className="flex items-center gap-2">
+									<Label className="text-muted-foreground text-xs">
+										{t("common.generationMode")}
+									</Label>
+									<div className="flex gap-2">
+										<Button
+											onClick={() => setMode("diff")}
+											size="sm"
+											type="button"
+											variant={mode === "diff" ? "default" : "outline"}
+										>
+											{t("common.diffMode")}
+										</Button>
+										<Button
+											onClick={() => setMode("single")}
+											size="sm"
+											type="button"
+											variant={mode === "single" ? "default" : "outline"}
+										>
+											{t("common.singleBranchMode")}
+										</Button>
+									</div>
+								</div>
+								{mode === "diff" ? (
+									<BranchSelector
+										branches={branchManager.branches}
+										disableControls={disableControls}
+										setSourceBranch={branchManager.setSourceBranch}
+										setSourceOpen={branchManager.setSourceOpen}
+										setTargetBranch={branchManager.setTargetBranch}
+										setTargetOpen={branchManager.setTargetOpen}
+										sourceBranch={branchManager.sourceBranch}
+										sourceOpen={branchManager.sourceOpen}
+										swapBranches={branchManager.swapBranches}
+										targetBranch={branchManager.targetBranch}
+										targetOpen={branchManager.targetOpen}
+									/>
+								) : (
+									<SingleBranchSelector
+										branch={branchManager.sourceBranch}
+										branches={branchManager.branches}
+										disableControls={disableControls}
+										open={branchManager.sourceOpen}
+										setBranch={branchManager.setSourceBranch}
+										setOpen={branchManager.setSourceOpen}
+									/>
+								)}
 								<div className="space-y-2">
 									<Label
 										className="font-medium text-sm"
@@ -484,6 +546,11 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										placeholder={t("common.docInstructionsPlaceholder")}
 										value={userInstructions}
 									/>
+									{mode === "single" && !hasInstructionContent && (
+										<p className="text-muted-foreground text-xs">
+											{t("common.instructionsRequired")}
+										</p>
+									)}
 								</div>
 							</>
 						);

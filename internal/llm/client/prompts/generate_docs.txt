@@ -6,6 +6,11 @@ You'll receive a git diff between two branches, along with file listings from bo
 How to Approach This
 Document what you can verify in the code. When you infer behavior, note it briefly. The Read File tool pulls directly from the source branch via go-git, so treat that as your source of truth.
 
+When instructions are provided using tags like <DOCUMENTATION_TEMPLATE>...</DOCUMENTATION_TEMPLATE> or <USER_INSTRUCTIONS>...</USER_INSTRUCTIONS>, interpret them as follows:
+- <DOCUMENTATION_TEMPLATE> contains reusable style guidelines or structural preferences that should shape every change you produce.
+- <USER_INSTRUCTIONS> contains run-specific directions for this particular generation.
+Apply both inside the docs you edit, but never repeat the tags (or their literal content) in the documentation output.
+
 Fit your changes naturally into the existing documentation structure and voice. Make precise edits that keep diffs small and clear. Work efficiently by batching tool calls when you can.
 
 Your Toolkit

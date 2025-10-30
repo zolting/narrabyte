@@ -19,8 +19,10 @@
     "llmProvider": "Fournisseur de LLM",
     "llmModel": "Modèle LLM",
     "selectModel": "Sélectionner un modèle",
+    "noProvidersConfigured": "Aucune clé d'API configurée. Ajoutez-en dans les paramètres.",
     "noModelsAvailable": "Aucun modèle activé n'est disponible pour vos fournisseurs configurés.",
-    "generateDocsDescription": "Générer la documentation d'une branche source vers la branche ciblée pour le projet choisi.",
+    "generateDocsDescriptionSingle": "Rafiner la documentation d'une branche. Ajoutez des instructions ou explications pour clarifier ce qu'il faut rafiner.",
+    "generateDocsDescriptionDiff": "Générer la documentation d'une branche source vers la branche ciblée pour le projet choisi.",
     "sourceBranch": "Branche source",
     "targetBranch": "Branche ciblée",
     "project": "Projet",
@@ -67,6 +69,10 @@
     "customBranchHeader": "Branche personnalisée",
     "useBranchOption": "Utiliser « {{branch}} »",
     "backToProject": "Retour au projet",
+    "diffMode": "Mode diff",
+    "singleBranchMode": "Mode branche unique",
+    "generationMode": "Mode de génération",
+    "instructionsRequired": "Des instructions sont requises en mode branche unique.",
     "templateLabel": "Modèle",
     "selectTemplate": "Sélectionner un modèle",
     "noTemplateFound": "Aucun modèle trouvé",
@@ -86,8 +92,7 @@
     "addTemplateHelp": "Créez un nouveau modèle en fournissant un nom et un contenu. Vous pourrez le modifier plus tard.",
     "close": "Fermer",
     "errorIconTitle": "Erreur",
-    "backendError": "Une erreur s'est produite :",
-    "noProvidersConfigured": "Aucune clé API configurée. Veuillez en ajouter dans les paramètres."
+    "backendError": "Une erreur s'est produite :"
   },
   "projectManager": {
     "addProject": "Ajouter un projet",

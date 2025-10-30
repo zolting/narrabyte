@@ -1705,3 +1705,187 @@ func describeStatus(st git.FileStatus) string {
 		return "changed"
 	}
 }
+
+func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, modelKey string, userInstructions string) (*models.DocGenerationResult, error) {
+	ctx := s.context
+	if ctx == nil {
+		return nil, fmt.Errorf("client service not initialized")
+	}
+	branch = strings.TrimSpace(branch)
+	modelKey = strings.TrimSpace(modelKey)
+	if projectID == 0 {
+		return nil, fmt.Errorf("project id is required")
+	}
+	if branch == "" {
+		return nil, fmt.Errorf("branch is required")
+	}
+	if modelKey == "" {
+		return nil, fmt.Errorf("model is required")
+	}
+
+	// Initialize LLM client with the specified model
+	if err := s.InitializeLLMClient(modelKey); err != nil {
+		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
+	}
+
+	project, err := s.repoLinks.Get(projectID)
+	if err != nil {
+		return nil, err
+	}
+	if project == nil {
+		return nil, fmt.Errorf("project not found")
+	}
+
+	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
+	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
+	if codeRepoPath == "" || docRepoPath == "" {
+		return nil, fmt.Errorf("project repositories are not configured")
+	}
+	if !utils.DirectoryExists(codeRepoPath) {
+		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
+	}
+	if !utils.DirectoryExists(docRepoPath) {
+		return nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
+	}
+	if !utils.HasGitRepo(codeRepoPath) {
+		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
+	}
+	if !utils.HasGitRepo(docRepoPath) {
+		return nil, fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
+	}
+
+	codeRootAbs, err := filepath.Abs(codeRepoPath)
+	if err != nil {
+		return nil, err
+	}
+	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
+	if !ok {
+		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
+	}
+	codeRoot := codeRepoRoot
+
+	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	docRepo, err := s.gitService.Open(docCfg.RepoRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open documentation repository: %w", err)
+	}
+
+	var (
+		baseHash   plumbing.Hash
+		baseBranch string
+	)
+	if docCfg.SharedWithCode {
+		// When docs live with code, base is the same branch
+		baseBranch = branch
+		baseHash, err = resolveBranchHash(docRepo, branch)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve branch '%s': %w", branch, err)
+		}
+	} else {
+		baseHash, baseBranch, err = resolveDocumentationBase(project, docRepo)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	docsBranch := documentationBranchName(branch)
+	refName := plumbing.NewBranchReferenceName(docsBranch)
+	// Ensure docs branch exists; create off base if missing
+	if _, err := docRepo.Reference(refName, true); err != nil {
+		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			if err := docRepo.Storer.SetReference(plumbing.NewHashReference(refName, baseHash)); err != nil {
+				return nil, fmt.Errorf("failed to create documentation branch '%s': %w", docsBranch, err)
+			}
+			events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Created docs branch '%s' from '%s'", docsBranch, baseBranch)))
+		} else {
+			return nil, fmt.Errorf("failed to resolve documentation branch '%s': %w", docsBranch, err)
+		}
+	}
+
+	// Create temporary documentation workspace checked out at current docs branch head
+	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, docCfg, docsBranch, baseBranch, baseHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temporary documentation workspace: %w", err)
+	}
+	defer cleanup()
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+		"GenerateDocsFromBranch: temporary documentation workspace ready for branch '%s'",
+		docsBranch,
+	)))
+
+	streamCtx := s.LLMClient.StartStream(ctx)
+	defer s.LLMClient.StopStream()
+
+	// Invoke refinement agent with user-provided instruction
+	llmResult, err := s.LLMClient.DocRefine(streamCtx, &client.DocRefineRequest{
+		ProjectName:          project.ProjectName,
+		CodebasePath:         codeRoot,
+		DocumentationPath:    tempWorkspace.docsPath,
+		DocumentationRelPath: docCfg.DocsRelative,
+		SourceBranch:         branch,
+		Instruction:          userInstructions,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Persist conversation for future refinements
+	if s.LLMClient != nil {
+		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
+			modelInfo, _ := s.modelConfigs.GetModel(modelKey)
+			provider := ""
+			if modelInfo != nil {
+				provider = strings.TrimSpace(modelInfo.ProviderID)
+			}
+			if provider != "" {
+				_, _ = s.generationSessions.Upsert(projectID, branch, baseBranch, modelKey, provider, jsonStr)
+			}
+		}
+	}
+
+	// Propagate changes back to main documentation repository
+	if err := propagateDocChanges(ctx, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
+		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
+	}
+
+	// Collect changed files and diff for UI
+	tempRepo, err := git.PlainOpen(tempWorkspace.repoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open temp repository for status: %w", err)
+	}
+	tempWT, err := tempRepo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get temp repository worktree for status: %w", err)
+	}
+	docStatus, err := tempWT.Status()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read documentation repo status after generation: %w", err)
+	}
+	files := collectDocChangedFiles(docStatus, docCfg.DocsRelative)
+
+	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, baseBranch, docsBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocsFromBranch: completed"))
+
+	summary := ""
+	if llmResult != nil {
+		summary = llmResult.Summary
+	}
+	return &models.DocGenerationResult{
+		Branch:         branch,
+		TargetBranch:   baseBranch,
+		DocsBranch:     docsBranch,
+		DocsInCodeRepo: docCfg.SharedWithCode,
+		Files:          files,
+		Diff:           docDiff,
+		Summary:        summary,
+	}, nil
+}

@@ -20,8 +20,10 @@
     "llmProvider": "LLM Provider",
     "llmModel": "LLM Model",
     "selectModel": "Select a model",
+    "noProvidersConfigured": "No API keys configured. Please add one in settings.",
     "noModelsAvailable": "No enabled models available for your configured providers.",
-    "generateDocsDescription": "Generate documentation from source branch to target branch for selected project.",
+    "generateDocsDescriptionSingle": "Refine the documentation for a branch. Add instructions or explanations to clarify what has to be refined.",
+    "generateDocsDescriptionDiff": "Generate documentation from source branch to target branch for selected project.",
     "sourceBranch": "Source Branch",
     "targetBranch": "Target Branch",
     "project": "Project",
@@ -68,6 +70,10 @@
     "customBranchHeader": "Custom branch",
     "useBranchOption": "Use \"{{branch}}\"",
     "backToProject": "Back to Project",
+    "diffMode": "Diff mode",
+    "singleBranchMode": "Single-branch mode",
+    "generationMode": "Generation mode",
+    "instructionsRequired": "Instructions are required in single-branch mode.",
     "templateLabel": "Template",
     "selectTemplate": "Select a template",
     "noTemplateFound": "No templates found",
@@ -87,8 +93,7 @@
     "addTemplateHelp": "Create a new template by providing a name and content. You can edit it later.",
     "close": "Close",
     "errorIconTitle": "Error",
-    "backendError": "An error occurred:",
-    "noProvidersConfigured": "No API keys configured. Please add one in settings."
+    "backendError": "An error occurred:"
   },
   "projectManager": {
     "addProject": "Add Project",
