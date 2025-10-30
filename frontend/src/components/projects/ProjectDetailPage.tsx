@@ -16,6 +16,7 @@ import { ComparisonDisplay } from "@/components/ComparisonDisplay";
 import { GenerationTabs } from "@/components/GenerationTabs";
 import { SingleBranchSelector } from "@/components/SingleBranchSelector";
 import { SuccessPanel } from "@/components/SuccessPanel";
+import { TemplateSelector } from "@/components/TemplateSelector";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,7 +39,7 @@ import {
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { t } = useTranslation();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
-		undefined,
+		undefined
 	);
 	const [modelKey, setModelKey] = useState<string | null>(null);
 	const [providerKeys, setProviderKeys] = useState<string[]>([]);
@@ -52,6 +53,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
 	const [mode, setMode] = useState<"diff" | "single">("diff");
+	const [templateInstructions, setTemplateInstructions] =
+		useState<string>("");
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
@@ -118,7 +121,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const availableModels = useMemo<ModelOption[]>(
 		() => groupedModelOptions.flatMap((group) => group.models),
-		[groupedModelOptions],
+		[groupedModelOptions]
+	);
+
+	const hasInstructionContent = useMemo(
+		() =>
+			Boolean(templateInstructions.trim()) ||
+			Boolean(userInstructions.trim()),
+		[templateInstructions, userInstructions]
 	);
 
 	useEffect(() => {
@@ -152,7 +162,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		) {
 			docManager.setCompletedCommit(
 				branchManager.sourceBranch,
-				branchManager.targetBranch,
+				branchManager.targetBranch
 			);
 		}
 	}, [
@@ -191,16 +201,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						branchManager.sourceBranch !== branchManager.targetBranch) ||
 						(mode === "single" &&
 							branchManager.sourceBranch &&
-							userInstructions.trim()))
+							hasInstructionContent))
 			),
 		[
-			docManager.isBusy,
-			modelKey,
-			project,
-			mode,
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
-			userInstructions,
+			docManager.isBusy,
+			hasInstructionContent,
+			mode,
+			modelKey,
+			project,
 		]
 	);
 
@@ -208,6 +218,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		if (!(project && branchManager.sourceBranch && modelKey)) {
 			return;
 		}
+
+		const instructions = `<DOCUMENTATION_TEMPLATE>${templateInstructions}</DOCUMENTATION_TEMPLATE><USER_INSTRUCTIONS>${userInstructions}</USER_INSTRUCTIONS>`;
+
 		branchManager.setSourceOpen(false);
 		branchManager.setTargetOpen(false);
 		docManager.setActiveTab("activity");
@@ -220,7 +233,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				sourceBranch: branchManager.sourceBranch,
 				targetBranch: branchManager.targetBranch,
 				modelKey,
-				userInstructions,
+				userInstructions: instructions,
 			});
 		} else if (mode === "single") {
 			docManager.startSingleBranchGeneration?.({
@@ -228,10 +241,18 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				sourceBranch: branchManager.sourceBranch,
 				targetBranch: "",
 				modelKey,
-				userInstructions,
+				userInstructions: instructions,
 			});
 		}
-	}, [project, branchManager, docManager, modelKey, userInstructions, mode]);
+	}, [
+		project,
+		branchManager,
+		docManager,
+		modelKey,
+		mode,
+		templateInstructions,
+		userInstructions,
+	]);
 
 	const handleApprove = useCallback(() => {
 		docManager.approveCommit();
@@ -247,7 +268,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			"";
 		if (source && target) {
 			Promise.resolve(Delete(Number(projectId), source, target)).catch(
-				() => {},
+				() => {}
 			);
 		}
 	}, [
@@ -374,7 +395,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						</Button>
 					</div>
 				</header>
-
 				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
 					{(() => {
 						if (docManager.commitCompleted) {
@@ -398,47 +418,54 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 						return (
 							<>
-								<div className="shrink-0 space-y-2">
-									<Label className="font-medium text-sm" htmlFor="model-select">
-										{t("common.llmModel")}
-									</Label>
-									<Select
-										disabled={
-											disableControls ||
-											modelsLoading ||
-											availableModels.length === 0
-										}
-										onValueChange={(value: string) => setModelKey(value)}
-										value={modelKey ?? undefined}
-									>
-										<SelectTrigger className="w-full" id="model-select">
-											<SelectValue placeholder={t("common.selectModel")} />
-										</SelectTrigger>
-										<SelectContent>
-											{groupedModelOptions.map((group) => (
-												<SelectGroup key={group.providerId}>
-													<SelectLabel>{group.providerName}</SelectLabel>
-													{group.models.map((model) => (
-														<SelectItem key={model.key} value={model.key}>
-															{model.displayName}
-														</SelectItem>
-													))}
-												</SelectGroup>
-											))}
-										</SelectContent>
-									</Select>
-									{modelsLoading && (
-										<p className="text-muted-foreground text-xs">
-											{t("models.loading")}
-										</p>
-									)}
-									{!modelsLoading && availableModels.length === 0 && (
-										<p className="text-muted-foreground text-xs">
-											{providerKeys.length === 0
-												? t("common.noProvidersConfigured")
-												: t("common.noModelsAvailable")}
-										</p>
-									)}
+								<div className="flex flex-col gap-4 md:flex-row">
+									<div className="space-y-2 md:w-1/2">
+										<Label className="font-medium text-sm" htmlFor="model-select">
+											{t("common.llmModel")}
+										</Label>
+										<Select
+											disabled={
+												disableControls ||
+												modelsLoading ||
+												availableModels.length === 0
+											}
+											onValueChange={(value: string) => setModelKey(value)}
+											value={modelKey ?? undefined}
+										>
+											<SelectTrigger className="w-full" id="model-select">
+												<SelectValue placeholder={t("common.selectModel")} />
+											</SelectTrigger>
+											<SelectContent>
+												{groupedModelOptions.map((group) => (
+													<SelectGroup key={group.providerId}>
+														<SelectLabel>{group.providerName}</SelectLabel>
+														{group.models.map((model) => (
+															<SelectItem key={model.key} value={model.key}>
+																{model.displayName}
+															</SelectItem>
+														))}
+													</SelectGroup>
+												))}
+											</SelectContent>
+										</Select>
+										{modelsLoading && (
+											<p className="text-muted-foreground text-xs">
+												{t("models.loading")}
+											</p>
+										)}
+										{!modelsLoading && availableModels.length === 0 && (
+											<p className="text-muted-foreground text-xs">
+												{providerKeys.length === 0
+													? t("common.noProvidersConfigured")
+													: t("common.noModelsAvailable")}
+											</p>
+										)}
+									</div>
+									<div className="space-y-2 md:w-1/2">
+										<TemplateSelector
+											setTemplateInstructions={setTemplateInstructions}
+										/>
+									</div>
 								</div>
 								<div className="flex items-center gap-2">
 									<Label className="text-muted-foreground text-xs">
@@ -502,7 +529,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										placeholder={t("common.docInstructionsPlaceholder")}
 										value={userInstructions}
 									/>
-									{mode === "single" && (
+									{mode === "single" && !hasInstructionContent && (
 										<p className="text-muted-foreground text-xs">
 											{t("common.instructionsRequired")}
 										</p>
@@ -523,7 +550,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						/>
 					)}
 				</div>
-
 				{!docManager.commitCompleted && (
 					<ActionButtons
 						canGenerate={canGenerate}

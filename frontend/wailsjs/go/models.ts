@@ -270,6 +270,22 @@ export namespace models {
 	        this.Index = source["Index"];
 	    }
 	}
+	export class Template {
+	    id: number;
+	    name: string;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Template(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.content = source["content"];
+	    }
+	}
 
 }
 

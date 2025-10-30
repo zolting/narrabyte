@@ -77,6 +77,7 @@ func main() {
 			dbService.AppSettings,
 			dbService.GenerationSessions,
 			dbService.ModelConfigs,
+			dbService.Templates,
 			fumadocsService,
 			gitService,
 			clientService,
