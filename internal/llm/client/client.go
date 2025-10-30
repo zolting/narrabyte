@@ -57,6 +57,10 @@ func buildPromptWithInstructions(ctx context.Context, cfg promptBuilderConfig) s
 
 	if strings.TrimSpace(cfg.SpecificInstr) != "" {
 		b.WriteString("# Generation-specific documentation instructions\n")
+		if strings.Contains(cfg.SpecificInstr, "<DOCUMENTATION_TEMPLATE>") ||
+			strings.Contains(cfg.SpecificInstr, "<USER_INSTRUCTIONS>") {
+			b.WriteString("The following tagged sections encode user guidance. Apply their content, but do not echo the tags or repeat them in your documentation output.\n\n")
+		}
 		b.WriteString(strings.TrimSpace(cfg.SpecificInstr))
 		b.WriteString("\n\n")
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo("added specific instructions"))

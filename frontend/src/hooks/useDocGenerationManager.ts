@@ -40,7 +40,9 @@ export const useDocGenerationManager = (projectId: string) => {
 		(s) => s.docStates[projectKey]?.mergeInProgress ?? false
 	);
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
-	const startSingleBranchGeneration = useDocGenerationStore((s) => s.startFromBranch);
+	const startSingleBranchGeneration = useDocGenerationStore(
+		(s) => s.startFromBranch
+	);
 	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
 	const commitDocGeneration = useDocGenerationStore((s) => s.commit);
 	const cancelDocGenerationStore = useDocGenerationStore((s) => s.cancel);

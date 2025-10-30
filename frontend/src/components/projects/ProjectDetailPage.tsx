@@ -53,8 +53,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
 	const [mode, setMode] = useState<"diff" | "single">("diff");
-	const [templateInstructions, setTemplateInstructions] =
-		useState<string>("");
+	const [templateInstructions, setTemplateInstructions] = useState<string>("");
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
@@ -124,12 +123,28 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		[groupedModelOptions]
 	);
 
-	const hasInstructionContent = useMemo(
-		() =>
-			Boolean(templateInstructions.trim()) ||
-			Boolean(userInstructions.trim()),
-		[templateInstructions, userInstructions]
-	);
+	const hasInstructionContent = useMemo(() => {
+		const template = templateInstructions.trim();
+		const user = userInstructions.trim();
+		return template.length > 0 || user.length > 0;
+	}, [templateInstructions, userInstructions]);
+
+	const buildInstructionPayload = useCallback(() => {
+		const sections: string[] = [];
+		const template = templateInstructions.trim();
+		const user = userInstructions.trim();
+
+		if (template.length > 0) {
+			sections.push(
+				`<DOCUMENTATION_TEMPLATE>${template}</DOCUMENTATION_TEMPLATE>`
+			);
+		}
+		if (user.length > 0) {
+			sections.push(`<USER_INSTRUCTIONS>${user}</USER_INSTRUCTIONS>`);
+		}
+
+		return sections.join("");
+	}, [templateInstructions, userInstructions]);
 
 	useEffect(() => {
 		if (availableModels.length === 0) {
@@ -219,7 +234,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			return;
 		}
 
-		const instructions = `<DOCUMENTATION_TEMPLATE>${templateInstructions}</DOCUMENTATION_TEMPLATE><USER_INSTRUCTIONS>${userInstructions}</USER_INSTRUCTIONS>`;
+		const instructions = buildInstructionPayload();
 
 		branchManager.setSourceOpen(false);
 		branchManager.setTargetOpen(false);
@@ -249,9 +264,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		branchManager,
 		docManager,
 		modelKey,
+		buildInstructionPayload,
 		mode,
-		templateInstructions,
-		userInstructions,
 	]);
 
 	const handleApprove = useCallback(() => {
@@ -420,7 +434,10 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							<>
 								<div className="flex flex-col gap-4 md:flex-row">
 									<div className="space-y-2 md:w-1/2">
-										<Label className="font-medium text-sm" htmlFor="model-select">
+										<Label
+											className="font-medium text-sm"
+											htmlFor="model-select"
+										>
 											{t("common.llmModel")}
 										</Label>
 										<Select

@@ -36,9 +36,9 @@ You will receive:
 - Project name and current docs branch
 - Documentation and codebase roots and listings
 - The user instruction to apply
+- The instruction may include tags such as <DOCUMENTATION_TEMPLATE>...</DOCUMENTATION_TEMPLATE> (general style guidance) and <USER_INSTRUCTIONS>...</USER_INSTRUCTIONS> (run-specific direction). Follow the content inside, but never echo the tags or their literal text in the documentation you write.
 
 Output expectations
 - Apply the requested edits directly using the tools
 - Modify existing files instead of creating new ones unless explicitly warranted
 - Return a concise summary of the changes made
-
