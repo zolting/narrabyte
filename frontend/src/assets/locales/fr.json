@@ -253,7 +253,11 @@
     "loading": "Chargement de la session...",
     "loadSession": "Charger la session",
     "deleteSession": "Supprimer la session",
-    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cette session ?"
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cette session ?",
+    "running": "En cours",
+    "current": "Générations actuelles",
+    "statusRunning": "Génération",
+    "statusCommitting": "Validation en cours"
   },
   "projectSettings": {
     "title": "Paramètres du projet",

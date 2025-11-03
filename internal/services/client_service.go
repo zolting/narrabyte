@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -26,15 +27,25 @@ import (
 
 // On pourrait lowkey rendre ca plus generique pour n'importe quel client
 // Interface pour clients?
+
+type sessionRuntime struct {
+	client        *client.LLMClient
+	modelKey      string
+	modelDisplay  string
+	providerID    string
+	providerLabel string
+	targetBranch  string
+}
+
 type ClientService struct {
-	LLMClient          *client.LLMClient
-	currentModelKey    string
 	context            context.Context
 	repoLinks          RepoLinkService
 	gitService         *GitService
 	keyringService     *KeyringService
 	generationSessions GenerationSessionService
 	modelConfigs       ModelConfigService
+	sessionMu          sync.RWMutex
+	sessionRuntimes    map[string]*sessionRuntime
 }
 
 func (s *ClientService) Startup(ctx context.Context) error {
@@ -64,6 +75,7 @@ func NewClientService(repoLinks RepoLinkService, gitService *GitService, keyring
 		keyringService:     keyringService,
 		generationSessions: genSessions,
 		modelConfigs:       modelConfigs,
+		sessionRuntimes:    make(map[string]*sessionRuntime),
 	}
 }
 
@@ -79,67 +91,202 @@ type tempDocWorkspace struct {
 	docsPath string
 }
 
-// InitializeLLMClient initializes the LLM client for the specified model.
-func (s *ClientService) InitializeLLMClient(modelKey string) error {
+func makeSessionKey(projectID uint, sourceBranch string) string {
+	return fmt.Sprintf("%d:%s", projectID, strings.TrimSpace(sourceBranch))
+}
+
+func (s *ClientService) instantiateLLMClient(modelKey string) (*client.LLMClient, *models.LLMModel, error) {
 	if s.context == nil {
-		return fmt.Errorf("client service not initialized")
+		return nil, nil, fmt.Errorf("client service not initialized")
 	}
 	if s.keyringService == nil {
-		return fmt.Errorf("keyring service not configured")
+		return nil, nil, fmt.Errorf("keyring service not configured")
 	}
 
 	model, err := s.modelConfigs.GetModel(modelKey)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	if model == nil {
-		return fmt.Errorf("model %s not found", modelKey)
+		return nil, nil, fmt.Errorf("model %s not found", modelKey)
 	}
 	if !model.Enabled {
-		return fmt.Errorf("model %s is disabled", model.DisplayName)
+		return nil, nil, fmt.Errorf("model %s is disabled", model.DisplayName)
 	}
 
 	providerID := strings.TrimSpace(model.ProviderID)
 	if providerID == "" {
-		return fmt.Errorf("model %s is missing provider information", model.DisplayName)
+		return nil, nil, fmt.Errorf("model %s is missing provider information", model.DisplayName)
 	}
 
 	apiKey, err := s.keyringService.GetApiKey(providerID)
 	if err != nil {
-		return fmt.Errorf("failed to get API key for %s: %w", providerID, err)
+		return nil, nil, fmt.Errorf("failed to get API key for %s: %w", providerID, err)
 	}
 	if apiKey == "" {
-		return fmt.Errorf("API key for %s is not configured", providerID)
+		return nil, nil, fmt.Errorf("API key for %s is not configured", providerID)
 	}
 
-	var llmClient *client.LLMClient
+	var (
+		llmClient *client.LLMClient
+		createErr error
+	)
 	switch providerID {
 	case "anthropic":
-		llmClient, err = client.NewClaudeClient(s.context, apiKey, client.ClaudeModelOptions{
+		llmClient, createErr = client.NewClaudeClient(s.context, apiKey, client.ClaudeModelOptions{
 			Model:    model.APIName,
 			Thinking: model.Thinking != nil && *model.Thinking,
 		})
 	case "openai":
-		llmClient, err = client.NewOpenAIClient(s.context, apiKey, client.OpenAIModelOptions{
+		llmClient, createErr = client.NewOpenAIClient(s.context, apiKey, client.OpenAIModelOptions{
 			Model:           model.APIName,
 			ReasoningEffort: model.ReasoningEffort,
 		})
 	case "gemini":
-		llmClient, err = client.NewGeminiClient(s.context, apiKey, client.GeminiModelOptions{
+		llmClient, createErr = client.NewGeminiClient(s.context, apiKey, client.GeminiModelOptions{
 			Model:    model.APIName,
 			Thinking: model.Thinking != nil && *model.Thinking,
 		})
 	default:
-		return fmt.Errorf("unsupported provider: %s", providerID)
+		return nil, nil, fmt.Errorf("unsupported provider: %s", providerID)
 	}
 
+	if createErr != nil {
+		return nil, nil, fmt.Errorf("failed to create %s client: %w", providerID, createErr)
+	}
+
+	return llmClient, model, nil
+}
+
+func (s *ClientService) newSessionRuntime(modelKey string) (*sessionRuntime, *models.LLMModel, error) {
+	modelKey = strings.TrimSpace(modelKey)
+	if modelKey == "" {
+		return nil, nil, fmt.Errorf("model is required")
+	}
+	llmClient, modelInfo, err := s.instantiateLLMClient(modelKey)
 	if err != nil {
-		return fmt.Errorf("failed to create %s client: %w", providerID, err)
+		return nil, nil, err
+	}
+	providerLabel := strings.TrimSpace(modelInfo.ProviderName)
+	providerID := strings.TrimSpace(modelInfo.ProviderID)
+	if providerLabel == "" {
+		providerLabel = providerID
+	}
+	runtime := &sessionRuntime{
+		client:        llmClient,
+		modelKey:      modelKey,
+		modelDisplay:  modelInfo.DisplayName,
+		providerID:    providerID,
+		providerLabel: providerLabel,
+	}
+	return runtime, modelInfo, nil
+}
+
+func (s *ClientService) getSessionRuntime(sessionKey string) (*sessionRuntime, bool) {
+	s.sessionMu.RLock()
+	defer s.sessionMu.RUnlock()
+	runtime, ok := s.sessionRuntimes[sessionKey]
+	return runtime, ok
+}
+
+func (s *ClientService) setSessionRuntime(sessionKey string, runtime *sessionRuntime) {
+	s.sessionMu.Lock()
+	defer s.sessionMu.Unlock()
+	if runtime == nil {
+		delete(s.sessionRuntimes, sessionKey)
+		return
+	}
+	if existing, ok := s.sessionRuntimes[sessionKey]; ok && existing != runtime && existing.client != nil {
+		existing.client.StopStream()
+	}
+	s.sessionRuntimes[sessionKey] = runtime
+}
+
+func (s *ClientService) deleteSessionRuntime(sessionKey string) {
+	s.sessionMu.Lock()
+	defer s.sessionMu.Unlock()
+	if existing, ok := s.sessionRuntimes[sessionKey]; ok && existing != nil && existing.client != nil {
+		existing.client.StopStream()
+	}
+	delete(s.sessionRuntimes, sessionKey)
+}
+
+func (s *ClientService) ensureRuntimeFromSessions(ctx context.Context, projectID uint, sourceBranch, targetBranch, sessionKey string) (*sessionRuntime, error) {
+	if runtime, ok := s.getSessionRuntime(sessionKey); ok && runtime != nil {
+		return runtime, nil
 	}
 
-	s.LLMClient = llmClient
-	s.currentModelKey = modelKey
-	return nil
+	sessions, err := s.generationSessions.List(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load generation sessions: %w", err)
+	}
+
+	for _, sess := range sessions {
+		if strings.TrimSpace(sess.SourceBranch) != sourceBranch {
+			continue
+		}
+		if targetBranch != "" && strings.TrimSpace(sess.TargetBranch) != targetBranch {
+			continue
+		}
+		modelKey := strings.TrimSpace(sess.ModelKey)
+		providerID := strings.TrimSpace(sess.Provider)
+		if modelKey == "" && providerID != "" {
+			if fallback, fbErr := s.findDefaultModelForProvider(providerID); fbErr == nil && fallback != nil {
+				modelKey = fallback.Key
+			}
+		}
+		if modelKey == "" {
+			continue
+		}
+		runtime, modelInfo, err := s.newSessionRuntime(modelKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize LLM client from session: %w", err)
+		}
+		runtime.targetBranch = strings.TrimSpace(sess.TargetBranch)
+		if runtime.targetBranch == "" {
+			runtime.targetBranch = strings.TrimSpace(sess.SourceBranch)
+		}
+		s.setSessionRuntime(sessionKey, runtime)
+
+		if modelInfo != nil {
+			emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Initialized %s via %s from session", modelInfo.DisplayName, runtime.providerLabel))
+		}
+
+		if sess.MessagesJSON != "" {
+			if loadErr := runtime.client.LoadConversationHistoryJSON(sess.MessagesJSON); loadErr != nil {
+				emitSessionWarn(ctx, sessionKey, fmt.Sprintf("Failed to restore conversation history: %v", loadErr))
+			} else {
+				emitSessionInfo(ctx, sessionKey, "Restored LLM conversation history")
+			}
+		}
+		return runtime, nil
+	}
+
+	return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first or restore a session")
+}
+
+func emitSessionInfo(ctx context.Context, sessionKey string, message string) {
+	evt := events.NewInfo(message)
+	evt.SessionKey = sessionKey
+	events.Emit(ctx, events.LLMEventTool, evt)
+}
+
+func emitSessionWarn(ctx context.Context, sessionKey string, message string) {
+	evt := events.NewWarn(message)
+	evt.SessionKey = sessionKey
+	events.Emit(ctx, events.LLMEventTool, evt)
+}
+
+func emitSessionError(ctx context.Context, sessionKey string, message string) {
+	evt := events.NewError(message)
+	evt.SessionKey = sessionKey
+	events.Emit(ctx, events.LLMEventTool, evt)
+}
+
+func emitSessionDebug(ctx context.Context, sessionKey string, message string) {
+	evt := events.NewDebug(message)
+	evt.SessionKey = sessionKey
+	events.Emit(ctx, events.LLMEventTool, evt)
 }
 
 func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, modelKey string, userInstructions string) (*models.DocGenerationResult, error) {
@@ -163,27 +310,16 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("model is required")
 	}
 
-	modelInfo, err := s.modelConfigs.GetModel(modelKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve model: %w", err)
-	}
-	if modelInfo == nil {
-		return nil, fmt.Errorf("model not found: %s", modelKey)
-	}
-	if !modelInfo.Enabled {
-		return nil, fmt.Errorf("model %s is disabled", modelInfo.DisplayName)
-	}
-	providerID := strings.TrimSpace(modelInfo.ProviderID)
-	providerName := strings.TrimSpace(modelInfo.ProviderName)
-	providerLabel := providerName
-	if providerLabel == "" {
-		providerLabel = providerID
-	}
+	sessionKey := makeSessionKey(projectID, sourceBranch)
 
-	// Initialize LLM client with the specified model
-	if err := s.InitializeLLMClient(modelKey); err != nil {
+	runtime, modelInfo, err := s.newSessionRuntime(modelKey)
+	if err != nil {
 		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
 	}
+	runtime.targetBranch = targetBranch
+	s.setSessionRuntime(sessionKey, runtime)
+
+	providerID := strings.TrimSpace(modelInfo.ProviderID)
 
 	project, err := s.repoLinks.Get(projectID)
 	if err != nil {
@@ -193,10 +329,10 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("project not found")
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
 		"GenerateDocs: starting for project %s (%s -> %s) using %s via %s",
-		project.ProjectName, targetBranch, sourceBranch, modelInfo.DisplayName, providerLabel,
-	)))
+		project.ProjectName, targetBranch, sourceBranch, runtime.modelDisplay, runtime.providerLabel,
+	))
 
 	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
 	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
@@ -252,7 +388,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	}
 	changedFiles := extractPathsFromDiff(diffText)
 	if len(changedFiles) == 0 {
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocs: no code changes detected between branches"))
+		emitSessionInfo(ctx, sessionKey, "GenerateDocs: no code changes detected between branches")
 	}
 
 	docRepo, err := s.gitService.Open(docCfg.RepoRoot)
@@ -269,7 +405,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("failed to read documentation repo status: %w", err)
 	}
 	if hasDocsChanges(status, docCfg.DocsRelative) {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn("Documentation repository has uncommitted changes - these will be preserved"))
+		emitSessionWarn(ctx, sessionKey, "Documentation repository has uncommitted changes - these will be preserved")
 	}
 
 	var (
@@ -289,22 +425,22 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	docsBranch := documentationBranchName(sourceBranch)
 
 	// Create temporary documentation repository (isolated from working directory)
-	tempWorkspace, cleanup, err := createTempDocRepo(ctx, docCfg, docsBranch, baseBranch, baseHash)
+	tempWorkspace, cleanup, err := createTempDocRepo(ctx, sessionKey, docCfg, docsBranch, baseBranch, baseHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary documentation workspace: %w", err)
 	}
 	defer cleanup() // Always cleanup temp directory
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
 		"GenerateDocs: temporary documentation workspace ready for branch '%s'",
 		docsBranch,
-	)))
+	))
 
-	streamCtx := s.LLMClient.StartStream(ctx)
-	defer s.LLMClient.StopStream()
+	streamCtx := runtime.client.StartStream(ctx)
+	defer runtime.client.StopStream()
 
 	// Use temporary documentation root for LLM operations
-	llmResult, err := s.LLMClient.GenerateDocs(streamCtx, &client.DocGenerationRequest{
+	llmResult, err := runtime.client.GenerateDocs(streamCtx, &client.DocGenerationRequest{
 		ProjectName:          project.ProjectName,
 		CodebasePath:         codeRoot,
 		DocumentationPath:    tempWorkspace.docsPath, // Use temporary workspace scoped to docs
@@ -321,13 +457,19 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	}
 
 	// Propagate changes from temporary repository back to main repository
-	if err := propagateDocChanges(ctx, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
+	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
 
-	if s.LLMClient != nil {
-		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
-			_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, modelKey, providerID, jsonStr)
+	if runtime.client != nil {
+		if jsonStr, err := runtime.client.ConversationHistoryJSON(); err == nil {
+			provider := runtime.providerID
+			if provider == "" {
+				provider = providerID
+			}
+			if strings.TrimSpace(provider) != "" {
+				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, runtime.modelKey, provider, jsonStr)
+			}
 		}
 	}
 
@@ -352,7 +494,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocs: completed"))
+	emitSessionInfo(ctx, sessionKey, "GenerateDocs: completed")
 
 	summary := ""
 	if llmResult != nil {
@@ -390,49 +532,17 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	}
 
 	docsBranch := documentationBranchName(sourceBranch)
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+	sessionKey := makeSessionKey(projectID, sourceBranch)
+
+	runtime, err := s.ensureRuntimeFromSessions(ctx, projectID, sourceBranch, "", sessionKey)
+	if err != nil {
+		return nil, err
+	}
+
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
 		"RefineDocs: starting for project %d (%s)",
 		projectID, docsBranch,
-	)))
-
-	// Ensure LLM client is initialized - try to initialize from session if needed
-	activeModelKey := strings.TrimSpace(s.currentModelKey)
-	if s.LLMClient == nil || activeModelKey == "" {
-		sessions, err := s.generationSessions.List(projectID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load generation sessions: %w", err)
-		}
-		for _, sess := range sessions {
-			if strings.TrimSpace(sess.SourceBranch) != sourceBranch {
-				continue
-			}
-			candidateModelKey := strings.TrimSpace(sess.ModelKey)
-			if candidateModelKey == "" && strings.TrimSpace(sess.Provider) != "" {
-				if fallback, fbErr := s.findDefaultModelForProvider(strings.TrimSpace(sess.Provider)); fbErr == nil && fallback != nil {
-					candidateModelKey = fallback.Key
-				}
-			}
-			if candidateModelKey == "" {
-				continue
-			}
-			if initErr := s.InitializeLLMClient(candidateModelKey); initErr != nil {
-				return nil, fmt.Errorf("failed to initialize LLM client from session: %w", initErr)
-			}
-			modelInfo, modelErr := s.modelConfigs.GetModel(candidateModelKey)
-			if modelErr == nil && modelInfo != nil {
-				label := modelInfo.ProviderName
-				if strings.TrimSpace(label) == "" {
-					label = modelInfo.ProviderID
-				}
-				events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s via %s from session", modelInfo.DisplayName, label)))
-			}
-			activeModelKey = candidateModelKey
-			break
-		}
-		if s.LLMClient == nil || activeModelKey == "" {
-			return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first or restore a session")
-		}
-	}
+	))
 
 	project, err := s.repoLinks.Get(projectID)
 	if err != nil {
@@ -497,6 +607,9 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 			return nil, err
 		}
 	}
+	if strings.TrimSpace(runtime.targetBranch) == "" && strings.TrimSpace(baseBranch) != "" {
+		runtime.targetBranch = strings.TrimSpace(baseBranch)
+	}
 	refName := plumbing.NewBranchReferenceName(docsBranch)
 	// Ensure the docs branch exists in the main repo; if not, create it off base
 	if _, err := docRepo.Reference(refName, true); err != nil {
@@ -505,44 +618,29 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 			if err := docRepo.Storer.SetReference(plumbing.NewHashReference(refName, baseHash)); err != nil {
 				return nil, fmt.Errorf("failed to create documentation branch '%s': %w", docsBranch, err)
 			}
-			events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("RefineDocs: created missing docs branch '%s' from '%s'", docsBranch, baseBranch)))
+			emitSessionInfo(ctx, sessionKey, fmt.Sprintf("RefineDocs: created missing docs branch '%s' from '%s'", docsBranch, baseBranch))
 		} else {
 			return nil, fmt.Errorf("failed to resolve documentation branch '%s': %w", docsBranch, err)
 		}
 	}
 
 	// Create a temporary workspace checked out to the current docs branch head
-	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, docCfg, docsBranch, baseBranch, baseHash)
+	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, sessionKey, docCfg, docsBranch, baseBranch, baseHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary documentation workspace: %w", err)
 	}
 	defer cleanup()
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
 		"RefineDocs: temporary documentation workspace ready for branch '%s'",
 		docsBranch,
-	)))
+	))
 
-	streamCtx := s.LLMClient.StartStream(ctx)
-	defer s.LLMClient.StopStream()
-
-	if s.LLMClient != nil && !s.LLMClient.HasConversationHistory() {
-		sessions, err := s.generationSessions.List(projectID)
-		if err == nil {
-			for _, sess := range sessions {
-				if strings.TrimSpace(sess.SourceBranch) == sourceBranch {
-					_ = s.LLMClient.LoadConversationHistoryJSON(sess.MessagesJSON)
-					if activeModelKey == "" && strings.TrimSpace(sess.ModelKey) != "" {
-						activeModelKey = strings.TrimSpace(sess.ModelKey)
-					}
-					break
-				}
-			}
-		}
-	}
+	streamCtx := runtime.client.StartStream(ctx)
+	defer runtime.client.StopStream()
 
 	// Run the refinement agent focused on applying user edits
-	llmResult, err := s.LLMClient.DocRefine(streamCtx, &client.DocRefineRequest{
+	llmResult, err := runtime.client.DocRefine(streamCtx, &client.DocRefineRequest{
 		ProjectName:          project.ProjectName,
 		CodebasePath:         codeRoot,
 		DocumentationPath:    tempWorkspace.docsPath,
@@ -554,38 +652,8 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		return nil, err
 	}
 
-	if s.LLMClient != nil {
-		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
-			modelKeyForSession := strings.TrimSpace(activeModelKey)
-			providerForSession := ""
-			if modelKeyForSession != "" {
-				if modelInfo, getErr := s.modelConfigs.GetModel(modelKeyForSession); getErr == nil && modelInfo != nil {
-					providerForSession = strings.TrimSpace(modelInfo.ProviderID)
-				}
-			}
-			if modelKeyForSession == "" || providerForSession == "" {
-				if sess, getErr := s.generationSessions.Get(projectID, sourceBranch, baseBranch); getErr == nil && sess != nil {
-					if modelKeyForSession == "" {
-						modelKeyForSession = strings.TrimSpace(sess.ModelKey)
-					}
-					if providerForSession == "" {
-						providerForSession = strings.TrimSpace(sess.Provider)
-					}
-				}
-			}
-			if modelKeyForSession != "" && providerForSession == "" {
-				if modelInfo, getErr := s.modelConfigs.GetModel(modelKeyForSession); getErr == nil && modelInfo != nil {
-					providerForSession = strings.TrimSpace(modelInfo.ProviderID)
-				}
-			}
-			if modelKeyForSession != "" && providerForSession != "" {
-				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, modelKeyForSession, providerForSession, jsonStr)
-			}
-		}
-	}
-
 	// Propagate changes back to the main documentation repository
-	if err := propagateDocChanges(ctx, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
+	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
 
@@ -610,7 +678,34 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("RefineDocs: completed"))
+	if runtime.client != nil {
+		if jsonStr, err := runtime.client.ConversationHistoryJSON(); err == nil {
+			modelKeyForSession := strings.TrimSpace(runtime.modelKey)
+			providerForSession := strings.TrimSpace(runtime.providerID)
+			if modelKeyForSession != "" && providerForSession == "" {
+				if modelInfo, getErr := s.modelConfigs.GetModel(modelKeyForSession); getErr == nil && modelInfo != nil {
+					providerForSession = strings.TrimSpace(modelInfo.ProviderID)
+					if runtime.modelDisplay == "" {
+						runtime.modelDisplay = modelInfo.DisplayName
+					}
+					label := strings.TrimSpace(modelInfo.ProviderName)
+					if label == "" {
+						label = providerForSession
+					}
+					if runtime.providerLabel == "" {
+						runtime.providerLabel = label
+					}
+				}
+			}
+			if modelKeyForSession != "" && providerForSession != "" {
+				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, modelKeyForSession, providerForSession, jsonStr)
+				runtime.modelKey = modelKeyForSession
+				runtime.providerID = providerForSession
+			}
+		}
+	}
+
+	emitSessionInfo(ctx, sessionKey, "RefineDocs: completed")
 
 	summary := ""
 	if llmResult != nil {
@@ -761,22 +856,22 @@ func (s *ClientService) MergeDocsIntoSource(projectID uint, sourceBranch string)
 		}
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+	emitSessionInfo(ctx, makeSessionKey(projectID, sourceBranch), fmt.Sprintf(
 		"MergeDocs: fast-forwarded '%s' to include documentation commit %s",
 		sourceBranch,
 		docRef.Hash().String()[:8],
-	)))
+	))
 	return nil
 }
 
 // createTempDocRepoAtBranchHead clones the documentation repository into a temp directory
 // and checks out the specified branch at its current HEAD.
-func createTempDocRepoAtBranchHead(ctx context.Context, cfg *docRepoConfig, branch string, baseBranch string, baseHash plumbing.Hash) (workspace tempDocWorkspace, cleanup func(), err error) {
+func createTempDocRepoAtBranchHead(ctx context.Context, sessionKey string, cfg *docRepoConfig, branch string, baseBranch string, baseHash plumbing.Hash) (workspace tempDocWorkspace, cleanup func(), err error) {
 	if cfg == nil {
 		return tempDocWorkspace{}, nil, fmt.Errorf("documentation repository configuration is required")
 	}
-	repoPath, cleanup := newTempRepoDir(ctx)
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Creating temporary docs workspace at %s", repoPath)))
+	repoPath, cleanup := newTempRepoDir(ctx, sessionKey)
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Creating temporary docs workspace at %s", repoPath))
 	cloneOpts := &git.CloneOptions{
 		URL:           cfg.RepoRoot,
 		Depth:         1,
@@ -787,8 +882,8 @@ func createTempDocRepoAtBranchHead(ctx context.Context, cfg *docRepoConfig, bran
 	tempRepo, err := git.PlainClone(repoPath, false, cloneOpts)
 	if err != nil {
 		cleanup()
-		repoPath, cleanup = newTempRepoDir(ctx)
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn("Shallow clone failed; retrying with full clone"))
+		repoPath, cleanup = newTempRepoDir(ctx, sessionKey)
+		emitSessionWarn(ctx, sessionKey, "Shallow clone failed; retrying with full clone")
 		tempRepo, err = git.PlainClone(repoPath, false, &git.CloneOptions{URL: cfg.RepoRoot, Progress: nil})
 		if err != nil {
 			cleanup()
@@ -818,7 +913,7 @@ func createTempDocRepoAtBranchHead(ctx context.Context, cfg *docRepoConfig, bran
 				return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
 			}
 			if baseBranch != "" {
-				events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Creating docs branch '%s' from base '%s'", branch, baseBranch)))
+				emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Creating docs branch '%s' from base '%s'", branch, baseBranch))
 			}
 			headHash = baseHash
 		}
@@ -839,12 +934,12 @@ func createTempDocRepoAtBranchHead(ctx context.Context, cfg *docRepoConfig, bran
 		tempDocsPath = filepath.Join(repoPath, cfg.DocsRelative)
 	}
 
-	if err := copyNarrabyteDir(ctx, cfg.DocsPath, tempDocsPath); err != nil {
+	if err := copyNarrabyteDir(ctx, sessionKey, cfg.DocsPath, tempDocsPath); err != nil {
 		cleanup()
 		return tempDocWorkspace{}, nil, err
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Temporary docs workspace ready: branch '%s' at %s", branch, repoPath)))
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Temporary docs workspace ready: branch '%s' at %s", branch, repoPath))
 	return tempDocWorkspace{repoPath: repoPath, docsPath: tempDocsPath}, cleanup, nil
 }
 
@@ -977,10 +1072,10 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 		return fmt.Errorf("no documentation changes found to commit")
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+	emitSessionInfo(ctx, makeSessionKey(projectID, sourceBranch), fmt.Sprintf(
 		"CommitDocs: staging %d documentation file(s) for branch '%s'",
 		len(normalized), docsBranch,
-	)))
+	))
 
 	if err := s.gitService.StageFiles(repo, normalized); err != nil {
 		return fmt.Errorf("failed to stage documentation changes: %w", err)
@@ -991,16 +1086,14 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 		return fmt.Errorf("failed to commit documentation changes: %w", err)
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+	emitSessionInfo(ctx, makeSessionKey(projectID, sourceBranch), fmt.Sprintf(
 		"CommitDocs: committed documentation updates to '%s'",
 		docsBranch,
-	)))
+	))
 
 	return nil
 }
 
-// LoadGenerationSession restores an existing generation session for a specific branch pair and computes the current
-// documentation state (diff, changed files, etc.) for display in the UI.
 func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targetBranch string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
@@ -1013,6 +1106,8 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 		return nil, fmt.Errorf("source and target branches are required")
 	}
 
+	sessionKey := makeSessionKey(projectID, sourceBranch)
+
 	session, err := s.generationSessions.Get(projectID, sourceBranch, targetBranch)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get generation session: %w", err)
@@ -1021,32 +1116,22 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 		return nil, fmt.Errorf("no active generation session found for project %d (%s -> %s)", projectID, sourceBranch, targetBranch)
 	}
 
-	// Initialize LLM client with the model stored in the session (falls back to provider if necessary)
-	modelKey := strings.TrimSpace(session.ModelKey)
-	providerID := strings.TrimSpace(session.Provider)
-	if modelKey == "" && providerID != "" {
-		if fallback, fbErr := s.findDefaultModelForProvider(providerID); fbErr == nil && fallback != nil {
-			modelKey = fallback.Key
-		}
+	runtime, err := s.ensureRuntimeFromSessions(ctx, projectID, sourceBranch, targetBranch, sessionKey)
+	if err != nil {
+		return nil, err
 	}
-	if modelKey == "" {
-		return nil, fmt.Errorf("session is missing model information")
+	runtime.targetBranch = targetBranch
+	if trimmed := strings.TrimSpace(session.ModelKey); trimmed != "" {
+		runtime.modelKey = trimmed
 	}
-	if err := s.InitializeLLMClient(modelKey); err != nil {
-		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
+	if provider := strings.TrimSpace(session.Provider); provider != "" && strings.TrimSpace(runtime.providerID) == "" {
+		runtime.providerID = provider
 	}
-	if modelInfo, getErr := s.modelConfigs.GetModel(modelKey); getErr == nil && modelInfo != nil {
-		label := modelInfo.ProviderName
-		if strings.TrimSpace(label) == "" {
-			label = modelInfo.ProviderID
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s via %s from session", modelInfo.DisplayName, label)))
-	}
-	if session.ModelKey == "" {
-		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
-			if modelInfo, getErr := s.modelConfigs.GetModel(modelKey); getErr == nil && modelInfo != nil {
-				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, modelKey, modelInfo.ProviderID, jsonStr)
-			}
+	if session.MessagesJSON != "" && runtime.client != nil && !runtime.client.HasConversationHistory() {
+		if loadErr := runtime.client.LoadConversationHistoryJSON(session.MessagesJSON); loadErr != nil {
+			emitSessionWarn(ctx, sessionKey, fmt.Sprintf("Failed to restore conversation history: %v", loadErr))
+		} else {
+			emitSessionInfo(ctx, sessionKey, "Restored LLM conversation history")
 		}
 	}
 
@@ -1058,17 +1143,16 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 		return nil, fmt.Errorf("project not found")
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
 		"LoadSession: restoring documentation session for project %s (%s → %s)",
 		project.ProjectName, targetBranch, sourceBranch,
-	)))
+	))
 
 	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
 	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
 	if codeRepoPath == "" || docRepoPath == "" {
 		return nil, fmt.Errorf("project repositories are not configured")
 	}
-
 	if !utils.DirectoryExists(codeRepoPath) {
 		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
 	}
@@ -1097,7 +1181,6 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 
 	docsBranch := documentationBranchName(sourceBranch)
 	refName := plumbing.NewBranchReferenceName(docsBranch)
-
 	if _, err := docRepo.Reference(refName, true); err != nil {
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
 			return nil, fmt.Errorf("documentation branch '%s' does not exist - session may be stale", docsBranch)
@@ -1107,7 +1190,7 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 
 	var baseBranch string
 	if docCfg.SharedWithCode {
-		baseBranch = sourceBranch
+		baseBranch = targetBranch
 	} else {
 		_, baseBranch, err = resolveDocumentationBase(project, docRepo)
 		if err != nil {
@@ -1119,7 +1202,6 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 	if err != nil {
 		return nil, fmt.Errorf("failed to load documentation worktree: %w", err)
 	}
-
 	docStatus, err := docWorktree.Status()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read documentation repo status: %w", err)
@@ -1132,17 +1214,7 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
 	}
 
-	if session.MessagesJSON != "" && s.LLMClient != nil {
-		if err := s.LLMClient.LoadConversationHistoryJSON(session.MessagesJSON); err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf(
-				"Failed to restore conversation history: %v", err,
-			)))
-		} else {
-			events.Emit(ctx, events.LLMEventTool, events.NewInfo("Restored LLM conversation history"))
-		}
-	}
-
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("LoadSession: session restored successfully"))
+	emitSessionInfo(ctx, sessionKey, "LoadSession: session restored successfully")
 
 	return &models.DocGenerationResult{
 		Branch:         sourceBranch,
@@ -1155,14 +1227,23 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 	}, nil
 }
 
-func (s *ClientService) StopStream() {
-	if s == nil || s.LLMClient == nil {
+func (s *ClientService) StopStream(projectID uint, sourceBranch string) {
+	if s == nil {
 		return
 	}
-	wasRunning := s.LLMClient.IsRunning()
-	s.LLMClient.StopStream()
+	sourceBranch = strings.TrimSpace(sourceBranch)
+	if projectID == 0 || sourceBranch == "" {
+		return
+	}
+	sessionKey := makeSessionKey(projectID, sourceBranch)
+	runtime, ok := s.getSessionRuntime(sessionKey)
+	if !ok || runtime == nil || runtime.client == nil {
+		return
+	}
+	wasRunning := runtime.client.IsRunning()
+	runtime.client.StopStream()
 	if wasRunning && s.context != nil {
-		events.Emit(s.context, events.LLMEventTool, events.NewWarn("Cancel requested: stopping LLM session"))
+		emitSessionWarn(s.context, sessionKey, "Cancel requested: stopping LLM session")
 	}
 }
 
@@ -1263,12 +1344,12 @@ func documentationBranchName(sourceBranch string) string {
 	return fmt.Sprintf("docs/%s", cleaned)
 }
 
-func newTempRepoDir(ctx context.Context) (string, func()) {
+func newTempRepoDir(ctx context.Context, sessionKey string) (string, func()) {
 	tempID := generateUniqueID()
 	repoPath := filepath.Join(os.TempDir(), fmt.Sprintf("narrabyte-docs-%s", tempID))
 	cleanup := func() {
 		if err := os.RemoveAll(repoPath); err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Failed to cleanup temp directory %s: %v", repoPath, err)))
+			emitSessionWarn(ctx, sessionKey, fmt.Sprintf("Failed to cleanup temp directory %s: %v", repoPath, err))
 		}
 	}
 	return repoPath, cleanup
@@ -1362,12 +1443,12 @@ func generateUniqueID() string {
 // createTempDocRepo creates a temporary clone of the documentation repository
 // checked out to the specified branch. Returns the temp workspace (repo root
 // and docs path) alongside a cleanup function.
-func createTempDocRepo(ctx context.Context, cfg *docRepoConfig, branch string, baseBranch string, baseHash plumbing.Hash) (workspace tempDocWorkspace, cleanup func(), err error) {
+func createTempDocRepo(ctx context.Context, sessionKey string, cfg *docRepoConfig, branch string, baseBranch string, baseHash plumbing.Hash) (workspace tempDocWorkspace, cleanup func(), err error) {
 	if cfg == nil {
 		return tempDocWorkspace{}, nil, fmt.Errorf("documentation repository configuration is required")
 	}
-	repoPath, cleanup := newTempRepoDir(ctx)
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Creating temporary docs workspace at %s", repoPath)))
+	repoPath, cleanup := newTempRepoDir(ctx, sessionKey)
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Creating temporary docs workspace at %s", repoPath))
 
 	cloneOpts := &git.CloneOptions{
 		URL:          cfg.RepoRoot,
@@ -1381,8 +1462,8 @@ func createTempDocRepo(ctx context.Context, cfg *docRepoConfig, branch string, b
 	tempRepo, err := git.PlainClone(repoPath, false, cloneOpts)
 	if err != nil {
 		cleanup()
-		repoPath, cleanup = newTempRepoDir(ctx)
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn("Shallow clone failed; retrying with full clone"))
+		repoPath, cleanup = newTempRepoDir(ctx, sessionKey)
+		emitSessionWarn(ctx, sessionKey, "Shallow clone failed; retrying with full clone")
 		tempRepo, err = git.PlainClone(repoPath, false, &git.CloneOptions{URL: cfg.RepoRoot, Progress: nil})
 		if err != nil {
 			cleanup()
@@ -1413,16 +1494,16 @@ func createTempDocRepo(ctx context.Context, cfg *docRepoConfig, branch string, b
 		tempDocsPath = filepath.Join(repoPath, cfg.DocsRelative)
 	}
 
-	if err := copyNarrabyteDir(ctx, cfg.DocsPath, tempDocsPath); err != nil {
+	if err := copyNarrabyteDir(ctx, sessionKey, cfg.DocsPath, tempDocsPath); err != nil {
 		cleanup()
 		return tempDocWorkspace{}, nil, err
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Temporary docs workspace ready: branch '%s' at %s", branch, repoPath)))
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Temporary docs workspace ready: branch '%s' at %s", branch, repoPath))
 	return tempDocWorkspace{repoPath: repoPath, docsPath: tempDocsPath}, cleanup, nil
 }
 
-func copyNarrabyteDir(ctx context.Context, sourceDocsPath, destDocsPath string) error {
+func copyNarrabyteDir(ctx context.Context, sessionKey string, sourceDocsPath, destDocsPath string) error {
 	sourceDir := filepath.Join(sourceDocsPath, ".narrabyte")
 	info, err := os.Stat(sourceDir)
 	if err != nil {
@@ -1432,7 +1513,7 @@ func copyNarrabyteDir(ctx context.Context, sourceDocsPath, destDocsPath string) 
 		return fmt.Errorf("failed to read .narrabyte instructions: %w", err)
 	}
 	if !info.IsDir() {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn(".narrabyte exists but is not a directory; skipping copy"))
+		emitSessionWarn(ctx, sessionKey, ".narrabyte exists but is not a directory; skipping copy")
 		return nil
 	}
 
@@ -1441,7 +1522,7 @@ func copyNarrabyteDir(ctx context.Context, sourceDocsPath, destDocsPath string) 
 		return fmt.Errorf("failed to reset temp instructions directory: %w", err)
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Copying .narrabyte instructions into temporary docs workspace"))
+	emitSessionInfo(ctx, sessionKey, "Copying .narrabyte instructions into temporary docs workspace")
 
 	if err := filepath.WalkDir(sourceDir, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -1493,7 +1574,7 @@ func copyNarrabyteDir(ctx context.Context, sourceDocsPath, destDocsPath string) 
 	return nil
 }
 
-func removeNarrabyteDir(ctx context.Context, docsPath string) error {
+func removeNarrabyteDir(ctx context.Context, sessionKey string, docsPath string) error {
 	dir := filepath.Join(docsPath, ".narrabyte")
 	if !utils.DirectoryExists(dir) {
 		return nil
@@ -1505,14 +1586,14 @@ func removeNarrabyteDir(ctx context.Context, docsPath string) error {
 	if utils.DirectoryExists(dir) {
 		return fmt.Errorf("failed to remove temp instructions directory: %s", dir)
 	}
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Removed temporary .narrabyte instructions"))
+	emitSessionInfo(ctx, sessionKey, "Removed temporary .narrabyte instructions")
 	return nil
 }
 
 // propagateDocChanges commits documentation changes in the temp repository and updates
 // the branch reference in the main repository to point to the new commit.
-func propagateDocChanges(ctx context.Context, workspace tempDocWorkspace, mainRepo *git.Repository, branch string, docsRelative string) error {
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Propagating documentation changes back to main repository"))
+func propagateDocChanges(ctx context.Context, sessionKey string, workspace tempDocWorkspace, mainRepo *git.Repository, branch string, docsRelative string) error {
+	emitSessionInfo(ctx, sessionKey, "Propagating documentation changes back to main repository")
 
 	// Open temporary repository
 	tempRepo, err := git.PlainOpen(workspace.repoPath)
@@ -1526,7 +1607,7 @@ func propagateDocChanges(ctx context.Context, workspace tempDocWorkspace, mainRe
 		return fmt.Errorf("failed to get temp repository worktree: %w", err)
 	}
 
-	if err := removeNarrabyteDir(ctx, workspace.docsPath); err != nil {
+	if err := removeNarrabyteDir(ctx, sessionKey, workspace.docsPath); err != nil {
 		return err
 	}
 
@@ -1537,7 +1618,7 @@ func propagateDocChanges(ctx context.Context, workspace tempDocWorkspace, mainRe
 	}
 
 	if !hasDocsChanges(status, docsRelative) {
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("No documentation changes to propagate"))
+		emitSessionInfo(ctx, sessionKey, "No documentation changes to propagate")
 		return nil
 	}
 
@@ -1558,10 +1639,10 @@ func propagateDocChanges(ctx context.Context, workspace tempDocWorkspace, mainRe
 		return fmt.Errorf("failed to commit changes in temp repository: %w", err)
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Created documentation commit: %s", commitHash.String()[:8])))
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Created documentation commit: %s", commitHash.String()[:8]))
 
 	// Transfer git objects from temp repository to main repository
-	if err := transferGitObjects(ctx, tempRepo, mainRepo, commitHash); err != nil {
+	if err := transferGitObjects(ctx, sessionKey, tempRepo, mainRepo, commitHash); err != nil {
 		return fmt.Errorf("failed to transfer git objects to main repository: %w", err)
 	}
 
@@ -1572,14 +1653,14 @@ func propagateDocChanges(ctx context.Context, workspace tempDocWorkspace, mainRe
 		return fmt.Errorf("failed to update branch '%s' in main repository: %w", branch, err)
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Updated branch '%s' to commit %s", branch, commitHash.String()[:8])))
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Updated branch '%s' to commit %s", branch, commitHash.String()[:8]))
 	return nil
 }
 
 // transferGitObjects transfers all git objects (commit, tree, blobs) from source to target repository
 // This ensures the target repository has all objects needed to checkout the commit
-func transferGitObjects(ctx context.Context, sourceRepo, targetRepo *git.Repository, commitHash plumbing.Hash) error {
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Transferring git objects to main repository"))
+func transferGitObjects(ctx context.Context, sessionKey string, sourceRepo, targetRepo *git.Repository, commitHash plumbing.Hash) error {
+	emitSessionInfo(ctx, sessionKey, "Transferring git objects to main repository")
 
 	// Get the commit object from source repository
 	commit, err := sourceRepo.CommitObject(commitHash)
@@ -1605,14 +1686,14 @@ func transferGitObjects(ctx context.Context, sourceRepo, targetRepo *git.Reposit
 	// Transfer parent commits if they don't exist in target
 	for _, parentHash := range commit.ParentHashes {
 		if exists, _ := objectExists(targetRepo, parentHash); !exists {
-			if err := transferGitObjects(ctx, sourceRepo, targetRepo, parentHash); err != nil {
+			if err := transferGitObjects(ctx, sessionKey, sourceRepo, targetRepo, parentHash); err != nil {
 				// Log warning but continue - parent might be from a different branch
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("Could not transfer parent commit %s: %v", parentHash.String()[:8], err)))
+				emitSessionWarn(ctx, sessionKey, fmt.Sprintf("Could not transfer parent commit %s: %v", parentHash.String()[:8], err))
 			}
 		}
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("Git objects transfer completed"))
+	emitSessionInfo(ctx, sessionKey, "Git objects transfer completed")
 	return nil
 }
 
@@ -1723,10 +1804,13 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, fmt.Errorf("model is required")
 	}
 
-	// Initialize LLM client with the specified model
-	if err := s.InitializeLLMClient(modelKey); err != nil {
+	sessionKey := makeSessionKey(projectID, branch)
+
+	runtime, modelInfo, err := s.newSessionRuntime(modelKey)
+	if err != nil {
 		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
 	}
+	s.setSessionRuntime(sessionKey, runtime)
 
 	project, err := s.repoLinks.Get(projectID)
 	if err != nil {
@@ -1735,6 +1819,11 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 	if project == nil {
 		return nil, fmt.Errorf("project not found")
 	}
+
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
+		"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s",
+		project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel,
+	))
 
 	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
 	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
@@ -1779,7 +1868,6 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		baseBranch string
 	)
 	if docCfg.SharedWithCode {
-		// When docs live with code, base is the same branch
 		baseBranch = branch
 		baseHash, err = resolveBranchHash(docRepo, branch)
 		if err != nil {
@@ -1791,38 +1879,36 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 			return nil, err
 		}
 	}
+	runtime.targetBranch = baseBranch
 
 	docsBranch := documentationBranchName(branch)
 	refName := plumbing.NewBranchReferenceName(docsBranch)
-	// Ensure docs branch exists; create off base if missing
 	if _, err := docRepo.Reference(refName, true); err != nil {
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
 			if err := docRepo.Storer.SetReference(plumbing.NewHashReference(refName, baseHash)); err != nil {
 				return nil, fmt.Errorf("failed to create documentation branch '%s': %w", docsBranch, err)
 			}
-			events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Created docs branch '%s' from '%s'", docsBranch, baseBranch)))
+			emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Created docs branch '%s' from '%s'", docsBranch, baseBranch))
 		} else {
 			return nil, fmt.Errorf("failed to resolve documentation branch '%s': %w", docsBranch, err)
 		}
 	}
 
-	// Create temporary documentation workspace checked out at current docs branch head
-	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, docCfg, docsBranch, baseBranch, baseHash)
+	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, sessionKey, docCfg, docsBranch, baseBranch, baseHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary documentation workspace: %w", err)
 	}
 	defer cleanup()
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
 		"GenerateDocsFromBranch: temporary documentation workspace ready for branch '%s'",
 		docsBranch,
-	)))
+	))
 
-	streamCtx := s.LLMClient.StartStream(ctx)
-	defer s.LLMClient.StopStream()
+	streamCtx := runtime.client.StartStream(ctx)
+	defer runtime.client.StopStream()
 
-	// Invoke refinement agent with user-provided instruction
-	llmResult, err := s.LLMClient.DocRefine(streamCtx, &client.DocRefineRequest{
+	llmResult, err := runtime.client.DocRefine(streamCtx, &client.DocRefineRequest{
 		ProjectName:          project.ProjectName,
 		CodebasePath:         codeRoot,
 		DocumentationPath:    tempWorkspace.docsPath,
@@ -1834,26 +1920,23 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, err
 	}
 
-	// Persist conversation for future refinements
-	if s.LLMClient != nil {
-		if jsonStr, err := s.LLMClient.ConversationHistoryJSON(); err == nil {
-			modelInfo, _ := s.modelConfigs.GetModel(modelKey)
-			provider := ""
-			if modelInfo != nil {
+	if runtime.client != nil {
+		if jsonStr, err := runtime.client.ConversationHistoryJSON(); err == nil {
+			provider := strings.TrimSpace(runtime.providerID)
+			if provider == "" && modelInfo != nil {
 				provider = strings.TrimSpace(modelInfo.ProviderID)
 			}
 			if provider != "" {
-				_, _ = s.generationSessions.Upsert(projectID, branch, baseBranch, modelKey, provider, jsonStr)
+				_, _ = s.generationSessions.Upsert(projectID, branch, baseBranch, runtime.modelKey, provider, jsonStr)
+				runtime.providerID = provider
 			}
 		}
 	}
 
-	// Propagate changes back to main documentation repository
-	if err := propagateDocChanges(ctx, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
+	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
 
-	// Collect changed files and diff for UI
 	tempRepo, err := git.PlainOpen(tempWorkspace.repoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open temp repository for status: %w", err)
@@ -1873,7 +1956,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo("GenerateDocsFromBranch: completed"))
+	emitSessionInfo(ctx, sessionKey, "GenerateDocsFromBranch: completed")
 
 	summary := ""
 	if llmResult != nil {

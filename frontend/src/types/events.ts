@@ -6,6 +6,7 @@ export const demoEventSchema = z.object({
 	type: z.enum(["info", "debug", "warn", "error"]),
 	message: z.string().min(1),
 	timestamp: z.coerce.date(),
+	sessionKey: z.string().optional(),
 });
 
 export type DemoEvent = z.infer<typeof demoEventSchema>;

@@ -24,6 +24,7 @@ export type DocGenerationStatus =
 
 type StartArgs = {
 	projectId: number;
+	projectName: string;
 	sourceBranch: string;
 	targetBranch: string;
 	modelKey: string;
@@ -37,6 +38,15 @@ type CommitArgs = {
 };
 
 type ProjectKey = string;
+type SessionKey = string;
+
+type SessionMeta = {
+	projectId: number;
+	projectName: string;
+	sourceBranch: string;
+	targetBranch: string;
+	status: DocGenerationStatus;
+};
 
 type CompletedCommitInfo = {
 	sourceBranch: string;
@@ -53,6 +63,9 @@ type ChatMessage = {
 };
 
 type DocGenerationData = {
+	projectId: number;
+	projectName: string;
+	sessionKey: SessionKey;
 	events: DemoEvent[];
 	status: DocGenerationStatus;
 	result: models.DocGenerationResult | null;
@@ -74,6 +87,8 @@ type DocGenerationData = {
 
 type State = {
 	docStates: Record<ProjectKey, DocGenerationData>;
+	sessionMeta: Record<SessionKey, SessionMeta>;
+	activeSession: Record<ProjectKey, SessionKey | null>;
 	start: (args: StartArgs) => Promise<void>;
 	startFromBranch?: (args: StartArgs) => Promise<void>;
 	reset: (projectId: number | string) => void;
@@ -100,9 +115,17 @@ type State = {
 		sourceBranch: string,
 		targetBranch: string
 	) => Promise<boolean>;
+	setActiveSession: (
+		projectId: number | string,
+		sessionKey: SessionKey | null
+	) => void;
+	clearSessionMeta: (projectId: number, sourceBranch: string) => void;
 };
 
 const EMPTY_DOC_STATE: DocGenerationData = {
+	projectId: 0,
+	projectName: "",
+	sessionKey: "",
 	events: [],
 	status: "idle",
 	result: null,
@@ -123,6 +146,10 @@ const EMPTY_DOC_STATE: DocGenerationData = {
 };
 
 const toKey = (projectId: number | string): ProjectKey => String(projectId);
+const createSessionKey = (
+	projectId: number,
+	sourceBranch: string | null | undefined
+): SessionKey => `${projectId}:${(sourceBranch ?? "").trim()}`;
 
 const messageFromError = (error: unknown) => {
 	if (error instanceof Error) {
@@ -243,274 +270,358 @@ export const useDocGenerationStore = create<State>((set, get) => {
 		});
 	};
 
+	const setActiveSessionKey = (projectKey: ProjectKey, sessionKey: SessionKey | null) => {
+		set((state) => ({
+			activeSession: {
+				...state.activeSession,
+				[projectKey]: sessionKey,
+			},
+		}));
+	};
+
+	const updateSessionMeta = (sessionKey: SessionKey, updater: Partial<SessionMeta> | ((prev: SessionMeta | undefined) => SessionMeta)) => {
+		set((state) => {
+			const previous = state.sessionMeta[sessionKey];
+			let next: SessionMeta | undefined;
+			if (typeof updater === "function") {
+				next = updater(previous);
+			} else {
+				next = previous ? { ...previous, ...updater } : undefined;
+			}
+			if (!next) {
+				return state;
+			}
+			return {
+				sessionMeta: {
+					...state.sessionMeta,
+					[sessionKey]: next,
+				},
+			};
+		});
+	};
+
+	const removeSessionMeta = (sessionKey: SessionKey) => {
+		set((state) => {
+			if (!(sessionKey in state.sessionMeta)) {
+				return state;
+			}
+			const { [sessionKey]: _, ...rest } = state.sessionMeta;
+			return {
+				sessionMeta: rest,
+			};
+		});
+	};
+
 	return {
 		docStates: {},
+		sessionMeta: {},
+		activeSession: {},
 
-		start: async ({
+	start: async ({
+		projectId,
+		projectName,
+		sourceBranch,
+		targetBranch,
+		modelKey,
+		userInstructions,
+	}: StartArgs) => {
+		const key = toKey(projectId);
+		const sessionKey = createSessionKey(projectId, sourceBranch);
+		const currentState = get().docStates[key];
+		if (currentState?.status === "running") {
+			return;
+		}
+
+		setDocState(key, {
 			projectId,
+			projectName,
+			sessionKey,
+			events: [],
+			error: null,
+			result: null,
+			status: "running",
+			cancellationRequested: false,
+			activeTab: "activity",
+			commitCompleted: false,
+			completedCommitInfo: null,
 			sourceBranch,
 			targetBranch,
-			modelKey,
-			userInstructions,
-		}: StartArgs) => {
-			const key = toKey(projectId);
-			const currentState = get().docStates[key] ?? EMPTY_DOC_STATE;
-			if (currentState.status === "running") {
-				return;
-			}
-
-			setDocState(key, {
-				events: [],
-				error: null,
-				result: null,
-				status: "running",
-				cancellationRequested: false,
-				activeTab: "activity",
-				commitCompleted: false,
-				completedCommitInfo: null,
-				sourceBranch,
-				targetBranch,
-				chatOpen: false,
-				messages: [],
-				initialDiffSignatures: null,
-				changedSinceInitial: [],
-				docsInCodeRepo: false,
-				docsBranch: null,
-				mergeInProgress: false,
-			});
-
-			clearSubscriptions(key);
-
-			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
-				try {
-					const evt = demoEventSchema.parse(payload);
-					setDocState(key, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid doc generation tool event", error, payload);
-				}
-			});
-
-			const doneUnsub = EventsOn("events:llm:done", (payload) => {
-				try {
-					const evt = demoEventSchema.parse(payload);
-					setDocState(key, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid doc generation done event", error, payload);
-				}
-			});
-
-			subscriptions.set(key, { tool: toolUnsub, done: doneUnsub });
-
-			try {
-				const result = await GenerateDocs(
-					projectId,
-					sourceBranch,
-					targetBranch,
-					modelKey,
-					userInstructions
-				);
-				setDocState(key, {
-					result,
-					status: "success",
-					cancellationRequested: false,
-					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
-					changedSinceInitial: [],
-					docsInCodeRepo: Boolean(result?.docsInCodeRepo),
-					docsBranch: result?.docsBranch ?? null,
-					mergeInProgress: false,
-				});
-			} catch (error) {
-				const message = messageFromError(error);
-				const normalized = message.toLowerCase();
-				const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
-				const canceled =
-					docState.cancellationRequested ||
-					normalized.includes("context canceled") ||
-					normalized.includes("context cancelled") ||
-					normalized.includes("cancelled") ||
-					normalized.includes("canceled");
-				if (canceled) {
-					setDocState(key, (prev) => ({
-						...prev,
-						error: null,
-						result: null,
-						status: "canceled",
-						cancellationRequested: false,
-						events: [
-							...prev.events,
-							createLocalEvent(
-								"warn",
-								"Documentation generation canceled by user."
-							),
-						],
-					}));
-				} else {
-					setDocState(key, {
-						error: message,
-						status: "error",
-						cancellationRequested: false,
-						result: null,
-						commitCompleted: false,
-					});
-				}
-			} finally {
-				clearSubscriptions(key);
-				setDocState(key, { cancellationRequested: false });
-			}
-		},
-
-		startFromBranch: async ({
+			chatOpen: false,
+			messages: [],
+			initialDiffSignatures: null,
+			changedSinceInitial: [],
+			docsInCodeRepo: false,
+			docsBranch: null,
+			mergeInProgress: false,
+		});
+		setActiveSessionKey(key, sessionKey);
+		updateSessionMeta(sessionKey, {
 			projectId,
+			projectName,
 			sourceBranch,
-			modelKey,
-			userInstructions,
-		}: StartArgs) => {
-			const key = toKey(projectId);
-			const currentState = get().docStates[key] ?? EMPTY_DOC_STATE;
-			if (currentState.status === "running") {
-				return;
-			}
+			targetBranch,
+			status: "running",
+		});
 
-			setDocState(key, {
-				events: [],
-				error: null,
-				result: null,
-				status: "running",
-				cancellationRequested: false,
-				activeTab: "activity",
-				commitCompleted: false,
-				completedCommitInfo: null,
-				sourceBranch,
-				targetBranch: null,
-				chatOpen: false,
-				messages: [],
-				initialDiffSignatures: null,
-				changedSinceInitial: [],
-				docsInCodeRepo: false,
-				docsBranch: null,
-				mergeInProgress: false,
-			});
+		clearSubscriptions(key);
 
-			clearSubscriptions(key);
-
-			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
-				try {
-					const evt = demoEventSchema.parse(payload);
-					setDocState(key, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid doc generation tool event", error, payload);
-				}
-			});
-
-			const doneUnsub = EventsOn("events:llm:done", (payload) => {
-				try {
-					const evt = demoEventSchema.parse(payload);
-					setDocState(key, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid doc generation done event", error, payload);
-				}
-			});
-
-			subscriptions.set(key, { tool: toolUnsub, done: doneUnsub });
-
+		const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 			try {
-				const result = await GenerateDocsFromBranch(
-					projectId,
-					sourceBranch,
-					modelKey,
-					userInstructions
-				);
-				setDocState(key, {
-					result,
-					status: "success",
-					cancellationRequested: false,
-					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
-					changedSinceInitial: [],
-					docsInCodeRepo: Boolean(result?.docsInCodeRepo),
-					docsBranch: result?.docsBranch ?? null,
-					mergeInProgress: false,
-				});
-			} catch (error) {
-				const message = messageFromError(error);
-				const normalized = message.toLowerCase();
-				const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
-				const canceled =
-					docState.cancellationRequested ||
-					normalized.includes("context canceled") ||
-					normalized.includes("context cancelled") ||
-					normalized.includes("cancelled") ||
-					normalized.includes("canceled");
-				if (canceled) {
-					setDocState(key, (prev) => ({
-						...prev,
-						error: null,
-						result: null,
-						status: "canceled",
-						cancellationRequested: false,
-						events: [
-							...prev.events,
-							createLocalEvent(
-								"warn",
-								"Documentation generation canceled by user."
-							),
-						],
-					}));
-				} else {
-					setDocState(key, {
-						error: message,
-						status: "error",
-						cancellationRequested: false,
-						result: null,
-						commitCompleted: false,
-					});
+				const evt = demoEventSchema.parse(payload);
+				if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					return;
 				}
-			} finally {
-				clearSubscriptions(key);
-				setDocState(key, { cancellationRequested: false });
-			}
-		},
-
-		cancel: async (projectId: number | string) => {
-			const key = toKey(projectId);
-			const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
-			if (docState.status !== "running") {
-				return;
-			}
-
-			setDocState(key, { cancellationRequested: true });
-			try {
-				await StopStream();
-			} catch (error) {
-				const message = messageFromError(error);
-				console.error("Failed to cancel doc generation", error);
 				setDocState(key, (prev) => ({
 					...prev,
-					cancellationRequested: false,
-					error: message,
-					status: "error",
+					events: [...prev.events, evt],
+				}));
+			} catch (error) {
+				console.error("Invalid doc generation tool event", error, payload);
+			}
+		});
+
+		const doneUnsub = EventsOn("events:llm:done", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					return;
+				}
+				setDocState(key, (prev) => ({
+					...prev,
+					events: [...prev.events, evt],
+				}));
+			} catch (error) {
+				console.error("Invalid doc generation done event", error, payload);
+			}
+		});
+
+		subscriptions.set(key, { tool: toolUnsub, done: doneUnsub });
+
+		try {
+			const result = await GenerateDocs(
+				projectId,
+				sourceBranch,
+				targetBranch,
+				modelKey,
+				userInstructions
+			);
+			setDocState(key, {
+				result,
+				status: "success",
+				cancellationRequested: false,
+				initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
+				changedSinceInitial: [],
+				docsInCodeRepo: Boolean(result?.docsInCodeRepo),
+				docsBranch: result?.docsBranch ?? null,
+				mergeInProgress: false,
+			});
+			removeSessionMeta(sessionKey);
+		} catch (error) {
+			const message = messageFromError(error);
+			const normalized = message.toLowerCase();
+			const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
+			const canceled =
+				docState.cancellationRequested ||
+				normalized.includes("context canceled") ||
+				normalized.includes("context cancelled") ||
+				normalized.includes("cancelled") ||
+				normalized.includes("canceled");
+			if (canceled) {
+				setDocState(key, (prev) => ({
+					...prev,
+					error: null,
 					result: null,
+					status: "canceled",
+					cancellationRequested: false,
 					events: [
 						...prev.events,
 						createLocalEvent(
-							"error",
-							`Failed to cancel documentation generation: ${message}`
+							"warn",
+							"Documentation generation canceled by user."
 						),
 					],
 				}));
+			} else {
+				setDocState(key, {
+					error: message,
+					status: "error",
+					cancellationRequested: false,
+					result: null,
+					commitCompleted: false,
+				});
 			}
-		},
+			removeSessionMeta(sessionKey);
+		} finally {
+			clearSubscriptions(key);
+			setDocState(key, { cancellationRequested: false });
+		}
+	},
+
+	startFromBranch: async ({
+		projectId,
+		projectName,
+		sourceBranch,
+		modelKey,
+		userInstructions,
+	}: StartArgs) => {
+		const key = toKey(projectId);
+		const sessionKey = createSessionKey(projectId, sourceBranch);
+		const currentState = get().docStates[key];
+		if (currentState?.status === "running") {
+			return;
+		}
+
+		setDocState(key, {
+			projectId,
+			projectName,
+			sessionKey,
+			events: [],
+			error: null,
+			result: null,
+			status: "running",
+			cancellationRequested: false,
+			activeTab: "activity",
+			commitCompleted: false,
+			completedCommitInfo: null,
+			sourceBranch,
+			targetBranch: null,
+			chatOpen: false,
+			messages: [],
+			initialDiffSignatures: null,
+			changedSinceInitial: [],
+			docsInCodeRepo: false,
+			docsBranch: null,
+			mergeInProgress: false,
+		});
+		setActiveSessionKey(key, sessionKey);
+		updateSessionMeta(sessionKey, {
+			projectId,
+			projectName,
+			sourceBranch,
+			targetBranch: "",
+			status: "running",
+		});
+
+		clearSubscriptions(key);
+
+		const toolUnsub = EventsOn("event:llm:tool", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					return;
+				}
+				setDocState(key, (prev) => ({
+					...prev,
+					events: [...prev.events, evt],
+				}));
+			} catch (error) {
+				console.error("Invalid doc generation tool event", error, payload);
+			}
+		});
+
+		const doneUnsub = EventsOn("events:llm:done", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					return;
+				}
+				setDocState(key, (prev) => ({
+					...prev,
+					events: [...prev.events, evt],
+				}));
+			} catch (error) {
+				console.error("Invalid doc generation done event", error, payload);
+			}
+		});
+
+		subscriptions.set(key, { tool: toolUnsub, done: doneUnsub });
+
+		try {
+			const result = await GenerateDocsFromBranch(
+				projectId,
+				sourceBranch,
+				modelKey,
+				userInstructions
+			);
+			setDocState(key, {
+				result,
+				status: "success",
+				cancellationRequested: false,
+				initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
+				changedSinceInitial: [],
+				docsInCodeRepo: Boolean(result?.docsInCodeRepo),
+				docsBranch: result?.docsBranch ?? null,
+				mergeInProgress: false,
+			});
+			removeSessionMeta(sessionKey);
+		} catch (error) {
+			const message = messageFromError(error);
+			const normalized = message.toLowerCase();
+			const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
+			const canceled =
+				docState.cancellationRequested ||
+				normalized.includes("context canceled") ||
+				normalized.includes("context cancelled") ||
+				normalized.includes("cancelled") ||
+				normalized.includes("canceled");
+			if (canceled) {
+				setDocState(key, (prev) => ({
+					...prev,
+					error: null,
+					result: null,
+					status: "canceled",
+					cancellationRequested: false,
+					events: [...prev.events, createLocalEvent("warn", "Documentation generation canceled by user.")],
+				}));
+			} else {
+				setDocState(key, {
+					error: message,
+					status: "error",
+					cancellationRequested: false,
+					result: null,
+					commitCompleted: false,
+				});
+			}
+			removeSessionMeta(sessionKey);
+		} finally {
+			clearSubscriptions(key);
+			setDocState(key, { cancellationRequested: false });
+		}
+	},
+
+	cancel: async (projectId: number | string, sourceBranch?: string | null) => {
+		const key = toKey(projectId);
+		const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
+		if (docState.status !== "running") {
+			return;
+		}
+
+		const branch = sourceBranch ?? docState.sourceBranch ?? "";
+		const sessionKey = docState.sessionKey;
+		setDocState(key, { cancellationRequested: true });
+		try {
+			await StopStream(Number(projectId), branch);
+			removeSessionMeta(sessionKey);
+		} catch (error) {
+			const message = messageFromError(error);
+			console.error("Failed to cancel doc generation", error);
+			setDocState(key, (prev) => ({
+				...prev,
+				cancellationRequested: false,
+				error: message,
+				status: "error",
+				result: null,
+				events: [
+					...prev.events,
+					createLocalEvent(
+						"error",
+						`Failed to cancel documentation generation: ${message}`
+					),
+				],
+			}));
+			removeSessionMeta(sessionKey);
+		}
+	},
 
 		commit: async ({ projectId, branch, files }: CommitArgs) => {
 			const key = toKey(projectId);
@@ -518,6 +629,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			if (docState.status === "committing") {
 				return;
 			}
+			const sessionKey = docState.sessionKey;
 
 			const label =
 				docState.docsBranch && docState.docsBranch.trim() !== ""
@@ -538,6 +650,15 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				activeTab: "activity",
 				commitCompleted: false,
 			}));
+			if (sessionKey) {
+				updateSessionMeta(sessionKey, (prev) => ({
+					projectId: prev?.projectId ?? docState.projectId,
+					projectName: prev?.projectName ?? docState.projectName,
+					sourceBranch: prev?.sourceBranch ?? (docState.sourceBranch ?? ""),
+					targetBranch: prev?.targetBranch ?? (docState.targetBranch ?? ""),
+					status: "committing",
+				}));
+			}
 
 			try {
 				await CommitDocs(projectId, branch, files);
@@ -554,6 +675,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					],
 					commitCompleted: true,
 				}));
+				if (sessionKey) {
+					removeSessionMeta(sessionKey);
+				}
 			} catch (error) {
 				const message = messageFromError(error);
 				setDocState(key, (prev) => ({
@@ -569,7 +693,18 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					],
 					commitCompleted: false,
 				}));
+				if (sessionKey) {
+					removeSessionMeta(sessionKey);
+				}
 			}
+		},
+
+		setActiveSession: (projectId, sessionKey) => {
+			setActiveSessionKey(toKey(projectId), sessionKey);
+		},
+
+		clearSessionMeta: (projectId, sourceBranch) => {
+			removeSessionMeta(createSessionKey(projectId, sourceBranch));
 		},
 
 		mergeDocs: async ({ projectId, branch }): Promise<void> => {
@@ -630,29 +765,34 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			}
 		},
 
-		reset: (projectId: number | string) => {
-			const key = toKey(projectId);
-			clearSubscriptions(key);
-			setDocState(key, {
-				events: [],
-				error: null,
-				result: null,
-				status: "idle",
-				cancellationRequested: false,
-				activeTab: "activity",
-				commitCompleted: false,
-				completedCommitInfo: null,
-				sourceBranch: null,
-				targetBranch: null,
-				chatOpen: false,
-				messages: [],
-				initialDiffSignatures: null,
-				changedSinceInitial: [],
-				docsInCodeRepo: false,
-				docsBranch: null,
-				mergeInProgress: false,
-			});
-		},
+	reset: (projectId: number | string) => {
+		const key = toKey(projectId);
+		clearSubscriptions(key);
+		const current = get().docStates[key] ?? EMPTY_DOC_STATE;
+		if (current.sessionKey) {
+			removeSessionMeta(current.sessionKey);
+		}
+		setDocState(key, {
+			...current,
+			events: [],
+			error: null,
+			result: null,
+			status: "idle",
+			cancellationRequested: false,
+			activeTab: "activity",
+			commitCompleted: false,
+			completedCommitInfo: null,
+			sourceBranch: null,
+			targetBranch: null,
+			chatOpen: false,
+			messages: [],
+			initialDiffSignatures: null,
+			changedSinceInitial: [],
+			docsInCodeRepo: false,
+			docsBranch: null,
+			mergeInProgress: false,
+		});
+	},
 
 		setActiveTab: (projectId, tab) => {
 			const key = toKey(projectId);
@@ -708,25 +848,31 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				status: "running",
 			}));
 
-			clearSubscriptions(key);
-			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
-				try {
-					const evt = demoEventSchema.parse(payload);
-					setDocState(key, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid refine tool event", error, payload);
+		clearSubscriptions(key);
+		const toolUnsub = EventsOn("event:llm:tool", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				if (evt.sessionKey && evt.sessionKey !== docState.sessionKey) {
+					return;
 				}
-			});
-			const doneUnsub = EventsOn("events:llm:done", (payload) => {
-				try {
-					const evt = demoEventSchema.parse(payload);
-					setDocState(key, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
+				setDocState(key, (prev) => ({
+					...prev,
+					events: [...prev.events, evt],
+				}));
+			} catch (error) {
+				console.error("Invalid refine tool event", error, payload);
+			}
+		});
+		const doneUnsub = EventsOn("events:llm:done", (payload) => {
+			try {
+				const evt = demoEventSchema.parse(payload);
+				if (evt.sessionKey && evt.sessionKey !== docState.sessionKey) {
+					return;
+				}
+				setDocState(key, (prev) => ({
+					...prev,
+					events: [...prev.events, evt],
+				}));
 				} catch (error) {
 					console.error("Invalid refine done event", error, payload);
 				}
@@ -834,6 +980,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 		): Promise<boolean> => {
 			const key = toKey(projectId);
 			const currentState = get().docStates[key];
+			const sessionKey = createSessionKey(projectId, sourceBranch);
 
 			if (
 				currentState &&
@@ -843,7 +990,12 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			}
 
 			try {
+				const sessionMeta = get().sessionMeta[sessionKey];
+				const projectName = currentState?.projectName ?? sessionMeta?.projectName ?? "";
 				setDocState(key, {
+					projectId,
+					projectName,
+					sessionKey,
 					status: "running",
 					events: [
 						createLocalEvent(
@@ -860,6 +1012,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				);
 
 				setDocState(key, {
+					projectId,
+					projectName,
+					sessionKey,
 					result,
 					status: "success",
 					sourceBranch: sourceBranch || null,
@@ -876,7 +1031,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					],
 					activeTab: "review",
 				});
-
+				setActiveSessionKey(key, sessionKey);
 				return true;
 			} catch (error) {
 				const message = messageFromError(error);

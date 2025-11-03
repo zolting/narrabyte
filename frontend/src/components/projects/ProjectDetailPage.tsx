@@ -245,16 +245,19 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			}
 			docManager.startDocGeneration({
 				projectId: Number(project.ID),
+				projectName: project.ProjectName,
 				sourceBranch: branchManager.sourceBranch,
 				targetBranch: branchManager.targetBranch,
 				modelKey,
 				userInstructions: instructions,
 			});
 		} else if (mode === "single") {
+			const targetBranch = "";
 			docManager.startSingleBranchGeneration?.({
 				projectId: Number(project.ID),
+				projectName: project.ProjectName,
 				sourceBranch: branchManager.sourceBranch,
-				targetBranch: "",
+				targetBranch,
 				modelKey,
 				userInstructions: instructions,
 			});

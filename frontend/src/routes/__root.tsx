@@ -5,6 +5,7 @@ import {
 	ProjectCacheHost,
 	ProjectCacheProvider,
 } from "@/components/projects/ProjectCache";
+import { CurrentGenerationsIndicator } from "@/components/CurrentGenerationsIndicator";
 import { AppSidebar } from "@/components/Sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
@@ -57,6 +58,9 @@ function RootLayout() {
 				<ThemeSync />
 				<AppSidebar />
 				<SidebarInset className="flex w-full flex-col overflow-x-hidden">
+					<div className="flex w-full justify-end px-4 py-2">
+						<CurrentGenerationsIndicator />
+					</div>
 					<main className="w-full overflow-x-hidden">
 						<ProjectCacheHost />
 						<Outlet />

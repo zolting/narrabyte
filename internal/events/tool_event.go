@@ -21,10 +21,11 @@ const (
 
 // ToolEvent is a simple struct representing a backend event payload
 type ToolEvent struct {
-	ID        string    `json:"id"`
-	Type      EventType `json:"type"`
-	Message   string    `json:"message"`
-	Timestamp time.Time `json:"timestamp"`
+	ID         string    `json:"id"`
+	Type       EventType `json:"type"`
+	Message    string    `json:"message"`
+	Timestamp  time.Time `json:"timestamp"`
+	SessionKey string    `json:"sessionKey,omitempty"`
 }
 
 func CreateToolEvent(eventType EventType, message string) ToolEvent {
