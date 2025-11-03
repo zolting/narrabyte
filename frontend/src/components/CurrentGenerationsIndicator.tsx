@@ -85,7 +85,7 @@ export function CurrentGenerationsIndicator() {
 						return (
 							<li key={sessionKey}>
 								<button
-									className={`flex w-full items-start gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50 cursor-pointer ${
+									className={`flex w-full cursor-pointer items-start gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50 ${
 										isActive ? "bg-muted" : ""
 									}`}
 									onClick={() => handleSelect(sessionKey, meta)}
