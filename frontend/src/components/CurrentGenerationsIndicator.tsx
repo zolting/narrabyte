@@ -18,15 +18,15 @@ export function CurrentGenerationsIndicator() {
 	const activeSessions = useDocGenerationStore((state) => state.activeSession);
 	const restoreSession = useDocGenerationStore((state) => state.restoreSession);
 	const setActiveSession = useDocGenerationStore(
-		(state) => state.setActiveSession,
+		(state) => state.setActiveSession
 	);
 
 	const runningSessions = useMemo(
 		() =>
 			Object.entries(sessionMeta).filter(
-				([, meta]) => meta.status === "running" || meta.status === "committing",
+				([, meta]) => meta.status === "running" || meta.status === "committing"
 			),
-		[sessionMeta],
+		[sessionMeta]
 	);
 
 	if (runningSessions.length === 0) {
@@ -40,7 +40,7 @@ export function CurrentGenerationsIndicator() {
 			projectName: string;
 			sourceBranch: string;
 			targetBranch: string;
-		},
+		}
 	) => {
 		setOpen(false);
 		setActiveSession(meta.projectId, sessionKey);
@@ -48,7 +48,7 @@ export function CurrentGenerationsIndicator() {
 			await restoreSession(
 				meta.projectId,
 				meta.sourceBranch,
-				meta.targetBranch,
+				meta.targetBranch
 			);
 		} catch (error) {
 			console.error("Failed to restore session", error);
@@ -60,18 +60,18 @@ export function CurrentGenerationsIndicator() {
 	};
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<Popover onOpenChange={setOpen} open={open}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size="sm">
+				<Button size="sm" variant="outline">
 					<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 					{t("generations.running", "Running")}
-					<span className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-primary/10 px-2 text-xs text-primary">
+					<span className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-primary/10 px-2 text-primary text-xs">
 						{runningSessions.length}
 					</span>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-64 p-0" sideOffset={8}>
-				<div className="border-b border-border px-3 py-2 text-sm font-medium">
+				<div className="border-border border-b px-3 py-2 font-medium text-sm">
 					{t("generations.current", "Current generations")}
 				</div>
 				<ul className="max-h-60 divide-y divide-border overflow-auto">
@@ -94,7 +94,7 @@ export function CurrentGenerationsIndicator() {
 									<PlayCircle className="mt-0.5 h-4 w-4 text-primary" />
 									<div className="flex flex-col">
 										<span className="font-medium">{meta.projectName}</span>
-										<span className="text-xs text-muted-foreground">
+										<span className="text-muted-foreground text-xs">
 											{meta.sourceBranch}
 											{meta.targetBranch ? ` → ${meta.targetBranch}` : ""}
 										</span>

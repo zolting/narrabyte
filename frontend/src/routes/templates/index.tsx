@@ -58,7 +58,7 @@ function TemplatesPage() {
 			return;
 		}
 		hasLoadedRef.current = true;
-		void loadTemplates();
+		loadTemplates();
 	}, [loadTemplates]);
 
 	useEffect(() => {

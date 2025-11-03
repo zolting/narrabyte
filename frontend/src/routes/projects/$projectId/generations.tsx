@@ -94,10 +94,10 @@ function RouteComponent() {
 				return;
 			}
 			setDeletingId(Number(s.ID));
-		try {
-			await Delete(Number(projectId), s.SourceBranch, s.TargetBranch);
-			clearSessionMeta(Number(projectId), s.SourceBranch);
-			await refreshSessions();
+			try {
+				await Delete(Number(projectId), s.SourceBranch, s.TargetBranch);
+				clearSessionMeta(Number(projectId), s.SourceBranch);
+				await refreshSessions();
 			} finally {
 				setDeletingId(null);
 			}

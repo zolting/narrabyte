@@ -88,7 +88,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	useEffect(() => {
 		if (!modelsInitialized) {
-			void initModelSettings();
+			initModelSettings();
 		}
 	}, [initModelSettings, modelsInitialized]);
 
@@ -284,9 +284,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			branchManager.targetBranch ||
 			"";
 		if (source && target) {
-			Promise.resolve(Delete(Number(projectId), source, target)).catch(
-				() => {}
-			);
+			Promise.resolve(Delete(Number(projectId), source, target)).catch(() => {
+				return;
+			});
 		}
 	}, [
 		branchManager.sourceBranch,
