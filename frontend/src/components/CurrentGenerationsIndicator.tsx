@@ -3,7 +3,11 @@ import { Loader2, PlayCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 
 export function CurrentGenerationsIndicator() {
@@ -13,14 +17,16 @@ export function CurrentGenerationsIndicator() {
 	const sessionMeta = useDocGenerationStore((state) => state.sessionMeta);
 	const activeSessions = useDocGenerationStore((state) => state.activeSession);
 	const restoreSession = useDocGenerationStore((state) => state.restoreSession);
-	const setActiveSession = useDocGenerationStore((state) => state.setActiveSession);
+	const setActiveSession = useDocGenerationStore(
+		(state) => state.setActiveSession,
+	);
 
 	const runningSessions = useMemo(
 		() =>
-			Object.entries(sessionMeta).filter(([, meta]) =>
-				meta.status === "running" || meta.status === "committing"
+			Object.entries(sessionMeta).filter(
+				([, meta]) => meta.status === "running" || meta.status === "committing",
 			),
-		[sessionMeta]
+		[sessionMeta],
 	);
 
 	if (runningSessions.length === 0) {
@@ -34,7 +40,7 @@ export function CurrentGenerationsIndicator() {
 			projectName: string;
 			sourceBranch: string;
 			targetBranch: string;
-		}
+		},
 	) => {
 		setOpen(false);
 		setActiveSession(meta.projectId, sessionKey);
@@ -42,7 +48,7 @@ export function CurrentGenerationsIndicator() {
 			await restoreSession(
 				meta.projectId,
 				meta.sourceBranch,
-				meta.targetBranch
+				meta.targetBranch,
 			);
 		} catch (error) {
 			console.error("Failed to restore session", error);
@@ -90,9 +96,7 @@ export function CurrentGenerationsIndicator() {
 										<span className="font-medium">{meta.projectName}</span>
 										<span className="text-xs text-muted-foreground">
 											{meta.sourceBranch}
-											{meta.targetBranch
-												? ` → ${meta.targetBranch}`
-												: ""}
+											{meta.targetBranch ? ` → ${meta.targetBranch}` : ""}
 										</span>
 										<span className="text-[10px] text-muted-foreground">
 											{statusLabel}

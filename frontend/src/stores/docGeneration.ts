@@ -286,7 +286,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			if (typeof updater === "function") {
 				next = updater(previous);
 			} else {
-				next = previous ? { ...previous, ...updater } : undefined;
+				next = { ...previous, ...updater } as SessionMeta;
 			}
 			if (!next) {
 				return state;

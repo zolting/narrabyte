@@ -1,11 +1,11 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { useEffect } from "react";
+import { CurrentGenerationsIndicator } from "@/components/CurrentGenerationsIndicator";
 import {
 	ProjectCacheHost,
 	ProjectCacheProvider,
 } from "@/components/projects/ProjectCache";
-import { CurrentGenerationsIndicator } from "@/components/CurrentGenerationsIndicator";
 import { AppSidebar } from "@/components/Sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
