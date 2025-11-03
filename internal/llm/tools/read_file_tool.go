@@ -39,7 +39,7 @@ type ReadFileOutput struct {
 // ReadFile reads a text file within the project root with paging and safety checks.
 func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error) {
 	// Start
-	snapshot := CurrentGitSnapshot()
+	snapshot := currentGitSnapshot(ctx)
 	snapshotInfo := formatSnapshotInfo(snapshot)
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: starting [%s]", snapshotInfo)))
 
@@ -54,7 +54,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 		}, nil
 	}
 
-	base, err := getListDirectoryBaseRoot()
+	base, err := getListDirectoryBaseRoot(ctx)
 	if err != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile: base root error: %v", err)))
 		return &ReadFileOutput{
@@ -155,7 +155,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 	// Progress: resolved path
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: reading '%s' [%s]", filepath.ToSlash(absPath), snapshotInfo)))
 
-	if snapshot := CurrentGitSnapshot(); snapshot != nil {
+	if snapshot := currentGitSnapshot(ctx); snapshot != nil {
 		rel, relErr := snapshot.relativeFromAbs(absPath)
 		if relErr != nil {
 			if errors.Is(relErr, ErrSnapshotEscapes) {

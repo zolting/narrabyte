@@ -436,7 +436,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		docsBranch,
 	))
 
-	streamCtx := runtime.client.StartStream(ctx)
+	streamCtx := runtime.client.StartStream(ctx, sessionKey)
 	defer runtime.client.StopStream()
 
 	// Use temporary documentation root for LLM operations
@@ -636,7 +636,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		docsBranch,
 	))
 
-	streamCtx := runtime.client.StartStream(ctx)
+	streamCtx := runtime.client.StartStream(ctx, sessionKey)
 	defer runtime.client.StopStream()
 
 	// Run the refinement agent focused on applying user edits
@@ -1905,7 +1905,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		docsBranch,
 	))
 
-	streamCtx := runtime.client.StartStream(ctx)
+	streamCtx := runtime.client.StartStream(ctx, sessionKey)
 	defer runtime.client.StopStream()
 
 	llmResult, err := runtime.client.DocRefine(streamCtx, &client.DocRefineRequest{

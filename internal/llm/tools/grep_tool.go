@@ -67,7 +67,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 	}
 	events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: pattern '%s', include '%s'", pattern, strings.TrimSpace(in.Include))))
 
-	base, err := getListDirectoryBaseRoot()
+	base, err := getListDirectoryBaseRoot(ctx)
 	if err != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError("Grep: project root not set"))
 		return &GrepOutput{
@@ -201,7 +201,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 	}
 
 	ignorePatterns := append([]string{}, DefaultIgnorePatterns...)
-	ignorePatterns = append(ignorePatterns, GetScopedIgnorePatterns()...)
+	ignorePatterns = append(ignorePatterns, scopedIgnorePatterns(ctx)...)
 
 	// Check for context cancellation early
 	if ctx != nil {
@@ -236,7 +236,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 	}
 	var matches []match
 
-	if snapshot := CurrentGitSnapshot(); snapshot != nil {
+	if snapshot := currentGitSnapshot(ctx); snapshot != nil {
 		rel, relErr := snapshot.relativeFromAbs(searchPath)
 		if relErr != nil {
 			if errors.Is(relErr, ErrSnapshotEscapes) {

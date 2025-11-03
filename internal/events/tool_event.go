@@ -1,8 +1,11 @@
 package events
 
 import (
-	"github.com/google/uuid"
+	"context"
+	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type EventType string
@@ -26,6 +29,30 @@ type ToolEvent struct {
 	Message    string    `json:"message"`
 	Timestamp  time.Time `json:"timestamp"`
 	SessionKey string    `json:"sessionKey,omitempty"`
+}
+
+type contextKey string
+
+const sessionContextKey contextKey = "narrabyte/events/session"
+
+// WithSession returns a derived context annotated with the given session key
+// so event emitters can automatically scope payloads.
+func WithSession(ctx context.Context, sessionKey string) context.Context {
+	if strings.TrimSpace(sessionKey) == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, sessionContextKey, sessionKey)
+}
+
+// SessionFromContext extracts the session key associated with ctx.
+func SessionFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if v, ok := ctx.Value(sessionContextKey).(string); ok {
+		return v
+	}
+	return ""
 }
 
 func CreateToolEvent(eventType EventType, message string) ToolEvent {

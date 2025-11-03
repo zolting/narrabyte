@@ -61,7 +61,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 		}, nil
 	}
 
-	base, err := getListDirectoryBaseRoot()
+	base, err := getListDirectoryBaseRoot(ctx)
 	if err != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError("Glob: project root not set"))
 		return &GlobOutput{
@@ -76,7 +76,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 	}
 
 	ignorePatterns := append([]string{}, DefaultIgnorePatterns...)
-	ignorePatterns = append(ignorePatterns, GetScopedIgnorePatterns()...)
+	ignorePatterns = append(ignorePatterns, scopedIgnorePatterns(ctx)...)
 
 	// Resolve search directory under base
 	search := strings.TrimSpace(in.Path)
@@ -164,7 +164,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 		truncated bool
 	)
 
-	if snapshot := CurrentGitSnapshot(); snapshot != nil {
+	if snapshot := currentGitSnapshot(ctx); snapshot != nil {
 		rel, relErr := snapshot.relativeFromAbs(searchPath)
 		if relErr != nil {
 			if errors.Is(relErr, ErrSnapshotEscapes) {
