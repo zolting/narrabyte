@@ -95,8 +95,21 @@ type TodoWriteOutput struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// TodoReadInput defines the input structure for reading todos (empty)
+// TodoReadInput defines the input structure for reading todos
+// This struct has no fields since the tool requires no input parameters
 type TodoReadInput struct{}
+
+// UnmarshalJSON implements custom JSON unmarshaling to handle empty or missing input
+func (t *TodoReadInput) UnmarshalJSON(data []byte) error {
+	// Accept empty string, empty object, or any valid JSON
+	// Since we don't need any input, we just return success
+	if len(data) == 0 {
+		return nil
+	}
+	// If data is provided, ensure it's at least valid JSON (likely "{}")
+	// We don't actually need to parse it since we have no fields
+	return nil
+}
 
 // TodoReadOutput defines the output structure for reading todos
 type TodoReadOutput struct {
