@@ -142,7 +142,7 @@ func (s *ClientService) InitializeLLMClient(modelKey string) error {
 	return nil
 }
 
-func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, modelKey string, userInstructions string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, modelKey string, userInstructions string, docsBranchOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
@@ -150,6 +150,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	sourceBranch = strings.TrimSpace(sourceBranch)
 	targetBranch = strings.TrimSpace(targetBranch)
 	modelKey = strings.TrimSpace(modelKey)
+	docsBranchOverride = strings.TrimSpace(docsBranchOverride)
 	if projectID == 0 {
 		return nil, fmt.Errorf("project id is required")
 	}
@@ -193,17 +194,23 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("project not found")
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
-		"GenerateDocs: starting for project %s (%s -> %s) using %s via %s",
-		project.ProjectName, targetBranch, sourceBranch, modelInfo.DisplayName, providerLabel,
-	)))
+	if strings.TrimSpace(docsBranchOverride) != "" {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+			"GenerateDocs: starting for project %s (%s -> %s) using %s via %s into '%s'",
+			project.ProjectName, targetBranch, sourceBranch, modelInfo.DisplayName, providerLabel, docsBranchOverride,
+		)))
+	} else {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+			"GenerateDocs: starting for project %s (%s -> %s) using %s via %s",
+			project.ProjectName, targetBranch, sourceBranch, modelInfo.DisplayName, providerLabel,
+		)))
+	}
 
 	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
 	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
 	if codeRepoPath == "" || docRepoPath == "" {
 		return nil, fmt.Errorf("project repositories are not configured")
 	}
-
 	if !utils.DirectoryExists(codeRepoPath) {
 		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
 	}
@@ -286,7 +293,21 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		}
 	}
 
+	// Choose docs branch: override if provided, else default docs/<source>
 	docsBranch := documentationBranchName(sourceBranch)
+	if docsBranchOverride != "" {
+		docsBranch = docsBranchOverride
+	}
+
+	// PRE-CHECK: prevent silently overwriting an existing docs/<source> branch
+	exists, err := s.gitService.BranchExists(docRepo, docsBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check documentation branch existence: %w", err)
+	}
+	if exists {
+		// Signal to UI so user can decide to delete or rename
+		return nil, fmt.Errorf("ERR_DOCS_BRANCH_EXISTS:%s", docsBranch)
+	}
 
 	// Create temporary documentation repository (isolated from working directory)
 	tempWorkspace, cleanup, err := createTempDocRepo(ctx, docCfg, docsBranch, baseBranch, baseHash)
@@ -1706,13 +1727,14 @@ func describeStatus(st git.FileStatus) string {
 	}
 }
 
-func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, modelKey string, userInstructions string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, modelKey string, userInstructions string, docsBranchOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
 	}
 	branch = strings.TrimSpace(branch)
 	modelKey = strings.TrimSpace(modelKey)
+	docsBranchOverride = strings.TrimSpace(docsBranchOverride)
 	if projectID == 0 {
 		return nil, fmt.Errorf("project id is required")
 	}
@@ -1723,9 +1745,54 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, fmt.Errorf("model is required")
 	}
 
-	// Initialize LLM client with the specified model
-	if err := s.InitializeLLMClient(modelKey); err != nil {
-		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
+	// Choose docs branch: override if provided, else default
+	docsBranch := documentationBranchName(branch)
+	if docsBranchOverride != "" {
+		docsBranch = docsBranchOverride
+	}
+
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf(
+		"RefineDocs: starting for project %d (%s)",
+		projectID, docsBranch,
+	)))
+
+	// Ensure LLM client is initialized - try to initialize from session if needed
+	activeModelKey := strings.TrimSpace(s.currentModelKey)
+	if s.LLMClient == nil || activeModelKey == "" {
+		sessions, err := s.generationSessions.List(projectID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load generation sessions: %w", err)
+		}
+		for _, sess := range sessions {
+			if strings.TrimSpace(sess.SourceBranch) != branch {
+				continue
+			}
+			candidateModelKey := strings.TrimSpace(sess.ModelKey)
+			if candidateModelKey == "" && strings.TrimSpace(sess.Provider) != "" {
+				if fallback, fbErr := s.findDefaultModelForProvider(strings.TrimSpace(sess.Provider)); fbErr == nil && fallback != nil {
+					candidateModelKey = fallback.Key
+				}
+			}
+			if candidateModelKey == "" {
+				continue
+			}
+			if initErr := s.InitializeLLMClient(candidateModelKey); initErr != nil {
+				return nil, fmt.Errorf("failed to initialize LLM client from session: %w", initErr)
+			}
+			modelInfo, modelErr := s.modelConfigs.GetModel(candidateModelKey)
+			if modelErr == nil && modelInfo != nil {
+				label := modelInfo.ProviderName
+				if strings.TrimSpace(label) == "" {
+					label = modelInfo.ProviderID
+				}
+				events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Initialized %s via %s from session", modelInfo.DisplayName, label)))
+			}
+			activeModelKey = candidateModelKey
+			break
+		}
+		if s.LLMClient == nil || activeModelKey == "" {
+			return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first or restore a session")
+		}
 	}
 
 	project, err := s.repoLinks.Get(projectID)
@@ -1769,6 +1836,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, err
 	}
 
+	// Open documentation repo and ensure the docs branch exists
 	docRepo, err := s.gitService.Open(docCfg.RepoRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open documentation repository: %w", err)
@@ -1779,7 +1847,6 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		baseBranch string
 	)
 	if docCfg.SharedWithCode {
-		// When docs live with code, base is the same branch
 		baseBranch = branch
 		baseHash, err = resolveBranchHash(docRepo, branch)
 		if err != nil {
@@ -1792,22 +1859,17 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		}
 	}
 
-	docsBranch := documentationBranchName(branch)
-	refName := plumbing.NewBranchReferenceName(docsBranch)
-	// Ensure docs branch exists; create off base if missing
-	if _, err := docRepo.Reference(refName, true); err != nil {
-		if errors.Is(err, plumbing.ErrReferenceNotFound) {
-			if err := docRepo.Storer.SetReference(plumbing.NewHashReference(refName, baseHash)); err != nil {
-				return nil, fmt.Errorf("failed to create documentation branch '%s': %w", docsBranch, err)
-			}
-			events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Created docs branch '%s' from '%s'", docsBranch, baseBranch)))
-		} else {
-			return nil, fmt.Errorf("failed to resolve documentation branch '%s': %w", docsBranch, err)
-		}
+	// Ensure destination docs branch name is available
+	exists, err := s.gitService.BranchExists(docRepo, docsBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check documentation branch existence: %w", err)
+	}
+	if exists {
+		return nil, fmt.Errorf("ERR_DOCS_BRANCH_EXISTS:%s", docsBranch)
 	}
 
-	// Create temporary documentation workspace checked out at current docs branch head
-	tempWorkspace, cleanup, err := createTempDocRepoAtBranchHead(ctx, docCfg, docsBranch, baseBranch, baseHash)
+	// Create a temporary workspace checked out at the base and with branch set to docsBranch
+	tempWorkspace, cleanup, err := createTempDocRepo(ctx, docCfg, docsBranch, baseBranch, baseHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary documentation workspace: %w", err)
 	}
@@ -1853,7 +1915,6 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
 
-	// Collect changed files and diff for UI
 	tempRepo, err := git.PlainOpen(tempWorkspace.repoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open temp repository for status: %w", err)

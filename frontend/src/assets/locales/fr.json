@@ -50,6 +50,8 @@
     "noDocumentationChanges": "Aucun changement de documentation n'a été produit pour ce diff.",
     "commitSuccess": "Documentation validée avec succès !",
     "commitSuccessDescription": "Vos modifications de documentation ont été validées avec succès dans la branche de documentation.",
+    "mergeSucess": "Documentation fusionnée avec succès!",
+    "mergeSuccessDescription": "Les changements de documentation on été fusionnés dans la branche source.",
     "documentationAvailable": "La documentation est maintenant disponible dans la branche",
     "startNewTask": "Commencer une nouvelle tâche de documentation",
     "delete": "Supprimer",
@@ -92,7 +94,15 @@
     "addTemplateHelp": "Créez un nouveau modèle en fournissant un nom et un contenu. Vous pourrez le modifier plus tard.",
     "close": "Fermer",
     "errorIconTitle": "Erreur",
-    "backendError": "Une erreur s'est produite :"
+    "backendError": "Une erreur s'est produite :",
+    "docsBranchExists": "Une branche de documentation existe déjà pour cette branche source.",
+    "docsBranchConflictTitle": "La branche de documentation existe déjà",
+    "docsBranchConflictDescription": "Une branche de documentation existe déjà pour cette branche source. Choisissez une option ci-dessous pour continuer.",
+    "existingDocsBranch": "Branche de docs existante",
+    "newDocsBranchLabel": "Utiliser un autre nom de branche de documentation",
+    "newDocsBranchPlaceholder": "ex.: docs/feature-x-2",
+    "newDocsBranchAria": "Nouveau nom de branche de documentation",
+    "deleteCurrentDocsBranch": "Supprimer la branche de docs actuelle"
   },
   "projectManager": {
     "addProject": "Ajouter un projet",
