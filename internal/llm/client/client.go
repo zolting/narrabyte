@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cloudwego/eino-ext/components/model/claude"
 	"github.com/cloudwego/eino-ext/components/model/gemini"
@@ -108,6 +111,8 @@ type LLMClient struct {
 	sourceCommit    string
 	targetCommit    string
 	codeSnapshot    *tools.GitSnapshot
+	sessionKey      string
+	workspaceID     string
 
 	mu                    sync.Mutex
 	running               bool
@@ -246,14 +251,22 @@ func NewGeminiClient(ctx context.Context, key string, opts GeminiModelOptions) (
 }
 
 // watch out pour le contexte ici
-func (o *LLMClient) StartStream(ctx context.Context) context.Context {
+func (o *LLMClient) StartStream(ctx context.Context, sessionKey string) context.Context {
 	o.mu.Lock()
 	if o.running {
 		o.mu.Unlock()
 		return ctx
 	}
 	o.running = true
+	sessionKey = strings.TrimSpace(sessionKey)
+	o.sessionKey = sessionKey
+	workspaceID := generateSessionID()
+	o.workspaceID = workspaceID
 	ctx, cancel := context.WithCancel(ctx)
+	if sessionKey != "" {
+		ctx = events.WithSession(ctx, sessionKey)
+	}
+	ctx = tools.ContextWithSession(ctx, workspaceID)
 	o.cancel = cancel
 	o.mu.Unlock()
 	return ctx
@@ -262,12 +275,25 @@ func (o *LLMClient) StartStream(ctx context.Context) context.Context {
 func (o *LLMClient) StopStream() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.workspaceID != "" {
+		tools.ClearSession(o.workspaceID)
+		o.workspaceID = ""
+	}
+	o.sessionKey = ""
 	cancel := o.cancel
 	if cancel != nil {
 		cancel()
 	}
 	o.running = false
 	o.cancel = nil
+}
+
+func generateSessionID() string {
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err == nil {
+		return hex.EncodeToString(buf[:])
+	}
+	return fmt.Sprintf("session-%d", time.Now().UnixNano())
 }
 
 // IsRunning reports whether a session is currently active.
@@ -297,6 +323,11 @@ func (o *LLMClient) SetListDirectoryBaseRoot(root string) {
 		}
 	}
 	o.baseRoot = abs
+	if workspaceID := strings.TrimSpace(o.workspaceID); workspaceID != "" {
+		tools.SetGitSnapshotForSession(workspaceID, nil)
+		tools.SetListDirectoryBaseRootForSession(workspaceID, abs)
+		return
+	}
 	tools.SetGitSnapshot(nil)
 	tools.SetListDirectoryBaseRoot(abs)
 }
@@ -1095,18 +1126,23 @@ func (o *LLMClient) withBaseRoot(root string, snapshot *tools.GitSnapshot, fn fu
 	if root == "" {
 		return fmt.Errorf("base root not set")
 	}
-	prevRoot := o.baseRoot
-	prevSnapshot := tools.CurrentGitSnapshot()
-	prevIgnores := tools.GetScopedIgnorePatterns()
-	tools.SetListDirectoryBaseRoot(root)
-	tools.SetGitSnapshot(snapshot)
-	tools.SetScopedIgnorePatterns(o.scopedIgnoresForRoot(root))
+	workspaceID := strings.TrimSpace(o.workspaceID)
+	if workspaceID == "" {
+		return fmt.Errorf("session not initialized")
+	}
+	prevSessionRoot := tools.ListDirectoryBaseRootForSession(workspaceID)
+	prevSnapshot := tools.GitSnapshotForSession(workspaceID)
+	prevIgnores := tools.GetScopedIgnorePatternsForSession(workspaceID)
+	prevBase := o.baseRoot
+	tools.SetListDirectoryBaseRootForSession(workspaceID, root)
+	tools.SetGitSnapshotForSession(workspaceID, snapshot)
+	tools.SetScopedIgnorePatternsForSession(workspaceID, o.scopedIgnoresForRoot(root))
 	o.baseRoot = root
 	defer func() {
-		tools.SetListDirectoryBaseRoot(prevRoot)
-		tools.SetGitSnapshot(prevSnapshot)
-		tools.SetScopedIgnorePatterns(prevIgnores)
-		o.baseRoot = prevRoot
+		tools.SetListDirectoryBaseRootForSession(workspaceID, prevSessionRoot)
+		tools.SetGitSnapshotForSession(workspaceID, prevSnapshot)
+		tools.SetScopedIgnorePatternsForSession(workspaceID, prevIgnores)
+		o.baseRoot = prevBase
 	}()
 	return fn()
 }

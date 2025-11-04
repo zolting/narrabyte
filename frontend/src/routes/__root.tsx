@@ -1,6 +1,7 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { useEffect } from "react";
+import { CurrentGenerationsIndicator } from "@/components/CurrentGenerationsIndicator";
 import {
 	ProjectCacheHost,
 	ProjectCacheProvider,
@@ -57,6 +58,9 @@ function RootLayout() {
 				<ThemeSync />
 				<AppSidebar />
 				<SidebarInset className="flex w-full flex-col overflow-x-hidden">
+					<div className="flex w-full justify-end px-4 py-2">
+						<CurrentGenerationsIndicator />
+					</div>
 					<main className="w-full overflow-x-hidden">
 						<ProjectCacheHost />
 						<Outlet />

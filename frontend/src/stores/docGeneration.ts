@@ -24,6 +24,7 @@ export type DocGenerationStatus =
 
 type StartArgs = {
 	projectId: number;
+	projectName: string;
 	sourceBranch: string;
 	targetBranch: string;
 	modelKey: string;
@@ -37,6 +38,15 @@ type CommitArgs = {
 };
 
 type ProjectKey = string;
+type SessionKey = string;
+
+type SessionMeta = {
+	projectId: number;
+	projectName: string;
+	sourceBranch: string;
+	targetBranch: string;
+	status: DocGenerationStatus;
+};
 
 type CompletedCommitInfo = {
 	sourceBranch: string;
@@ -53,6 +63,9 @@ type ChatMessage = {
 };
 
 type DocGenerationData = {
+	projectId: number;
+	projectName: string;
+	sessionKey: SessionKey;
 	events: DemoEvent[];
 	status: DocGenerationStatus;
 	result: models.DocGenerationResult | null;
@@ -74,6 +87,8 @@ type DocGenerationData = {
 
 type State = {
 	docStates: Record<ProjectKey, DocGenerationData>;
+	sessionMeta: Record<SessionKey, SessionMeta>;
+	activeSession: Record<ProjectKey, SessionKey | null>;
 	start: (args: StartArgs) => Promise<void>;
 	startFromBranch?: (args: StartArgs) => Promise<void>;
 	reset: (projectId: number | string) => void;
@@ -100,9 +115,17 @@ type State = {
 		sourceBranch: string,
 		targetBranch: string
 	) => Promise<boolean>;
+	setActiveSession: (
+		projectId: number | string,
+		sessionKey: SessionKey | null
+	) => void;
+	clearSessionMeta: (projectId: number, sourceBranch: string) => void;
 };
 
 const EMPTY_DOC_STATE: DocGenerationData = {
+	projectId: 0,
+	projectName: "",
+	sessionKey: "",
 	events: [],
 	status: "idle",
 	result: null,
@@ -123,6 +146,10 @@ const EMPTY_DOC_STATE: DocGenerationData = {
 };
 
 const toKey = (projectId: number | string): ProjectKey => String(projectId);
+const createSessionKey = (
+	projectId: number,
+	sourceBranch: string | null | undefined
+): SessionKey => `${projectId}:${(sourceBranch ?? "").trim()}`;
 
 const messageFromError = (error: unknown) => {
 	if (error instanceof Error) {
@@ -243,23 +270,80 @@ export const useDocGenerationStore = create<State>((set, get) => {
 		});
 	};
 
+	const setActiveSessionKey = (
+		projectKey: ProjectKey,
+		sessionKey: SessionKey | null
+	) => {
+		set((state) => ({
+			activeSession: {
+				...state.activeSession,
+				[projectKey]: sessionKey,
+			},
+		}));
+	};
+
+	const updateSessionMeta = (
+		sessionKey: SessionKey,
+		updater:
+			| Partial<SessionMeta>
+			| ((prev: SessionMeta | undefined) => SessionMeta)
+	) => {
+		set((state) => {
+			const previous = state.sessionMeta[sessionKey];
+			let next: SessionMeta | undefined;
+			if (typeof updater === "function") {
+				next = updater(previous);
+			} else {
+				next = { ...previous, ...updater } as SessionMeta;
+			}
+			if (!next) {
+				return state;
+			}
+			return {
+				sessionMeta: {
+					...state.sessionMeta,
+					[sessionKey]: next,
+				},
+			};
+		});
+	};
+
+	const removeSessionMeta = (sessionKey: SessionKey) => {
+		set((state) => {
+			if (!(sessionKey in state.sessionMeta)) {
+				return state;
+			}
+			const { [sessionKey]: _, ...rest } = state.sessionMeta;
+			return {
+				sessionMeta: rest,
+			};
+		});
+	};
+
 	return {
 		docStates: {},
+		sessionMeta: {},
+		activeSession: {},
 
 		start: async ({
 			projectId,
+			projectName,
 			sourceBranch,
 			targetBranch,
 			modelKey,
 			userInstructions,
 		}: StartArgs) => {
 			const key = toKey(projectId);
-			const currentState = get().docStates[key] ?? EMPTY_DOC_STATE;
-			if (currentState.status === "running") {
+			const sessionKey = createSessionKey(projectId, sourceBranch);
+			const currentState = get().docStates[key];
+			if (currentState?.status === "running") {
 				return;
 			}
 
 			setDocState(key, {
+				projectId,
+				projectName,
+				sessionKey,
 				events: [],
 				error: null,
 				result: null,
@@ -278,12 +362,23 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				docsBranch: null,
 				mergeInProgress: false,
 			});
+			setActiveSessionKey(key, sessionKey);
+			updateSessionMeta(sessionKey, {
+				projectId,
+				projectName,
+				sourceBranch,
+				targetBranch,
+				status: "running",
+			});
 
 			clearSubscriptions(key);
 
 			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
+					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+						return;
+					}
 					setDocState(key, (prev) => ({
 						...prev,
 						events: [...prev.events, evt],
@@ -296,6 +391,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			const doneUnsub = EventsOn("events:llm:done", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
+					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+						return;
+					}
 					setDocState(key, (prev) => ({
 						...prev,
 						events: [...prev.events, evt],
@@ -325,6 +423,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					docsBranch: result?.docsBranch ?? null,
 					mergeInProgress: false,
 				});
+				removeSessionMeta(sessionKey);
 			} catch (error) {
 				const message = messageFromError(error);
 				const normalized = message.toLowerCase();
@@ -359,6 +458,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						commitCompleted: false,
 					});
 				}
+				removeSessionMeta(sessionKey);
 			} finally {
 				clearSubscriptions(key);
 				setDocState(key, { cancellationRequested: false });
@@ -367,17 +467,22 @@ export const useDocGenerationStore = create<State>((set, get) => {
 
 		startFromBranch: async ({
 			projectId,
+			projectName,
 			sourceBranch,
 			modelKey,
 			userInstructions,
 		}: StartArgs) => {
 			const key = toKey(projectId);
-			const currentState = get().docStates[key] ?? EMPTY_DOC_STATE;
-			if (currentState.status === "running") {
+			const sessionKey = createSessionKey(projectId, sourceBranch);
+			const currentState = get().docStates[key];
+			if (currentState?.status === "running") {
 				return;
 			}
 
 			setDocState(key, {
+				projectId,
+				projectName,
+				sessionKey,
 				events: [],
 				error: null,
 				result: null,
@@ -396,12 +501,23 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				docsBranch: null,
 				mergeInProgress: false,
 			});
+			setActiveSessionKey(key, sessionKey);
+			updateSessionMeta(sessionKey, {
+				projectId,
+				projectName,
+				sourceBranch,
+				targetBranch: "",
+				status: "running",
+			});
 
 			clearSubscriptions(key);
 
 			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
+					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+						return;
+					}
 					setDocState(key, (prev) => ({
 						...prev,
 						events: [...prev.events, evt],
@@ -414,6 +530,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			const doneUnsub = EventsOn("events:llm:done", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
+					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+						return;
+					}
 					setDocState(key, (prev) => ({
 						...prev,
 						events: [...prev.events, evt],
@@ -442,6 +561,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					docsBranch: result?.docsBranch ?? null,
 					mergeInProgress: false,
 				});
+				removeSessionMeta(sessionKey);
 			} catch (error) {
 				const message = messageFromError(error);
 				const normalized = message.toLowerCase();
@@ -476,22 +596,29 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						commitCompleted: false,
 					});
 				}
+				removeSessionMeta(sessionKey);
 			} finally {
 				clearSubscriptions(key);
 				setDocState(key, { cancellationRequested: false });
 			}
 		},
 
-		cancel: async (projectId: number | string) => {
+		cancel: async (
+			projectId: number | string,
+			sourceBranch?: string | null
+		) => {
 			const key = toKey(projectId);
 			const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
 			if (docState.status !== "running") {
 				return;
 			}
 
+			const branch = sourceBranch ?? docState.sourceBranch ?? "";
+			const sessionKey = docState.sessionKey;
 			setDocState(key, { cancellationRequested: true });
 			try {
-				await StopStream();
+				await StopStream(Number(projectId), branch);
+				removeSessionMeta(sessionKey);
 			} catch (error) {
 				const message = messageFromError(error);
 				console.error("Failed to cancel doc generation", error);
@@ -509,6 +636,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						),
 					],
 				}));
+				removeSessionMeta(sessionKey);
 			}
 		},
 
@@ -518,6 +646,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			if (docState.status === "committing") {
 				return;
 			}
+			const sessionKey = docState.sessionKey;
 
 			const label =
 				docState.docsBranch && docState.docsBranch.trim() !== ""
@@ -538,6 +667,15 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				activeTab: "activity",
 				commitCompleted: false,
 			}));
+			if (sessionKey) {
+				updateSessionMeta(sessionKey, (prev) => ({
+					projectId: prev?.projectId ?? docState.projectId,
+					projectName: prev?.projectName ?? docState.projectName,
+					sourceBranch: prev?.sourceBranch ?? docState.sourceBranch ?? "",
+					targetBranch: prev?.targetBranch ?? docState.targetBranch ?? "",
+					status: "committing",
+				}));
+			}
 
 			try {
 				await CommitDocs(projectId, branch, files);
@@ -554,6 +692,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					],
 					commitCompleted: true,
 				}));
+				if (sessionKey) {
+					removeSessionMeta(sessionKey);
+				}
 			} catch (error) {
 				const message = messageFromError(error);
 				setDocState(key, (prev) => ({
@@ -569,7 +710,18 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					],
 					commitCompleted: false,
 				}));
+				if (sessionKey) {
+					removeSessionMeta(sessionKey);
+				}
 			}
+		},
+
+		setActiveSession: (projectId, sessionKey) => {
+			setActiveSessionKey(toKey(projectId), sessionKey);
+		},
+
+		clearSessionMeta: (projectId, sourceBranch) => {
+			removeSessionMeta(createSessionKey(projectId, sourceBranch));
 		},
 
 		mergeDocs: async ({ projectId, branch }): Promise<void> => {
@@ -633,7 +785,12 @@ export const useDocGenerationStore = create<State>((set, get) => {
 		reset: (projectId: number | string) => {
 			const key = toKey(projectId);
 			clearSubscriptions(key);
+			const current = get().docStates[key] ?? EMPTY_DOC_STATE;
+			if (current.sessionKey) {
+				removeSessionMeta(current.sessionKey);
+			}
 			setDocState(key, {
+				...current,
 				events: [],
 				error: null,
 				result: null,
@@ -712,6 +869,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
+					if (evt.sessionKey && evt.sessionKey !== docState.sessionKey) {
+						return;
+					}
 					setDocState(key, (prev) => ({
 						...prev,
 						events: [...prev.events, evt],
@@ -723,6 +883,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			const doneUnsub = EventsOn("events:llm:done", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
+					if (evt.sessionKey && evt.sessionKey !== docState.sessionKey) {
+						return;
+					}
 					setDocState(key, (prev) => ({
 						...prev,
 						events: [...prev.events, evt],
@@ -834,6 +997,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 		): Promise<boolean> => {
 			const key = toKey(projectId);
 			const currentState = get().docStates[key];
+			const sessionKey = createSessionKey(projectId, sourceBranch);
 
 			if (
 				currentState &&
@@ -843,7 +1007,13 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			}
 
 			try {
+				const sessionMeta = get().sessionMeta[sessionKey];
+				const projectName =
+					currentState?.projectName ?? sessionMeta?.projectName ?? "";
 				setDocState(key, {
+					projectId,
+					projectName,
+					sessionKey,
 					status: "running",
 					events: [
 						createLocalEvent(
@@ -860,6 +1030,9 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				);
 
 				setDocState(key, {
+					projectId,
+					projectName,
+					sessionKey,
 					result,
 					status: "success",
 					sourceBranch: sourceBranch || null,
@@ -876,7 +1049,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					],
 					activeTab: "review",
 				});
-
+				setActiveSessionKey(key, sessionKey);
 				return true;
 			} catch (error) {
 				const message = messageFromError(error);

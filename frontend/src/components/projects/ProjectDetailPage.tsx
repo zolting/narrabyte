@@ -88,7 +88,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	useEffect(() => {
 		if (!modelsInitialized) {
-			void initModelSettings();
+			initModelSettings();
 		}
 	}, [initModelSettings, modelsInitialized]);
 
@@ -245,16 +245,19 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			}
 			docManager.startDocGeneration({
 				projectId: Number(project.ID),
+				projectName: project.ProjectName,
 				sourceBranch: branchManager.sourceBranch,
 				targetBranch: branchManager.targetBranch,
 				modelKey,
 				userInstructions: instructions,
 			});
 		} else if (mode === "single") {
+			const targetBranch = "";
 			docManager.startSingleBranchGeneration?.({
 				projectId: Number(project.ID),
+				projectName: project.ProjectName,
 				sourceBranch: branchManager.sourceBranch,
-				targetBranch: "",
+				targetBranch,
 				modelKey,
 				userInstructions: instructions,
 			});
@@ -281,9 +284,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			branchManager.targetBranch ||
 			"";
 		if (source && target) {
-			Promise.resolve(Delete(Number(projectId), source, target)).catch(
-				() => {}
-			);
+			Promise.resolve(Delete(Number(projectId), source, target)).catch(() => {
+				return;
+			});
 		}
 	}, [
 		branchManager.sourceBranch,

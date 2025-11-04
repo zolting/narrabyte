@@ -28,6 +28,7 @@ function RouteComponent() {
 	const [restoringId, setRestoringId] = useState<number | null>(null);
 	const [deletingId, setDeletingId] = useState<number | null>(null);
 	const restoreSession = useDocGenerationStore((s) => s.restoreSession);
+	const clearSessionMeta = useDocGenerationStore((s) => s.clearSessionMeta);
 	const navigate = Route.useNavigate();
 
 	useEffect(() => {
@@ -95,6 +96,7 @@ function RouteComponent() {
 			setDeletingId(Number(s.ID));
 			try {
 				await Delete(Number(projectId), s.SourceBranch, s.TargetBranch);
+				clearSessionMeta(Number(projectId), s.SourceBranch);
 				await refreshSessions();
 			} finally {
 				setDeletingId(null);

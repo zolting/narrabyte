@@ -34,7 +34,7 @@ func WriteFile(ctx context.Context, in *WriteFileInput) (*WriteFileOutput, error
 		}, nil
 	}
 
-	base, err := getListDirectoryBaseRoot()
+	base, err := getListDirectoryBaseRoot(ctx)
 	if err != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile: project root not set"))
 		return &WriteFileOutput{

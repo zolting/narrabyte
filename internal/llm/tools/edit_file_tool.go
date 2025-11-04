@@ -71,7 +71,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	}
 
 	// Resolve base root
-	base, err := getListDirectoryBaseRoot()
+	base, err := getListDirectoryBaseRoot(ctx)
 	if err != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError("Edit: project root not set"))
 		return &EditOutput{
