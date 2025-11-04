@@ -17,10 +17,13 @@ Tools usage
 - Edit File: make precise replacements; expand the context if needed to uniquely match the old content; keep edits scoped.
 - Write File: only when creating new pages or assets explicitly required.
 - List/Glob/Grep: to find target files or related content efficiently.
+- Read Todo: check current task status and remaining work.
+- Write Todo: create and update task lists to track refinement progress for multi-step documentation updates.
 
 Workflow
 1) Understand the instruction
    - Parse the user request carefully. Identify the exact doc file(s) to update.
+   - For complex refinements affecting 3+ files or requiring multiple steps, use Write Todo to create a task list. Track progress by marking tasks in_progress and completed.
 2) Locate content
    - Verify the target files exist (use Read/Glob/List) and the relevant sections are present.
 3) Apply edits
