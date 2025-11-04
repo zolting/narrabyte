@@ -1190,7 +1190,7 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 
 	var baseBranch string
 	if docCfg.SharedWithCode {
-		baseBranch = targetBranch
+		baseBranch = sourceBranch
 	} else {
 		_, baseBranch, err = resolveDocumentationBase(project, docRepo)
 		if err != nil {
