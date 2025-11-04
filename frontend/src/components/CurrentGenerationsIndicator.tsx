@@ -64,7 +64,7 @@ export function CurrentGenerationsIndicator() {
 			<PopoverTrigger asChild>
 				<Button size="sm" variant="outline">
 					<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-					{t("generations.running", "Running")}
+					{t("generations.running")}
 					<span className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-primary/10 px-2 text-primary text-xs">
 						{runningSessions.length}
 					</span>
@@ -72,7 +72,7 @@ export function CurrentGenerationsIndicator() {
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-64 p-0" sideOffset={8}>
 				<div className="border-border border-b px-3 py-2 font-medium text-sm">
-					{t("generations.current", "Current generations")}
+					{t("generations.current")}
 				</div>
 				<ul className="max-h-60 divide-y divide-border overflow-auto">
 					{runningSessions.map(([sessionKey, meta]) => {
@@ -80,8 +80,8 @@ export function CurrentGenerationsIndicator() {
 						const isActive = activeSessions[projectKey] === sessionKey;
 						const statusLabel =
 							meta.status === "committing"
-								? t("generations.statusCommitting", "Committing")
-								: t("generations.statusRunning", "Running");
+								? t("generations.statusCommitting")
+								: t("generations.statusRunning");
 						return (
 							<li key={sessionKey}>
 								<button
