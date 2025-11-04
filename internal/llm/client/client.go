@@ -1162,6 +1162,10 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 	}
 	todoReadWithPolicy := func(ctx context.Context, in *tools.TodoReadInput) (*tools.TodoReadOutput, error) {
 		events.Emit(ctx, events.LLMEventTool, events.NewDebug("TodoRead: reading task list"))
+		// Handle nil input (tool called with no arguments)
+		if in == nil {
+			in = &tools.TodoReadInput{}
+		}
 		out, err := tools.ReadTodo(ctx, in)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("TodoRead: error: %v", err)))
