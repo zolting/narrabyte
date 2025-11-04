@@ -42,3 +42,7 @@ Output expectations
 - Apply the requested edits directly using the tools
 - Modify existing files instead of creating new ones unless explicitly warranted
 - Return a concise summary of the changes made
+
+Summary formatting
+- Format the final summary using GitHub-Flavored Markdown (GFM) with headings (##) and bullet lists.
+- Avoid HTML; use plain Markdown only.

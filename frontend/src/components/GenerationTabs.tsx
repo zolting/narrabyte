@@ -2,6 +2,7 @@ import type { models } from "@go/models";
 import { useTranslation } from "react-i18next";
 import { DocGenerationProgressLog } from "@/components/DocGenerationProgressLog";
 import { DocGenerationResultPanel } from "@/components/DocGenerationResultPanel";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { DocGenerationStatus } from "@/stores/docGeneration";
@@ -115,7 +116,7 @@ export const GenerationTabs = ({
 						</header>
 						<div className="min-h-0 flex-1 overflow-y-auto">
 							<div className="rounded-md border border-border bg-muted/40 p-4 text-foreground/90 leading-relaxed">
-								{docResult.summary}
+								<MarkdownRenderer content={docResult.summary} />
 							</div>
 						</div>
 					</div>

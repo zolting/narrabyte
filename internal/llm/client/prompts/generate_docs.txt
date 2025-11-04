@@ -42,3 +42,8 @@ What You'll Get
 
 What to Deliver
 A natural set of documentation updates via Edit and Write tools, followed by a brief summary: what you changed, what you created, key findings from the diff, and any suggested follow-ups.
+
+Summary formatting
+- Format the final summary using GitHub-Flavored Markdown (GFM).
+- Prefer short sections with headings (##), bullet lists, and links when relevant.
+- Avoid HTML; use plain Markdown only. Keep it under ~250 words unless brevity would remove key points.
