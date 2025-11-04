@@ -3,15 +3,17 @@ import { useTranslation } from "react-i18next";
 import { DocGenerationProgressLog } from "@/components/DocGenerationProgressLog";
 import { DocGenerationResultPanel } from "@/components/DocGenerationResultPanel";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { TodoList } from "@/components/TodoList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { DocGenerationStatus } from "@/stores/docGeneration";
-import type { DemoEvent } from "@/types/events";
+import type { DemoEvent, TodoItem } from "@/types/events";
 
 interface GenerationTabsProps {
 	activeTab: "activity" | "review" | "summary";
 	setActiveTab: (tab: "activity" | "review" | "summary") => void;
 	events: DemoEvent[];
+	todos: TodoItem[];
 	status: DocGenerationStatus;
 	docResult: models.DocGenerationResult | null;
 	projectId: number;
@@ -21,6 +23,7 @@ export const GenerationTabs = ({
 	activeTab,
 	setActiveTab,
 	events,
+	todos,
 	status,
 	docResult,
 	projectId,
@@ -87,9 +90,10 @@ export const GenerationTabs = ({
 				)}
 			</TabsList>
 			<TabsContent
-				className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+				className="mt-0 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
 				value="activity"
 			>
+				<TodoList todos={todos} />
 				<DocGenerationProgressLog events={events} status={status} />
 			</TabsContent>
 			{docResult && (

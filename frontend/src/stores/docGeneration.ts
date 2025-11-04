@@ -11,7 +11,7 @@ import {
 import i18n from "i18next";
 import { parseDiff } from "react-diff-view";
 import { create } from "zustand";
-import { type DemoEvent, demoEventSchema } from "@/types/events";
+import { type DemoEvent, demoEventSchema, type TodoItem, todoEventSchema } from "@/types/events";
 import { EventsOn } from "../../wailsjs/runtime";
 
 export type DocGenerationStatus =
@@ -67,6 +67,7 @@ type DocGenerationData = {
 	projectName: string;
 	sessionKey: SessionKey;
 	events: DemoEvent[];
+	todos: TodoItem[];
 	status: DocGenerationStatus;
 	result: models.DocGenerationResult | null;
 	error: string | null;
@@ -127,6 +128,7 @@ const EMPTY_DOC_STATE: DocGenerationData = {
 	projectName: "",
 	sessionKey: "",
 	events: [],
+	todos: [],
 	status: "idle",
 	result: null,
 	error: null,
@@ -234,6 +236,7 @@ const computeDiffSignatures = (diffText: string | null | undefined) => {
 type SubscriptionMap = {
 	tool?: () => void;
 	done?: () => void;
+	todo?: () => void;
 };
 
 const subscriptions = new Map<ProjectKey, SubscriptionMap>();
@@ -245,6 +248,7 @@ const clearSubscriptions = (key: ProjectKey) => {
 	}
 	entry.tool?.();
 	entry.done?.();
+	entry.todo?.();
 	subscriptions.delete(key);
 };
 
@@ -403,7 +407,22 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				}
 			});
 
-			subscriptions.set(key, { tool: toolUnsub, done: doneUnsub });
+			const todoUnsub = EventsOn("event:llm:todo", (payload) => {
+				try {
+					const evt = todoEventSchema.parse(payload);
+					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+						return;
+					}
+					setDocState(key, (prev) => ({
+						...prev,
+						todos: evt.todos,
+					}));
+				} catch (error) {
+					console.error("Invalid todo event", error, payload);
+				}
+			});
+
+			subscriptions.set(key, { tool: toolUnsub, done: doneUnsub, todo: todoUnsub });
 
 			try {
 				const result = await GenerateDocs(
@@ -542,7 +561,22 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				}
 			});
 
-			subscriptions.set(key, { tool: toolUnsub, done: doneUnsub });
+			const todoUnsub = EventsOn("event:llm:todo", (payload) => {
+				try {
+					const evt = todoEventSchema.parse(payload);
+					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+						return;
+					}
+					setDocState(key, (prev) => ({
+						...prev,
+						todos: evt.todos,
+					}));
+				} catch (error) {
+					console.error("Invalid todo event", error, payload);
+				}
+			});
+
+			subscriptions.set(key, { tool: toolUnsub, done: doneUnsub, todo: todoUnsub });
 
 			try {
 				const result = await GenerateDocsFromBranch(

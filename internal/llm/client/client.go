@@ -277,6 +277,7 @@ func (o *LLMClient) StopStream() {
 	defer o.mu.Unlock()
 	if o.workspaceID != "" {
 		tools.ClearSession(o.workspaceID)
+		tools.ClearTodoSession(o.workspaceID)
 		o.workspaceID = ""
 	}
 	o.sessionKey = ""
@@ -1118,7 +1119,63 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		return nil, err
 	}
 
-	return []tool.BaseTool{listTool, readTool, writeTool, editTool}, nil
+	// TodoWrite tool - manage task list for documentation generation
+	todoWriteDesc := tools.ToolDescription("todo_write_tool")
+	if strings.TrimSpace(todoWriteDesc) == "" {
+		todoWriteDesc = "update the task list for the current documentation generation session"
+	}
+	todoWriteWithPolicy := func(ctx context.Context, in *tools.TodoWriteInput) (*tools.TodoWriteOutput, error) {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("TodoWrite: updating task list"))
+		out, err := tools.WriteTodo(ctx, in)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("TodoWrite: error: %v", err)))
+			return nil, err
+		}
+		// Emit the todo update as a special event with metadata
+		if out.Metadata != nil {
+			if todos, ok := out.Metadata["todos"].([]tools.Todo); ok {
+				events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("TodoWrite: %s", out.Title)))
+				// Convert tools.Todo to events.TodoItem for emission
+				todoItems := make([]events.TodoItem, len(todos))
+				for i, todo := range todos {
+					todoItems[i] = events.TodoItem{
+						Content:    todo.Content,
+						ActiveForm: todo.ActiveForm,
+						Status:     string(todo.Status),
+					}
+				}
+				// Emit a special todo update event that frontend can listen to
+				events.EmitTodoUpdate(ctx, todoItems)
+			}
+		}
+		return out, nil
+	}
+	todoWriteTool, err := einoUtils.InferTool("todo_write_tool", todoWriteDesc, todoWriteWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	// TodoRead tool - read the current task list
+	todoReadDesc := tools.ToolDescription("todo_read_tool")
+	if strings.TrimSpace(todoReadDesc) == "" {
+		todoReadDesc = "read the current task list for the documentation generation session"
+	}
+	todoReadWithPolicy := func(ctx context.Context, in *tools.TodoReadInput) (*tools.TodoReadOutput, error) {
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug("TodoRead: reading task list"))
+		out, err := tools.ReadTodo(ctx, in)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("TodoRead: error: %v", err)))
+			return nil, err
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("TodoRead: %s", out.Title)))
+		return out, nil
+	}
+	todoReadTool, err := einoUtils.InferTool("todo_read_tool", todoReadDesc, todoReadWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	return []tool.BaseTool{listTool, readTool, writeTool, editTool, todoWriteTool, todoReadTool}, nil
 }
 
 func (o *LLMClient) withBaseRoot(root string, snapshot *tools.GitSnapshot, fn func() error) error {
