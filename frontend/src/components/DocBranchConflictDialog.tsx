@@ -91,7 +91,6 @@ export const DocBranchConflictDialog = ({
 	const handleDelete = async () => {
 		setBusy(true);
 		try {
-			handleClose(false);
 			await deleteAction({
 				projectId,
 				projectName,
@@ -101,6 +100,7 @@ export const DocBranchConflictDialog = ({
 				modelKey,
 				userInstructions,
 			});
+			handleClose(false);
 		} finally {
 			setBusy(false);
 		}
@@ -113,7 +113,6 @@ export const DocBranchConflictDialog = ({
 		}
 		setBusy(true);
 		try {
-			handleClose(false);
 			await renameAction({
 				projectId,
 				sourceBranch,
@@ -123,6 +122,7 @@ export const DocBranchConflictDialog = ({
 				modelKey,
 				userInstructions,
 			});
+			handleClose(false);
 		} finally {
 			setBusy(false);
 		}
@@ -142,7 +142,7 @@ export const DocBranchConflictDialog = ({
 				<div className="flex flex-col gap-4">
 					<div className="rounded-md border border-border bg-muted/30 p-3">
 						<p className="text-foreground text-sm">
-							{t("common.existingDocsBranch", "Existing docs branch")}:{" "}
+							{t("common.existingDocsBranch")}:{" "}
 							<strong>{existingDocsBranch}</strong>
 						</p>
 					</div>
