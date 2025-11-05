@@ -432,8 +432,10 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 								<SuccessPanel
 									completedCommitInfo={docManager.completedCommitInfo}
 									onStartNewTask={handleStartNewTask}
+									overridenDocsBranch={
+										docManager.docResult?.docsBranch ?? undefined
+									}
 									sourceBranch={successSourceBranch}
-									overridenDocsBranch={docManager.docResult?.docsBranch ?? undefined}
 								/>
 							);
 						}
@@ -606,6 +608,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			{docsBranchConflict && docManager.sourceBranch && modelKey && (
 				<DocBranchConflictDialog
 					existingDocsBranch={docsBranchConflict.existingDocsBranch}
+					isInProgress={docsBranchConflict.isInProgress}
 					mode={docsBranchConflict.mode}
 					modelKey={modelKey}
 					open={true}

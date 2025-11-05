@@ -22,7 +22,9 @@ export const SuccessPanel = ({
 	const { t } = useTranslation();
 	const wasMerge = completedCommitInfo?.wasMerge ?? false;
 
-	const docsBranch = overridenDocsBranch || `docs/${completedCommitInfo?.sourceBranch || sourceBranch || ""}`;
+	const docsBranch =
+		overridenDocsBranch ||
+		`docs/${completedCommitInfo?.sourceBranch || sourceBranch || ""}`;
 
 	const displayBranch = wasMerge
 		? completedCommitInfo?.sourceBranch || sourceBranch
@@ -35,15 +37,25 @@ export const SuccessPanel = ({
 					{wasMerge ? t("common.mergeSuccess") : t("common.commitSuccess")}
 				</h3>
 				<p className="text-green-700 text-sm dark:text-green-300">
-					{wasMerge ? t("common.mergeSuccessDescription") : t("common.commitSuccessDescription")}
+					{wasMerge
+						? t("common.mergeSuccessDescription")
+						: t("common.commitSuccessDescription")}
 				</p>
 			</div>
 			<div className="text-center">
-				<p className="mb-2 text-foreground text-sm">{t("common.documentationAvailable")}:</p>
-				<code className="rounded bg-background px-3 py-2 font-mono text-foreground text-sm shadow-sm">{displayBranch}</code>
+				<p className="mb-2 text-foreground text-sm">
+					{t("common.documentationAvailable")}:
+				</p>
+				<code className="rounded bg-background px-3 py-2 font-mono text-foreground text-sm shadow-sm">
+					{displayBranch}
+				</code>
 			</div>
 			<div className="text-center">
-				<Button className="gap-2 font-semibold" onClick={onStartNewTask} type="button">
+				<Button
+					className="gap-2 font-semibold"
+					onClick={onStartNewTask}
+					type="button"
+				>
 					{t("common.startNewTask")}
 					<ArrowRight className="h-4 w-4" />
 				</Button>

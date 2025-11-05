@@ -8,9 +8,7 @@ import {
 	RefineDocs,
 	StopStream,
 } from "@go/services/ClientService";
-import {
-	DeleteBranchByPath,
-} from "@go/services/GitService";
+import { DeleteBranchByPath } from "@go/services/GitService";
 import { Get as GetRepoLink } from "@go/services/repoLinkService";
 import i18n from "i18next";
 import { parseDiff } from "react-diff-view";
@@ -70,6 +68,7 @@ type DocsBranchConflict = {
 	existingDocsBranch: string;
 	proposedDocsBranch: string;
 	mode: "diff" | "single";
+	isInProgress?: boolean; // true if conflict is due to ongoing generation, false/undefined if branch just exists
 };
 
 type DocGenerationData = {
@@ -195,8 +194,18 @@ const messageFromError = (error: unknown) => {
 const mapErrorCodeToMessage = (errorMessage: string): string => {
 	const trimmed = errorMessage.trim();
 
-	// Map conflict error to a user-friendly message
-	if (trimmed.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
+	// Map conflict errors to user-friendly messages
+	if (
+		trimmed.startsWith("ERR_DOCS_BRANCH_EXISTS_SUGGEST:") ||
+		trimmed.startsWith("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:")
+	) {
+		return i18n.t("common.docsBranchConflict");
+	}
+
+	if (
+		trimmed.startsWith("ERR_DOCS_BRANCH_EXISTS:") ||
+		trimmed.startsWith("ERR_DOCS_GENERATION_IN_PROGRESS:")
+	) {
 		return i18n.t("common.docsBranchExists");
 	}
 
@@ -216,6 +225,45 @@ const extractExistingDocsBranch = (errorMessage: string): string | null => {
 		.slice(idx + "ERR_DOCS_BRANCH_EXISTS:".length)
 		.trim();
 	return after || null;
+};
+
+// Extract branch conflict information from error messages with suggestions
+// Handles formats like:
+// - ERR_DOCS_BRANCH_EXISTS_SUGGEST:docs/feature:docs/feature-2
+// - ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:docs/feature:docs/feature-2
+const extractBranchConflictSuggestion = (
+	errorMessage: string
+): { existing: string; proposed: string; isInProgress: boolean } | null => {
+	const inProgressPrefix = "ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:";
+	const existsPrefix = "ERR_DOCS_BRANCH_EXISTS_SUGGEST:";
+
+	let isInProgress = false;
+	let remainder = "";
+
+	if (errorMessage.startsWith(inProgressPrefix)) {
+		isInProgress = true;
+		remainder = errorMessage.slice(inProgressPrefix.length);
+	} else if (errorMessage.startsWith(existsPrefix)) {
+		isInProgress = false;
+		remainder = errorMessage.slice(existsPrefix.length);
+	} else {
+		return null;
+	}
+
+	// Parse "existing:proposed" format
+	const colonIndex = remainder.indexOf(":");
+	if (colonIndex === -1) {
+		return null;
+	}
+
+	const existing = remainder.slice(0, colonIndex).trim();
+	const proposed = remainder.slice(colonIndex + 1).trim();
+
+	if (!(existing && proposed)) {
+		return null;
+	}
+
+	return { existing, proposed, isInProgress };
 };
 
 const createLocalEvent = (
@@ -469,7 +517,26 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				removeSessionMeta(sessionKey);
 			} catch (error) {
 				const message = messageFromError(error);
-				// Detect conflict and store state to trigger UI dialog
+
+				// Check for conflict with suggestion (new format)
+				const suggestion = extractBranchConflictSuggestion(message);
+				if (suggestion) {
+					setDocState(toKey(projectId), (prev) => ({
+						...prev,
+						error: null,
+						status: "idle",
+						conflict: {
+							existingDocsBranch: suggestion.existing,
+							proposedDocsBranch: suggestion.proposed,
+							mode: "diff",
+							isInProgress: suggestion.isInProgress,
+						},
+						activeTab: "activity",
+					}));
+					return;
+				}
+
+				// Detect conflict (old format, backward compatibility)
 				if (message.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
 					const existing =
 						extractExistingDocsBranch(message) ?? `docs/${sourceBranch}`;
@@ -626,6 +693,26 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				removeSessionMeta(sessionKey);
 			} catch (error) {
 				const message = messageFromError(error);
+
+				// Check for conflict with suggestion (new format)
+				const suggestion = extractBranchConflictSuggestion(message);
+				if (suggestion) {
+					setDocState(toKey(projectId), (prev) => ({
+						...prev,
+						error: null,
+						status: "idle",
+						conflict: {
+							existingDocsBranch: suggestion.existing,
+							proposedDocsBranch: suggestion.proposed,
+							mode: "single",
+							isInProgress: suggestion.isInProgress,
+						},
+						activeTab: "activity",
+					}));
+					return;
+				}
+
+				// Detect conflict (old format, backward compatibility)
 				if (message.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
 					const existing =
 						extractExistingDocsBranch(message) ?? `docs/${sourceBranch}`;
@@ -1265,7 +1352,9 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 							...prev,
 							events: [...prev.events, evt],
 						}));
-					} catch {}
+					} catch (error) {
+						console.error("Invalid refine tool event", error, payload);
+					}
 				});
 				const doneUnsub = EventsOn("events:llm:done", (payload) => {
 					try {

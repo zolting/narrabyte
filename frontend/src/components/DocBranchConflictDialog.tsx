@@ -25,6 +25,7 @@ export type DocBranchConflictDialogProps = {
 	userInstructions: string;
 	existingDocsBranch: string;
 	proposedDocsBranch: string;
+	isInProgress?: boolean;
 };
 
 export const DocBranchConflictDialog = ({
@@ -38,6 +39,7 @@ export const DocBranchConflictDialog = ({
 	userInstructions,
 	existingDocsBranch,
 	proposedDocsBranch,
+	isInProgress = false,
 }: DocBranchConflictDialogProps) => {
 	const { t } = useTranslation();
 
@@ -136,7 +138,9 @@ export const DocBranchConflictDialog = ({
 						{t("common.docsBranchConflictTitle")}
 					</DialogTitle>
 					<DialogDescription className="text-muted-foreground">
-						{t("common.docsBranchConflictDescription")}
+						{isInProgress
+							? t("common.docsBranchConflictInProgressDescription")
+							: t("common.docsBranchConflictDescription")}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="flex flex-col gap-4">
@@ -171,16 +175,18 @@ export const DocBranchConflictDialog = ({
 						</Button>
 					</DialogClose>
 					<div className="flex flex-wrap items-center gap-2">
-						<DialogClose asChild>
-							<Button
-								disabled={busy}
-								onClick={handleDelete}
-								type="button"
-								variant="destructive"
-							>
-								{t("common.deleteCurrentDocsBranch")}
-							</Button>
-						</DialogClose>
+						{!isInProgress && (
+							<DialogClose asChild>
+								<Button
+									disabled={busy}
+									onClick={handleDelete}
+									type="button"
+									variant="destructive"
+								>
+									{t("common.deleteCurrentDocsBranch")}
+								</Button>
+							</DialogClose>
+						)}
 						<DialogClose asChild>
 							<Button
 								disabled={disableConfirm}
