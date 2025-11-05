@@ -14,10 +14,6 @@ export function GenerateDocsFromBranch(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['services']['ClientService']['GenerateDocsFromBranch'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function InitializeLLMClient(arg1) {
-  return window['go']['services']['ClientService']['InitializeLLMClient'](arg1);
-}
-
 export function LoadGenerationSession(arg1, arg2, arg3) {
   return window['go']['services']['ClientService']['LoadGenerationSession'](arg1, arg2, arg3);
 }
@@ -34,6 +30,6 @@ export function Startup(arg1) {
   return window['go']['services']['ClientService']['Startup'](arg1);
 }
 
-export function StopStream() {
-  return window['go']['services']['ClientService']['StopStream']();
+export function StopStream(arg1, arg2) {
+  return window['go']['services']['ClientService']['StopStream'](arg1, arg2);
 }

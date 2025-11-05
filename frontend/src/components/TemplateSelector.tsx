@@ -78,7 +78,9 @@ export const TemplateSelector = ({
 	const [deleteTargetName, setDeleteTargetName] = useState<string | null>(null);
 
 	useEffect(() => {
-		if (!open || templates.length !== 0) return;
+		if (!open || templates.length !== 0) {
+			return;
+		}
 
 		async function loadOnce() {
 			await loadTemplates();

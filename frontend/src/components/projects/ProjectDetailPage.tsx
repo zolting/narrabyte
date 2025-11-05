@@ -7,7 +7,7 @@ import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
 import { useNavigate } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
+import { RefreshCw, Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButtons } from "@/components/ActionButtons";
@@ -93,7 +93,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	useEffect(() => {
 		if (!modelsInitialized) {
-			void initModelSettings();
+			initModelSettings();
 		}
 	}, [initModelSettings, modelsInitialized]);
 
@@ -250,16 +250,19 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			}
 			docManager.startDocGeneration({
 				projectId: Number(project.ID),
+				projectName: project.ProjectName,
 				sourceBranch: branchManager.sourceBranch,
 				targetBranch: branchManager.targetBranch,
 				modelKey,
 				userInstructions: instructions,
 			});
 		} else if (mode === "single") {
+			const targetBranch = "";
 			docManager.startSingleBranchGeneration?.({
 				projectId: Number(project.ID),
+				projectName: project.ProjectName,
 				sourceBranch: branchManager.sourceBranch,
-				targetBranch: "",
+				targetBranch,
 				modelKey,
 				userInstructions: instructions,
 			});
@@ -286,9 +289,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			branchManager.targetBranch ||
 			"";
 		if (source && target) {
-			Promise.resolve(Delete(Number(projectId), source, target)).catch(
-				() => {}
-			);
+			Promise.resolve(Delete(Number(projectId), source, target)).catch(() => {
+				return;
+			});
 		}
 	}, [
 		branchManager.sourceBranch,
@@ -412,6 +415,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							<Settings size={16} />
 							{t("common.settings")}
 						</Button>
+						<Button
+							onClick={branchManager.fetchBranches}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							<RefreshCw className="h-4 w-4" />
+						</Button>
 					</div>
 				</header>
 				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
@@ -513,6 +524,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 										</Button>
 									</div>
 								</div>
+
 								{mode === "diff" ? (
 									<BranchSelector
 										branches={branchManager.branches}

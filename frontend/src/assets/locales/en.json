@@ -263,7 +263,11 @@
     "loading": "Loading Session...",
     "loadSession": "Load Session",
     "deleteSession": "Delete Session",
-    "deleteConfirm": "Are you sure you want to delete this session ?"
+    "deleteConfirm": "Are you sure you want to delete this session ?",
+    "running": "Running",
+    "current": "Current generations",
+    "statusRunning": "Generating",
+    "statusCommitting": "Committing"
   },
   "projectSettings": {
     "title": "Project Settings",

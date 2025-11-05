@@ -60,11 +60,11 @@ type ListDirectoryOutput struct {
 
 // ListDirectory produces a simple textual tree listing similar to the TS tool.
 func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, error) {
-	snapshot := CurrentGitSnapshot()
+	snapshot := currentGitSnapshot(ctx)
 	snapshotInfo := formatSnapshotInfo(snapshot)
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: starting [%s]", snapshotInfo)))
 
-	base, err := getListDirectoryBaseRoot()
+	base, err := getListDirectoryBaseRoot(ctx)
 	if err != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory: base root error: %v", err)))
 		return &ListDirectoryOutput{
@@ -147,7 +147,7 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 
 	// Compose ignore patterns
 	patterns := append([]string{}, DefaultIgnorePatterns...)
-	patterns = append(patterns, GetScopedIgnorePatterns()...)
+	patterns = append(patterns, scopedIgnorePatterns(ctx)...)
 	if in != nil && len(in.Ignore) > 0 {
 		patterns = append(patterns, in.Ignore...)
 	}
@@ -157,7 +157,7 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 		limited bool
 	)
 
-	if snapshot := CurrentGitSnapshot(); snapshot != nil {
+	if snapshot := currentGitSnapshot(ctx); snapshot != nil {
 		rel, relErr := snapshot.relativeFromAbs(searchPath)
 		if relErr != nil {
 			if errors.Is(relErr, ErrSnapshotEscapes) {
