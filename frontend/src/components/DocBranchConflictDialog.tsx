@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
@@ -90,6 +91,7 @@ export const DocBranchConflictDialog = ({
 	const handleDelete = async () => {
 		setBusy(true);
 		try {
+			handleClose(false);
 			await deleteAction({
 				projectId,
 				projectName,
@@ -99,7 +101,6 @@ export const DocBranchConflictDialog = ({
 				modelKey,
 				userInstructions,
 			});
-			handleClose(false);
 		} finally {
 			setBusy(false);
 		}
@@ -112,6 +113,7 @@ export const DocBranchConflictDialog = ({
 		}
 		setBusy(true);
 		try {
+			handleClose(false);
 			await renameAction({
 				projectId,
 				sourceBranch,
@@ -121,7 +123,6 @@ export const DocBranchConflictDialog = ({
 				modelKey,
 				userInstructions,
 			});
-			handleClose(false);
 		} finally {
 			setBusy(false);
 		}
@@ -129,7 +130,7 @@ export const DocBranchConflictDialog = ({
 
 	return (
 		<Dialog onOpenChange={handleClose} open={open}>
-			<DialogContent className="sm:max-w-lg">
+			<DialogContent className="w-auto max-w-none sm:max-w-none md:max-w-none">
 				<DialogHeader>
 					<DialogTitle className="text-foreground text-lg">
 						{t("common.docsBranchConflictTitle")}
@@ -158,31 +159,37 @@ export const DocBranchConflictDialog = ({
 						/>
 					</div>
 				</div>
-				<DialogFooter className="gap-2 sm:justify-between">
-					<Button
-						disabled={busy}
-						onClick={() => handleClose(false)}
-						type="button"
-						variant="secondary"
-					>
-						{t("common.cancel")}
-					</Button>
-					<div className="flex items-center gap-2">
+				<DialogFooter className="gap-2 sm:flex-wrap sm:justify-between">
+					<DialogClose asChild>
 						<Button
 							disabled={busy}
-							onClick={handleDelete}
+							onClick={() => handleClose(false)}
 							type="button"
-							variant="destructive"
+							variant="secondary"
 						>
-							{t("common.deleteCurrentDocsBranch")}
+							{t("common.cancel")}
 						</Button>
-						<Button
-							disabled={disableConfirm}
-							onClick={handleRename}
-							type="button"
-						>
-							{t("common.useBranchOption", { branch: newName || "" })}
-						</Button>
+					</DialogClose>
+					<div className="flex flex-wrap items-center gap-2">
+						<DialogClose asChild>
+							<Button
+								disabled={busy}
+								onClick={handleDelete}
+								type="button"
+								variant="destructive"
+							>
+								{t("common.deleteCurrentDocsBranch")}
+							</Button>
+						</DialogClose>
+						<DialogClose asChild>
+							<Button
+								disabled={disableConfirm}
+								onClick={handleRename}
+								type="button"
+							>
+								{t("common.useBranchOption", { branch: newName || "" })}
+							</Button>
+						</DialogClose>
 					</div>
 				</DialogFooter>
 			</DialogContent>
