@@ -133,6 +133,7 @@ type State = {
 	clearSessionMeta: (projectId: number, sourceBranch: string) => void;
 	resolveDocsBranchConflictByDelete: (args: {
 		projectId: number;
+		projectName: string;
 		sourceBranch: string;
 		mode: "diff" | "single";
 		// for diff mode, also need targetBranch & modelKey & userInstructions to restart
@@ -1149,6 +1150,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 		resolveDocsBranchConflictByDelete: async ({
 			projectId,
+			projectName,
 			sourceBranch,
 			mode,
 			targetBranch,
@@ -1190,6 +1192,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				if (mode === "diff") {
 					await get().start({
 						projectId,
+						projectName,
 						sourceBranch,
 						targetBranch: targetBranch ?? "",
 						modelKey,
@@ -1339,6 +1342,4 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}
 		},
 	};
-
-	return store;
 });

@@ -332,15 +332,15 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 
 	if strings.TrimSpace(docsBranchOverride) != "" {
 		emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
-		"GenerateDocs: starting for project %s (%s -> %s) using %s via %s into %s",
-		project.ProjectName, targetBranch, sourceBranch, runtime.modelDisplay, runtime.providerLabel, docsBranchOverride,
-	))
-} else {
-	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
-		"GenerateDocs: starting for project %s (%s -> %s) using %s via %s",
-		project.ProjectName, targetBranch, sourceBranch, runtime.modelDisplay, runtime.providerLabel,
-	))
-}
+			"GenerateDocs: starting for project %s (%s -> %s) using %s via %s into %s",
+			project.ProjectName, targetBranch, sourceBranch, runtime.modelDisplay, runtime.providerLabel, docsBranchOverride,
+		))
+	} else {
+		emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
+			"GenerateDocs: starting for project %s (%s -> %s) using %s via %s",
+			project.ProjectName, targetBranch, sourceBranch, runtime.modelDisplay, runtime.providerLabel,
+		))
+	}
 
 	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
 	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
@@ -1595,6 +1595,7 @@ func copyNarrabyteDir(ctx context.Context, sessionKey string, sourceDocsPath, de
 	return nil
 }
 
+// removeNarrabyteDir removes the temporary .narrabyte directory if it exists
 func removeNarrabyteDir(ctx context.Context, sessionKey string, docsPath string) error {
 	dir := filepath.Join(docsPath, ".narrabyte")
 	if !utils.DirectoryExists(dir) {
@@ -1842,10 +1843,17 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, fmt.Errorf("project not found")
 	}
 
-	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
-		"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s",
-		project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel,
-	))
+	if docsBranchOverride != "" {
+		emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
+			"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s into %s",
+			project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel, docsBranchOverride,
+		))
+	} else {
+		emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
+			"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s",
+			project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel,
+		))
+	}
 
 	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
 	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
@@ -1880,7 +1888,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, err
 	}
 
-	// Open documentation repo and ensure the docs branch exists
+	// Open documentation repo
 	docRepo, err := s.gitService.Open(docCfg.RepoRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open documentation repository: %w", err)
@@ -1903,6 +1911,12 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		}
 	}
 
+	// Determine destination docs branch name
+	docsBranch := documentationBranchName(branch)
+	if docsBranchOverride != "" {
+		docsBranch = docsBranchOverride
+	}
+
 	// Ensure destination docs branch name is available
 	exists, err := s.gitService.BranchExists(docRepo, docsBranch)
 	if err != nil {
@@ -1914,10 +1928,10 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 
 	runtime.targetBranch = baseBranch
 
-	docsBranch := documentationBranchName(branch)
 	refName := plumbing.NewBranchReferenceName(docsBranch)
 	if _, err := docRepo.Reference(refName, true); err != nil {
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			// Create docs branch pointing to base commit
 			if err := docRepo.Storer.SetReference(plumbing.NewHashReference(refName, baseHash)); err != nil {
 				return nil, fmt.Errorf("failed to create documentation branch '%s': %w", docsBranch, err)
 			}
@@ -1966,6 +1980,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		}
 	}
 
+	// Propagate changes from temporary repository back to main repository
 	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}

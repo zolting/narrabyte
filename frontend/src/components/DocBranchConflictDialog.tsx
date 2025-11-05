@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import { useDocGenerationStore } from "@/stores/docGeneration";
 
 export type DocBranchConflictDialogProps = {
 	projectId: number;
+	projectName: string;
 	sourceBranch: string;
 	open: boolean;
 	mode: "diff" | "single";
@@ -27,6 +28,7 @@ export type DocBranchConflictDialogProps = {
 
 export const DocBranchConflictDialog = ({
 	projectId,
+	projectName,
 	sourceBranch,
 	open,
 	mode,
@@ -42,7 +44,9 @@ export const DocBranchConflictDialog = ({
 		(name: string): string => {
 			const base = (name ?? "").trim();
 			const existing = (existingDocsBranch ?? "").trim();
-			if (!base) return base;
+			if (!base) {
+				return base;
+			}
 			if (base === existing) {
 				return base.endsWith("-2") ? base : `${base}-2`;
 			}
@@ -88,6 +92,7 @@ export const DocBranchConflictDialog = ({
 		try {
 			await deleteAction({
 				projectId,
+				projectName,
 				sourceBranch,
 				mode,
 				targetBranch,

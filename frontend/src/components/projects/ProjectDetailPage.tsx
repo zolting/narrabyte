@@ -610,6 +610,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					modelKey={modelKey}
 					open={true}
 					projectId={Number(project?.ID ?? projectId)}
+					projectName={project.ProjectName}
 					proposedDocsBranch={docsBranchConflict.proposedDocsBranch}
 					sourceBranch={docManager.sourceBranch}
 					targetBranch={branchManager.targetBranch ?? undefined}
