@@ -17,6 +17,21 @@ export const useBranchManager = (repoPath: string | undefined) => {
 		setTargetOpen(false);
 	}, []);
 
+	const fetchBranches = useCallback(() => {
+		if (!repoPath) {
+			setBranches([]);
+			setSourceBranch(undefined);
+			setTargetBranch(undefined);
+			return;
+		}
+
+		ListBranchesByPath(repoPath)
+			.then((arr) => {
+				setBranches(sortBranches(arr));
+			})
+			.catch((err) => console.error("failed to fetch branches:", err));
+	}, [repoPath]);
+
 	const swapBranches = useCallback(() => {
 		setSourceBranch((currentSource) => {
 			const next = targetBranch;
@@ -61,5 +76,6 @@ export const useBranchManager = (repoPath: string | undefined) => {
 		setTargetOpen,
 		swapBranches,
 		resetBranches,
+		fetchBranches,
 	};
 };
