@@ -35,7 +35,7 @@ function Settings() {
 
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [editingProvider, setEditingProvider] = useState<string | undefined>(
-		undefined
+		undefined,
 	);
 	const apiKeyManagerRef = useRef<{ refresh: () => void }>(null);
 	const theme = settings?.Theme ?? "system";
@@ -141,6 +141,25 @@ function Settings() {
 											<SelectItem value="en">English</SelectItem>
 											<SelectItem value="fr">Français</SelectItem>
 										</SelectContent>
+									</Select>
+								</div>
+
+								<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+									<div>
+										<div className="font-medium">{t("settings.model")}</div>
+										<div className="text-muted-foreground text-sm">
+											{t("settings.selectModel")}
+										</div>
+									</div>
+									<Select
+										disabled={isLoading}
+										onValueChange={(value) => setTheme(value as AppTheme)}
+										value={theme}
+									>
+										<SelectTrigger className="w-full sm:w-[180px]">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent></SelectContent>
 									</Select>
 								</div>
 							</CardContent>

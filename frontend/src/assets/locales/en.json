@@ -158,6 +158,8 @@
     "selectTheme": "Choose your interface theme",
     "language": "Language",
     "selectLanguage": "Select your preferred language",
+	"model": "Default Model",
+	"selectModel": "Select your default model",
     "light": "Light",
     "dark": "Dark",
     "system": "System",
