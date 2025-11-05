@@ -38,14 +38,16 @@ type sessionRuntime struct {
 }
 
 type ClientService struct {
-	context            context.Context
-	repoLinks          RepoLinkService
-	gitService         *GitService
-	keyringService     *KeyringService
-	generationSessions GenerationSessionService
-	modelConfigs       ModelConfigService
-	sessionMu          sync.RWMutex
-	sessionRuntimes    map[string]*sessionRuntime
+	context                context.Context
+	repoLinks              RepoLinkService
+	gitService             *GitService
+	keyringService         *KeyringService
+	generationSessions     GenerationSessionService
+	modelConfigs           ModelConfigService
+	sessionMu              sync.RWMutex
+	sessionRuntimes        map[string]*sessionRuntime
+	docsBranchesMu         sync.Mutex
+	inProgressDocsBranches map[string]bool
 }
 
 func (s *ClientService) Startup(ctx context.Context) error {
@@ -70,12 +72,13 @@ func (s *ClientService) Startup(ctx context.Context) error {
 
 func NewClientService(repoLinks RepoLinkService, gitService *GitService, keyringService *KeyringService, genSessions GenerationSessionService, modelConfigs ModelConfigService) *ClientService {
 	return &ClientService{
-		repoLinks:          repoLinks,
-		gitService:         gitService,
-		keyringService:     keyringService,
-		generationSessions: genSessions,
-		modelConfigs:       modelConfigs,
-		sessionRuntimes:    make(map[string]*sessionRuntime),
+		repoLinks:              repoLinks,
+		gitService:             gitService,
+		keyringService:         keyringService,
+		generationSessions:     genSessions,
+		modelConfigs:           modelConfigs,
+		sessionRuntimes:        make(map[string]*sessionRuntime),
+		inProgressDocsBranches: make(map[string]bool),
 	}
 }
 
@@ -211,6 +214,57 @@ func (s *ClientService) deleteSessionRuntime(sessionKey string) {
 	delete(s.sessionRuntimes, sessionKey)
 }
 
+// markDocsBranchInProgress attempts to mark a documentation branch as in-progress.
+// Returns an error if the branch is already being generated.
+func (s *ClientService) markDocsBranchInProgress(docsBranch string) error {
+	s.docsBranchesMu.Lock()
+	defer s.docsBranchesMu.Unlock()
+	if s.inProgressDocsBranches[docsBranch] {
+		return fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS:%s", docsBranch)
+	}
+	s.inProgressDocsBranches[docsBranch] = true
+	return nil
+}
+
+// unmarkDocsBranchInProgress removes a documentation branch from the in-progress tracking.
+func (s *ClientService) unmarkDocsBranchInProgress(docsBranch string) {
+	s.docsBranchesMu.Lock()
+	defer s.docsBranchesMu.Unlock()
+	delete(s.inProgressDocsBranches, docsBranch)
+}
+
+// isDocsBranchInProgress checks if a docs branch is currently being generated.
+func (s *ClientService) isDocsBranchInProgress(docsBranch string) bool {
+	s.docsBranchesMu.Lock()
+	defer s.docsBranchesMu.Unlock()
+	return s.inProgressDocsBranches[docsBranch]
+}
+
+// suggestAlternativeDocsBranch generates an alternative branch name by appending a numeric suffix.
+// It checks both existing branches and in-progress generations to find an available name.
+func (s *ClientService) suggestAlternativeDocsBranch(repo *git.Repository, baseName string) (string, error) {
+	// Try numeric suffixes starting from 2
+	for i := 2; i <= 100; i++ {
+		candidate := fmt.Sprintf("%s-%d", baseName, i)
+
+		// Check if already being generated
+		if s.isDocsBranchInProgress(candidate) {
+			continue
+		}
+
+		// Check if branch exists in repository
+		exists, err := s.gitService.BranchExists(repo, candidate)
+		if err != nil {
+			return "", fmt.Errorf("failed to check branch existence: %w", err)
+		}
+		if !exists {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("could not find available branch name after 100 attempts")
+}
+
 func (s *ClientService) ensureRuntimeFromSessions(ctx context.Context, projectID uint, sourceBranch, targetBranch, sessionKey string) (*sessionRuntime, error) {
 	if runtime, ok := s.getSessionRuntime(sessionKey); ok && runtime != nil {
 		return runtime, nil
@@ -289,7 +343,7 @@ func emitSessionDebug(ctx context.Context, sessionKey string, message string) {
 	events.Emit(ctx, events.LLMEventTool, evt)
 }
 
-func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, modelKey string, userInstructions string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, modelKey string, userInstructions string, docsBranchOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
@@ -297,6 +351,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	sourceBranch = strings.TrimSpace(sourceBranch)
 	targetBranch = strings.TrimSpace(targetBranch)
 	modelKey = strings.TrimSpace(modelKey)
+	docsBranchOverride = strings.TrimSpace(docsBranchOverride)
 	if projectID == 0 {
 		return nil, fmt.Errorf("project id is required")
 	}
@@ -329,17 +384,23 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("project not found")
 	}
 
-	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
-		"GenerateDocs: starting for project %s (%s -> %s) using %s via %s",
-		project.ProjectName, targetBranch, sourceBranch, runtime.modelDisplay, runtime.providerLabel,
-	))
+	if strings.TrimSpace(docsBranchOverride) != "" {
+		emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
+			"GenerateDocs: starting for project %s (%s -> %s) using %s via %s into %s",
+			project.ProjectName, targetBranch, sourceBranch, runtime.modelDisplay, runtime.providerLabel, docsBranchOverride,
+		))
+	} else {
+		emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
+			"GenerateDocs: starting for project %s (%s -> %s) using %s via %s",
+			project.ProjectName, targetBranch, sourceBranch, runtime.modelDisplay, runtime.providerLabel,
+		))
+	}
 
 	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
 	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
 	if codeRepoPath == "" || docRepoPath == "" {
 		return nil, fmt.Errorf("project repositories are not configured")
 	}
-
 	if !utils.DirectoryExists(codeRepoPath) {
 		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
 	}
@@ -422,7 +483,41 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		}
 	}
 
+	// Choose docs branch: override if provided, else default docs/<source>
 	docsBranch := documentationBranchName(sourceBranch)
+	if docsBranchOverride != "" {
+		docsBranch = docsBranchOverride
+	}
+
+	// Check if branch is already being generated
+	if s.isDocsBranchInProgress(docsBranch) {
+		// Suggest an alternative branch name
+		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
+		if suggestErr != nil {
+			return nil, fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS:%s", docsBranch)
+		}
+		return nil, fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:%s:%s", docsBranch, suggested)
+	}
+
+	// PRE-CHECK: prevent silently overwriting an existing docs/<source> branch
+	exists, err := s.gitService.BranchExists(docRepo, docsBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check documentation branch existence: %w", err)
+	}
+	if exists {
+		// Suggest an alternative branch name
+		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
+		if suggestErr != nil {
+			return nil, fmt.Errorf("ERR_DOCS_BRANCH_EXISTS:%s", docsBranch)
+		}
+		return nil, fmt.Errorf("ERR_DOCS_BRANCH_EXISTS_SUGGEST:%s:%s", docsBranch, suggested)
+	}
+
+	// Mark this docs branch as in-progress to prevent concurrent generations
+	if err := s.markDocsBranchInProgress(docsBranch); err != nil {
+		return nil, err
+	}
+	defer s.unmarkDocsBranchInProgress(docsBranch)
 
 	// Create temporary documentation repository (isolated from working directory)
 	tempWorkspace, cleanup, err := createTempDocRepo(ctx, sessionKey, docCfg, docsBranch, baseBranch, baseHash)
@@ -533,6 +628,17 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 
 	docsBranch := documentationBranchName(sourceBranch)
 	sessionKey := makeSessionKey(projectID, sourceBranch)
+
+	// Check if this docs branch is already being refined/generated
+	if s.isDocsBranchInProgress(docsBranch) {
+		return nil, fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS:%s", docsBranch)
+	}
+
+	// Mark this docs branch as in-progress to prevent concurrent refinements
+	if err := s.markDocsBranchInProgress(docsBranch); err != nil {
+		return nil, err
+	}
+	defer s.unmarkDocsBranchInProgress(docsBranch)
 
 	runtime, err := s.ensureRuntimeFromSessions(ctx, projectID, sourceBranch, "", sessionKey)
 	if err != nil {
@@ -1574,6 +1680,7 @@ func copyNarrabyteDir(ctx context.Context, sessionKey string, sourceDocsPath, de
 	return nil
 }
 
+// removeNarrabyteDir removes the temporary .narrabyte directory if it exists
 func removeNarrabyteDir(ctx context.Context, sessionKey string, docsPath string) error {
 	dir := filepath.Join(docsPath, ".narrabyte")
 	if !utils.DirectoryExists(dir) {
@@ -1787,13 +1894,14 @@ func describeStatus(st git.FileStatus) string {
 	}
 }
 
-func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, modelKey string, userInstructions string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, modelKey string, userInstructions string, docsBranchOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
 	}
 	branch = strings.TrimSpace(branch)
 	modelKey = strings.TrimSpace(modelKey)
+	docsBranchOverride = strings.TrimSpace(docsBranchOverride)
 	if projectID == 0 {
 		return nil, fmt.Errorf("project id is required")
 	}
@@ -1820,10 +1928,17 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, fmt.Errorf("project not found")
 	}
 
-	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
-		"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s",
-		project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel,
-	))
+	if docsBranchOverride != "" {
+		emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
+			"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s into %s",
+			project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel, docsBranchOverride,
+		))
+	} else {
+		emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
+			"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s",
+			project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel,
+		))
+	}
 
 	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
 	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
@@ -1858,6 +1973,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, err
 	}
 
+	// Open documentation repo
 	docRepo, err := s.gitService.Open(docCfg.RepoRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open documentation repository: %w", err)
@@ -1879,12 +1995,49 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 			return nil, err
 		}
 	}
+
+	// Determine destination docs branch name
+	docsBranch := documentationBranchName(branch)
+	if docsBranchOverride != "" {
+		docsBranch = docsBranchOverride
+	}
+
+	// Check if branch is already being generated
+	if s.isDocsBranchInProgress(docsBranch) {
+		// Suggest an alternative branch name
+		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
+		if suggestErr != nil {
+			return nil, fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS:%s", docsBranch)
+		}
+		return nil, fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:%s:%s", docsBranch, suggested)
+	}
+
+	// Ensure destination docs branch name is available
+	exists, err := s.gitService.BranchExists(docRepo, docsBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check documentation branch existence: %w", err)
+	}
+	if exists {
+		// Suggest an alternative branch name
+		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
+		if suggestErr != nil {
+			return nil, fmt.Errorf("ERR_DOCS_BRANCH_EXISTS:%s", docsBranch)
+		}
+		return nil, fmt.Errorf("ERR_DOCS_BRANCH_EXISTS_SUGGEST:%s:%s", docsBranch, suggested)
+	}
+
+	// Mark this docs branch as in-progress to prevent concurrent generations
+	if err := s.markDocsBranchInProgress(docsBranch); err != nil {
+		return nil, err
+	}
+	defer s.unmarkDocsBranchInProgress(docsBranch)
+
 	runtime.targetBranch = baseBranch
 
-	docsBranch := documentationBranchName(branch)
 	refName := plumbing.NewBranchReferenceName(docsBranch)
 	if _, err := docRepo.Reference(refName, true); err != nil {
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
+			// Create docs branch pointing to base commit
 			if err := docRepo.Storer.SetReference(plumbing.NewHashReference(refName, baseHash)); err != nil {
 				return nil, fmt.Errorf("failed to create documentation branch '%s': %w", docsBranch, err)
 			}
@@ -1933,6 +2086,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		}
 	}
 
+	// Propagate changes from temporary repository back to main repository
 	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}

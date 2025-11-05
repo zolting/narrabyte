@@ -8,6 +8,8 @@ import {
 	RefineDocs,
 	StopStream,
 } from "@go/services/ClientService";
+import { DeleteBranchByPath } from "@go/services/GitService";
+import { Get as GetRepoLink } from "@go/services/repoLinkService";
 import i18n from "i18next";
 import { parseDiff } from "react-diff-view";
 import { create } from "zustand";
@@ -62,6 +64,13 @@ type ChatMessage = {
 	createdAt: Date;
 };
 
+type DocsBranchConflict = {
+	existingDocsBranch: string;
+	proposedDocsBranch: string;
+	mode: "diff" | "single";
+	isInProgress?: boolean; // true if conflict is due to ongoing generation, false/undefined if branch just exists
+};
+
 type DocGenerationData = {
 	projectId: number;
 	projectName: string;
@@ -83,6 +92,7 @@ type DocGenerationData = {
 	docsInCodeRepo: boolean;
 	docsBranch: string | null;
 	mergeInProgress: boolean;
+	conflict?: DocsBranchConflict | null;
 };
 
 type State = {
@@ -120,6 +130,26 @@ type State = {
 		sessionKey: SessionKey | null
 	) => void;
 	clearSessionMeta: (projectId: number, sourceBranch: string) => void;
+	resolveDocsBranchConflictByDelete: (args: {
+		projectId: number;
+		projectName: string;
+		sourceBranch: string;
+		mode: "diff" | "single";
+		// for diff mode, also need targetBranch & modelKey & userInstructions to restart
+		targetBranch?: string;
+		modelKey: string;
+		userInstructions: string;
+	}) => Promise<void>;
+	resolveDocsBranchConflictByRename: (args: {
+		projectId: number;
+		sourceBranch: string;
+		newDocsBranch: string;
+		mode: "diff" | "single";
+		targetBranch?: string;
+		modelKey: string;
+		userInstructions: string;
+	}) => Promise<void>;
+	clearConflict: (projectId: number | string) => void;
 };
 
 const EMPTY_DOC_STATE: DocGenerationData = {
@@ -164,16 +194,76 @@ const messageFromError = (error: unknown) => {
 const mapErrorCodeToMessage = (errorMessage: string): string => {
 	const trimmed = errorMessage.trim();
 
-	// Check for specific error codes
-	if (trimmed === "ERR_UNCOMMITTED_CHANGES_ON_SOURCE_BRANCH") {
-		return i18n.t(
-			"common.mergeDisabledUncommittedChanges",
-			"Cannot merge: You are currently on the source branch with uncommitted changes. Please commit or stash your changes first."
-		);
+	// Map conflict errors to user-friendly messages
+	if (
+		trimmed.startsWith("ERR_DOCS_BRANCH_EXISTS_SUGGEST:") ||
+		trimmed.startsWith("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:")
+	) {
+		return i18n.t("common.docsBranchConflict");
 	}
 
-	// Return original message if no mapping found
+	if (
+		trimmed.startsWith("ERR_DOCS_BRANCH_EXISTS:") ||
+		trimmed.startsWith("ERR_DOCS_GENERATION_IN_PROGRESS:")
+	) {
+		return i18n.t("common.docsBranchExists");
+	}
+
+	// Check for specific error codes
+	if (trimmed === "ERR_UNCOMMITTED_CHANGES_ON_SOURCE_BRANCH") {
+		return i18n.t("common.mergeDisabledUncommittedChanges");
+	}
 	return errorMessage;
+};
+
+const extractExistingDocsBranch = (errorMessage: string): string | null => {
+	const idx = errorMessage.indexOf("ERR_DOCS_BRANCH_EXISTS:");
+	if (idx === -1) {
+		return null;
+	}
+	const after = errorMessage
+		.slice(idx + "ERR_DOCS_BRANCH_EXISTS:".length)
+		.trim();
+	return after || null;
+};
+
+// Extract branch conflict information from error messages with suggestions
+// Handles formats like:
+// - ERR_DOCS_BRANCH_EXISTS_SUGGEST:docs/feature:docs/feature-2
+// - ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:docs/feature:docs/feature-2
+const extractBranchConflictSuggestion = (
+	errorMessage: string
+): { existing: string; proposed: string; isInProgress: boolean } | null => {
+	const inProgressPrefix = "ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:";
+	const existsPrefix = "ERR_DOCS_BRANCH_EXISTS_SUGGEST:";
+
+	let isInProgress = false;
+	let remainder = "";
+
+	if (errorMessage.startsWith(inProgressPrefix)) {
+		isInProgress = true;
+		remainder = errorMessage.slice(inProgressPrefix.length);
+	} else if (errorMessage.startsWith(existsPrefix)) {
+		isInProgress = false;
+		remainder = errorMessage.slice(existsPrefix.length);
+	} else {
+		return null;
+	}
+
+	// Parse "existing:proposed" format
+	const colonIndex = remainder.indexOf(":");
+	if (colonIndex === -1) {
+		return null;
+	}
+
+	const existing = remainder.slice(0, colonIndex).trim();
+	const proposed = remainder.slice(colonIndex + 1).trim();
+
+	if (!(existing && proposed)) {
+		return null;
+	}
+
+	return { existing, proposed, isInProgress };
 };
 
 const createLocalEvent = (
@@ -248,7 +338,7 @@ const clearSubscriptions = (key: ProjectKey) => {
 	subscriptions.delete(key);
 };
 
-export const useDocGenerationStore = create<State>((set, get) => {
+export const useDocGenerationStore = create<State>((set, get, _api) => {
 	const setDocState = (
 		key: ProjectKey,
 		partial:
@@ -411,7 +501,8 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					sourceBranch,
 					targetBranch,
 					modelKey,
-					userInstructions
+					userInstructions,
+					""
 				);
 				setDocState(key, {
 					result,
@@ -426,8 +517,45 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				removeSessionMeta(sessionKey);
 			} catch (error) {
 				const message = messageFromError(error);
+
+				// Check for conflict with suggestion (new format)
+				const suggestion = extractBranchConflictSuggestion(message);
+				if (suggestion) {
+					setDocState(toKey(projectId), (prev) => ({
+						...prev,
+						error: null,
+						status: "idle",
+						conflict: {
+							existingDocsBranch: suggestion.existing,
+							proposedDocsBranch: suggestion.proposed,
+							mode: "diff",
+							isInProgress: suggestion.isInProgress,
+						},
+						activeTab: "activity",
+					}));
+					return;
+				}
+
+				// Detect conflict (old format, backward compatibility)
+				if (message.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
+					const existing =
+						extractExistingDocsBranch(message) ?? `docs/${sourceBranch}`;
+					setDocState(toKey(projectId), (prev) => ({
+						...prev,
+						error: null,
+						status: "idle",
+						conflict: {
+							existingDocsBranch: existing,
+							proposedDocsBranch: existing,
+							mode: "diff",
+						},
+						activeTab: "activity",
+					}));
+					return;
+				}
+				// ...existing non-conflict error handling...
 				const normalized = message.toLowerCase();
-				const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
+				const docState = get().docStates[toKey(projectId)] ?? EMPTY_DOC_STATE;
 				const canceled =
 					docState.cancellationRequested ||
 					normalized.includes("context canceled") ||
@@ -435,7 +563,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					normalized.includes("cancelled") ||
 					normalized.includes("canceled");
 				if (canceled) {
-					setDocState(key, (prev) => ({
+					setDocState(toKey(projectId), (prev) => ({
 						...prev,
 						error: null,
 						result: null,
@@ -450,8 +578,8 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						],
 					}));
 				} else {
-					setDocState(key, {
-						error: message,
+					setDocState(toKey(projectId), {
+						error: mapErrorCodeToMessage(message),
 						status: "error",
 						cancellationRequested: false,
 						result: null,
@@ -460,8 +588,8 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				}
 				removeSessionMeta(sessionKey);
 			} finally {
-				clearSubscriptions(key);
-				setDocState(key, { cancellationRequested: false });
+				clearSubscriptions(toKey(projectId));
+				setDocState(toKey(projectId), { cancellationRequested: false });
 			}
 		},
 
@@ -549,7 +677,8 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					projectId,
 					sourceBranch,
 					modelKey,
-					userInstructions
+					userInstructions,
+					""
 				);
 				setDocState(key, {
 					result,
@@ -564,8 +693,45 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				removeSessionMeta(sessionKey);
 			} catch (error) {
 				const message = messageFromError(error);
+
+				// Check for conflict with suggestion (new format)
+				const suggestion = extractBranchConflictSuggestion(message);
+				if (suggestion) {
+					setDocState(toKey(projectId), (prev) => ({
+						...prev,
+						error: null,
+						status: "idle",
+						conflict: {
+							existingDocsBranch: suggestion.existing,
+							proposedDocsBranch: suggestion.proposed,
+							mode: "single",
+							isInProgress: suggestion.isInProgress,
+						},
+						activeTab: "activity",
+					}));
+					return;
+				}
+
+				// Detect conflict (old format, backward compatibility)
+				if (message.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
+					const existing =
+						extractExistingDocsBranch(message) ?? `docs/${sourceBranch}`;
+					setDocState(toKey(projectId), (prev) => ({
+						...prev,
+						error: null,
+						status: "idle",
+						conflict: {
+							existingDocsBranch: existing,
+							proposedDocsBranch: existing,
+							mode: "single",
+						},
+						activeTab: "activity",
+					}));
+					return;
+				}
+				// ...existing non-conflict handling...
 				const normalized = message.toLowerCase();
-				const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
+				const docState = get().docStates[toKey(projectId)] ?? EMPTY_DOC_STATE;
 				const canceled =
 					docState.cancellationRequested ||
 					normalized.includes("context canceled") ||
@@ -573,7 +739,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					normalized.includes("cancelled") ||
 					normalized.includes("canceled");
 				if (canceled) {
-					setDocState(key, (prev) => ({
+					setDocState(toKey(projectId), (prev) => ({
 						...prev,
 						error: null,
 						result: null,
@@ -588,8 +754,8 @@ export const useDocGenerationStore = create<State>((set, get) => {
 						],
 					}));
 				} else {
-					setDocState(key, {
-						error: message,
+					setDocState(toKey(projectId), {
+						error: mapErrorCodeToMessage(message),
 						status: "error",
 						cancellationRequested: false,
 						result: null,
@@ -598,8 +764,8 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				}
 				removeSessionMeta(sessionKey);
 			} finally {
-				clearSubscriptions(key);
-				setDocState(key, { cancellationRequested: false });
+				clearSubscriptions(toKey(projectId));
+				setDocState(toKey(projectId), { cancellationRequested: false });
 			}
 		},
 
@@ -1061,6 +1227,207 @@ export const useDocGenerationStore = create<State>((set, get) => {
 					],
 				});
 				return false;
+			}
+		},
+
+		clearConflict: (projectId: number | string) => {
+			const key = toKey(projectId);
+			setDocState(key, { conflict: null, error: null });
+		},
+
+		resolveDocsBranchConflictByDelete: async ({
+			projectId,
+			projectName,
+			sourceBranch,
+			mode,
+			targetBranch,
+			modelKey,
+			userInstructions,
+		}) => {
+			const key = toKey(projectId);
+			const state = get().docStates[key] ?? EMPTY_DOC_STATE;
+			const existing = state.conflict?.existingDocsBranch?.trim();
+			if (!existing) {
+				// Nothing to resolve; just clear and return
+				setDocState(key, { conflict: null });
+				return;
+			}
+			try {
+				setDocState(key, (prev) => ({
+					...prev,
+					error: null,
+					events: [
+						...prev.events,
+						createLocalEvent(
+							"info",
+							`Deleting existing docs branch '${existing}'`
+						),
+					],
+				}));
+				const project = await GetRepoLink(projectId);
+				const repoRoot = (project?.DocumentationRepo ?? "").trim();
+				if (!repoRoot) {
+					return Promise.reject(
+						new Error("Documentation repository path is not configured")
+					);
+				}
+				await DeleteBranchByPath(repoRoot, existing);
+
+				// Clear the conflict before restarting
+				setDocState(key, { conflict: null });
+
+				if (mode === "diff") {
+					await get().start({
+						projectId,
+						projectName,
+						sourceBranch,
+						targetBranch: targetBranch ?? "",
+						modelKey,
+						userInstructions,
+					});
+				} else {
+					await get().startFromBranch?.({
+						projectId,
+						sourceBranch,
+						targetBranch: "",
+						modelKey,
+						userInstructions,
+					} as StartArgs);
+				}
+			} catch (error) {
+				const message = messageFromError(error);
+				setDocState(key, (prev) => ({
+					...prev,
+					error: mapErrorCodeToMessage(message),
+					// Keep the conflict so the dialog remains open
+					events: [
+						...prev.events,
+						createLocalEvent(
+							"error",
+							`Failed to delete docs branch: ${message}`
+						),
+					],
+				}));
+			}
+		},
+
+		resolveDocsBranchConflictByRename: async ({
+			projectId,
+			sourceBranch,
+			newDocsBranch,
+			mode,
+			targetBranch,
+			modelKey,
+			userInstructions,
+		}) => {
+			const key = toKey(projectId);
+			const state = get().docStates[key] ?? EMPTY_DOC_STATE;
+			const existing = state.conflict?.existingDocsBranch?.trim();
+			const targetName = (newDocsBranch ?? "").trim();
+			if (!(existing && targetName)) {
+				return;
+			}
+			try {
+				// Transition to running and subscribe to events for live progress
+				setDocState(key, {
+					...EMPTY_DOC_STATE,
+					activeTab: "activity",
+					status: "running",
+					sourceBranch,
+					targetBranch: mode === "diff" ? (targetBranch ?? null) : null,
+					// show an initial local event for clarity
+					events: [
+						createLocalEvent(
+							"info",
+							`Using new docs branch name '${targetName}'`
+						),
+					],
+				});
+
+				clearSubscriptions(key);
+				const toolUnsub = EventsOn("event:llm:tool", (payload) => {
+					try {
+						const evt = demoEventSchema.parse(payload);
+						setDocState(key, (prev) => ({
+							...prev,
+							events: [...prev.events, evt],
+						}));
+					} catch (error) {
+						console.error("Invalid refine tool event", error, payload);
+					}
+				});
+				const doneUnsub = EventsOn("events:llm:done", (payload) => {
+					try {
+						const evt = demoEventSchema.parse(payload);
+						setDocState(key, (prev) => ({
+							...prev,
+							events: [...prev.events, evt],
+						}));
+					} catch {}
+				});
+				subscriptions.set(key, { tool: toolUnsub, done: doneUnsub });
+
+				// Call backend to generate directly into the provided docs branch name
+				let result: models.DocGenerationResult | null = null;
+				if (mode === "diff") {
+					if (!targetBranch) {
+						return Promise.reject(
+							new Error("Target branch is required for diff mode")
+						);
+					}
+					result = await GenerateDocs(
+						projectId,
+						sourceBranch,
+						targetBranch,
+						modelKey,
+						userInstructions,
+						targetName
+					);
+				} else {
+					result = await GenerateDocsFromBranch(
+						projectId,
+						sourceBranch,
+						modelKey,
+						userInstructions,
+						targetName
+					);
+				}
+
+				// Success: populate result and status, clear conflict
+				setDocState(key, (prev) => ({
+					...prev,
+					result: result ?? prev.result,
+					status: "success",
+					cancellationRequested: false,
+					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
+					changedSinceInitial: [],
+					docsInCodeRepo: Boolean(
+						result?.docsInCodeRepo ?? prev.docsInCodeRepo
+					),
+					docsBranch: result?.docsBranch ?? targetName,
+					mergeInProgress: false,
+					conflict: null,
+				}));
+			} catch (error) {
+				const message = messageFromError(error);
+				setDocState(key, (prev) => ({
+					...prev,
+					error: mapErrorCodeToMessage(message),
+					// Keep conflict so the dialog stays present and allow user to try another name
+					conflict: prev.conflict
+						? { ...prev.conflict, proposedDocsBranch: targetName }
+						: prev.conflict,
+					events: [
+						...prev.events,
+						createLocalEvent(
+							"error",
+							`Failed to create docs branch '${targetName}': ${message}`
+						),
+					],
+				}));
+			} finally {
+				clearSubscriptions(key);
+				setDocState(key, { cancellationRequested: false });
 			}
 		},
 	};

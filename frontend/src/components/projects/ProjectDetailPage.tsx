@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { ActionButtons } from "@/components/ActionButtons";
 import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
+import { DocBranchConflictDialog } from "@/components/DocBranchConflictDialog";
 import { GenerationTabs } from "@/components/GenerationTabs";
 import { SingleBranchSelector } from "@/components/SingleBranchSelector";
 import { SuccessPanel } from "@/components/SuccessPanel";
@@ -31,6 +32,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useBranchManager } from "@/hooks/useBranchManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
+import { useDocGenerationStore } from "@/stores/docGeneration";
 import {
 	type ModelOption,
 	useModelSettingsStore,
@@ -60,6 +62,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const branchManager = useBranchManager(repoPath);
 	const docManager = useDocGenerationManager(projectId);
 	const navigate = useNavigate();
+	const docsBranchConflict = useDocGenerationStore(
+		(s) => s.docStates[String(projectId)]?.conflict ?? null
+	);
 
 	useEffect(() => {
 		setProject(undefined);
@@ -427,6 +432,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 								<SuccessPanel
 									completedCommitInfo={docManager.completedCommitInfo}
 									onStartNewTask={handleStartNewTask}
+									overridenDocsBranch={
+										docManager.docResult?.docsBranch ?? undefined
+									}
 									sourceBranch={successSourceBranch}
 								/>
 							);
@@ -597,6 +605,21 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					/>
 				)}
 			</section>
+			{docsBranchConflict && docManager.sourceBranch && modelKey && (
+				<DocBranchConflictDialog
+					existingDocsBranch={docsBranchConflict.existingDocsBranch}
+					isInProgress={docsBranchConflict.isInProgress}
+					mode={docsBranchConflict.mode}
+					modelKey={modelKey}
+					open={true}
+					projectId={Number(project?.ID ?? projectId)}
+					projectName={project.ProjectName}
+					proposedDocsBranch={docsBranchConflict.proposedDocsBranch}
+					sourceBranch={docManager.sourceBranch}
+					targetBranch={branchManager.targetBranch ?? undefined}
+					userInstructions={buildInstructionPayload()}
+				/>
+			)}
 		</div>
 	);
 }

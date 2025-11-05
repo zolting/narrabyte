@@ -51,6 +51,8 @@
     "noDocumentationChanges": "No documentation changes were produced for this diff.",
     "commitSuccess": "Documentation Committed Successfully!",
     "commitSuccessDescription": "Your documentation changes have been successfully committed to the documentation branch.",
+    "mergeSuccess": "Documentation Merged Successful!",
+    "mergeSuccessDescription": "The documentation changes have been merged into your source branch.",
     "documentationAvailable": "Documentation is now available in branch",
     "startNewTask": "Start New Documentation Task",
     "delete": "Delete",
@@ -93,7 +95,17 @@
     "addTemplateHelp": "Create a new template by providing a name and content. You can edit it later.",
     "close": "Close",
     "errorIconTitle": "Error",
-    "backendError": "An error occurred:"
+    "backendError": "An error occurred:",
+    "docsBranchExists": "A documentation branch already exists for this source branch.",
+    "docsBranchConflict": "Cannot use this documentation branch name.",
+    "docsBranchConflictTitle": "Documentation branch already exists",
+    "docsBranchConflictDescription": "A documentation branch already exists for this source branch. Choose one of the options below to continue.",
+    "docsBranchConflictInProgressDescription": "Documentation is currently being generated for this branch. You cannot delete a branch while it's being generated. Please use the suggested alternative branch name below, or wait for the current generation to complete.",
+    "existingDocsBranch": "Existing docs branch",
+    "newDocsBranchLabel": "Use a different docs branch name",
+    "newDocsBranchPlaceholder": "e.g., docs/feature-x-2",
+    "newDocsBranchAria": "New documentation branch name",
+    "deleteCurrentDocsBranch": "Delete current docs branch"
   },
   "projectManager": {
     "addProject": "Add Project",
