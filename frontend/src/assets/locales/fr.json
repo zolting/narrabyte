@@ -91,6 +91,7 @@
 		"noTemplateSelection": "Aucun modèle",
 		"addTemplateHelp": "Créez un nouveau modèle en fournissant un nom et un contenu. Vous pourrez le modifier plus tard.",
 		"close": "Fermer",
+		"saving": "Enregistrement…",
 		"errorIconTitle": "Erreur",
 		"backendError": "Une erreur s'est produite :"
 	},
@@ -157,8 +158,8 @@
 		"selectTheme": "Choisir le thème",
 		"language": "Langue",
 		"selectLanguage": "Choisir la langue",
-		"model": "Default Model",
-		"selectModel": "Select your default model",
+		"model": "Modèle par défault",
+		"selectModel": "Sélectionnez le modèle par défaut pour les générations de documentation",
 		"light": "Clair",
 		"dark": "Sombre",
 		"system": "Système",
@@ -236,6 +237,9 @@
 			"medium": "Moyen",
 			"high": "Élevé"
 		},
+		"defaultModelTitle": "Modèle par défaut",
+		"defaultModelDescription": "Sélectionnez le modèle par défaut à utiliser pour la génération de documentation.",
+		"defaultModelButton": "Confirmer",
 		"thinkingEnabled": "Pensée activée",
 		"thinkingDisabled": "Pensée désactivée",
 		"apiName": "Identifiant API : {{value}}",

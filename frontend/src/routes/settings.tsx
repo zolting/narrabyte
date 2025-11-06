@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AddApiKeyDialog from "@/components/AddApiKeyDialog";
 import ApiKeyManager from "@/components/ApiKeyManager";
+import DefaultModel from "@/components/DefaultModel";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -143,25 +144,6 @@ function Settings() {
 										</SelectContent>
 									</Select>
 								</div>
-
-								<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-									<div>
-										<div className="font-medium">{t("settings.model")}</div>
-										<div className="text-muted-foreground text-sm">
-											{t("settings.selectModel")}
-										</div>
-									</div>
-									<Select
-										disabled={isLoading}
-										onValueChange={(value) => setTheme(value as AppTheme)}
-										value={theme}
-									>
-										<SelectTrigger className="w-full sm:w-[180px]">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent></SelectContent>
-									</Select>
-								</div>
 							</CardContent>
 						</Card>
 					</TabsContent>
@@ -171,6 +153,7 @@ function Settings() {
 							onEditClick={handleEditClick}
 							ref={apiKeyManagerRef}
 						/>
+						<DefaultModel />
 						<ModelsConfiguration />
 					</TabsContent>
 				</Tabs>

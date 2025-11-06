@@ -7,6 +7,8 @@ import {
 } from "@go/services/modelConfigService";
 import { create } from "zustand";
 
+export type ModelKey = string;
+
 export type ModelOption = {
 	key: string;
 	displayName: string;
@@ -29,6 +31,8 @@ type State = {
 	initialized: boolean;
 	loading: boolean;
 	error: string | null;
+	defaultModelKey: ModelKey | null;
+	setDefaultModelKey: (modelKey: ModelKey) => void;
 	init: () => Promise<void>;
 	toggleModel: (modelKey: string, enabled: boolean) => Promise<void>;
 	toggleProvider: (providerId: string, enabled: boolean) => Promise<void>;
@@ -57,6 +61,10 @@ export const useModelSettingsStore = create<State>((set, get) => ({
 	initialized: false,
 	loading: false,
 	error: null,
+	defaultModelKey: null,
+
+	setDefaultModelKey: (modelKey: ModelKey) =>
+		set({ defaultModelKey: modelKey }),
 
 	init: async () => {
 		if (get().loading) {
@@ -87,7 +95,7 @@ export const useModelSettingsStore = create<State>((set, get) => ({
 				groups: state.groups.map((group) => ({
 					...group,
 					models: group.models.map((model) =>
-						model.key === modelKey ? mapModel(updated) : model
+						model.key === modelKey ? mapModel(updated) : model,
 					),
 				})),
 				error: null,
@@ -113,7 +121,7 @@ export const useModelSettingsStore = create<State>((set, get) => ({
 									return next ? next : { ...model, enabled };
 								}),
 							}
-						: group
+						: group,
 				),
 				error: null,
 			}));
@@ -129,7 +137,7 @@ export const useModelSettingsStore = create<State>((set, get) => ({
 				groups: state.groups.map((group) => ({
 					...group,
 					models: group.models.map((model) =>
-						model.key === modelKey ? mapModel(refreshed) : model
+						model.key === modelKey ? mapModel(refreshed) : model,
 					),
 				})),
 			}));
