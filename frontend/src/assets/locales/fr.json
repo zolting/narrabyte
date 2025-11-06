@@ -299,6 +299,13 @@
     "title": "Progression des tâches",
     "pending": "{{count}} en attente",
     "inProgress": "{{count}} en cours",
-    "completed": "{{count}} terminée(s)"
+    "completed": "{{count}} terminée(s)",
+    "allCompleted": "Toutes les tâches sont terminées"
+  },
+  "activity": {
+    "title": "Fil d'activité",
+    "empty": "Aucune activité pour le moment.",
+    "allTasks": "Toutes les tâches",
+    "toolActivity": "Activité des outils"
   }
 }

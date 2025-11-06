@@ -1,9 +1,8 @@
 import type { models } from "@go/models";
 import { useTranslation } from "react-i18next";
-import { DocGenerationProgressLog } from "@/components/DocGenerationProgressLog";
+import { ActivityFeed } from "@/components/ActivityFeed";
 import { DocGenerationResultPanel } from "@/components/DocGenerationResultPanel";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
-import { TodoList } from "@/components/TodoList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { DocGenerationStatus } from "@/stores/docGeneration";
@@ -93,8 +92,7 @@ export const GenerationTabs = ({
 				className="mt-0 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
 				value="activity"
 			>
-				<TodoList todos={todos} />
-				<DocGenerationProgressLog events={events} status={status} />
+				<ActivityFeed events={events} status={status} todos={todos} />
 			</TabsContent>
 			{docResult && (
 				<TabsContent

@@ -1,13 +1,8 @@
+import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { TodoItem } from "@/types/events";
-import {
-	CheckCircle2,
-	Circle,
-	Loader2,
-	XCircle,
-} from "lucide-react";
 
 export function TodoList({ todos }: { todos: TodoItem[] }) {
 	const { t } = useTranslation();
@@ -50,7 +45,9 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 
 	// Calculate counts
 	const pendingCount = todos.filter((t) => t.status === "pending").length;
-	const inProgressCount = todos.filter((t) => t.status === "in_progress").length;
+	const inProgressCount = todos.filter(
+		(t) => t.status === "in_progress"
+	).length;
 	const completedCount = todos.filter((t) => t.status === "completed").length;
 
 	// Get icon for todo status
@@ -81,7 +78,9 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 				<div className="flex items-center gap-3 text-xs">
 					{inProgressCount > 0 && (
 						<span className="text-blue-600">
-							{t("todos.inProgress", "{{count}} in progress", { count: inProgressCount })}
+							{t("todos.inProgress", "{{count}} in progress", {
+								count: inProgressCount,
+							})}
 						</span>
 					)}
 					{pendingCount > 0 && (
@@ -91,7 +90,9 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 					)}
 					{completedCount > 0 && (
 						<span className="text-emerald-600">
-							{t("todos.completed", "{{count}} completed", { count: completedCount })}
+							{t("todos.completed", "{{count}} completed", {
+								count: completedCount,
+							})}
 						</span>
 					)}
 				</div>
@@ -106,7 +107,8 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 						{todos.map((todo, index) => {
 							const key = `${todo.content}-${todo.status}`;
 							const isVisible = visibleTodos.includes(key);
-							const displayText = todo.status === "in_progress" ? todo.activeForm : todo.content;
+							const displayText =
+								todo.status === "in_progress" ? todo.activeForm : todo.content;
 
 							return (
 								<li
@@ -129,7 +131,8 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 									<span
 										className={cn("min-w-0 flex-1 break-words", {
 											"text-foreground": todo.status !== "cancelled",
-											"text-muted-foreground line-through": todo.status === "cancelled",
+											"text-muted-foreground line-through":
+												todo.status === "cancelled",
 											"font-medium": todo.status === "in_progress",
 										})}
 									>

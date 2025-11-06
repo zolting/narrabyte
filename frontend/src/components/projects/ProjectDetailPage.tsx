@@ -564,10 +564,10 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							activeTab={docManager.activeTab}
 							docResult={docManager.docResult}
 							events={docManager.events}
-							todos={docManager.todos}
 							projectId={Number(project.ID)}
 							setActiveTab={docManager.setActiveTab}
 							status={docManager.status}
+							todos={docManager.todos}
 						/>
 					)}
 				</div>

@@ -1,5 +1,22 @@
 Use this tool to create and manage a structured task list for your documentation generation session. This helps track progress, organize documentation tasks, and provide visibility to the user.
 
+## CRITICAL: Full Replacement Semantics
+
+**This tool REPLACES the entire todo list with the todos you provide.**
+
+### Required Workflow:
+1. **First**: Call `todo_read_tool` to get the current todo list
+2. **Then**: Modify the list in memory (update status, add new tasks, remove obsolete ones)
+3. **Finally**: Call `todo_write_tool` with the COMPLETE updated list
+
+**⚠️ WARNING: Any todos not included in your call will be permanently deleted from the list.**
+
+### When Updating Tasks:
+- Always read the current list first (unless creating the initial list)
+- Include ALL existing tasks you want to keep, even if unchanged
+- Update only the specific fields that changed (status, content, activeForm)
+- Never send a partial list - always send the complete list
+
 ## When to Use This Tool
 Use this tool proactively in these scenarios:
 
@@ -44,6 +61,24 @@ Assistant: I'll break this down into tasks.
 *Begins working systematically through each task*
 </example>
 
+<example>
+User: Continue working on the next task
+Assistant: Let me check the current task list first.
+*Uses todo_read_tool*
+Current todos:
+1. "Review existing getting started guide" (completed)
+2. "Update installation instructions" (completed)
+3. "Add deployment section" (in_progress)
+4. "Add troubleshooting section" (pending)
+
+I've completed the deployment section. Let me mark it complete and start the troubleshooting section.
+*Uses todo_write_tool with ALL FOUR tasks:*
+1. "Review existing getting started guide" (completed)
+2. "Update installation instructions" (completed)
+3. "Add deployment section" (completed) ← updated status
+4. "Add troubleshooting section" (in_progress) ← updated status
+</example>
+
 ## Task States and Management
 
 1. **Task States**:
@@ -57,11 +92,13 @@ Assistant: I'll break this down into tasks.
    - activeForm: Present continuous form ("Generating API documentation")
 
 2. **Task Management**:
+   - **ALWAYS read the todo list before updating it** (except when creating the initial list)
    - Update task status in real-time as you work
    - Mark tasks complete IMMEDIATELY after finishing
+   - Include ALL existing tasks in every update - this tool does full replacement
    - Only ONE task should be in_progress at any time
    - Complete current tasks before starting new ones
-   - Cancel tasks that become irrelevant
+   - Remove tasks that become irrelevant (by excluding them from the list)
 
 3. **Task Completion Requirements**:
    - ONLY mark completed when fully accomplished

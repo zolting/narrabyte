@@ -11,7 +11,12 @@ import {
 import i18n from "i18next";
 import { parseDiff } from "react-diff-view";
 import { create } from "zustand";
-import { type DemoEvent, demoEventSchema, type TodoItem, todoEventSchema } from "@/types/events";
+import {
+	type DemoEvent,
+	demoEventSchema,
+	type TodoItem,
+	todoEventSchema,
+} from "@/types/events";
 import { EventsOn } from "../../wailsjs/runtime";
 
 export type DocGenerationStatus =
@@ -422,7 +427,11 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				}
 			});
 
-			subscriptions.set(key, { tool: toolUnsub, done: doneUnsub, todo: todoUnsub });
+			subscriptions.set(key, {
+				tool: toolUnsub,
+				done: doneUnsub,
+				todo: todoUnsub,
+			});
 
 			try {
 				const result = await GenerateDocs(
@@ -576,7 +585,11 @@ export const useDocGenerationStore = create<State>((set, get) => {
 				}
 			});
 
-			subscriptions.set(key, { tool: toolUnsub, done: doneUnsub, todo: todoUnsub });
+			subscriptions.set(key, {
+				tool: toolUnsub,
+				done: doneUnsub,
+				todo: todoUnsub,
+			});
 
 			try {
 				const result = await GenerateDocsFromBranch(

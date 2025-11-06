@@ -57,7 +57,7 @@ func GetTodoSession(sessionID string) *TodoSession {
 	return session
 }
 
-// UpdateTodos replaces the entire todo list for a session
+// UpdateTodos performs a FULL REPLACEMENT of the todo list for a session (any existing todos not in the new list are deleted)
 func (s *TodoSession) UpdateTodos(todos []Todo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -85,7 +85,7 @@ func ClearTodoSession(sessionID string) {
 
 // TodoWriteInput defines the input structure for updating todos
 type TodoWriteInput struct {
-	Todos []Todo `json:"todos" jsonschema:"required,description=The updated todo list"`
+	Todos []Todo `json:"todos" jsonschema:"required,description=The COMPLETE todo list (replaces existing list entirely - must include all tasks you want to keep)"`
 }
 
 // TodoWriteOutput defines the output structure after updating todos
@@ -118,7 +118,7 @@ type TodoReadOutput struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// WriteTodo updates the todo list for the current session
+// WriteTodo replaces the entire todo list for the current session (full replacement operation)
 func WriteTodo(ctx context.Context, in *TodoWriteInput) (*TodoWriteOutput, error) {
 	sessionID := SessionIDFromContext(ctx)
 	if sessionID == "" {

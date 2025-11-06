@@ -1122,10 +1122,23 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 	// TodoWrite tool - manage task list for documentation generation
 	todoWriteDesc := tools.ToolDescription("todo_write_tool")
 	if strings.TrimSpace(todoWriteDesc) == "" {
-		todoWriteDesc = "update the task list for the current documentation generation session"
+		todoWriteDesc = "REPLACE the entire task list for the current session (read current list first, then send complete updated list)"
 	}
 	todoWriteWithPolicy := func(ctx context.Context, in *tools.TodoWriteInput) (*tools.TodoWriteOutput, error) {
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo("TodoWrite: updating task list"))
+
+		// Check if we're reducing the todo count (potential accidental deletion)
+		sessionID := tools.SessionIDFromContext(ctx)
+		if sessionID != "" {
+			session := tools.GetTodoSession(sessionID)
+			existing := session.GetTodos()
+			if len(existing) > 0 && len(in.Todos) < len(existing) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn(
+					fmt.Sprintf("TodoWrite: Reducing todo count from %d to %d tasks. Ensure this is intentional - remember this tool replaces the entire list.",
+						len(existing), len(in.Todos))))
+			}
+		}
+
 		out, err := tools.WriteTodo(ctx, in)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("TodoWrite: error: %v", err)))
@@ -1158,7 +1171,7 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 	// TodoRead tool - read the current task list
 	todoReadDesc := tools.ToolDescription("todo_read_tool")
 	if strings.TrimSpace(todoReadDesc) == "" {
-		todoReadDesc = "read the current task list for the documentation generation session"
+		todoReadDesc = "read the current task list (ALWAYS call this before todo_write_tool to avoid deleting tasks)"
 	}
 	todoReadWithPolicy := func(ctx context.Context, in *tools.TodoReadInput) (*tools.TodoReadOutput, error) {
 		events.Emit(ctx, events.LLMEventTool, events.NewDebug("TodoRead: reading task list"))

@@ -1,8 +1,13 @@
 Use this tool to read the current task list for your documentation generation session. This tool helps you stay aware of pending, in-progress, and completed documentation tasks.
 
+## CRITICAL: Required Before Updates
+
+**You MUST call this tool before using `todo_write_tool`** (except when creating the initial list). The write tool performs full replacement - if you don't read first, you risk deleting existing tasks.
+
 ## When to Use This Tool
 
 Use this tool frequently to maintain awareness:
+- **ALWAYS before calling `todo_write_tool`** to get the current list for modification
 - At the beginning of new user messages to check task status
 - Before starting new tasks to prioritize work
 - When the user asks about progress or remaining work
