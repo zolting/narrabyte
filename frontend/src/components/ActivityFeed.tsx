@@ -85,9 +85,6 @@ export function ActivityFeed({
 
 	// Calculate todo counts
 	const pendingCount = todos.filter((todo) => todo.status === "pending").length;
-	const inProgressCount = todos.filter(
-		(todo) => todo.status === "in_progress"
-	).length;
 	const completedCount = todos.filter(
 		(todo) => todo.status === "completed"
 	).length;
@@ -227,11 +224,21 @@ export function ActivityFeed({
 				<div className="border-border border-b bg-muted/50 px-3 py-2">
 					<div className="flex items-center justify-between">
 						<span className="font-medium text-foreground text-sm">
-							{inProgress
-								? isRunning
-									? t("common.generatingDocs", "Generating documentation…")
-									: t("common.committingDocs", "Committing documentation…")
-								: t("activity.toolActivity", "Tool Activity")}
+							{(() => {
+								if (inProgress) {
+									if (isRunning) {
+										return t(
+											"common.generatingDocs",
+											"Generating documentation…"
+										);
+									}
+									return t(
+										"common.committingDocs",
+										"Committing documentation…"
+									);
+								}
+								return t("activity.toolActivity", "Tool Activity");
+							})()}
 						</span>
 						{inProgress && (
 							<span className="text-muted-foreground text-xs">

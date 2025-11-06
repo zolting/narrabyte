@@ -40,15 +40,17 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 
 	// Reset visible todos when list changes
 	useEffect(() => {
-		setVisibleTodos(todos.map((t) => `${t.content}-${t.status}`));
+		setVisibleTodos(todos.map((todo) => `${todo.content}-${todo.status}`));
 	}, [todos]);
 
 	// Calculate counts
-	const pendingCount = todos.filter((t) => t.status === "pending").length;
+	const pendingCount = todos.filter((todo) => todo.status === "pending").length;
 	const inProgressCount = todos.filter(
-		(t) => t.status === "in_progress"
+		(todo) => todo.status === "in_progress"
 	).length;
-	const completedCount = todos.filter((t) => t.status === "completed").length;
+	const completedCount = todos.filter(
+		(todo) => todo.status === "completed"
+	).length;
 
 	// Get icon for todo status
 	const getStatusIcon = (status: TodoItem["status"]) => {
@@ -59,7 +61,6 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 				return <Loader2 className="h-4 w-4 animate-spin text-blue-600" />;
 			case "cancelled":
 				return <XCircle className="h-4 w-4 text-muted-foreground" />;
-			case "pending":
 			default:
 				return <Circle className="h-4 w-4 text-muted-foreground" />;
 		}
@@ -105,8 +106,10 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 				>
 					<ul className="space-y-2">
 						{todos.map((todo, index) => {
-							const key = `${todo.content}-${todo.status}`;
-							const isVisible = visibleTodos.includes(key);
+							const key = `${todo.content}-${todo.status}-${index}`;
+							const isVisible = visibleTodos.includes(
+								`${todo.content}-${todo.status}`
+							);
 							const displayText =
 								todo.status === "in_progress" ? todo.activeForm : todo.content;
 
@@ -123,7 +126,7 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 											"bg-muted/30 opacity-60": todo.status === "cancelled",
 										}
 									)}
-									key={`${key}-${index}`}
+									key={key}
 								>
 									<div className="mt-0.5 shrink-0">
 										{getStatusIcon(todo.status)}

@@ -32,7 +32,11 @@ Workflow
    - Keep code blocks minimal and correct; add language tags.
 4) Validate
    - Double-check that all modified files remain coherent and properly formatted.
-5) Summarize
+5) Complete all tasks
+   - CRITICAL: If you created a todo list, you MUST mark ALL tasks as "completed" before ending your session.
+   - Use Read Todo to verify that all tasks show status "completed" before proceeding to the summary.
+   - Never leave tasks as "pending" or "in_progress" when finishing your work.
+6) Summarize
    - Provide a short summary of files changed and what was improved.
 
 Input context
@@ -45,6 +49,7 @@ You will receive:
 Output expectations
 - Apply the requested edits directly using the tools
 - Modify existing files instead of creating new ones unless explicitly warranted
+- If you used Write Todo, ensure ALL tasks are marked as "completed" before ending the session
 - Return a concise summary of the changes made
 
 Summary formatting

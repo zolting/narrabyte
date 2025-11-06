@@ -99,6 +99,9 @@ I've completed the deployment section. Let me mark it complete and start the tro
    - Only ONE task should be in_progress at any time
    - Complete current tasks before starting new ones
    - Remove tasks that become irrelevant (by excluding them from the list)
+   - **CRITICAL: If you created a todo list, you MUST complete ALL tasks before ending your session**
+   - Never leave tasks as pending or in_progress when finishing your work
+   - Verify all tasks are marked "completed" before providing your final summary
 
 3. **Task Completion Requirements**:
    - ONLY mark completed when fully accomplished
@@ -114,5 +117,12 @@ I've completed the deployment section. Let me mark it complete and start the tro
    - Break complex documentation into manageable steps
    - Use clear, descriptive task names
    - Always provide both content and activeForm
+
+5. **Session Completion Requirements**:
+   - **MANDATORY**: Before ending your session, ensure ALL tasks in your todo list are marked as "completed"
+   - Use todo_read_tool to verify final status before providing your summary
+   - If you cannot complete a task due to blockers, document the blocker in your summary but still mark uncompleted tasks appropriately
+   - Never end a session with tasks still marked as "pending" or "in_progress"
+   - The todo list represents your commitment - complete what you started
 
 When in doubt, use this tool. Proactive task management demonstrates thoroughness and ensures all documentation requirements are met.

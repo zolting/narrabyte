@@ -839,6 +839,7 @@ export const useDocGenerationStore = create<State>((set, get) => {
 			setDocState(key, {
 				...current,
 				events: [],
+				todos: [],
 				error: null,
 				result: null,
 				status: "idle",

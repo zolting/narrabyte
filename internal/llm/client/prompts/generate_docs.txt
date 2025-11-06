@@ -28,6 +28,8 @@ For complex documentation generation involving multiple files or sections, use W
 
 CRITICAL: Write Todo performs FULL REPLACEMENT. Always call Read Todo first to get the current list, then modify it in memory, then send the complete updated list. Never send a partial list or you'll delete existing tasks.
 
+MANDATORY: If you create a todo list, you MUST finish ALL tasks before ending your session. Verify with Read Todo that every task is marked "completed" before providing your summary. This is non-negotiable - complete what you commit to.
+
 Then map those changes to your documentation. Some will update existing pages, others might need new ones. Prioritize by user impact.
 
 Update or create docs as needed, preserving the existing style and structure. Keep your changes focused and well-organized.
@@ -48,6 +50,8 @@ What You'll Get
 
 What to Deliver
 A natural set of documentation updates via Edit and Write tools, followed by a brief summary: what you changed, what you created, key findings from the diff, and any suggested follow-ups.
+
+CRITICAL: If you created a todo list using Write Todo, you MUST complete ALL tasks before ending your session. Use Read Todo to verify all tasks are marked "completed" before providing your final summary. Never leave tasks as "pending" or "in_progress".
 
 Summary formatting
 - Format the final summary using GitHub-Flavored Markdown (GFM).
