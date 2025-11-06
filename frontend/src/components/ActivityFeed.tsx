@@ -130,7 +130,7 @@ export function ActivityFeed({
 								<CheckCircle2 className="h-4 w-4 text-emerald-600" />
 							</div>
 							<span className="min-w-0 flex-1 break-words font-medium text-foreground text-sm">
-								{t("todos.allCompleted", "All tasks completed")}
+								{t("todos.allCompleted")}
 							</span>
 						</div>
 					)}
@@ -144,19 +144,19 @@ export function ActivityFeed({
 								type="button"
 							>
 								<span className="font-medium text-foreground">
-									{t("activity.allTasks", "All Tasks")}
+									{t("activity.allTasks")}
 								</span>
 								<div className="flex items-center gap-2 text-xs">
 									{pendingCount > 0 && (
 										<span className="text-muted-foreground">
-											{t("todos.pending", "{{count}} pending", {
+											{t("todos.pending", {
 												count: pendingCount,
 											})}
 										</span>
 									)}
 									{completedCount > 0 && (
 										<span className="text-emerald-600">
-											{t("todos.completed", "{{count}} completed", {
+											{t("todos.completed", {
 												count: completedCount,
 											})}
 										</span>
@@ -237,12 +237,12 @@ export function ActivityFeed({
 										"Committing documentation…"
 									);
 								}
-								return t("activity.toolActivity", "Tool Activity");
+								return t("activity.toolActivity");
 							})()}
 						</span>
 						{inProgress && (
 							<span className="text-muted-foreground text-xs">
-								{t("common.inProgress", "In progress")}
+								{t("common.inProgress")}
 							</span>
 						)}
 					</div>
@@ -254,9 +254,7 @@ export function ActivityFeed({
 					ref={containerRef}
 				>
 					{events.length === 0 ? (
-						<div className="text-muted-foreground">
-							{t("common.noEvents", "No tool activity yet.")}
-						</div>
+						<div className="text-muted-foreground">{t("common.noEvents")}</div>
 					) : (
 						<ul className="space-y-1">
 							{events.map((event) => {
