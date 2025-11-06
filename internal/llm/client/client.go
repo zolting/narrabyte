@@ -199,9 +199,10 @@ func NewClaudeClient(ctx context.Context, key string, opts ClaudeModelOptions) (
 	chatModel, err := claude.NewChatModel(ctx, &claude.Config{
 		APIKey:    key,
 		Model:     modelName,
-		MaxTokens: 4096,
+		MaxTokens: 12000,
 		Thinking: &claude.Thinking{
-			Enable: opts.Thinking,
+			Enable:       opts.Thinking,
+			BudgetTokens: 4092,
 		},
 	})
 

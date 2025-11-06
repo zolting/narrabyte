@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -101,13 +102,27 @@ type TodoReadInput struct{}
 
 // UnmarshalJSON implements custom JSON unmarshaling to handle empty or missing input
 func (t *TodoReadInput) UnmarshalJSON(data []byte) error {
-	// Accept empty string, empty object, or any valid JSON
-	// Since we don't need any input, we just return success
+	// Accept empty input - this tool requires no parameters
 	if len(data) == 0 {
 		return nil
 	}
-	// If data is provided, ensure it's at least valid JSON (likely "{}")
-	// We don't actually need to parse it since we have no fields
+
+	// Trim whitespace
+	trimmed := string(data)
+	trimmed = strings.TrimSpace(trimmed)
+
+	// Accept empty string or empty object
+	if trimmed == "" || trimmed == "{}" || trimmed == "null" {
+		return nil
+	}
+
+	// If any other JSON is provided, try to parse it as an empty object to validate it
+	var temp map[string]interface{}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Accept any valid JSON object even if it has fields (we'll just ignore them)
 	return nil
 }
 
