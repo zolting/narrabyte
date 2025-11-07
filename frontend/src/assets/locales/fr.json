@@ -306,5 +306,18 @@
     "documentationBaseBranchDescription": "Choisissez la branche de votre dépôt de documentation à partir de laquelle seront créées les nouvelles branches de documentation.",
     "documentationBaseBranchRequired": "Veuillez sélectionner la branche de base de la documentation.",
     "branchLoadFailed": "Impossible de lister les branches du dépôt de documentation."
+  },
+  "todos": {
+    "title": "Progression des tâches",
+    "pending": "{{count}} en attente",
+    "inProgress": "{{count}} en cours",
+    "completed": "{{count}} terminée(s)",
+    "allCompleted": "Toutes les tâches sont terminées"
+  },
+  "activity": {
+    "title": "Fil d'activité",
+    "empty": "Aucune activité pour le moment.",
+    "allTasks": "Toutes les tâches",
+    "toolActivity": "Activité des outils"
   }
 }

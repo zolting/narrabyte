@@ -584,6 +584,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							projectId={Number(project.ID)}
 							setActiveTab={docManager.setActiveTab}
 							status={docManager.status}
+							todos={docManager.todos}
 						/>
 					)}
 				</div>
