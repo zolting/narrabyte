@@ -146,3 +146,4 @@ export const useDocGenerationManager = (projectId: string) => {
 		mergeDocs,
 	};
 };
+export type DocGenerationManager = ReturnType<typeof useDocGenerationManager>;
