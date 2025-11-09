@@ -202,7 +202,8 @@
     "deleteSuccess": "Projet supprimé avec succès",
     "deleteError": "Échec de la suppression du projet",
     "reorderError": "Échec de la réorganisation de l'ordre des projets",
-    "ongoingGenerations": "Générations en cours"
+    "ongoingGenerations": "Générations en cours",
+    "newGeneration": "Nouvelle génération"
   },
   "apiDialog": {
     "keySaved": "Clé API sauvegardée avec succès!",
@@ -269,7 +270,10 @@
     "running": "En cours",
     "current": "Générations actuelles",
     "statusRunning": "Génération",
-    "statusCommitting": "Validation en cours"
+    "statusCommitting": "Validation en cours",
+    "tabLabel": "Onglet {{index}}",
+    "addTab": "Ajouter un onglet",
+    "closeTab": "Fermer l'onglet {{index}}"
   },
   "projectSettings": {
     "title": "Paramètres du projet",

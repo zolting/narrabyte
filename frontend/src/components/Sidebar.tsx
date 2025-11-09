@@ -75,11 +75,11 @@ const MAX_REPOS = 100;
 const REPO_OFFSET = 0;
 
 function SortableProjectItem({
-	project,
-	isActive,
-	onDelete,
-	onNavigateToSettings,
-}: {
+								 project,
+								 isActive,
+								 onDelete,
+								 onNavigateToSettings,
+							 }: {
 	project: models.RepoLink;
 	isActive: boolean;
 	onDelete: () => void;
@@ -148,6 +148,26 @@ function SortableProjectItem({
 					>
 						<FileText size={16} />
 						<span>{t("sidebar.ongoingGenerations")}</span>
+					</ContextMenuItem>
+					<ContextMenuItem
+						onSelect={() => {
+							navigate({
+								to: "/projects/$projectId",
+								params: { projectId },
+							});
+							if (typeof window !== "undefined") {
+								window.setTimeout(() => {
+									window.dispatchEvent(
+										new CustomEvent("ui:new-generation-tab", {
+											detail: { projectId },
+										})
+									);
+								}, 75);
+							}
+						}}
+					>
+						<Plus size={16} />
+						<span>{t("sidebar.newGeneration")}</span>
 					</ContextMenuItem>
 					<ContextMenuItem onSelect={onDelete} variant="destructive">
 						<Trash2 size={16} />

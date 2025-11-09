@@ -202,7 +202,8 @@
     "deleteSuccess": "Project deleted successfully",
     "deleteError": "Failed to delete project",
     "reorderError": "Failed to update project order",
-    "ongoingGenerations": "Ongoing generations"
+    "ongoingGenerations": "Ongoing generations",
+    "newGeneration": "New generation"
   },
   "apiDialog": {
     "keySaved": "API key saved successfully!",
@@ -269,7 +270,10 @@
     "running": "Running",
     "current": "Current generations",
     "statusRunning": "Generating",
-    "statusCommitting": "Committing"
+    "statusCommitting": "Committing",
+    "tabLabel": "Tab {{index}}",
+    "addTab": "Add tab",
+    "closeTab": "Close tab {{index}}"
   },
   "projectSettings": {
     "title": "Project Settings",

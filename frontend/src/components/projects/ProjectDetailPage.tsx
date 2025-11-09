@@ -7,7 +7,7 @@ import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
 import { useNavigate } from "@tanstack/react-router";
-import { RefreshCw, Settings } from "lucide-react";
+import { Plus, RefreshCw, Settings, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButtons } from "@/components/ActionButtons";
@@ -29,6 +29,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useBranchManager } from "@/hooks/useBranchManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
@@ -57,6 +58,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [mode, setMode] = useState<"diff" | "single">("diff");
 	const [templateInstructions, setTemplateInstructions] = useState<string>("");
 	const containerRef = useRef<HTMLDivElement | null>(null);
+	const tabCounterRef = useRef<number>(1);
+	const [uiTabs, setUiTabs] = useState<string[]>(["tab-1"]);
+	const [activeUiTab, setActiveUiTab] = useState<string>("tab-1");
 
 	const repoPath = project?.CodebaseRepo;
 	const branchManager = useBranchManager(repoPath);
@@ -65,6 +69,72 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const docsBranchConflict = useDocGenerationStore(
 		(s) => s.docStates[String(projectId)]?.conflict ?? null
 	);
+
+	const addUiTab = useCallback(() => {
+		tabCounterRef.current += 1;
+		const newTabId = `tab-${tabCounterRef.current}`;
+		setUiTabs((prevTabs) => {
+			const nextTabs = [...prevTabs, newTabId];
+			setActiveUiTab(newTabId);
+			return nextTabs;
+		});
+	}, []);
+
+	const removeUiTab = useCallback(
+		(tabId: string) => {
+			setUiTabs((prevTabs) => {
+				if (prevTabs.length === 1) {
+					return prevTabs;
+				}
+				const filtered = prevTabs.filter((id) => id !== tabId);
+				if (filtered.length === prevTabs.length) {
+					return prevTabs;
+				}
+				if (!filtered.includes(activeUiTab)) {
+					setActiveUiTab(filtered[0] ?? "tab-1");
+				}
+				return filtered;
+			});
+		},
+		[activeUiTab]
+	);
+
+	useEffect(() => {
+		if (!uiTabs.includes(activeUiTab)) {
+			setActiveUiTab(uiTabs[0] ?? "tab-1");
+		}
+	}, [uiTabs, activeUiTab]);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset tab interface when the project changes.
+	useEffect(() => {
+		tabCounterRef.current = 1;
+		setUiTabs(["tab-1"]);
+		setActiveUiTab("tab-1");
+	}, [projectId]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const handler = (event: Event) => {
+			const customEvent = event as CustomEvent<{ projectId: string | number }>;
+			const targetProjectId = customEvent.detail?.projectId;
+			if (targetProjectId === undefined || targetProjectId === null) {
+				return;
+			}
+			if (String(targetProjectId) !== String(projectId)) {
+				return;
+			}
+			addUiTab();
+		};
+		window.addEventListener("ui:new-generation-tab", handler as EventListener);
+		return () => {
+			window.removeEventListener(
+				"ui:new-generation-tab",
+				handler as EventListener
+			);
+		};
+	}, [addUiTab, projectId]);
 
 	useEffect(() => {
 		setProject(undefined);
@@ -213,15 +283,15 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		() =>
 			Boolean(
 				project &&
-					modelKey &&
-					!docManager.isBusy &&
-					((mode === "diff" &&
+				modelKey &&
+				!docManager.isBusy &&
+				((mode === "diff" &&
 						branchManager.sourceBranch &&
 						branchManager.targetBranch &&
 						branchManager.sourceBranch !== branchManager.targetBranch) ||
-						(mode === "single" &&
-							branchManager.sourceBranch &&
-							hasInstructionContent))
+					(mode === "single" &&
+						branchManager.sourceBranch &&
+						hasInstructionContent))
 			),
 		[
 			branchManager.sourceBranch,
@@ -362,6 +432,150 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		);
 	}
 
+
+	const renderGenerationBody = () => {
+		if (docManager.commitCompleted) {
+			return (
+				<SuccessPanel
+					completedCommitInfo={docManager.completedCommitInfo}
+					onStartNewTask={handleStartNewTask}
+					overridenDocsBranch={docManager.docResult?.docsBranch ?? undefined}
+					sourceBranch={successSourceBranch}
+				/>
+			);
+		}
+
+		if (docManager.hasGenerationAttempt) {
+			return (
+				<ComparisonDisplay
+					sourceBranch={comparisonSourceBranch}
+					targetBranch={comparisonTargetBranch}
+				/>
+			);
+		}
+
+		return (
+			<>
+				<div className="flex flex-col gap-4 md:flex-row">
+					<div className="space-y-2 md:w-1/2">
+						<Label className="font-medium text-sm" htmlFor="model-select">
+							{t("common.llmModel")}
+						</Label>
+						<Select
+							disabled={
+								disableControls ||
+								modelsLoading ||
+								availableModels.length === 0
+							}
+							onValueChange={(value: string) => setModelKey(value)}
+							value={modelKey ?? undefined}
+						>
+							<SelectTrigger className="w-full" id="model-select">
+								<SelectValue placeholder={t("common.selectModel")} />
+							</SelectTrigger>
+							<SelectContent>
+								{groupedModelOptions.map((group) => (
+									<SelectGroup key={group.providerId}>
+										<SelectLabel>{group.providerName}</SelectLabel>
+										{group.models.map((model) => (
+											<SelectItem key={model.key} value={model.key}>
+												{model.displayName}
+											</SelectItem>
+										))}
+									</SelectGroup>
+								))}
+							</SelectContent>
+						</Select>
+						{modelsLoading && (
+							<p className="text-muted-foreground text-xs">
+								{t("models.loading")}
+							</p>
+						)}
+						{!modelsLoading && availableModels.length === 0 && (
+							<p className="text-muted-foreground text-xs">
+								{providerKeys.length === 0
+									? t("common.noProvidersConfigured")
+									: t("common.noModelsAvailable")}
+							</p>
+						)}
+					</div>
+					<div className="space-y-2 md:w-1/2">
+						<TemplateSelector setTemplateInstructions={setTemplateInstructions} />
+					</div>
+				</div>
+				<div className="flex items-center gap-2">
+					<Label className="text-muted-foreground text-xs">
+						{t("common.generationMode")}
+					</Label>
+					<div className="flex gap-2">
+						<Button
+							onClick={() => setMode("diff")}
+							size="sm"
+							type="button"
+							variant={mode === "diff" ? "default" : "outline"}
+						>
+							{t("common.diffMode")}
+						</Button>
+						<Button
+							onClick={() => setMode("single")}
+							size="sm"
+							type="button"
+							variant={mode === "single" ? "default" : "outline"}
+						>
+							{t("common.singleBranchMode")}
+						</Button>
+					</div>
+				</div>
+				{mode === "diff" ? (
+					<BranchSelector
+						branches={branchManager.branches}
+						disableControls={disableControls}
+						setSourceBranch={branchManager.setSourceBranch}
+						setSourceOpen={branchManager.setSourceOpen}
+						setTargetBranch={branchManager.setTargetBranch}
+						setTargetOpen={branchManager.setTargetOpen}
+						sourceBranch={branchManager.sourceBranch}
+						sourceOpen={branchManager.sourceOpen}
+						swapBranches={branchManager.swapBranches}
+						targetBranch={branchManager.targetBranch}
+						targetOpen={branchManager.targetOpen}
+					/>
+				) : (
+					<SingleBranchSelector
+						branch={branchManager.sourceBranch}
+						branches={branchManager.branches}
+						disableControls={disableControls}
+						open={branchManager.sourceOpen}
+						setBranch={branchManager.setSourceBranch}
+						setOpen={branchManager.setSourceOpen}
+					/>
+				)}
+				<div className="space-y-2">
+					<Label className="font-medium text-sm" htmlFor="doc-instructions">
+						{t("common.docInstructionsLabel")}
+					</Label>
+					<Textarea
+						className="resize-vertical min-h-[200px] text-xs"
+						disabled={disableControls}
+						id="doc-instructions"
+						onChange={(e) => setUserInstructions(e.target.value)}
+						placeholder={t("common.docInstructionsPlaceholder")}
+						value={userInstructions}
+					/>
+					{mode === "single" && !hasInstructionContent && (
+						<p className="text-muted-foreground text-xs">
+							{t("common.instructionsRequired")}
+						</p>
+					)}
+				</div>
+			</>
+		);
+	};
+
+
+
+
+
 	if (!project) {
 		return (
 			<div className="p-2 text-muted-foreground text-sm">
@@ -372,239 +586,150 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	return (
 		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
+
+
 			<section
 				className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4"
 				ref={containerRef}
 			>
-				<header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 bg-card pb-2">
-					<div className="space-y-2">
-						<h2 className="font-semibold text-foreground text-lg">
-							{t("common.generateDocs")}
-						</h2>
-						<p className="text-muted-foreground text-sm">
-							{mode === "diff"
-								? t("common.generateDocsDescriptionDiff")
-								: t("common.generateDocsDescriptionSingle")}
-						</p>
-					</div>
-					<div className="flex items-center gap-2">
-						<Button
-							onClick={() =>
-								navigate({
-									to: "/projects/$projectId/generations",
-									params: { projectId },
-								})
-							}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							{t("sidebar.ongoingGenerations")}
-						</Button>
-						<Button
-							onClick={() =>
-								navigate({
-									to: "/projects/$projectId/settings",
-									params: { projectId },
-								})
-							}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							<Settings size={16} />
-							{t("common.settings")}
-						</Button>
-						<Button
-							onClick={branchManager.fetchBranches}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							<RefreshCw className="h-4 w-4" />
-						</Button>
-					</div>
-				</header>
-				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
-					{(() => {
-						if (docManager.commitCompleted) {
-							return (
-								<SuccessPanel
-									completedCommitInfo={docManager.completedCommitInfo}
-									onStartNewTask={handleStartNewTask}
-									overridenDocsBranch={
-										docManager.docResult?.docsBranch ?? undefined
-									}
-									sourceBranch={successSourceBranch}
-								/>
-							);
-						}
-
-						if (docManager.hasGenerationAttempt) {
-							return (
-								<ComparisonDisplay
-									sourceBranch={comparisonSourceBranch}
-									targetBranch={comparisonTargetBranch}
-								/>
-							);
-						}
-
-						return (
-							<>
-								<div className="flex flex-col gap-4 md:flex-row">
-									<div className="space-y-2 md:w-1/2">
-										<Label
-											className="font-medium text-sm"
-											htmlFor="model-select"
-										>
-											{t("common.llmModel")}
-										</Label>
-										<Select
-											disabled={
-												disableControls ||
-												modelsLoading ||
-												availableModels.length === 0
-											}
-											onValueChange={(value: string) => setModelKey(value)}
-											value={modelKey ?? undefined}
-										>
-											<SelectTrigger className="w-full" id="model-select">
-												<SelectValue placeholder={t("common.selectModel")} />
-											</SelectTrigger>
-											<SelectContent>
-												{groupedModelOptions.map((group) => (
-													<SelectGroup key={group.providerId}>
-														<SelectLabel>{group.providerName}</SelectLabel>
-														{group.models.map((model) => (
-															<SelectItem key={model.key} value={model.key}>
-																{model.displayName}
-															</SelectItem>
-														))}
-													</SelectGroup>
-												))}
-											</SelectContent>
-										</Select>
-										{modelsLoading && (
-											<p className="text-muted-foreground text-xs">
-												{t("models.loading")}
-											</p>
-										)}
-										{!modelsLoading && availableModels.length === 0 && (
-											<p className="text-muted-foreground text-xs">
-												{providerKeys.length === 0
-													? t("common.noProvidersConfigured")
-													: t("common.noModelsAvailable")}
-											</p>
-										)}
-									</div>
-									<div className="space-y-2 md:w-1/2">
-										<TemplateSelector
-											setTemplateInstructions={setTemplateInstructions}
-										/>
-									</div>
-								</div>
-								<div className="flex items-center gap-2">
-									<Label className="text-muted-foreground text-xs">
-										{t("common.generationMode")}
-									</Label>
-									<div className="flex gap-2">
-										<Button
-											onClick={() => setMode("diff")}
-											size="sm"
+				<Tabs
+					className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+					onValueChange={setActiveUiTab}
+					value={activeUiTab}
+				>
+					<div className="flex items-center justify-between gap-2">
+						<TabsList className="flex h-10 items-center gap-1 overflow-x-auto rounded-md bg-muted/60 p-1">
+							{uiTabs.map((tabId, index) => (
+								<TabsTrigger
+									key={tabId}
+									value={tabId}
+									className="group flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium transition data-[state=active]:bg-background data-[state=active]:text-foreground"
+								>
+									<span>{t("generations.tabLabel", { index: index + 1 })}</span>
+									{uiTabs.length > 1 ? (
+										<button
+											aria-label={t("generations.closeTab", { index: index + 1 })}
+											className="rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+											onClick={(event) => {
+												event.preventDefault();
+												event.stopPropagation();
+												removeUiTab(tabId);
+											}}
 											type="button"
-											variant={mode === "diff" ? "default" : "outline"}
 										>
-											{t("common.diffMode")}
-										</Button>
-										<Button
-											onClick={() => setMode("single")}
-											size="sm"
-											type="button"
-											variant={mode === "single" ? "default" : "outline"}
-										>
-											{t("common.singleBranchMode")}
-										</Button>
-									</div>
+											<X className="h-3 w-3" />
+											<span className="sr-only">
+		                                    {t("generations.closeTab", { index: index + 1 })}
+		                                </span>
+										</button>
+									) : null}
+								</TabsTrigger>
+							))}
+							<Button
+								aria-label={t("generations.addTab")}
+								className="h-8 w-8 shrink-0"
+								onClick={addUiTab}
+								size="icon"
+								type="button"
+								variant="outline"
+							>
+								<Plus className="h-4 w-4" />
+								<span className="sr-only">{t("generations.addTab")}</span>
+							</Button>
+						</TabsList>
+					</div>
+					{uiTabs.map((tabId) => (
+						<TabsContent
+							key={tabId}
+							value={tabId}
+							className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+						>
+							<header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 bg-card pb-2">
+								<div className="space-y-2">
+									<h2 className="font-semibold text-foreground text-lg">
+										{t("common.generateDocs")}
+									</h2>
+									<p className="text-muted-foreground text-sm">
+										{mode === "diff"
+											? t("common.generateDocsDescriptionDiff")
+											: t("common.generateDocsDescriptionSingle")}
+									</p>
 								</div>
-
-								{mode === "diff" ? (
-									<BranchSelector
-										branches={branchManager.branches}
-										disableControls={disableControls}
-										setSourceBranch={branchManager.setSourceBranch}
-										setSourceOpen={branchManager.setSourceOpen}
-										setTargetBranch={branchManager.setTargetBranch}
-										setTargetOpen={branchManager.setTargetOpen}
-										sourceBranch={branchManager.sourceBranch}
-										sourceOpen={branchManager.sourceOpen}
-										swapBranches={branchManager.swapBranches}
-										targetBranch={branchManager.targetBranch}
-										targetOpen={branchManager.targetOpen}
-									/>
-								) : (
-									<SingleBranchSelector
-										branch={branchManager.sourceBranch}
-										branches={branchManager.branches}
-										disableControls={disableControls}
-										open={branchManager.sourceOpen}
-										setBranch={branchManager.setSourceBranch}
-										setOpen={branchManager.setSourceOpen}
+								<div className="flex flex-wrap items-center gap-2">
+									<Button
+										onClick={() =>
+											navigate({
+												to: "/projects/$projectId/generations",
+												params: { projectId },
+											})
+										}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										{t("sidebar.ongoingGenerations")}
+									</Button>
+									<Button
+										onClick={() =>
+											navigate({
+												to: "/projects/$projectId/settings",
+												params: { projectId },
+											})
+										}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										<Settings size={16} />
+										{t("common.settings")}
+									</Button>
+									<Button
+										onClick={branchManager.fetchBranches}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										<RefreshCw className="h-4 w-4" />
+									</Button>
+								</div>
+							</header>
+							<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
+								{renderGenerationBody()}
+								{docManager.hasGenerationAttempt && (
+									<GenerationTabs
+										activeTab={docManager.activeTab}
+										docResult={docManager.docResult}
+										events={docManager.events}
+										projectId={Number(project.ID)}
+										setActiveTab={docManager.setActiveTab}
+										status={docManager.status}
 									/>
 								)}
-								<div className="space-y-2">
-									<Label
-										className="font-medium text-sm"
-										htmlFor="doc-instructions"
-									>
-										{t("common.docInstructionsLabel")}
-									</Label>
-									<Textarea
-										className="resize-vertical min-h-[200px] text-xs"
-										disabled={disableControls}
-										id="doc-instructions"
-										onChange={(e) => setUserInstructions(e.target.value)}
-										placeholder={t("common.docInstructionsPlaceholder")}
-										value={userInstructions}
-									/>
-									{mode === "single" && !hasInstructionContent && (
-										<p className="text-muted-foreground text-xs">
-											{t("common.instructionsRequired")}
-										</p>
-									)}
-								</div>
-							</>
-						);
-					})()}
-
-					{docManager.hasGenerationAttempt && (
-						<GenerationTabs
-							activeTab={docManager.activeTab}
-							docResult={docManager.docResult}
-							events={docManager.events}
-							projectId={Number(project.ID)}
-							setActiveTab={docManager.setActiveTab}
-							status={docManager.status}
-						/>
-					)}
-				</div>
-				{!docManager.commitCompleted && (
-					<ActionButtons
-						canGenerate={canGenerate}
-						canMerge={canMerge}
-						docGenerationError={docManager.docGenerationError}
-						docResult={docManager.docResult}
-						isBusy={docManager.isBusy}
-						isMerging={docManager.isMerging}
-						isRunning={docManager.isRunning}
-						mergeDisabledReason={mergeDisabledReason}
-						onApprove={handleApprove}
-						onCancel={docManager.cancelDocGeneration}
-						onGenerate={handleGenerate}
-						onMerge={docManager.mergeDocs}
-						onReset={handleReset}
-					/>
-				)}
+							</div>
+							{!docManager.commitCompleted && (
+								<ActionButtons
+									canGenerate={canGenerate}
+									canMerge={canMerge}
+									docGenerationError={docManager.docGenerationError}
+									docResult={docManager.docResult}
+									isBusy={docManager.isBusy}
+									isMerging={docManager.isMerging}
+									isRunning={docManager.isRunning}
+									mergeDisabledReason={mergeDisabledReason}
+									onApprove={handleApprove}
+									onCancel={docManager.cancelDocGeneration}
+									onGenerate={handleGenerate}
+									onMerge={docManager.mergeDocs}
+									onReset={handleReset}
+								/>
+							)}
+						</TabsContent>
+					))}
+				</Tabs>
 			</section>
+
+
+
 			{docsBranchConflict && docManager.sourceBranch && modelKey && (
 				<DocBranchConflictDialog
 					existingDocsBranch={docsBranchConflict.existingDocsBranch}
