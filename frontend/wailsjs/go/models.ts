@@ -305,6 +305,36 @@ export namespace services {
 	        this.errorCode = source["errorCode"];
 	    }
 	}
+	export class SessionInfo {
+	    projectId: number;
+	    sourceBranch: string;
+	    targetBranch: string;
+	    modelKey: string;
+	    provider: string;
+	    docsBranch: string;
+	    inTab: boolean;
+	    isRunning: boolean;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SessionInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.projectId = source["projectId"];
+	        this.sourceBranch = source["sourceBranch"];
+	        this.targetBranch = source["targetBranch"];
+	        this.modelKey = source["modelKey"];
+	        this.provider = source["provider"];
+	        this.docsBranch = source["docsBranch"];
+	        this.inTab = source["inTab"];
+	        this.isRunning = source["isRunning"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 
 }
 

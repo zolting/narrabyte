@@ -86,7 +86,9 @@ export const DocBranchConflictDialog = ({
 
 	const handleClose = (next: boolean) => {
 		if (!next) {
-			clearConflict(projectId);
+			// Find the session key for this project and branch
+			const sessionKey = `${projectId}:${sourceBranch.trim()}`;
+			clearConflict(sessionKey);
 		}
 	};
 

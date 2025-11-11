@@ -4,40 +4,56 @@ import type { DemoEvent } from "@/types/events";
 
 const EMPTY_EVENTS: DemoEvent[] = [];
 
-export const useDocGenerationManager = (projectId: string) => {
+export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 	const projectKey = useMemo(() => String(projectId), [projectId]);
+	const projectIdNum = useMemo(() => Number(projectId), [projectId]);
+
+	// Get the sessionKey for this tab (or fallback to active session)
+	const sessionKey = useDocGenerationStore((s) => {
+		if (tabId) {
+			// Get session associated with this tab
+			const tabSessionKey = s.tabSessions[projectKey]?.[tabId];
+			if (tabSessionKey) {
+				return tabSessionKey;
+			}
+		}
+		// Fallback to active session for backward compatibility
+		return s.activeSession[projectKey] ?? null;
+	});
+
+	// All state is now keyed by sessionKey instead of projectKey
 	const docResult = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.result ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.result : null) ?? null
 	);
 	const status = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.status ?? "idle"
+		(s) => (sessionKey ? s.docStates[sessionKey]?.status : "idle") ?? "idle"
 	);
 	const events = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.events ?? EMPTY_EVENTS
+		(s) => (sessionKey ? s.docStates[sessionKey]?.events : EMPTY_EVENTS) ?? EMPTY_EVENTS
 	);
 	const docGenerationError = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.error ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.error : null) ?? null
 	);
 	const activeTab = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.activeTab ?? "activity"
+		(s) => (sessionKey ? s.docStates[sessionKey]?.activeTab : "activity") ?? "activity"
 	);
 	const commitCompleted = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.commitCompleted ?? false
+		(s) => (sessionKey ? s.docStates[sessionKey]?.commitCompleted : false) ?? false
 	);
 	const completedCommitInfo = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.completedCommitInfo ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.completedCommitInfo : null) ?? null
 	);
 	const sourceBranch = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.sourceBranch ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.sourceBranch : null) ?? null
 	);
 	const targetBranch = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.targetBranch ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.targetBranch : null) ?? null
 	);
 	const docsInCodeRepo = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.docsInCodeRepo ?? false
+		(s) => (sessionKey ? s.docStates[sessionKey]?.docsInCodeRepo : false) ?? false
 	);
 	const mergeInProgress = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.mergeInProgress ?? false
+		(s) => (sessionKey ? s.docStates[sessionKey]?.mergeInProgress : false) ?? false
 	);
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
 	const startSingleBranchGeneration = useDocGenerationStore(
@@ -66,9 +82,11 @@ export const useDocGenerationManager = (projectId: string) => {
 
 	const setActiveTab = useCallback(
 		(tab: "activity" | "review" | "summary") => {
-			setActiveTabStore(projectKey, tab);
+			if (sessionKey) {
+				setActiveTabStore(sessionKey, tab);
+			}
 		},
-		[projectKey, setActiveTabStore]
+		[sessionKey, setActiveTabStore]
 	);
 
 	// Switch to review tab when LLM completes
@@ -91,35 +109,45 @@ export const useDocGenerationManager = (projectId: string) => {
 	}, [status, setActiveTab]);
 
 	const reset = useCallback(() => {
-		resetDocGeneration(projectKey);
-	}, [projectKey, resetDocGeneration]);
+		if (sessionKey) {
+			resetDocGeneration(projectIdNum, sessionKey);
+		}
+	}, [projectIdNum, sessionKey, resetDocGeneration]);
 
 	const setCompletedCommit = useCallback(
 		(newSourceBranch: string, newTargetBranch: string) => {
-			setCompletedCommitInfoStore(projectKey, {
-				sourceBranch: newSourceBranch,
-				targetBranch: newTargetBranch,
-			});
+			if (sessionKey) {
+				setCompletedCommitInfoStore(sessionKey, {
+					sourceBranch: newSourceBranch,
+					targetBranch: newTargetBranch,
+				});
+			}
 		},
-		[projectKey, setCompletedCommitInfoStore]
+		[sessionKey, setCompletedCommitInfoStore]
 	);
 
 	const approveCommit = useCallback(() => {
-		setCommitCompletedStore(projectKey, true);
-	}, [projectKey, setCommitCompletedStore]);
+		if (sessionKey) {
+			setCommitCompletedStore(sessionKey, true);
+		}
+	}, [sessionKey, setCommitCompletedStore]);
 
 	const cancelDocGeneration = useCallback(() => {
-		cancelDocGenerationStore(projectKey);
-	}, [cancelDocGenerationStore, projectKey]);
+		if (sessionKey) {
+			cancelDocGenerationStore(projectIdNum, sessionKey);
+		}
+	}, [cancelDocGenerationStore, projectIdNum, sessionKey]);
 
 	const mergeDocs = useCallback(() => {
-		if (!(docsInCodeRepo && docResult?.branch)) {
+		if (!(docsInCodeRepo && docResult?.branch && sessionKey)) {
 			return;
 		}
-		mergeDocsStore({ projectId: Number(projectId), branch: docResult.branch });
-	}, [docsInCodeRepo, docResult?.branch, mergeDocsStore, projectId]);
+		mergeDocsStore({ projectId: projectIdNum, branch: docResult.branch, sessionKey });
+	}, [docsInCodeRepo, docResult?.branch, mergeDocsStore, projectIdNum, sessionKey]);
 
 	return {
+		sessionKey,
+		tabId,
 		docResult,
 		status,
 		events,

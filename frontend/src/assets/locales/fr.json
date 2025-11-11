@@ -273,7 +273,25 @@
     "statusCommitting": "Validation en cours",
     "tabLabel": "Onglet {{index}}",
     "addTab": "Ajouter un onglet",
-    "closeTab": "Fermer l'onglet {{index}}"
+    "closeTab": "Fermer l'onglet {{index}}",
+    "emptyTab": {
+      "title": "Aucune session active",
+      "description": "Cet onglet n'a pas de session de génération de documentation active. Chargez une session précédente ou créez-en une nouvelle.",
+      "loadSession": "Charger une session précédente",
+      "startNew": "Nouvelle génération"
+    }
+  },
+  "sessionSelector": {
+    "title": "Charger une session précédente",
+    "description": "Sélectionnez une session à charger dans cet onglet",
+    "noSessions": "Aucune session disponible",
+    "noSessionsDescription": "Toutes les sessions sont déjà chargées dans d'autres onglets ou il n'y a aucune session enregistrée pour ce projet."
+  },
+  "tabCloseConfirm": {
+    "title": "Fermer l'onglet {{index}} ?",
+    "description": "Cet onglet a une session active pour la branche \"{{branch}}\". La fermer déplacera la session en arrière-plan.",
+    "descriptionRunning": "Une génération de documentation est en cours pour la branche \"{{branch}}\". La fermeture de cet onglet la déplacera en arrière-plan, mais la génération continuera.",
+    "closeTab": "Fermer l'onglet"
   },
   "projectSettings": {
     "title": "Paramètres du projet",

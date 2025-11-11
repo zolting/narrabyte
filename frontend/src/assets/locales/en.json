@@ -273,7 +273,25 @@
     "statusCommitting": "Committing",
     "tabLabel": "Tab {{index}}",
     "addTab": "Add tab",
-    "closeTab": "Close tab {{index}}"
+    "closeTab": "Close tab {{index}}",
+    "emptyTab": {
+      "title": "No Session Active",
+      "description": "This tab doesn't have an active documentation generation session. Load a previous session or start a new one.",
+      "loadSession": "Load Previous Session",
+      "startNew": "Start New Generation"
+    }
+  },
+  "sessionSelector": {
+    "title": "Load Previous Session",
+    "description": "Select a session to load into this tab",
+    "noSessions": "No Available Sessions",
+    "noSessionsDescription": "All sessions are either already loaded in other tabs or there are no saved sessions for this project."
+  },
+  "tabCloseConfirm": {
+    "title": "Close Tab {{index}}?",
+    "description": "This tab has an active session for branch \"{{branch}}\". Closing it will move the session to the background.",
+    "descriptionRunning": "A documentation generation is currently running for branch \"{{branch}}\". Closing this tab will move it to the background, but the generation will continue.",
+    "closeTab": "Close Tab"
   },
   "projectSettings": {
     "title": "Project Settings",

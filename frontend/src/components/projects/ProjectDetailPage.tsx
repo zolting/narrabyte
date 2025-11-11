@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useBranchManager } from "@/hooks/useBranchManager";
-import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
+import { useDocGenerationManager, type DocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 import {
 	type ModelOption,
@@ -57,10 +57,18 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const repoPath = project?.CodebaseRepo;
 	const branchManager = useBranchManager(repoPath);
+	// Default docManager for handlers (uses active session, no specific tab)
 	const docManager = useDocGenerationManager(projectId);
 	const navigate = useNavigate();
 	const docsBranchConflict = useDocGenerationStore(
-		(s) => s.docStates[String(projectId)]?.conflict ?? null
+		(s) => {
+			// Get conflict from active session (backward compat)
+			const activeSessionKey = s.activeSession[String(projectId)];
+			if (activeSessionKey) {
+				return s.docStates[activeSessionKey]?.conflict ?? null;
+			}
+			return null;
+		}
 	);
 
 
@@ -471,7 +479,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		);
 
 
-	const renderGenerationBody = () => {
+	const renderGenerationBody = (tabId: string, docManager: DocGenerationManager) => {
 		if (docManager.commitCompleted) {
 			return (
 				<SuccessPanel
@@ -516,7 +524,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				project={project}
 				mode={mode}
 				renderGenerationBody={renderGenerationBody}
-				docManager={docManager}
 				canGenerate={canGenerate}
 				canMerge={canMerge}
 				mergeDisabledReason={mergeDisabledReason}
