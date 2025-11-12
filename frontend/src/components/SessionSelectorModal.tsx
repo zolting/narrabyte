@@ -1,3 +1,5 @@
+import type { services } from "@go/models";
+import { GetAvailableTabSessions } from "@go/services/ClientService";
 import { Clock, GitBranch } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,8 +18,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { GetAvailableTabSessions } from "@go/services/ClientService";
-import type { services } from "@go/models";
 
 export type SessionSelectorModalProps = {
 	projectId: number;
@@ -47,9 +47,7 @@ export function SessionSelectorModal({
 			const availableSessions = await GetAvailableTabSessions(projectId);
 			setSessions(availableSessions);
 		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : "Failed to load sessions"
-			);
+			setError(err instanceof Error ? err.message : "Failed to load sessions");
 		} finally {
 			setLoading(false);
 		}
@@ -91,7 +89,9 @@ export function SessionSelectorModal({
 				<div className="flex flex-col gap-4">
 					{loading && (
 						<div className="flex items-center justify-center p-8">
-							<p className="text-muted-foreground">{t("generations.loading")}</p>
+							<p className="text-muted-foreground">
+								{t("generations.loading")}
+							</p>
 						</div>
 					)}
 
@@ -101,9 +101,9 @@ export function SessionSelectorModal({
 						</div>
 					)}
 
-					{!loading && !error && sessions.length === 0 && (
+					{!(loading || error) && sessions.length === 0 && (
 						<div className="flex flex-col items-center justify-center gap-2 p-8">
-							<p className="text-foreground font-medium">
+							<p className="font-medium text-foreground">
 								{t("sessionSelector.noSessions")}
 							</p>
 							<p className="text-muted-foreground text-sm">
@@ -112,12 +112,12 @@ export function SessionSelectorModal({
 						</div>
 					)}
 
-					{!loading && !error && sessions.length > 0 && (
+					{!(loading || error) && sessions.length > 0 && (
 						<div className="flex flex-col gap-3">
 							{sessions.map((session) => (
 								<Card
-									key={`${session.projectId}:${session.sourceBranch}`}
 									className="cursor-pointer transition-colors hover:border-primary"
+									key={`${session.projectId}:${session.sourceBranch}`}
 									onClick={() => handleSelectSession(session)}
 								>
 									<CardHeader>

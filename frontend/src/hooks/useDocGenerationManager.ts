@@ -11,13 +11,10 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 	// Get the sessionKey for this tab (or fallback to active session)
 	const sessionKey = useDocGenerationStore((s) => {
 		if (tabId) {
-			// Get session associated with this tab
-			const tabSessionKey = s.tabSessions[projectKey]?.[tabId];
-			if (tabSessionKey) {
-				return tabSessionKey;
-			}
+			// Only use sessions explicitly associated with this tab
+			return s.tabSessions[projectKey]?.[tabId] ?? null;
 		}
-		// Fallback to active session for backward compatibility
+		// No tab context: use the active session for backward compatibility
 		return s.activeSession[projectKey] ?? null;
 	});
 
@@ -29,19 +26,25 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		(s) => (sessionKey ? s.docStates[sessionKey]?.status : "idle") ?? "idle"
 	);
 	const events = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.events : EMPTY_EVENTS) ?? EMPTY_EVENTS
+		(s) =>
+			(sessionKey ? s.docStates[sessionKey]?.events : EMPTY_EVENTS) ??
+			EMPTY_EVENTS
 	);
 	const docGenerationError = useDocGenerationStore(
 		(s) => (sessionKey ? s.docStates[sessionKey]?.error : null) ?? null
 	);
 	const activeTab = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.activeTab : "activity") ?? "activity"
+		(s) =>
+			(sessionKey ? s.docStates[sessionKey]?.activeTab : "activity") ??
+			"activity"
 	);
 	const commitCompleted = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.commitCompleted : false) ?? false
+		(s) =>
+			(sessionKey ? s.docStates[sessionKey]?.commitCompleted : false) ?? false
 	);
 	const completedCommitInfo = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.completedCommitInfo : null) ?? null
+		(s) =>
+			(sessionKey ? s.docStates[sessionKey]?.completedCommitInfo : null) ?? null
 	);
 	const sourceBranch = useDocGenerationStore(
 		(s) => (sessionKey ? s.docStates[sessionKey]?.sourceBranch : null) ?? null
@@ -50,10 +53,12 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		(s) => (sessionKey ? s.docStates[sessionKey]?.targetBranch : null) ?? null
 	);
 	const docsInCodeRepo = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.docsInCodeRepo : false) ?? false
+		(s) =>
+			(sessionKey ? s.docStates[sessionKey]?.docsInCodeRepo : false) ?? false
 	);
 	const mergeInProgress = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.mergeInProgress : false) ?? false
+		(s) =>
+			(sessionKey ? s.docStates[sessionKey]?.mergeInProgress : false) ?? false
 	);
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
 	const startSingleBranchGeneration = useDocGenerationStore(
@@ -142,8 +147,18 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		if (!(docsInCodeRepo && docResult?.branch && sessionKey)) {
 			return;
 		}
-		mergeDocsStore({ projectId: projectIdNum, branch: docResult.branch, sessionKey });
-	}, [docsInCodeRepo, docResult?.branch, mergeDocsStore, projectIdNum, sessionKey]);
+		mergeDocsStore({
+			projectId: projectIdNum,
+			branch: docResult.branch,
+			sessionKey,
+		});
+	}, [
+		docsInCodeRepo,
+		docResult?.branch,
+		mergeDocsStore,
+		projectIdNum,
+		sessionKey,
+	]);
 
 	return {
 		sessionKey,

@@ -1,11 +1,12 @@
 import type { models } from "@go/models";
 import { Plus, RefreshCw, Settings, X } from "lucide-react";
 import {
+	type ReactNode,
 	useCallback,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
-	type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionButtons } from "@/components/ActionButtons";
@@ -14,28 +15,42 @@ import { GenerationTabs } from "@/components/GenerationTabs";
 import { SessionSelectorModal } from "@/components/SessionSelectorModal";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { DocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 
-import type { DocGenerationManager } from "@/hooks/useDocGenerationManager";
+function TabLabel({
+	projectId,
+	tabId,
+}: {
+	projectId: string;
+	tabId: string;
+}) {
+	const { t } = useTranslation();
+	const docManager = useDocGenerationManager(projectId, tabId);
+	const branchName = docManager.sourceBranch?.trim();
+	return branchName && branchName.length > 0
+		? branchName
+		: t("sidebar.newGeneration");
+}
 
 type TabContentRendererProps = {
 	tabId: string;
 	projectId: string;
 	project: models.RepoLink;
 	mode: "diff" | "single";
-	renderGenerationBody: (tabId: string, docManager: DocGenerationManager) => ReactNode;
+	renderGenerationBody: (docManager: DocGenerationManager) => ReactNode;
 	canGenerate: boolean;
-	canMerge: boolean;
-	mergeDisabledReason: string | null;
-	onApprove: () => void;
-	onGenerate: () => void;
-	onReset: () => void;
+	currentBranch: string | null;
+	hasUncommitted: boolean;
+	onApprove: (docManager: DocGenerationManager) => void;
+	onGenerate: (tabId: string, docManager: DocGenerationManager) => void;
+	onReset: (docManager: DocGenerationManager) => void;
 	onNavigateToGenerations: () => void;
 	onNavigateToSettings: () => void;
 	onRefreshBranches: () => void;
 	onLoadSession: (tabId: string) => void;
-	onStartNew: () => void;
+	onStartNew: (tabId: string) => void;
 };
 
 function TabContentRenderer({
@@ -45,8 +60,8 @@ function TabContentRenderer({
 	mode,
 	renderGenerationBody,
 	canGenerate,
-	canMerge,
-	mergeDisabledReason,
+	currentBranch,
+	hasUncommitted,
 	onApprove,
 	onGenerate,
 	onReset,
@@ -58,14 +73,54 @@ function TabContentRenderer({
 }: TabContentRendererProps) {
 	const { t } = useTranslation();
 	const docManager = useDocGenerationManager(projectId, tabId);
+	const [showSetupWithoutSession, setShowSetupWithoutSession] = useState(false);
+	const tabCanGenerate = canGenerate && !docManager.isBusy;
+
+	const { canMerge, mergeDisabledReason } = useMemo(() => {
+		if (
+			!(
+				docManager.docResult &&
+				docManager.docsInCodeRepo &&
+				docManager.sourceBranch
+			) ||
+			docManager.isBusy
+		) {
+			return { canMerge: false, mergeDisabledReason: null as string | null };
+		}
+
+		if (currentBranch === docManager.sourceBranch && hasUncommitted) {
+			return {
+				canMerge: false,
+				mergeDisabledReason: "onSourceBranchWithUncommitted",
+			};
+		}
+
+		return { canMerge: true, mergeDisabledReason: null };
+	}, [
+		docManager.docResult,
+		docManager.docsInCodeRepo,
+		docManager.sourceBranch,
+		docManager.isBusy,
+		currentBranch,
+		hasUncommitted,
+	]);
+
+	useEffect(() => {
+		if (docManager.sessionKey) {
+			setShowSetupWithoutSession(false);
+		}
+	}, [docManager.sessionKey]);
 
 	// If no session is associated with this tab, show empty state
-	if (!docManager.sessionKey) {
+	if (!(docManager.sessionKey || showSetupWithoutSession)) {
 		return (
 			<div className="flex min-h-0 flex-1 items-center justify-center p-8">
 				<EmptyTabState
 					onLoadSession={() => onLoadSession(tabId)}
-					onStartNew={onStartNew}
+					onStartNew={() => {
+						setShowSetupWithoutSession(true);
+						onStartNew(tabId);
+					}}
 				/>
 			</div>
 		);
@@ -114,7 +169,7 @@ function TabContentRenderer({
 				</div>
 			</header>
 			<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
-				{renderGenerationBody(tabId, docManager)}
+				{renderGenerationBody(docManager)}
 				{docManager.hasGenerationAttempt && (
 					<GenerationTabs
 						activeTab={docManager.activeTab}
@@ -128,7 +183,7 @@ function TabContentRenderer({
 			</div>
 			{!docManager.commitCompleted && (
 				<ActionButtons
-					canGenerate={canGenerate}
+					canGenerate={tabCanGenerate}
 					canMerge={canMerge}
 					docGenerationError={docManager.docGenerationError}
 					docResult={docManager.docResult}
@@ -136,11 +191,11 @@ function TabContentRenderer({
 					isMerging={docManager.isMerging}
 					isRunning={docManager.isRunning}
 					mergeDisabledReason={mergeDisabledReason}
-					onApprove={onApprove}
+					onApprove={() => onApprove(docManager)}
 					onCancel={docManager.cancelDocGeneration}
-					onGenerate={onGenerate}
+					onGenerate={() => onGenerate(tabId, docManager)}
 					onMerge={docManager.mergeDocs}
-					onReset={onReset}
+					onReset={() => onReset(docManager)}
 				/>
 			)}
 		</>
@@ -151,13 +206,13 @@ export type ProjectDetailTabsSectionProps = {
 	projectId: string;
 	project: models.RepoLink;
 	mode: "diff" | "single";
-	renderGenerationBody: (tabId: string, docManager: DocGenerationManager) => ReactNode;
+	renderGenerationBody: (docManager: DocGenerationManager) => ReactNode;
 	canGenerate: boolean;
-	canMerge: boolean;
-	mergeDisabledReason: string | null;
-	onApprove: () => void;
-	onGenerate: () => void;
-	onReset: () => void;
+	currentBranch: string | null;
+	hasUncommitted: boolean;
+	onApprove: (docManager: DocGenerationManager) => void;
+	onGenerate: (tabId: string, docManager: DocGenerationManager) => void;
+	onReset: (docManager: DocGenerationManager) => void;
 	onNavigateToGenerations: () => void;
 	onNavigateToSettings: () => void;
 	onRefreshBranches: () => void;
@@ -169,8 +224,8 @@ export function ProjectDetailTabsSection({
 	mode,
 	renderGenerationBody,
 	canGenerate,
-	canMerge,
-	mergeDisabledReason,
+	currentBranch,
+	hasUncommitted,
 	onApprove,
 	onGenerate,
 	onReset,
@@ -184,7 +239,9 @@ export function ProjectDetailTabsSection({
 	const [uiTabs, setUiTabs] = useState<string[]>(["tab-1"]);
 	const [activeUiTab, setActiveUiTab] = useState("tab-1");
 	const [sessionSelectorOpen, setSessionSelectorOpen] = useState(false);
-	const [sessionSelectorTabId, setSessionSelectorTabId] = useState<string | null>(null);
+	const [sessionSelectorTabId, setSessionSelectorTabId] = useState<
+		string | null
+	>(null);
 
 	const restoreSession = useDocGenerationStore((s) => s.restoreSession);
 
@@ -259,7 +316,7 @@ export function ProjectDetailTabsSection({
 		setSessionSelectorOpen(true);
 	}, []);
 
-	const handleStartNew = useCallback(() => {
+	const handleStartNew = useCallback((_tabId: string) => {
 		// User clicks "Start New" - they'll select branches in the normal UI
 		// Nothing special to do here, just ensure the tab shows the normal form
 	}, []);
@@ -307,14 +364,18 @@ export function ProjectDetailTabsSection({
 						<TabsList className="flex h-10 items-center gap-1 overflow-x-auto rounded-md bg-muted/60 p-1">
 							{uiTabs.map((tabId, index) => (
 								<TabsTrigger
+									className="group flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1 font-medium text-xs transition data-[state=active]:bg-background data-[state=active]:text-foreground"
 									key={tabId}
 									value={tabId}
-									className="group flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1 font-medium text-xs transition data-[state=active]:bg-background data-[state=active]:text-foreground"
 								>
-									<span>{t("generations.tabLabel", { index: index + 1 })}</span>
+									<span className="max-w-[8rem] truncate">
+										<TabLabel projectId={projectId} tabId={tabId} />
+									</span>
 									{uiTabs.length > 1 ? (
 										<button
-											aria-label={t("generations.closeTab", { index: index + 1 })}
+											aria-label={t("generations.closeTab", {
+												index: index + 1,
+											})}
 											className="rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
 											onClick={(event) => {
 												event.preventDefault();
@@ -330,7 +391,7 @@ export function ProjectDetailTabsSection({
 										</button>
 									) : null}
 								</TabsTrigger>
-								))}
+							))}
 							<Button
 								aria-label={t("generations.addTab")}
 								className="h-8 w-8 shrink-0"
@@ -346,14 +407,14 @@ export function ProjectDetailTabsSection({
 					</div>
 					{uiTabs.map((tabId) => (
 						<TabsContent
+							className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
 							key={tabId}
 							value={tabId}
-							className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
 						>
 							<TabContentRenderer
 								canGenerate={canGenerate}
-								canMerge={canMerge}
-								mergeDisabledReason={mergeDisabledReason}
+								currentBranch={currentBranch}
+								hasUncommitted={hasUncommitted}
 								mode={mode}
 								onApprove={onApprove}
 								onGenerate={onGenerate}

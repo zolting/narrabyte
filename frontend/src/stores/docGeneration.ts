@@ -107,7 +107,11 @@ type State = {
 	activeSession: Record<ProjectKey, SessionKey | null>;
 
 	// Tab management actions
-	createTabSession: (projectId: number, tabId: TabId, sessionKey: SessionKey | null) => void;
+	createTabSession: (
+		projectId: number,
+		tabId: TabId,
+		sessionKey: SessionKey | null
+	) => void;
 	removeTabSession: (projectId: number, tabId: TabId) => void;
 	getSessionForTab: (projectId: number, tabId: TabId) => SessionKey | null;
 
@@ -116,7 +120,10 @@ type State = {
 	startFromBranch?: (args: StartArgs & { tabId?: TabId }) => Promise<void>;
 	reset: (projectId: number | string, sessionKey?: SessionKey) => void;
 	commit: (args: CommitArgs & { sessionKey?: SessionKey }) => Promise<void>;
-	cancel: (projectId: number | string, sessionKey?: SessionKey) => Promise<void>;
+	cancel: (
+		projectId: number | string,
+		sessionKey?: SessionKey
+	) => Promise<void>;
 	setActiveTab: (
 		sessionKey: SessionKey,
 		tab: "activity" | "review" | "summary"
@@ -133,7 +140,11 @@ type State = {
 		instruction: string;
 		sessionKey?: SessionKey;
 	}) => Promise<void>;
-	mergeDocs: (args: { projectId: number; branch: string; sessionKey?: SessionKey }) => Promise<void>;
+	mergeDocs: (args: {
+		projectId: number;
+		branch: string;
+		sessionKey?: SessionKey;
+	}) => Promise<void>;
 	restoreSession: (
 		projectId: number,
 		sourceBranch: string,
@@ -446,7 +457,10 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		}));
 	};
 
-	const getTabSession = (projectId: number, tabId: TabId): SessionKey | null => {
+	const getTabSession = (
+		projectId: number,
+		tabId: TabId
+	): SessionKey | null => {
 		const projectKey = toKey(projectId);
 		const state = get();
 		return state.tabSessions[projectKey]?.[tabId] ?? null;
@@ -456,7 +470,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		const projectKey = toKey(projectId);
 		set((state) => {
 			const projectTabs = state.tabSessions[projectKey];
-			if (!projectTabs || !(tabId in projectTabs)) {
+			if (!(projectTabs && tabId in projectTabs)) {
 				return state;
 			}
 			const { [tabId]: _, ...remainingTabs } = projectTabs;
@@ -476,7 +490,11 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		activeSession: {},
 
 		// Tab management actions
-		createTabSession: (projectId: number, tabId: TabId, sessionKey: SessionKey | null) => {
+		createTabSession: (
+			projectId: number,
+			tabId: TabId,
+			sessionKey: SessionKey | null
+		) => {
 			setTabSession(projectId, tabId, sessionKey);
 		},
 
@@ -882,7 +900,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				}
 			}
 
-			if (!sessionKey || !docState || docState.status !== "running") {
+			if (!(sessionKey && docState) || docState.status !== "running") {
 				return;
 			}
 
@@ -912,7 +930,12 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}
 		},
 
-		commit: async ({ projectId, branch, files, sessionKey: sessionKeyParam }: CommitArgs & { sessionKey?: SessionKey }) => {
+		commit: async ({
+			projectId,
+			branch,
+			files,
+			sessionKey: sessionKeyParam,
+		}: CommitArgs & { sessionKey?: SessionKey }) => {
 			// Support both old (projectId) and new (sessionKey) approaches
 			let sessionKey: SessionKey | null = null;
 
@@ -1002,7 +1025,15 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			removeSessionMeta(createSessionKey(projectId, sourceBranch));
 		},
 
-		mergeDocs: async ({ projectId, branch, sessionKey: sessionKeyParam }: { projectId: number; branch: string; sessionKey?: SessionKey }): Promise<void> => {
+		mergeDocs: async ({
+			projectId,
+			branch,
+			sessionKey: sessionKeyParam,
+		}: {
+			projectId: number;
+			branch: string;
+			sessionKey?: SessionKey;
+		}): Promise<void> => {
 			// Support both old (projectId) and new (sessionKey) approaches
 			let sessionKey: SessionKey | null = null;
 
@@ -1136,7 +1167,12 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}));
 		},
 
-		refine: async ({ projectId, branch, instruction, sessionKey: sessionKeyParam }) => {
+		refine: async ({
+			projectId,
+			branch,
+			instruction,
+			sessionKey: sessionKeyParam,
+		}) => {
 			const trimmed = instruction.trim();
 			if (!trimmed) {
 				return;
@@ -1327,14 +1363,16 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			// Only reject if there's an existing running/success state for this specific session
 			if (
 				currentState &&
-				(currentState.status === "running" || (currentState.status === "success" && currentState.result))
+				(currentState.status === "running" ||
+					(currentState.status === "success" && currentState.result))
 			) {
 				return false;
 			}
 
 			try {
 				const sessionMeta = get().sessionMeta[sessionKey];
-				const projectName = currentState?.projectName ?? sessionMeta?.projectName ?? "";
+				const projectName =
+					currentState?.projectName ?? sessionMeta?.projectName ?? "";
 
 				// Get project name from repo if needed
 				let finalProjectName = projectName;

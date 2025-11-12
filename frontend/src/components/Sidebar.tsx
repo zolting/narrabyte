@@ -75,11 +75,11 @@ const MAX_REPOS = 100;
 const REPO_OFFSET = 0;
 
 function SortableProjectItem({
-								 project,
-								 isActive,
-								 onDelete,
-								 onNavigateToSettings,
-							 }: {
+	project,
+	isActive,
+	onDelete,
+	onNavigateToSettings,
+}: {
 	project: models.RepoLink;
 	isActive: boolean;
 	onDelete: () => void;
