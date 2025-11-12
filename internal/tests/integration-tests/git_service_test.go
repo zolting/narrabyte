@@ -552,3 +552,70 @@ func TestDiffBetweenCommits_ExcludesManyLockFiles(t *testing.T) {
 	// But main.go should be present
 	assert.Contains(t, diff, "main.go")
 }
+
+func TestDiffBetweenCommits_ExcludesDistLocalesPbGoAndGenerated(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	gs := &services.GitService{}
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+	wt, err := repo.Worktree()
+	assert.NoError(t, err)
+
+	// Create initial files across various patterns
+	files := []string{
+		"dist/main.js",           // should be excluded by dist/**
+		"dist/assets/app.css",    // should be excluded by dist/**
+		"locales/en/common.json", // should be excluded by locales/**/*.json
+		"api/service.pb.go",      // should be excluded by *.pb.go
+		"src/generated/foo.go",   // should be excluded by **/generated/**
+		"src/app/main.go",        // should NOT be excluded
+		"docs/_build/index.html", // should be excluded by docs/_build/**
+		"public/app.min.js",      // should be excluded by *.min.js
+	}
+
+	for _, f := range files {
+		p := filepath.Join(dir, f)
+		assert.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		assert.NoError(t, os.WriteFile(p, []byte("v1\n"), 0o644))
+		_, err = wt.Add(f)
+		assert.NoError(t, err)
+	}
+	c1, err := wt.Commit("init", &git.CommitOptions{Author: &object.Signature{Name: "Test", Email: "test@example.com"}})
+	assert.NoError(t, err)
+
+	// Modify all files
+	for _, f := range files {
+		p := filepath.Join(dir, f)
+		assert.NoError(t, os.WriteFile(p, []byte("v2\n"), 0o644))
+		_, err = wt.Add(f)
+		assert.NoError(t, err)
+	}
+	c2, err := wt.Commit("update", &git.CommitOptions{Author: &object.Signature{Name: "Test", Email: "test@example.com"}})
+	assert.NoError(t, err)
+
+	diff, err := gs.DiffBetweenCommits(repo, c1.String(), c2.String())
+	assert.NoError(t, err)
+	if diff == "" {
+		t.Fatalf("expected non-empty diff output")
+	}
+
+	// Excluded files should not be present in diff output
+	excluded := []string{
+		"dist/main.js",
+		"dist/assets/app.css",
+		"locales/en/common.json",
+		"api/service.pb.go",
+		"src/generated/foo.go",
+		"docs/_build/index.html",
+		"public/app.min.js",
+	}
+	for _, name := range excluded {
+		assert.NotContains(t, diff, name, "diff should exclude %s", name)
+	}
+
+	// Included file should be present
+	assert.Contains(t, diff, "src/app/main.go")
+}

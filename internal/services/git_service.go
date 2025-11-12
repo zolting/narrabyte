@@ -13,6 +13,7 @@ import (
 	"narrabyte/internal/models"
 	"narrabyte/internal/utils"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -251,9 +252,7 @@ func filterUnifiedDiff(diffText string) string {
 	fileA := ""
 	fileB := ""
 	flush := func() {
-		candidateA := filepath.Base(fileA)
-		candidateB := filepath.Base(fileB)
-		if (candidateA != "" && shouldExclude(candidateA)) || (candidateB != "" && shouldExclude(candidateB)) {
+		if (fileA != "" && shouldExclude(fileA)) || (fileB != "" && shouldExclude(fileB)) {
 			segment = segment[:0]
 			fileA, fileB = "", ""
 			return
@@ -304,10 +303,25 @@ func normalizePathSlashes(p string) string {
 	return clean
 }
 
+// shouldExclude returns true if the provided path matches any of the excludedPatterns.
 func shouldExclude(path string) bool {
-	base := filepath.Base(path)
-	for _, excl := range excludedPatterns {
-		if base == excl {
+	p := normalizePathSlashes(path)
+	if p == "" {
+		return false
+	}
+	base := filepath.Base(p)
+	for _, raw := range excludedPatterns {
+		pat := normalizePathSlashes(raw)
+		// Preserve previous behavior: exact base-name match anywhere
+		if pat == base {
+			return true
+		}
+		// Glob match against full path (e.g., dist/**, locales/**/*.json)
+		if ok, _ := doublestar.Match(pat, p); ok {
+			return true
+		}
+		// Glob match against the base name (e.g., *.pb.go)
+		if ok, _ := doublestar.Match(pat, base); ok {
 			return true
 		}
 	}
