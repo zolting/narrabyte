@@ -310,6 +310,24 @@ func (g *GitService) StageFiles(repo *git.Repository, paths []string) error {
 	return nil
 }
 
+// StageAll adds all files (including untracked) to the index of the repository.
+func (g *GitService) StageAll(repo *git.Repository) error {
+	if repo == nil {
+		return fmt.Errorf("repo cannot be nil")
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	// Simple approach: stage all files like `git add .`
+	if _, err := wt.Add("."); err != nil {
+		return fmt.Errorf("failed to stage files: %w", err)
+	}
+	return nil
+}
+
 // Commit creates a commit with the provided message using the staged changes.
 func (g *GitService) Commit(repo *git.Repository, message string) (plumbing.Hash, error) {
 	if repo == nil {

@@ -39,6 +39,8 @@ export function Pull(arg1:git.Repository):Promise<void>;
 
 export function Push(arg1:git.Repository):Promise<void>;
 
+export function StageAll(arg1:git.Repository):Promise<void>;
+
 export function StageFiles(arg1:git.Repository,arg2:Array<string>):Promise<void>;
 
 export function Startup(arg1:context.Context):Promise<void>;
