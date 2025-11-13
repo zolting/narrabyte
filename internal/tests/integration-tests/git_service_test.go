@@ -61,7 +61,6 @@ func TestDiffBetweenCommits(t *testing.T) {
 
 	diff, err := gs.DiffBetweenCommits(repo, commit1.String(), commit2.String())
 	assert.NoError(t, err)
-	t.Log(diff)
 	assert.Contains(t, diff, "+new line")
 	assert.Contains(t, diff, "-hello world")
 	assert.Contains(t, diff, "+hello world!")
@@ -145,9 +144,6 @@ func TestDiffBetweenBranches(t *testing.T) {
 	// Diff between the two branch heads using branch names
 	diff, err := gs.DiffBetweenBranches(repo, "master", branchName)
 	assert.NoError(t, err)
-	t.Log(diff)
-
-	// Assert the differences
 	assert.Contains(t, diff, "+feature change")
 	assert.Contains(t, diff, "-main change")
 }
@@ -486,4 +482,140 @@ func TestListBranchesByPath_InvalidPath_ReturnsError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, branches)
 	assert.Contains(t, err.Error(), "failed to open repository")
+}
+
+func TestDiffBetweenCommits_ExcludesManyLockFiles(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	gs := &services.GitService{}
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+	wt, err := repo.Worktree()
+	assert.NoError(t, err)
+
+	lockFiles := []string{
+		"package-lock.json",
+		"yarn.lock",
+		"pnpm-lock.yaml",
+		"bun.lockb",
+		"composer.lock",
+		"Gemfile.lock",
+		"poetry.lock",
+		"Pipfile.lock",
+		"Cargo.lock",
+		"go.sum",
+		"gradle.lockfile",
+		"packages.lock.json",
+		"project.assets.json",
+		"pubspec.lock",
+	}
+
+	// Initial commit: create all lock files and a meaningful file
+	for _, f := range lockFiles {
+		p := filepath.Join(dir, f)
+		assert.NoError(t, os.WriteFile(p, []byte("initial\n"), 0o644))
+		_, err = wt.Add(f)
+		assert.NoError(t, err)
+	}
+	mainPath := filepath.Join(dir, "main.go")
+	assert.NoError(t, os.WriteFile(mainPath, []byte("package main\nfunc main(){}\n"), 0o644))
+	_, err = wt.Add("main.go")
+	assert.NoError(t, err)
+	c1, err := wt.Commit("init", &git.CommitOptions{Author: &object.Signature{Name: "Test", Email: "test@example.com"}})
+	assert.NoError(t, err)
+
+	// Second commit: modify all lock files and the meaningful file
+	for _, f := range lockFiles {
+		p := filepath.Join(dir, f)
+		assert.NoError(t, os.WriteFile(p, []byte("changed\n"), 0o644))
+		_, err = wt.Add(f)
+		assert.NoError(t, err)
+	}
+	assert.NoError(t, os.WriteFile(mainPath, []byte("package main\nfunc main(){ /* changed */ }\n"), 0o644))
+	_, err = wt.Add("main.go")
+	assert.NoError(t, err)
+	c2, err := wt.Commit("update", &git.CommitOptions{Author: &object.Signature{Name: "Test", Email: "test@example.com"}})
+	assert.NoError(t, err)
+
+	diff, err := gs.DiffBetweenCommits(repo, c1.String(), c2.String())
+	assert.NoError(t, err)
+	if diff == "" {
+		t.Fatalf("expected non-empty diff output")
+	}
+
+	// Assert all lock files are excluded from diff output
+	for _, f := range lockFiles {
+		assert.NotContains(t, diff, f, "diff should exclude %s", f)
+	}
+	// But main.go should be present
+	assert.Contains(t, diff, "main.go")
+}
+
+func TestDiffBetweenCommits_ExcludesDistLocalesPbGoAndGenerated(t *testing.T) {
+	dir, err := os.MkdirTemp("", "gitservicetest")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	gs := &services.GitService{}
+	repo, err := gs.Init(dir)
+	assert.NoError(t, err)
+	wt, err := repo.Worktree()
+	assert.NoError(t, err)
+
+	// Create initial files across various patterns
+	files := []string{
+		"dist/main.js",           // should be excluded by dist/**
+		"dist/assets/app.css",    // should be excluded by dist/**
+		"locales/en/common.json", // should be excluded by locales/**/*.json
+		"api/service.pb.go",      // should be excluded by *.pb.go
+		"src/generated/foo.go",   // should be excluded by **/generated/**
+		"src/app/main.go",        // should NOT be excluded
+		"docs/_build/index.html", // should be excluded by docs/_build/**
+		"public/app.min.js",      // should be excluded by *.min.js
+	}
+
+	for _, f := range files {
+		p := filepath.Join(dir, f)
+		assert.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		assert.NoError(t, os.WriteFile(p, []byte("v1\n"), 0o644))
+		_, err = wt.Add(f)
+		assert.NoError(t, err)
+	}
+	c1, err := wt.Commit("init", &git.CommitOptions{Author: &object.Signature{Name: "Test", Email: "test@example.com"}})
+	assert.NoError(t, err)
+
+	// Modify all files
+	for _, f := range files {
+		p := filepath.Join(dir, f)
+		assert.NoError(t, os.WriteFile(p, []byte("v2\n"), 0o644))
+		_, err = wt.Add(f)
+		assert.NoError(t, err)
+	}
+	c2, err := wt.Commit("update", &git.CommitOptions{Author: &object.Signature{Name: "Test", Email: "test@example.com"}})
+	assert.NoError(t, err)
+
+	diff, err := gs.DiffBetweenCommits(repo, c1.String(), c2.String())
+	assert.NoError(t, err)
+	if diff == "" {
+		t.Fatalf("expected non-empty diff output")
+	}
+
+	// Excluded files should not be present in diff output
+	excluded := []string{
+		"dist/main.js",
+		"dist/assets/app.css",
+		"locales/en/common.json",
+		"api/service.pb.go",
+		"src/generated/foo.go",
+		"docs/_build/index.html",
+		"public/app.min.js",
+	}
+	for _, name := range excluded {
+		assert.NotContains(t, diff, name, "diff should exclude %s", name)
+	}
+
+	// Included file should be present
+	assert.Contains(t, diff, "src/app/main.go")
 }
