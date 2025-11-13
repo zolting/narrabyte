@@ -16,6 +16,7 @@ interface GenerationTabsProps {
 	status: DocGenerationStatus;
 	docResult: models.DocGenerationResult | null;
 	projectId: number;
+	sessionKey: string | null;
 }
 
 export const GenerationTabs = ({
@@ -26,6 +27,7 @@ export const GenerationTabs = ({
 	status,
 	docResult,
 	projectId,
+	sessionKey,
 }: GenerationTabsProps) => {
 	const { t } = useTranslation();
 
@@ -99,7 +101,11 @@ export const GenerationTabs = ({
 					className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
 					value="review"
 				>
-					<DocGenerationResultPanel projectId={projectId} result={docResult} />
+					<DocGenerationResultPanel
+						projectId={projectId}
+						result={docResult}
+						sessionKey={sessionKey}
+					/>
 				</TabsContent>
 			)}
 			{docResult?.summary && (

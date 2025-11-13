@@ -32,7 +32,8 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 			EMPTY_EVENTS
 	);
 	const todos = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.todos ?? EMPTY_TODOS
+		(s) =>
+			(sessionKey ? s.docStates[sessionKey]?.todos : EMPTY_TODOS) ?? EMPTY_TODOS
 	);
 	const docGenerationError = useDocGenerationStore(
 		(s) => (sessionKey ? s.docStates[sessionKey]?.error : null) ?? null

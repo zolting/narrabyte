@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/99designs/keyring v1.2.2
+	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/cloudwego/eino v0.5.11
 	github.com/cloudwego/eino-ext/components/model/claude v0.1.9
 	github.com/cloudwego/eino-ext/components/model/gemini v0.1.10
@@ -50,7 +51,6 @@ require (
 	github.com/aws/smithy-go v1.22.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
-	github.com/bmatcuk/doublestar/v4 v4.9.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.14.1 // indirect

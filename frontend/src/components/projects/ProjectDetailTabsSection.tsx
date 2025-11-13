@@ -19,13 +19,7 @@ import type { DocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 
-function TabLabel({
-	projectId,
-	tabId,
-}: {
-	projectId: string;
-	tabId: string;
-}) {
+function TabLabel({ projectId, tabId }: { projectId: string; tabId: string }) {
 	const { t } = useTranslation();
 	const docManager = useDocGenerationManager(projectId, tabId);
 	const branchName = docManager.sourceBranch?.trim();
@@ -176,8 +170,10 @@ function TabContentRenderer({
 						docResult={docManager.docResult}
 						events={docManager.events}
 						projectId={Number(project.ID)}
+						sessionKey={docManager.sessionKey}
 						setActiveTab={docManager.setActiveTab}
 						status={docManager.status}
+						todos={docManager.todos}
 					/>
 				)}
 			</div>
