@@ -359,20 +359,21 @@ export function ProjectDetailTabsSection({
 					<div className="flex items-center justify-between gap-2">
 						<TabsList className="flex h-10 items-center gap-1 overflow-x-auto rounded-md bg-muted/60 p-1">
 							{uiTabs.map((tabId, index) => (
-								<TabsTrigger
-									className="group flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1 font-medium text-xs transition data-[state=active]:bg-background data-[state=active]:text-foreground"
-									key={tabId}
-									value={tabId}
-								>
-									<span className="max-w-[8rem] truncate">
-										<TabLabel projectId={projectId} tabId={tabId} />
-									</span>
+								<div className="relative" key={tabId}>
+									<TabsTrigger
+										className="group flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1 pr-8 font-medium text-xs transition data-[state=active]:bg-background data-[state=active]:text-foreground"
+										value={tabId}
+									>
+										<span className="max-w-[8rem] truncate">
+											<TabLabel projectId={projectId} tabId={tabId} />
+										</span>
+									</TabsTrigger>
 									{uiTabs.length > 1 ? (
 										<button
 											aria-label={t("generations.closeTab", {
 												index: index + 1,
 											})}
-											className="rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+											className="-translate-y-1/2 absolute top-1/2 right-1 rounded p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
 											onClick={(event) => {
 												event.preventDefault();
 												event.stopPropagation();
@@ -386,7 +387,7 @@ export function ProjectDetailTabsSection({
 											</span>
 										</button>
 									) : null}
-								</TabsTrigger>
+								</div>
 							))}
 							<Button
 								aria-label={t("generations.addTab")}
