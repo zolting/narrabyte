@@ -199,9 +199,10 @@ func NewClaudeClient(ctx context.Context, key string, opts ClaudeModelOptions) (
 	chatModel, err := claude.NewChatModel(ctx, &claude.Config{
 		APIKey:    key,
 		Model:     modelName,
-		MaxTokens: 4096,
+		MaxTokens: 12000,
 		Thinking: &claude.Thinking{
-			Enable: opts.Thinking,
+			Enable:       opts.Thinking,
+			BudgetTokens: 4092,
 		},
 	})
 
@@ -277,6 +278,7 @@ func (o *LLMClient) StopStream() {
 	defer o.mu.Unlock()
 	if o.workspaceID != "" {
 		tools.ClearSession(o.workspaceID)
+		tools.ClearTodoSession(o.workspaceID)
 		o.workspaceID = ""
 	}
 	o.sessionKey = ""
@@ -1118,7 +1120,80 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		return nil, err
 	}
 
-	return []tool.BaseTool{listTool, readTool, writeTool, editTool}, nil
+	// TodoWrite tool - manage task list for documentation generation
+	todoWriteDesc := tools.ToolDescription("todo_write_tool")
+	if strings.TrimSpace(todoWriteDesc) == "" {
+		todoWriteDesc = "REPLACE the entire task list for the current session (read current list first, then send complete updated list)"
+	}
+	todoWriteWithPolicy := func(ctx context.Context, in *tools.TodoWriteInput) (*tools.TodoWriteOutput, error) {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("TodoWrite: updating task list"))
+
+		// Check if we're reducing the todo count (potential accidental deletion)
+		sessionID := tools.SessionIDFromContext(ctx)
+		if sessionID != "" {
+			session := tools.GetTodoSession(sessionID)
+			existing := session.GetTodos()
+			if len(existing) > 0 && len(in.Todos) < len(existing) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn(
+					fmt.Sprintf("TodoWrite: Reducing todo count from %d to %d tasks. Ensure this is intentional - remember this tool replaces the entire list.",
+						len(existing), len(in.Todos))))
+			}
+		}
+
+		out, err := tools.WriteTodo(ctx, in)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("TodoWrite: error: %v", err)))
+			return nil, err
+		}
+		// Emit the todo update as a special event with metadata
+		if out.Metadata != nil {
+			if todos, ok := out.Metadata["todos"].([]tools.Todo); ok {
+				events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("TodoWrite: %s", out.Title)))
+				// Convert tools.Todo to events.TodoItem for emission
+				todoItems := make([]events.TodoItem, len(todos))
+				for i, todo := range todos {
+					todoItems[i] = events.TodoItem{
+						Content:    todo.Content,
+						ActiveForm: todo.ActiveForm,
+						Status:     string(todo.Status),
+					}
+				}
+				// Emit a special todo update event that frontend can listen to
+				events.EmitTodoUpdate(ctx, todoItems)
+			}
+		}
+		return out, nil
+	}
+	todoWriteTool, err := einoUtils.InferTool("todo_write_tool", todoWriteDesc, todoWriteWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	// TodoRead tool - read the current task list
+	todoReadDesc := tools.ToolDescription("todo_read_tool")
+	if strings.TrimSpace(todoReadDesc) == "" {
+		todoReadDesc = "read the current task list (ALWAYS call this before todo_write_tool to avoid deleting tasks)"
+	}
+	todoReadWithPolicy := func(ctx context.Context, in *tools.TodoReadInput) (*tools.TodoReadOutput, error) {
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug("TodoRead: reading task list"))
+		// Handle nil input (tool called with no arguments)
+		if in == nil {
+			in = &tools.TodoReadInput{}
+		}
+		out, err := tools.ReadTodo(ctx, in)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("TodoRead: error: %v", err)))
+			return nil, err
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("TodoRead: %s", out.Title)))
+		return out, nil
+	}
+	todoReadTool, err := einoUtils.InferTool("todo_read_tool", todoReadDesc, todoReadWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	return []tool.BaseTool{listTool, readTool, writeTool, editTool, todoWriteTool, todoReadTool}, nil
 }
 
 func (o *LLMClient) withBaseRoot(root string, snapshot *tools.GitSnapshot, fn func() error) error {

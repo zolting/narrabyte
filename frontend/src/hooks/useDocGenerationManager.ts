@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useDocGenerationStore } from "@/stores/docGeneration";
-import type { DemoEvent } from "@/types/events";
+import type { DemoEvent, TodoItem } from "@/types/events";
 
 const EMPTY_EVENTS: DemoEvent[] = [];
+const EMPTY_TODOS: TodoItem[] = [];
 
 export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 	const projectKey = useMemo(() => String(projectId), [projectId]);
@@ -29,6 +30,9 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		(s) =>
 			(sessionKey ? s.docStates[sessionKey]?.events : EMPTY_EVENTS) ??
 			EMPTY_EVENTS
+	);
+	const todos = useDocGenerationStore(
+		(s) => s.docStates[projectKey]?.todos ?? EMPTY_TODOS
 	);
 	const docGenerationError = useDocGenerationStore(
 		(s) => (sessionKey ? s.docStates[sessionKey]?.error : null) ?? null
@@ -166,6 +170,7 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		docResult,
 		status,
 		events,
+		todos,
 		docGenerationError,
 		activeTab,
 		setActiveTab,

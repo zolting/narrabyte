@@ -328,5 +328,18 @@
     "documentationBaseBranchDescription": "Select the branch in your documentation repository that new documentation branches should be based on.",
     "documentationBaseBranchRequired": "Select the documentation base branch.",
     "branchLoadFailed": "Unable to list branches for the documentation repository."
+  },
+  "todos": {
+    "title": "Task Progress",
+    "pending": "{{count}} pending",
+    "inProgress": "{{count}} in progress",
+    "completed": "{{count}} completed",
+    "allCompleted": "All tasks completed"
+  },
+  "activity": {
+    "title": "Activity Feed",
+    "empty": "No activity yet.",
+    "allTasks": "All Tasks",
+    "toolActivity": "Tool Activity"
   }
 }
