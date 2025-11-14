@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useDocGenerationStore } from "@/stores/docGeneration";
+  import { useDocGenerationStore } from "@/stores/docGeneration";
 
 export type DocBranchConflictDialogProps = {
 	projectId: number;
@@ -66,13 +66,14 @@ export const DocBranchConflictDialog = ({
 			setNewName(suggestName(proposedDocsBranch));
 		}
 	}, [open, proposedDocsBranch, suggestName]);
-	const deleteAction = useDocGenerationStore(
-		(s) => s.resolveDocsBranchConflictByDelete
-	);
-	const renameAction = useDocGenerationStore(
-		(s) => s.resolveDocsBranchConflictByRename
-	);
-	const clearConflict = useDocGenerationStore((s) => s.clearConflict);
+  	const deleteAction = useDocGenerationStore(
+  		(s) => s.resolveDocsBranchConflictByDelete
+  	);
+  	const renameAction = useDocGenerationStore(
+  		(s) => s.resolveDocsBranchConflictByRename
+  	);
+  	const cancelAction = useDocGenerationStore((s) => s.cancel);
+  	const clearConflict = useDocGenerationStore((s) => s.clearConflict);
 
 	// Disable confirm when input is empty or same as the existing docs branch
 	const sameAsExisting = useMemo(
@@ -86,6 +87,10 @@ export const DocBranchConflictDialog = ({
 
 	const handleClose = (next: boolean) => {
 		if (!next) {
+			// If a generation session is in progress, ensure it is canceled
+			if (isInProgress) {
+				void cancelAction(projectId, sourceBranch);
+			}
 			clearConflict(projectId);
 		}
 	};

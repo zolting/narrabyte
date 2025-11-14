@@ -109,7 +109,10 @@ type State = {
 	startFromBranch?: (args: StartArgs) => Promise<void>;
 	reset: (projectId: number | string) => void;
 	commit: (args: CommitArgs) => Promise<void>;
-	cancel: (projectId: number | string) => Promise<void>;
+    cancel: (
+        projectId: number | string,
+        sourceBranch?: string | null
+    ) => Promise<void>;
 	setActiveTab: (
 		projectId: number | string,
 		tab: "activity" | "review" | "summary"
@@ -822,16 +825,37 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		) => {
 			const key = toKey(projectId);
 			const docState = get().docStates[key] ?? EMPTY_DOC_STATE;
-			if (docState.status !== "running") {
+			const branch = sourceBranch ?? docState.sourceBranch ?? "";
+
+			// Allow cancellation if either a run is active or backend reports in-progress via conflict
+			const allowCancel =
+				docState.status === "running" ||
+				Boolean(docState.conflict?.isInProgress);
+			if (!allowCancel || !branch) {
 				return;
 			}
 
-			const branch = sourceBranch ?? docState.sourceBranch ?? "";
 			const sessionKey = docState.sessionKey;
 			setDocState(key, { cancellationRequested: true });
 			try {
 				await StopStream(Number(projectId), branch);
-				removeSessionMeta(sessionKey);
+				if (sessionKey) {
+					removeSessionMeta(sessionKey);
+				}
+				// Reflect canceled state and keep prior activity visible
+				setDocState(key, (prev) => ({
+					...prev,
+					cancellationRequested: false,
+					status: "canceled",
+					error: null,
+					events: [
+						...prev.events,
+						createLocalEvent(
+							"warn",
+							"Documentation generation canceled by user."
+						),
+					],
+				}));
 			} catch (error) {
 				const message = messageFromError(error);
 				console.error("Failed to cancel doc generation", error);
@@ -849,7 +873,9 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						),
 					],
 				}));
-				removeSessionMeta(sessionKey);
+				if (sessionKey) {
+					removeSessionMeta(sessionKey);
+				}
 			}
 		},
 
@@ -1347,14 +1373,11 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				setDocState(key, (prev) => ({
 					...prev,
 					error: mapErrorCodeToMessage(message),
+					status: "idle",
 					// Keep the conflict so the dialog remains open
-					events: [
-						...prev.events,
-						createLocalEvent(
-							"error",
-							`Failed to delete docs branch: ${message}`
-						),
-					],
+					conflict: prev.conflict,
+					// Avoid adding events so the session UI doesn't appear in background
+					events: [],
 				}));
 			}
 		},
@@ -1376,21 +1399,22 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				return;
 			}
 			try {
-				// Transition to running and subscribe to events for live progress
-				setDocState(key, {
-					...EMPTY_DOC_STATE,
+				// Transition to running without wiping prior activity
+				setDocState(key, (prev) => ({
+					...prev,
 					activeTab: "activity",
 					status: "running",
 					sourceBranch,
-					targetBranch: mode === "diff" ? (targetBranch ?? null) : null,
-					// show an initial local event for clarity
+					targetBranch:
+						mode === "diff" ? (targetBranch ?? prev.targetBranch) : prev.targetBranch,
 					events: [
+						...prev.events,
 						createLocalEvent(
 							"info",
 							`Using new docs branch name '${targetName}'`
 						),
 					],
-				});
+				}));
 
 				clearSubscriptions(key);
 				const toolUnsub = EventsOn("event:llm:tool", (payload) => {
@@ -1457,22 +1481,46 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					conflict: null,
 				}));
 			} catch (error) {
+				// On failure, ensure any in-flight generation is stopped
+				try {
+					await StopStream(Number(projectId), sourceBranch ?? "");
+				} catch {}
 				const message = messageFromError(error);
-				setDocState(key, (prev) => ({
-					...prev,
-					error: mapErrorCodeToMessage(message),
-					// Keep conflict so the dialog stays present and allow user to try another name
-					conflict: prev.conflict
-						? { ...prev.conflict, proposedDocsBranch: targetName }
-						: prev.conflict,
-					events: [
-						...prev.events,
-						createLocalEvent(
-							"error",
-							`Failed to create docs branch '${targetName}': ${message}`
-						),
-					],
-				}));
+				const normalized = message.toLowerCase();
+				const current = get().docStates[key] ?? EMPTY_DOC_STATE;
+				const canceled =
+					current.cancellationRequested ||
+					normalized.includes("context canceled") ||
+					normalized.includes("context cancelled") ||
+					normalized.includes("cancelled") ||
+					normalized.includes("canceled");
+				if (canceled) {
+					setDocState(key, (prev) => ({
+						...prev,
+						error: null,
+						status: "canceled",
+						cancellationRequested: false,
+						events: [
+							...prev.events,
+							createLocalEvent(
+								"warn",
+								"Documentation generation canceled by user."
+							),
+						],
+					}));
+				} else {
+					setDocState(key, (prev) => ({
+						...prev,
+						error: mapErrorCodeToMessage(message),
+						// Reset status but keep previous activity visible
+						status: "idle",
+						result: null,
+						// Keep conflict so the dialog stays present and allow user to try another name
+						conflict: prev.conflict
+							? { ...prev.conflict, proposedDocsBranch: targetName }
+							: prev.conflict,
+					}));
+				}
 			} finally {
 				clearSubscriptions(key);
 				setDocState(key, { cancellationRequested: false });
