@@ -1,4 +1,4 @@
-import type { models } from "@go/models";
+import type { models, services } from "@go/models";
 import { Plus, RefreshCw, Settings, X } from "lucide-react";
 import {
 	type ReactNode,
@@ -318,22 +318,26 @@ export function ProjectDetailTabsSection({
 	}, []);
 
 	const handleSelectSession = useCallback(
-		async (sessionKey: string) => {
+		async (session: services.SessionInfo) => {
 			if (!sessionSelectorTabId) {
 				return;
 			}
 
-			// Parse sessionKey: "projectId:sourceBranch"
-			const parts = sessionKey.split(":");
-			if (parts.length !== 2) {
+			const sourceBranch = session.sourceBranch?.trim();
+			const targetBranch = session.targetBranch?.trim();
+
+			if (!(sourceBranch && targetBranch)) {
+				console.error(
+					"Cannot restore session without branch information",
+					session
+				);
 				return;
 			}
 
-			const [_, sourceBranch] = parts;
 			const success = await restoreSession(
 				Number(projectId),
 				sourceBranch,
-				"", // targetBranch not needed for restore
+				targetBranch,
 				sessionSelectorTabId
 			);
 

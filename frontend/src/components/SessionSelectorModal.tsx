@@ -23,7 +23,7 @@ export type SessionSelectorModalProps = {
 	projectId: number;
 	open: boolean;
 	onClose: () => void;
-	onSelectSession: (sessionKey: string) => void;
+	onSelectSession: (session: services.SessionInfo) => void;
 };
 
 export function SessionSelectorModal({
@@ -60,8 +60,7 @@ export function SessionSelectorModal({
 	}, [open, loadSessions]);
 
 	const handleSelectSession = (session: services.SessionInfo) => {
-		const sessionKey = `${session.projectId}:${session.sourceBranch}`;
-		onSelectSession(sessionKey);
+		onSelectSession(session);
 		onClose();
 	};
 
@@ -76,7 +75,7 @@ export function SessionSelectorModal({
 
 	return (
 		<Dialog onOpenChange={onClose} open={open}>
-			<DialogContent className="max-h-[80vh] w-auto max-w-2xl overflow-y-auto">
+			<DialogContent className="flex max-h-[80vh] w-auto max-w-2xl flex-col">
 				<DialogHeader>
 					<DialogTitle className="text-foreground text-lg">
 						{t("sessionSelector.title")}
@@ -86,7 +85,7 @@ export function SessionSelectorModal({
 					</DialogDescription>
 				</DialogHeader>
 
-				<div className="flex flex-col gap-4">
+				<div className="flex flex-col gap-4 overflow-y-auto">
 					{loading && (
 						<div className="flex items-center justify-center p-8">
 							<p className="text-muted-foreground">
