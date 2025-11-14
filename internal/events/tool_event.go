@@ -11,14 +11,15 @@ import (
 type EventType string
 
 const (
-	EventInfo  EventType = "info"
-	EventDebug EventType = "debug"
-	EventWarn  EventType = "warn"
-	EventError EventType = "error"
+	EventInfo    EventType = "info"
+	EventWarn    EventType = "warn"
+	EventSuccess EventType = "success"
+	EventError   EventType = "error"
 )
 
 const (
 	LLMEventTool = "event:llm:tool"
+	LLMGenerate  = "events:llm:generate"
 	LLMEventDone = "events:llm:done"
 )
 
@@ -69,11 +70,6 @@ func NewInfo(message string) ToolEvent {
 	return CreateToolEvent(EventInfo, message)
 }
 
-// NewDebug creates a debug ToolEvent.
-func NewDebug(message string) ToolEvent {
-	return CreateToolEvent(EventDebug, message)
-}
-
 // NewWarn creates a warn ToolEvent.
 func NewWarn(message string) ToolEvent {
 	return CreateToolEvent(EventWarn, message)
@@ -82,4 +78,9 @@ func NewWarn(message string) ToolEvent {
 // NewError creates an error ToolEvent.
 func NewError(message string) ToolEvent {
 	return CreateToolEvent(EventError, message)
+}
+
+// NewSuccess creates a success ToolEvent.
+func NewSuccess(message string) ToolEvent {
+	return CreateToolEvent(EventSuccess, message)
 }

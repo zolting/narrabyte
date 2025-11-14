@@ -1,15 +1,15 @@
 import { z } from "zod/v4";
 
-// Zod schema for DemoEvent
-export const demoEventSchema = z.object({
+// Zod schema for ToolEvent
+export const toolEventSchema = z.object({
 	id: z.string().uuid(),
-	type: z.enum(["info", "debug", "warn", "error"]),
+	type: z.enum(["success","info","warn", "error"]),
 	message: z.string().min(1),
 	timestamp: z.coerce.date(),
 	sessionKey: z.string().optional(),
 });
 
-export type DemoEvent = z.infer<typeof demoEventSchema>;
+export type ToolEvent = z.infer<typeof toolEventSchema>;
 
 // Zod schema for TodoItem
 export const todoItemSchema = z.object({

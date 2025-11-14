@@ -72,7 +72,7 @@ func migrate(db *gorm.DB) error {
 	return nil
 }
 
-// loggerWriter satisfies io.Writer for GORM logger but delegates to std log.Printf
+// loggerWriter satisfies io.Writer for GORM loggers but delegates to std log.Printf
 type loggerWriter struct{}
 
 func (loggerWriter) Write(p []byte) (int, error) {

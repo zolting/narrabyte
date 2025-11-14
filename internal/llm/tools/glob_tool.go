@@ -292,7 +292,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 		if !filepath.IsAbs(pattern) {
 			absPattern = filepath.Join(searchPath, pattern)
 		}
-		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Glob: using pattern '%s'", filepath.ToSlash(absPattern))))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Glob: using pattern '%s'", filepath.ToSlash(absPattern))))
 
 		matches, err := filepathx.Glob(absPattern)
 		if err != nil {

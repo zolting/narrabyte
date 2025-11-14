@@ -905,15 +905,22 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		}
 		var output string
 		snapshot := o.snapshotForRoot(root)
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: %s [%s]", rel, snapshotInfo(snapshot))))
 		err = o.withBaseRoot(root, snapshot, func() error {
 			res, innerErr := tools.ListDirectory(ctx, &tools.ListLSInput{Path: rel, Ignore: ignore})
 			if innerErr != nil {
+				events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory(policy): %v", innerErr)))
 				return innerErr
 			}
 			output = res.Output
 			return nil
 		})
+
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("tool=list_directory_tool path=%s", filepath.ToSlash(rel))))
+		} else {
+			events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("tool=list_directory_tool path=%s", filepath.ToSlash(rel))))
+		}
+
 		return output, err
 	}
 	listTool, err := einoUtils.InferTool("list_directory_tool", listDesc, listWithPolicy)
@@ -944,7 +951,7 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		}
 		var out *tools.ReadFileOutput
 		snapshot := o.snapshotForRoot(root)
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: %s [%s]", rel, snapshotInfo(snapshot))))
+
 		err = o.withBaseRoot(root, snapshot, func() error {
 			res, innerErr := tools.ReadFile(ctx, &tools.ReadFileInput{
 				FilePath: abs,
@@ -958,11 +965,14 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			return nil
 		})
 		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(policy): %v path= %s", err, filepath.ToSlash(rel))))
 			return out, err
 		}
 		if out != nil && (out.Metadata == nil || out.Metadata["error"] == "") {
 			o.recordOpenedFile(abs)
 		}
+
+		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("tool=read_file_tool path=%s", filepath.ToSlash(rel))))
 		return out, nil
 	}
 	readTool, err := einoUtils.InferTool("read_file_tool", readDesc, readWithPolicy)
@@ -991,7 +1001,7 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
-		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("WriteFile(policy): resolving '%s'", p)))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): resolving '%s'", p)))
 		absCandidate, rerr := o.resolveAbsWithinBase(p)
 		if rerr != nil {
 			if rerr.Error() == "project root not set" {
@@ -1032,12 +1042,8 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		if out != nil && strings.TrimSpace(out.Title) != "" {
 			title = filepath.ToSlash(out.Title)
 		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(func() string {
-			if title == "" {
-				return "WriteFile(policy): done"
-			}
-			return "WriteFile(policy): done for '" + title + "'"
-		}()))
+
+		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("tool=write_file_tool path=%s", title)))
 		return out, nil
 	}
 	writeTool, err := einoUtils.InferTool("write_file_tool", writeDesc, writeWithPolicy)
@@ -1066,7 +1072,7 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
-		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("EditFile(policy): resolving '%s'", p)))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("EditFile(policy): resolving '%s'", p)))
 		absCandidate, rerr := o.resolveAbsWithinBase(p)
 		if rerr != nil {
 			if rerr.Error() == "project root not set" {
@@ -1107,12 +1113,8 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		if out != nil && strings.TrimSpace(out.Title) != "" {
 			title = filepath.ToSlash(out.Title)
 		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(func() string {
-			if title == "" {
-				return "EditFile(policy): done"
-			}
-			return "EditFile(policy): done for '" + title + "'"
-		}()))
+
+		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("tool=edit_file_tool path=%s", title)))
 		return out, nil
 	}
 	editTool, err := einoUtils.InferTool("edit_tool", editDesc, editWithPolicy)
@@ -1162,6 +1164,8 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 				events.EmitTodoUpdate(ctx, todoItems)
 			}
 		}
+
+		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("TodoWrite: %s", out.Title)))
 		return out, nil
 	}
 	todoWriteTool, err := einoUtils.InferTool("todo_write_tool", todoWriteDesc, todoWriteWithPolicy)
@@ -1175,7 +1179,7 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		todoReadDesc = "read the current task list (ALWAYS call this before todo_write_tool to avoid deleting tasks)"
 	}
 	todoReadWithPolicy := func(ctx context.Context, in *tools.TodoReadInput) (*tools.TodoReadOutput, error) {
-		events.Emit(ctx, events.LLMEventTool, events.NewDebug("TodoRead: reading task list"))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("TodoRead: reading task list"))
 		// Handle nil input (tool called with no arguments)
 		if in == nil {
 			in = &tools.TodoReadInput{}
@@ -1185,7 +1189,8 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("TodoRead: error: %v", err)))
 			return nil, err
 		}
-		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("TodoRead: %s", out.Title)))
+
+		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("TodoRead: %s", out.Title)))
 		return out, nil
 	}
 	todoReadTool, err := einoUtils.InferTool("todo_read_tool", todoReadDesc, todoReadWithPolicy)
