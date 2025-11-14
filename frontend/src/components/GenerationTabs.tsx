@@ -52,42 +52,12 @@ export const GenerationTabs = ({
 			<TabsList
 				className={cn("grid h-auto w-full bg-muted p-1", getGridColumns())}
 			>
-				<TabsTrigger
-					className={cn(
-						"transition-all",
-						activeTab === "activity"
-							? "!bg-accent !text-accent-foreground shadow-sm"
-							: "hover:bg-muted-foreground/10"
-					)}
-					value="activity"
-				>
-					{t("common.recentActivity")}
-				</TabsTrigger>
+				<TabsTrigger value="activity">{t("common.recentActivity")}</TabsTrigger>
 				{docResult && (
-					<TabsTrigger
-						className={cn(
-							"transition-all",
-							activeTab === "review"
-								? "!bg-accent !text-accent-foreground shadow-sm"
-								: "hover:bg-muted-foreground/10"
-						)}
-						value="review"
-					>
-						{t("common.review")}
-					</TabsTrigger>
+					<TabsTrigger value="review">{t("common.review")}</TabsTrigger>
 				)}
 				{docResult?.summary && (
-					<TabsTrigger
-						className={cn(
-							"transition-all",
-							activeTab === "summary"
-								? "!bg-accent !text-accent-foreground shadow-sm"
-								: "hover:bg-muted-foreground/10"
-						)}
-						value="summary"
-					>
-						{t("common.summary")}
-					</TabsTrigger>
+					<TabsTrigger value="summary">{t("common.summary")}</TabsTrigger>
 				)}
 			</TabsList>
 			<TabsContent
