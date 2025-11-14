@@ -10,12 +10,12 @@ export function CommitDocs(arg1, arg2, arg3) {
   return window['go']['services']['ClientService']['CommitDocs'](arg1, arg2, arg3);
 }
 
-export function GenerateDocs(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['services']['ClientService']['GenerateDocs'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function GenerateDocs(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['services']['ClientService']['GenerateDocs'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
-export function GenerateDocsFromBranch(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['services']['ClientService']['GenerateDocsFromBranch'](arg1, arg2, arg3, arg4, arg5);
+export function GenerateDocsFromBranch(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['services']['ClientService']['GenerateDocsFromBranch'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function GetAvailableTabSessions(arg1) {
@@ -34,16 +34,16 @@ export function MergeDocsIntoSource(arg1, arg2) {
   return window['go']['services']['ClientService']['MergeDocsIntoSource'](arg1, arg2);
 }
 
-export function RefineDocs(arg1, arg2, arg3) {
-  return window['go']['services']['ClientService']['RefineDocs'](arg1, arg2, arg3);
+export function RefineDocs(arg1, arg2, arg3, arg4) {
+  return window['go']['services']['ClientService']['RefineDocs'](arg1, arg2, arg3, arg4);
 }
 
 export function Startup(arg1) {
   return window['go']['services']['ClientService']['Startup'](arg1);
 }
 
-export function StopStream(arg1, arg2) {
-  return window['go']['services']['ClientService']['StopStream'](arg1, arg2);
+export function StopStream(arg1, arg2, arg3) {
+  return window['go']['services']['ClientService']['StopStream'](arg1, arg2, arg3);
 }
 
 export function UnbindSessionFromTab(arg1, arg2) {

@@ -33,7 +33,10 @@ import {
 	type DocGenerationManager,
 	useDocGenerationManager,
 } from "@/hooks/useDocGenerationManager";
-import { useDocGenerationStore } from "@/stores/docGeneration";
+import {
+	createSessionKey,
+	useDocGenerationStore,
+} from "@/stores/docGeneration";
 import {
 	type ModelOption,
 	useModelSettingsStore,
@@ -241,11 +244,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				return;
 			}
 
-			createTabSession(
+			const newSessionKey = createSessionKey(
 				Number(project.ID),
-				tabId,
-				`${Number(project.ID)}:${trimmedSourceBranch}`
+				trimmedSourceBranch,
+				tabId
 			);
+			createTabSession(Number(project.ID), tabId, newSessionKey);
 
 			const instructions = buildInstructionPayload();
 
@@ -535,6 +539,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					projectId={Number(project?.ID ?? projectId)}
 					projectName={project.ProjectName}
 					proposedDocsBranch={docsBranchConflict.proposedDocsBranch}
+					sessionKey={activeDocManager.sessionKey ?? undefined}
 					sourceBranch={activeDocManager.sourceBranch}
 					targetBranch={branchManager.targetBranch ?? undefined}
 					userInstructions={buildInstructionPayload()}

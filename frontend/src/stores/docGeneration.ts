@@ -45,7 +45,7 @@ type CommitArgs = {
 };
 
 type ProjectKey = string;
-type SessionKey = string;
+export type SessionKey = string;
 type TabId = string;
 
 type SessionMeta = {
@@ -171,6 +171,7 @@ type State = {
 		modelKey: string;
 		userInstructions: string;
 		tabId?: TabId;
+		sessionKey?: SessionKey;
 	}) => Promise<void>;
 	resolveDocsBranchConflictByRename: (args: {
 		projectId: number;
@@ -181,6 +182,7 @@ type State = {
 		modelKey: string;
 		userInstructions: string;
 		tabId?: TabId;
+		sessionKey?: SessionKey;
 	}) => Promise<void>;
 	clearConflict: (sessionKey: SessionKey) => void;
 };
@@ -210,10 +212,61 @@ const EMPTY_DOC_STATE: DocGenerationData = {
 };
 
 const toKey = (projectId: number | string): ProjectKey => String(projectId);
-const createSessionKey = (
+const normalizeTabId = (tabId?: TabId | null): string | null => {
+	const normalized = (tabId ?? "").trim();
+	return normalized === "" ? null : normalized;
+};
+
+export const createSessionKey = (
 	projectId: number,
-	sourceBranch: string | null | undefined
-): SessionKey => `${projectId}:${(sourceBranch ?? "").trim()}`;
+	sourceBranch: string | null | undefined,
+	tabId?: TabId | null
+): SessionKey => {
+	const normalizedBranch = (sourceBranch ?? "").trim();
+	const baseKey = `${projectId}:${normalizedBranch}`;
+	const normalizedTab = normalizeTabId(tabId);
+	return normalizedTab ? `${baseKey}:${normalizedTab}` : baseKey;
+};
+
+const backendSessionBindings = new Map<SessionKey, SessionKey>();
+
+const bindBackendSession = (
+	baseSessionKey: SessionKey,
+	sessionKey: SessionKey
+) => {
+	backendSessionBindings.set(baseSessionKey, sessionKey);
+};
+
+const unbindBackendSession = (
+	baseSessionKey: SessionKey,
+	sessionKey?: SessionKey
+) => {
+	if (sessionKey && backendSessionBindings.get(baseSessionKey) !== sessionKey) {
+		return;
+	}
+	backendSessionBindings.delete(baseSessionKey);
+};
+
+const isEventForSession = (
+	incomingKey: string | undefined,
+	sessionKey: SessionKey,
+	baseSessionKey: SessionKey
+) => {
+	if (!incomingKey) {
+		return true;
+	}
+	if (incomingKey === sessionKey) {
+		return true;
+	}
+	if (incomingKey !== baseSessionKey) {
+		return false;
+	}
+	const boundSession = backendSessionBindings.get(baseSessionKey);
+	if (boundSession) {
+		return boundSession === sessionKey;
+	}
+	return sessionKey === baseSessionKey;
+};
 
 const messageFromError = (error: unknown) => {
 	if (error instanceof Error) {
@@ -525,7 +578,10 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			tabId,
 		}: StartArgs & { tabId?: TabId }) => {
 			const projectKey = toKey(projectId);
-			const sessionKey = createSessionKey(projectId, sourceBranch);
+			const baseSessionKey = createSessionKey(projectId, sourceBranch);
+			const sessionKey = tabId
+				? createSessionKey(projectId, sourceBranch, tabId)
+				: baseSessionKey;
 			const currentState = get().docStates[sessionKey];
 			if (currentState?.status === "running") {
 				return;
@@ -535,6 +591,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			if (tabId) {
 				setTabSession(projectId, tabId, sessionKey);
 			}
+
+			bindBackendSession(baseSessionKey, sessionKey);
 
 			setDocState(sessionKey, {
 				projectId,
@@ -573,7 +631,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
-					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
 					setDocState(sessionKey, (prev) => ({
@@ -588,7 +646,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			const doneUnsub = EventsOn("events:llm:done", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
-					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
 					setDocState(sessionKey, (prev) => ({
@@ -603,7 +661,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			const todoUnsub = EventsOn("event:llm:todo", (payload) => {
 				try {
 					const evt = todoEventSchema.parse(payload);
-					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
 					setDocState(sessionKey, (prev) => ({
@@ -628,7 +686,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					targetBranch,
 					modelKey,
 					userInstructions,
-					""
+					"",
+					sessionKey
 				);
 				setDocState(sessionKey, {
 					result,
@@ -717,6 +776,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					updateSessionMeta(sessionKey, { status: "error" });
 				}
 			} finally {
+				unbindBackendSession(baseSessionKey, sessionKey);
 				clearSubscriptions(sessionKey);
 				setDocState(sessionKey, { cancellationRequested: false });
 			}
@@ -731,7 +791,10 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			tabId,
 		}: StartArgs & { tabId?: TabId }) => {
 			const projectKey = toKey(projectId);
-			const sessionKey = createSessionKey(projectId, sourceBranch);
+			const baseSessionKey = createSessionKey(projectId, sourceBranch);
+			const sessionKey = tabId
+				? createSessionKey(projectId, sourceBranch, tabId)
+				: baseSessionKey;
 			const currentState = get().docStates[sessionKey];
 			if (currentState?.status === "running") {
 				return;
@@ -741,6 +804,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			if (tabId) {
 				setTabSession(projectId, tabId, sessionKey);
 			}
+
+			bindBackendSession(baseSessionKey, sessionKey);
 
 			setDocState(sessionKey, {
 				projectId,
@@ -779,7 +844,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
-					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
 					setDocState(sessionKey, (prev) => ({
@@ -794,7 +859,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			const doneUnsub = EventsOn("events:llm:done", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
-					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
 					setDocState(sessionKey, (prev) => ({
@@ -809,7 +874,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			const todoUnsub = EventsOn("event:llm:todo", (payload) => {
 				try {
 					const evt = todoEventSchema.parse(payload);
-					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
 					setDocState(sessionKey, (prev) => ({
@@ -833,7 +898,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					sourceBranch,
 					modelKey,
 					userInstructions,
-					""
+					"",
+					sessionKey
 				);
 				setDocState(sessionKey, {
 					result,
@@ -922,6 +988,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					updateSessionMeta(sessionKey, { status: "error" });
 				}
 			} finally {
+				unbindBackendSession(baseSessionKey, sessionKey);
 				clearSubscriptions(sessionKey);
 				setDocState(sessionKey, { cancellationRequested: false });
 			}
@@ -956,7 +1023,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			const branch = docState.sourceBranch ?? "";
 			setDocState(sessionKey, { cancellationRequested: true });
 			try {
-				await StopStream(Number(projectId), branch);
+				await StopStream(Number(projectId), branch, sessionKey);
 				updateSessionMeta(sessionKey, { status: "canceled" });
 			} catch (error) {
 				const message = messageFromError(error);
@@ -1071,7 +1138,16 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		},
 
 		clearSessionMeta: (projectId, sourceBranch) => {
-			removeSessionMeta(createSessionKey(projectId, sourceBranch));
+			const baseSessionKey = createSessionKey(projectId, sourceBranch);
+			set((state) => {
+				const nextMeta = { ...state.sessionMeta };
+				for (const key of Object.keys(nextMeta)) {
+					if (key === baseSessionKey || key.startsWith(`${baseSessionKey}:`)) {
+						delete nextMeta[key];
+					}
+				}
+				return { sessionMeta: nextMeta };
+			});
 		},
 
 		mergeDocs: async ({
@@ -1250,6 +1326,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			if (docState.status === "running") {
 				return;
 			}
+			const baseSessionKey = createSessionKey(projectId, branch);
 
 			const messageId =
 				typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -1270,11 +1347,12 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				status: "running",
 			}));
 
+			bindBackendSession(baseSessionKey, sessionKey);
 			clearSubscriptions(sessionKey);
 			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
-					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
 					setDocState(sessionKey, (prev) => ({
@@ -1288,7 +1366,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			const doneUnsub = EventsOn("events:llm:done", (payload) => {
 				try {
 					const evt = demoEventSchema.parse(payload);
-					if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
 					setDocState(sessionKey, (prev) => ({
@@ -1303,7 +1381,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			subscriptions.set(sessionKey, { tool: toolUnsub, done: doneUnsub });
 
 			try {
-				const result = await RefineDocs(projectId, branch, trimmed);
+				const result = await RefineDocs(projectId, branch, trimmed, sessionKey);
 				setDocState(sessionKey, (prev) => {
 					const baseline =
 						prev.initialDiffSignatures ??
@@ -1390,6 +1468,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					};
 				});
 			} finally {
+				unbindBackendSession(baseSessionKey, sessionKey);
 				clearSubscriptions(sessionKey);
 				setDocState(sessionKey, { cancellationRequested: false });
 			}
@@ -1402,7 +1481,10 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			tabId?: TabId
 		): Promise<boolean> => {
 			const projectKey = toKey(projectId);
-			const sessionKey = createSessionKey(projectId, sourceBranch);
+			const baseSessionKey = createSessionKey(projectId, sourceBranch);
+			const sessionKey = tabId
+				? createSessionKey(projectId, sourceBranch, tabId)
+				: baseSessionKey;
 			const currentState = get().docStates[sessionKey];
 
 			// If tabId provided, associate this session with the tab
@@ -1549,8 +1631,13 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			modelKey,
 			userInstructions,
 			tabId,
+			sessionKey: sessionKeyOverride,
 		}) => {
-			const sessionKey = createSessionKey(projectId, sourceBranch);
+			const sessionKey =
+				sessionKeyOverride ??
+				(tabId
+					? createSessionKey(projectId, sourceBranch, tabId)
+					: createSessionKey(projectId, sourceBranch));
 			const state = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
 			const existing = state.conflict?.existingDocsBranch?.trim();
 			if (!existing) {
@@ -1629,8 +1716,14 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			modelKey,
 			userInstructions,
 			tabId,
+			sessionKey: sessionKeyOverride,
 		}) => {
-			const sessionKey = createSessionKey(projectId, sourceBranch);
+			const baseSessionKey = createSessionKey(projectId, sourceBranch);
+			const sessionKey =
+				sessionKeyOverride ??
+				(tabId
+					? createSessionKey(projectId, sourceBranch, tabId)
+					: baseSessionKey);
 			const state = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
 			const existing = state.conflict?.existingDocsBranch?.trim();
 			const targetName = (newDocsBranch ?? "").trim();
@@ -1662,11 +1755,14 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					],
 				});
 
+				bindBackendSession(baseSessionKey, sessionKey);
 				clearSubscriptions(sessionKey);
 				const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 					try {
 						const evt = demoEventSchema.parse(payload);
-						if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+						if (
+							!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)
+						) {
 							return;
 						}
 						setDocState(sessionKey, (prev) => ({
@@ -1680,7 +1776,9 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				const doneUnsub = EventsOn("events:llm:done", (payload) => {
 					try {
 						const evt = demoEventSchema.parse(payload);
-						if (evt.sessionKey && evt.sessionKey !== sessionKey) {
+						if (
+							!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)
+						) {
 							return;
 						}
 						setDocState(sessionKey, (prev) => ({
@@ -1705,7 +1803,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						targetBranch,
 						modelKey,
 						userInstructions,
-						targetName
+						targetName,
+						sessionKey
 					);
 				} else {
 					result = await GenerateDocsFromBranch(
@@ -1713,7 +1812,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						sourceBranch,
 						modelKey,
 						userInstructions,
-						targetName
+						targetName,
+						sessionKey
 					);
 				}
 
@@ -1752,6 +1852,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					],
 				}));
 			} finally {
+				unbindBackendSession(baseSessionKey, sessionKey);
 				clearSubscriptions(sessionKey);
 				setDocState(sessionKey, { cancellationRequested: false });
 			}

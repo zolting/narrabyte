@@ -12,7 +12,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useDocGenerationStore } from "@/stores/docGeneration";
+import {
+	createSessionKey,
+	useDocGenerationStore,
+} from "@/stores/docGeneration";
 
 export type DocBranchConflictDialogProps = {
 	projectId: number;
@@ -26,6 +29,7 @@ export type DocBranchConflictDialogProps = {
 	existingDocsBranch: string;
 	proposedDocsBranch: string;
 	isInProgress?: boolean;
+	sessionKey?: string;
 };
 
 export const DocBranchConflictDialog = ({
@@ -40,6 +44,7 @@ export const DocBranchConflictDialog = ({
 	existingDocsBranch,
 	proposedDocsBranch,
 	isInProgress = false,
+	sessionKey,
 }: DocBranchConflictDialogProps) => {
 	const { t } = useTranslation();
 
@@ -86,9 +91,8 @@ export const DocBranchConflictDialog = ({
 
 	const handleClose = (next: boolean) => {
 		if (!next) {
-			// Find the session key for this project and branch
-			const sessionKey = `${projectId}:${sourceBranch.trim()}`;
-			clearConflict(sessionKey);
+			const key = sessionKey ?? createSessionKey(projectId, sourceBranch ?? "");
+			clearConflict(key);
 		}
 	};
 
@@ -103,6 +107,7 @@ export const DocBranchConflictDialog = ({
 				targetBranch,
 				modelKey,
 				userInstructions,
+				sessionKey,
 			});
 			handleClose(false);
 		} finally {
@@ -125,6 +130,7 @@ export const DocBranchConflictDialog = ({
 				targetBranch,
 				modelKey,
 				userInstructions,
+				sessionKey,
 			});
 			handleClose(false);
 		} finally {

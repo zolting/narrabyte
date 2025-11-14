@@ -100,6 +100,14 @@ func makeSessionKey(projectID uint, sourceBranch string) string {
 	return fmt.Sprintf("%d:%s", projectID, strings.TrimSpace(sourceBranch))
 }
 
+func resolveSessionKey(sessionKeyOverride string, projectID uint, sourceBranch string) string {
+	override := strings.TrimSpace(sessionKeyOverride)
+	if override != "" {
+		return override
+	}
+	return makeSessionKey(projectID, sourceBranch)
+}
+
 func (s *ClientService) instantiateLLMClient(modelKey string) (*client.LLMClient, *models.LLMModel, error) {
 	if s.context == nil {
 		return nil, nil, fmt.Errorf("client service not initialized")
@@ -345,7 +353,7 @@ func emitSessionDebug(ctx context.Context, sessionKey string, message string) {
 	events.Emit(ctx, events.LLMEventTool, evt)
 }
 
-func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, modelKey string, userInstructions string, docsBranchOverride string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, modelKey string, userInstructions string, docsBranchOverride string, sessionKeyOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
@@ -367,7 +375,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("model is required")
 	}
 
-	sessionKey := makeSessionKey(projectID, sourceBranch)
+	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, sourceBranch)
 
 	runtime, modelInfo, err := s.newSessionRuntime(modelKey)
 	if err != nil {
@@ -612,7 +620,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 // created for a given source branch ("docs/<sourceBranch>"). It reuses the
 // same toolset as GenerateDocs but focuses on targeted edits directed by the
 // user's request.
-func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruction string) (*models.DocGenerationResult, error) {
+func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruction string, sessionKeyOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
@@ -629,7 +637,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	}
 
 	docsBranch := documentationBranchName(sourceBranch)
-	sessionKey := makeSessionKey(projectID, sourceBranch)
+	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, sourceBranch)
 
 	// Check if this docs branch is already being refined/generated
 	if s.isDocsBranchInProgress(docsBranch) {
@@ -1335,7 +1343,7 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 	}, nil
 }
 
-func (s *ClientService) StopStream(projectID uint, sourceBranch string) {
+func (s *ClientService) StopStream(projectID uint, sourceBranch string, sessionKeyOverride string) {
 	if s == nil {
 		return
 	}
@@ -1343,7 +1351,7 @@ func (s *ClientService) StopStream(projectID uint, sourceBranch string) {
 	if projectID == 0 || sourceBranch == "" {
 		return
 	}
-	sessionKey := makeSessionKey(projectID, sourceBranch)
+	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, sourceBranch)
 	runtime, ok := s.getSessionRuntime(sessionKey)
 	if !ok || runtime == nil || runtime.client == nil {
 		return
@@ -2040,7 +2048,7 @@ func describeStatus(st git.FileStatus) string {
 	}
 }
 
-func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, modelKey string, userInstructions string, docsBranchOverride string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, modelKey string, userInstructions string, docsBranchOverride string, sessionKeyOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
@@ -2058,7 +2066,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, fmt.Errorf("model is required")
 	}
 
-	sessionKey := makeSessionKey(projectID, branch)
+	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, branch)
 
 	runtime, modelInfo, err := s.newSessionRuntime(modelKey)
 	if err != nil {
