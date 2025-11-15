@@ -36,7 +36,7 @@ type DirectoryValidationResult struct {
 }
 
 type RepoLinkService interface {
-	Register(projectName, documentationRepo, codebaseRepo, documentationBaseBranch string) (*models.RepoLink, error)
+	Register(projectName, documentationRepo, codebaseRepo, documentationBaseBranch string, initFumaDocs bool) (*models.RepoLink, error)
 	Get(id uint) (*models.RepoLink, error)
 	List(limit, offset int) ([]models.RepoLink, error)
 	LinkRepositories(projectName, docRepo, codebaseRepo string, initFumaDocs bool, llmInstructionsPath string, documentationBaseBranch string) error
@@ -63,7 +63,7 @@ func NewRepoLinkService(repoLinks repositories.RepoLinkRepository, fumaDocsServi
 	return &repoLinkService{repoLinks: repoLinks, fumadocsService: fumaDocsService, gitService: gitService}
 }
 
-func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo, documentationBaseBranch string) (*models.RepoLink, error) {
+func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo, documentationBaseBranch string, initFumaDocs bool) (*models.RepoLink, error) {
 	if projectName == "" {
 		return nil, errors.New("project name is required")
 	}
@@ -73,9 +73,11 @@ func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo,
 	if codebaseRepo == "" {
 		return nil, errors.New("codebase repo is required")
 	}
-	if !utils.HasGitRepo(documentationRepo) {
+
+	if !initFumaDocs && !utils.HasGitRepo(documentationRepo) {
 		return nil, errors.New("missing_git_repo: documentation")
 	}
+
 	if !utils.HasGitRepo(codebaseRepo) {
 		return nil, errors.New("missing_git_repo: codebase")
 	}
@@ -87,11 +89,19 @@ func (s *repoLinkService) Register(projectName, documentationRepo, codebaseRepo,
 	}
 
 	trimmedBaseBranch := strings.TrimSpace(documentationBaseBranch)
-	sameRepo, err := sameGitRepository(documentationRepo, codebaseRepo)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check git repositories: %w", err)
+
+	var sameRepo bool
+	var err error
+	if initFumaDocs {
+		sameRepo = false
+	} else {
+		sameRepo, err = sameGitRepository(documentationRepo, codebaseRepo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check git repositories: %w", err)
+		}
 	}
-	if !sameRepo && trimmedBaseBranch == "" {
+
+	if !sameRepo && !initFumaDocs && trimmedBaseBranch == "" {
 		return nil, errors.New("documentation base branch is required")
 	}
 
@@ -142,18 +152,26 @@ func (s *repoLinkService) LinkRepositories(projectName string, docRepo string, c
 	}
 
 	if initFumaDocs {
-		_, err := s.fumadocsService.CreateFumadocsProject(docRepo)
-		if err != nil {
+		if _, err := s.fumadocsService.CreateFumadocsProject(docRepo); err != nil {
 			return fmt.Errorf("failed to create fumadocs project: %w", err)
 		}
-		_, err = s.gitService.Init(docRepo)
+
+		repo, err := s.gitService.Init(docRepo)
 		if err != nil {
 			return fmt.Errorf("failed to init git in doc repo: %w", err)
 		}
+
+		if err := s.gitService.StageAll(repo); err != nil {
+			return fmt.Errorf("failed to stage files: %w", err)
+		}
+		if _, err := s.gitService.Commit(repo, "Initial commit: Fumadocs project setup"); err != nil {
+			return fmt.Errorf("failed to create initial commit: %w", err)
+		}
+
+		documentationBaseBranch = "master"
 	}
 
-	_, err := s.Register(projectName, docRepo, codebaseRepo, documentationBaseBranch)
-	if err != nil {
+	if _, err := s.Register(projectName, docRepo, codebaseRepo, documentationBaseBranch, initFumaDocs); err != nil {
 		return err
 	}
 

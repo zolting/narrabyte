@@ -484,6 +484,36 @@ func TestListBranchesByPath_InvalidPath_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to open repository")
 }
 
+func TestGitService_StageAllInitialCommit(t *testing.T) {
+	gs := services.NewGitService()
+	repoDir := t.TempDir()
+
+	// Create some files
+	assert.NoError(t, os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("# Docs"), 0o644))
+	assert.NoError(t, os.WriteFile(filepath.Join(repoDir, "index.md"), []byte("Hello"), 0o644))
+
+	repo, err := gs.Init(repoDir)
+	assert.NoError(t, err)
+	assert.NotNil(t, repo)
+
+	// Stage all files
+	// Use the worktree directly since integration tests exercise lower-level operations
+	wt, err := repo.Worktree()
+	assert.NoError(t, err)
+	_, err = wt.Add(".")
+	assert.NoError(t, err)
+
+	// Commit
+	hash, err := gs.Commit(repo, "Initial commit")
+	assert.NoError(t, err)
+	assert.NotEqual(t, hash.String(), "")
+
+	// Detect current branch (go-git default initial branch name is 'master')
+	head, err := repo.Head()
+	assert.NoError(t, err)
+	assert.Equal(t, plumbing.NewBranchReferenceName("master"), head.Name())
+}
+
 func TestDiffBetweenCommits_ExcludesManyLockFiles(t *testing.T) {
 	dir, err := os.MkdirTemp("", "gitservicetest")
 	assert.NoError(t, err)

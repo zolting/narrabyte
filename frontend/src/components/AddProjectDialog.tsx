@@ -62,10 +62,12 @@ export default function AddProjectDialog({
 		[docRepoPath, codebaseDirectory]
 	);
 
-	const showDocBranchSelector = Boolean(docRepoPath && !sharedRepo);
+	const showDocBranchSelector = Boolean(
+		docRepoPath && !sharedRepo && !initFumaDocs
+	);
 
 	const requiresDocBaseBranch = Boolean(
-		docRepoPath && codebaseDirectory && !sharedRepo
+		docRepoPath && codebaseDirectory && !sharedRepo && !initFumaDocs
 	);
 
 	const handleSubmit = (e: React.FormEvent) => {
