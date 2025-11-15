@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-  import { useDocGenerationStore } from "@/stores/docGeneration";
+import { useDocGenerationStore } from "@/stores/docGeneration";
 
 export type DocBranchConflictDialogProps = {
 	projectId: number;
