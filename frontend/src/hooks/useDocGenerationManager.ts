@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useDocGenerationStore } from "@/stores/docGeneration";
-import type { DemoEvent, TodoItem } from "@/types/events";
+import type { TodoItem, ToolEvent } from "@/types/events";
 
-const EMPTY_EVENTS: DemoEvent[] = [];
+const EMPTY_EVENTS: ToolEvent[] = [];
 const EMPTY_TODOS: TodoItem[] = [];
 
 export const useDocGenerationManager = (projectId: string, tabId?: string) => {

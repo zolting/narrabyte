@@ -86,7 +86,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	}
 
 	// Resolve target absolute path under base, disallowing escape
-	events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Edit: resolving '%s'", p)))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: resolving '%s'", p)))
 	var abs string
 	if filepath.IsAbs(p) {
 		absBase, e1 := filepath.Abs(base)
@@ -218,7 +218,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		}, nil
 	}
 	content := string(contentBytes)
-	events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Edit: read %d bytes", len(contentBytes))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: read %d bytes", len(contentBytes))))
 
 	old := in.OldString
 	newVal := in.NewString

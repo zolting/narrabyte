@@ -10,14 +10,14 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { DocGenerationStatus } from "@/stores/docGeneration";
-import type { DemoEvent, TodoItem } from "@/types/events";
+import type { TodoItem, ToolEvent } from "@/types/events";
 
 export function ActivityFeed({
 	events,
 	todos,
 	status,
 }: {
-	events: DemoEvent[];
+	events: ToolEvent[];
 	todos: TodoItem[];
 	status: DocGenerationStatus;
 }) {
@@ -276,8 +276,8 @@ export function ActivityFeed({
 												{
 													error: "bg-red-500/15 text-red-600",
 													warn: "bg-yellow-500/15 text-yellow-700",
-													debug: "bg-blue-500/15 text-blue-700",
-													info: "bg-emerald-500/15 text-emerald-700",
+													info: "bg-blue-500/15 text-blue-700",
+													success: "bg-emerald-500/15 text-emerald-700",
 												}[event.type] || "bg-emerald-500/15 text-emerald-700"
 											)}
 										>

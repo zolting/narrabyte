@@ -348,7 +348,7 @@ func emitSessionError(ctx context.Context, sessionKey string, message string) {
 }
 
 func emitSessionDebug(ctx context.Context, sessionKey string, message string) {
-	evt := events.NewDebug(message)
+	evt := events.NewInfo(message)
 	evt.SessionKey = sessionKey
 	events.Emit(ctx, events.LLMEventTool, evt)
 }

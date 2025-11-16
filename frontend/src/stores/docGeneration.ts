@@ -14,10 +14,10 @@ import i18n from "i18next";
 import { parseDiff } from "react-diff-view";
 import { create } from "zustand";
 import {
-	type DemoEvent,
-	demoEventSchema,
 	type TodoItem,
+	type ToolEvent,
 	todoEventSchema,
+	toolEventSchema,
 } from "@/types/events";
 import { EventsOn } from "../../wailsjs/runtime";
 
@@ -81,7 +81,7 @@ type DocGenerationData = {
 	projectId: number;
 	projectName: string;
 	sessionKey: SessionKey;
-	events: DemoEvent[];
+	events: ToolEvent[];
 	todos: TodoItem[];
 	status: DocGenerationStatus;
 	result: models.DocGenerationResult | null;
@@ -354,9 +354,9 @@ const extractBranchConflictSuggestion = (
 };
 
 const createLocalEvent = (
-	type: DemoEvent["type"],
+	type: ToolEvent["type"],
 	message: string
-): DemoEvent => ({
+): ToolEvent => ({
 	id:
 		typeof crypto !== "undefined" && "randomUUID" in crypto
 			? crypto.randomUUID()
@@ -630,7 +630,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 				try {
-					const evt = demoEventSchema.parse(payload);
+					const evt = toolEventSchema.parse(payload);
 					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
@@ -645,7 +645,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 			const doneUnsub = EventsOn("events:llm:done", (payload) => {
 				try {
-					const evt = demoEventSchema.parse(payload);
+					const evt = toolEventSchema.parse(payload);
 					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
@@ -843,7 +843,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 				try {
-					const evt = demoEventSchema.parse(payload);
+					const evt = toolEventSchema.parse(payload);
 					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
@@ -858,7 +858,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 			const doneUnsub = EventsOn("events:llm:done", (payload) => {
 				try {
-					const evt = demoEventSchema.parse(payload);
+					const evt = toolEventSchema.parse(payload);
 					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
@@ -1351,7 +1351,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			clearSubscriptions(sessionKey);
 			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 				try {
-					const evt = demoEventSchema.parse(payload);
+					const evt = toolEventSchema.parse(payload);
 					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
@@ -1365,7 +1365,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			});
 			const doneUnsub = EventsOn("events:llm:done", (payload) => {
 				try {
-					const evt = demoEventSchema.parse(payload);
+					const evt = toolEventSchema.parse(payload);
 					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
 						return;
 					}
@@ -1759,7 +1759,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				clearSubscriptions(sessionKey);
 				const toolUnsub = EventsOn("event:llm:tool", (payload) => {
 					try {
-						const evt = demoEventSchema.parse(payload);
+						const evt = toolEventSchema.parse(payload);
 						if (
 							!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)
 						) {
@@ -1775,7 +1775,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				});
 				const doneUnsub = EventsOn("events:llm:done", (payload) => {
 					try {
-						const evt = demoEventSchema.parse(payload);
+						const evt = toolEventSchema.parse(payload);
 						if (
 							!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)
 						) {

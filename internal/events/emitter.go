@@ -15,8 +15,14 @@ func EnableRuntimeEmitter() {
 				evt.SessionKey = session
 			}
 		}
-		runtime.EventsEmit(ctx, name, evt)
+
+		if evt.Type == EventSuccess || evt.Type == EventError {
+			runtime.EventsEmit(ctx, name, evt)
+		}
+
+		logRuntimeEvent(ctx, name, evt)
 	}
+
 }
 
 func SetCustomEmitter(f func(ctx context.Context, name string, evt ToolEvent)) {

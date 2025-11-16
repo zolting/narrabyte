@@ -65,7 +65,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 			},
 		}, nil
 	}
-	events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: pattern '%s', include '%s'", pattern, strings.TrimSpace(in.Include))))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Grep: pattern '%s', include '%s'", pattern, strings.TrimSpace(in.Include))))
 
 	base, err := getListDirectoryBaseRoot(ctx)
 	if err != nil {
@@ -197,7 +197,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 		}
 	}
 	if include != "" {
-		events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("Grep: include filter '%s'", include)))
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Grep: include filter '%s'", include)))
 	}
 
 	ignorePatterns := append([]string{}, DefaultIgnorePatterns...)
