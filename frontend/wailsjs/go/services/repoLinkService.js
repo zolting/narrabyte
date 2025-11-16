@@ -26,8 +26,8 @@ export function List(arg1, arg2) {
   return window['go']['services']['repoLinkService']['List'](arg1, arg2);
 }
 
-export function Register(arg1, arg2, arg3, arg4) {
-  return window['go']['services']['repoLinkService']['Register'](arg1, arg2, arg3, arg4);
+export function Register(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['services']['repoLinkService']['Register'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function Startup(arg1) {

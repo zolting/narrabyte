@@ -13,10 +13,107 @@ import (
 	"narrabyte/internal/models"
 	"narrabyte/internal/utils"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
+
+var excludedPatterns = []string{
+	// Lock and dependency files
+	"package-lock.json",
+	"npm-shrinkwrap.json",
+	"yarn.lock",
+	"pnpm-lock.yaml",
+	"bun.lockb",
+	"composer.lock",
+	"Gemfile.lock",
+	"poetry.lock",
+	"Pipfile.lock",
+	"Cargo.lock",
+	"go.sum",
+	"gradle.lockfile",
+	"packages.lock.json",
+	"project.assets.json",
+	"pubspec.lock",
+
+	// Generated code
+	"*.pb.go",
+	"*.pb.ts",
+	"*.pb.swift",
+	"*.pb.cc",
+	"*_grpc.*",
+	"**/generated/**",
+	"generated/**",
+	"src/api/**",
+	"**snapshots/**",
+	"testdata/**/*.golden",
+	"**/*.expected",
+	"**/*.out",
+
+	// Build artifacts
+	"dist/**",
+	"build/**",
+	"public/**",
+	"coverage/**",
+	"sonarqube-report/**",
+	".next/**",
+	"docs/_build/**",
+	"site/**",
+	"generated-docs/**",
+
+	// Frontend / bundles
+	"*.min.js",
+	"*.min.css",
+	"*.bundle.js",
+	"*.map",
+
+	// Localization files
+	"locales/**/*.json",
+	"i18n/**/*.json",
+	"translations/**/*.json",
+	"config/locales/**/*.yml",
+
+	// Migrations / seeds / fixtures
+	"prisma/migrations/**/*",
+	"**/migrations/000*.py",
+	"db/migrate/**/*.rb",
+	"fixtures/**/*.json",
+	"seed/**/*.json",
+	"seed/**/*.sql",
+	"data/**/*.csv",
+	"data/**/*.json",
+
+	// Assets
+	"*.png",
+	"*.jpg",
+	"*.jpeg",
+	"*.gif",
+	"*.webp",
+	"*.svg",
+	"*.woff",
+	"*.woff2",
+	"*.ttf",
+	"*.mp3",
+	"*.mp4",
+	"*.webm",
+
+	// Editor / workspace
+	".vscode/**",
+	".idea/**",
+	"*.iml",
+	"*.pbxproj",
+	"*.xcworkspace/**",
+	"*.xcodeproj/**",
+	"workspace.json",
+	"project.json",
+	"nx.json",
+	"lerna.json",
+
+	// Miscellaneous build artifacts
+	"tsconfig.tsbuildinfo",
+	".eslintcache",
+}
 
 type GitService struct {
 	context context.Context
@@ -136,12 +233,99 @@ func (g *GitService) DiffBetweenCommits(repo *git.Repository, hash1, hash2 strin
 	}
 
 	var buf bytes.Buffer
-	err = patch.Encode(&buf)
-
-	if err != nil {
+	if err := patch.Encode(&buf); err != nil {
 		return "", fmt.Errorf("failed to encode patch: %w", err)
 	}
-	return buf.String(), nil
+
+	filtered := filterUnifiedDiff(buf.String())
+	return filtered, nil
+}
+
+// filterUnifiedDiff removes segments whose file path matches shouldExclude; preserves unified diff markers.
+func filterUnifiedDiff(diffText string) string {
+	if diffText == "" {
+		return ""
+	}
+	lines := strings.Split(diffText, "\n")
+	var out strings.Builder
+	segment := make([]string, 0, 128)
+	fileA := ""
+	fileB := ""
+	flush := func() {
+		if (fileA != "" && shouldExclude(fileA)) || (fileB != "" && shouldExclude(fileB)) {
+			segment = segment[:0]
+			fileA, fileB = "", ""
+			return
+		}
+		for _, l := range segment {
+			out.WriteString(l)
+			out.WriteByte('\n')
+		}
+		segment = segment[:0]
+		fileA, fileB = "", ""
+	}
+	for _, l := range lines {
+		if strings.HasPrefix(l, "diff --git ") {
+			if len(segment) > 0 {
+				flush()
+			}
+			segment = append(segment, l)
+			parts := strings.Split(l, " ")
+			if len(parts) >= 5 {
+				if strings.HasPrefix(parts[2], "a/") {
+					fileA = normalizePathSlashes(strings.TrimPrefix(parts[2], "a/"))
+				}
+				if strings.HasPrefix(parts[3], "b/") {
+					fileB = normalizePathSlashes(strings.TrimPrefix(parts[3], "b/"))
+				}
+			}
+			continue
+		}
+		if strings.HasPrefix(l, "--- a/") {
+			fileA = normalizePathSlashes(strings.TrimPrefix(l, "--- a/"))
+		}
+		if strings.HasPrefix(l, "+++ b/") {
+			fileB = normalizePathSlashes(strings.TrimPrefix(l, "+++ b/"))
+		}
+		segment = append(segment, l)
+	}
+	if len(segment) > 0 {
+		flush()
+	}
+	return out.String()
+}
+
+// normalizePathSlashes ensures forward slashes and strips leading ./
+func normalizePathSlashes(p string) string {
+	clean := strings.TrimSpace(p)
+	clean = strings.TrimPrefix(clean, "./")
+	clean = strings.ReplaceAll(clean, "\\", "/")
+	return clean
+}
+
+// shouldExclude returns true if the provided path matches any of the excludedPatterns.
+func shouldExclude(path string) bool {
+	p := normalizePathSlashes(path)
+	if p == "" {
+		return false
+	}
+	base := filepath.Base(p)
+	for _, raw := range excludedPatterns {
+		pat := normalizePathSlashes(raw)
+		// Preserve previous behavior: exact base-name match anywhere
+		if pat == base {
+			return true
+		}
+		// Glob match against full path (e.g., dist/**, locales/**/*.json)
+		if ok, _ := doublestar.Match(pat, p); ok {
+			return true
+		}
+		// Glob match against the base name (e.g., *.pb.go)
+		if ok, _ := doublestar.Match(pat, base); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // DiffBetweenBranches returns the patch (diff) between two branches by name.
@@ -307,6 +491,24 @@ func (g *GitService) StageFiles(repo *git.Repository, paths []string) error {
 		}
 	}
 
+	return nil
+}
+
+// StageAll adds all files (including untracked) to the index of the repository.
+func (g *GitService) StageAll(repo *git.Repository) error {
+	if repo == nil {
+		return fmt.Errorf("repo cannot be nil")
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	// Simple approach: stage all files like `git add .`
+	if _, err := wt.Add("."); err != nil {
+		return fmt.Errorf("failed to stage files: %w", err)
+	}
 	return nil
 }
 

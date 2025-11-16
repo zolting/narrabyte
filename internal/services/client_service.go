@@ -46,6 +46,7 @@ type ClientService struct {
 	modelConfigs           ModelConfigService
 	sessionMu              sync.RWMutex
 	sessionRuntimes        map[string]*sessionRuntime
+	tabBoundSessions       map[string]bool // sessionKey -> is bound to a tab
 	docsBranchesMu         sync.Mutex
 	inProgressDocsBranches map[string]bool
 }
@@ -78,6 +79,7 @@ func NewClientService(repoLinks RepoLinkService, gitService *GitService, keyring
 		generationSessions:     genSessions,
 		modelConfigs:           modelConfigs,
 		sessionRuntimes:        make(map[string]*sessionRuntime),
+		tabBoundSessions:       make(map[string]bool),
 		inProgressDocsBranches: make(map[string]bool),
 	}
 }
@@ -96,6 +98,14 @@ type tempDocWorkspace struct {
 
 func makeSessionKey(projectID uint, sourceBranch string) string {
 	return fmt.Sprintf("%d:%s", projectID, strings.TrimSpace(sourceBranch))
+}
+
+func resolveSessionKey(sessionKeyOverride string, projectID uint, sourceBranch string) string {
+	override := strings.TrimSpace(sessionKeyOverride)
+	if override != "" {
+		return override
+	}
+	return makeSessionKey(projectID, sourceBranch)
 }
 
 func (s *ClientService) instantiateLLMClient(modelKey string) (*client.LLMClient, *models.LLMModel, error) {
@@ -343,7 +353,7 @@ func emitSessionDebug(ctx context.Context, sessionKey string, message string) {
 	events.Emit(ctx, events.LLMEventTool, evt)
 }
 
-func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, modelKey string, userInstructions string, docsBranchOverride string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, targetBranch string, modelKey string, userInstructions string, docsBranchOverride string, sessionKeyOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
@@ -365,7 +375,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("model is required")
 	}
 
-	sessionKey := makeSessionKey(projectID, sourceBranch)
+	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, sourceBranch)
 
 	runtime, modelInfo, err := s.newSessionRuntime(modelKey)
 	if err != nil {
@@ -610,7 +620,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 // created for a given source branch ("docs/<sourceBranch>"). It reuses the
 // same toolset as GenerateDocs but focuses on targeted edits directed by the
 // user's request.
-func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruction string) (*models.DocGenerationResult, error) {
+func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruction string, sessionKeyOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
@@ -627,7 +637,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	}
 
 	docsBranch := documentationBranchName(sourceBranch)
-	sessionKey := makeSessionKey(projectID, sourceBranch)
+	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, sourceBranch)
 
 	// Check if this docs branch is already being refined/generated
 	if s.isDocsBranchInProgress(docsBranch) {
@@ -1333,7 +1343,7 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 	}, nil
 }
 
-func (s *ClientService) StopStream(projectID uint, sourceBranch string) {
+func (s *ClientService) StopStream(projectID uint, sourceBranch string, sessionKeyOverride string) {
 	if s == nil {
 		return
 	}
@@ -1341,7 +1351,7 @@ func (s *ClientService) StopStream(projectID uint, sourceBranch string) {
 	if projectID == 0 || sourceBranch == "" {
 		return
 	}
-	sessionKey := makeSessionKey(projectID, sourceBranch)
+	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, sourceBranch)
 	runtime, ok := s.getSessionRuntime(sessionKey)
 	if !ok || runtime == nil || runtime.client == nil {
 		return
@@ -1351,6 +1361,150 @@ func (s *ClientService) StopStream(projectID uint, sourceBranch string) {
 	if wasRunning && s.context != nil {
 		emitSessionWarn(s.context, sessionKey, "Cancel requested: stopping LLM session")
 	}
+}
+
+// BindSessionToTab marks a session as bound to a UI tab
+func (s *ClientService) BindSessionToTab(projectID uint, sourceBranch string) error {
+	if projectID == 0 {
+		return fmt.Errorf("project id is required")
+	}
+	sourceBranch = strings.TrimSpace(sourceBranch)
+	if sourceBranch == "" {
+		return fmt.Errorf("source branch is required")
+	}
+
+	sessionKey := makeSessionKey(projectID, sourceBranch)
+	s.sessionMu.Lock()
+	defer s.sessionMu.Unlock()
+	s.tabBoundSessions[sessionKey] = true
+	return nil
+}
+
+// UnbindSessionFromTab marks a session as no longer bound to a UI tab (moved to background)
+func (s *ClientService) UnbindSessionFromTab(projectID uint, sourceBranch string) error {
+	if projectID == 0 {
+		return fmt.Errorf("project id is required")
+	}
+	sourceBranch = strings.TrimSpace(sourceBranch)
+	if sourceBranch == "" {
+		return fmt.Errorf("source branch is required")
+	}
+
+	sessionKey := makeSessionKey(projectID, sourceBranch)
+	s.sessionMu.Lock()
+	defer s.sessionMu.Unlock()
+	delete(s.tabBoundSessions, sessionKey)
+	return nil
+}
+
+// IsSessionInTab checks if a session is currently bound to a UI tab
+func (s *ClientService) IsSessionInTab(projectID uint, sourceBranch string) bool {
+	sessionKey := makeSessionKey(projectID, sourceBranch)
+	s.sessionMu.RLock()
+	defer s.sessionMu.RUnlock()
+	return s.tabBoundSessions[sessionKey]
+}
+
+// SessionInfo represents information about a generation session
+type SessionInfo struct {
+	ProjectID    uint   `json:"projectId"`
+	SourceBranch string `json:"sourceBranch"`
+	TargetBranch string `json:"targetBranch"`
+	ModelKey     string `json:"modelKey"`
+	Provider     string `json:"provider"`
+	DocsBranch   string `json:"docsBranch"`
+	InTab        bool   `json:"inTab"`
+	IsRunning    bool   `json:"isRunning"`
+	CreatedAt    string `json:"createdAt"`
+	UpdatedAt    string `json:"updatedAt"`
+}
+
+// GetAvailableTabSessions returns sessions for a project that are not currently bound to tabs
+func (s *ClientService) GetAvailableTabSessions(projectID uint) ([]SessionInfo, error) {
+	if projectID == 0 {
+		return nil, fmt.Errorf("project id is required")
+	}
+
+	sessions, err := s.generationSessions.List(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list generation sessions: %w", err)
+	}
+
+	s.sessionMu.RLock()
+	defer s.sessionMu.RUnlock()
+
+	availableSessions := make([]SessionInfo, 0)
+	for _, session := range sessions {
+		sessionKey := makeSessionKey(projectID, strings.TrimSpace(session.SourceBranch))
+
+		// Check if session is bound to a tab
+		inTab := s.tabBoundSessions[sessionKey]
+
+		// Check if session has a running client
+		isRunning := false
+		if runtime, ok := s.sessionRuntimes[sessionKey]; ok && runtime != nil && runtime.client != nil {
+			isRunning = runtime.client.IsRunning()
+		}
+
+		docsBranch := documentationBranchName(strings.TrimSpace(session.SourceBranch))
+
+		availableSessions = append(availableSessions, SessionInfo{
+			ProjectID:    projectID,
+			SourceBranch: strings.TrimSpace(session.SourceBranch),
+			TargetBranch: strings.TrimSpace(session.TargetBranch),
+			ModelKey:     strings.TrimSpace(session.ModelKey),
+			Provider:     strings.TrimSpace(session.Provider),
+			DocsBranch:   docsBranch,
+			InTab:        inTab,
+			IsRunning:    isRunning,
+			CreatedAt:    session.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:    session.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return availableSessions, nil
+}
+
+// ValidateBranchPair checks if a source/target branch combination is valid for creating a new session
+// Returns an error if the branch pair already exists in the database for this project
+func (s *ClientService) ValidateBranchPair(projectID uint, sourceBranch, targetBranch string) error {
+	if projectID == 0 {
+		return fmt.Errorf("project id is required")
+	}
+	sourceBranch = strings.TrimSpace(sourceBranch)
+	targetBranch = strings.TrimSpace(targetBranch)
+	if sourceBranch == "" {
+		return fmt.Errorf("source branch is required")
+	}
+	if targetBranch == "" {
+		return fmt.Errorf("target branch is required")
+	}
+	if sourceBranch == targetBranch {
+		return fmt.Errorf("source and target branches must differ")
+	}
+
+	// Check if a session with this branch pair already exists
+	existingSession, err := s.generationSessions.Get(projectID, sourceBranch, targetBranch)
+	if err != nil {
+		return fmt.Errorf("failed to check for existing session: %w", err)
+	}
+
+	if existingSession != nil {
+		// Session exists - check if it's in a tab or background
+		sessionKey := makeSessionKey(projectID, sourceBranch)
+		s.sessionMu.RLock()
+		inTab := s.tabBoundSessions[sessionKey]
+		s.sessionMu.RUnlock()
+
+		if inTab {
+			return fmt.Errorf("ERR_SESSION_ALREADY_IN_TAB:%s:%s", sourceBranch, targetBranch)
+		}
+		// Session exists but not in tab (in background or completed) - this is OK, can be loaded
+		return nil
+	}
+
+	// No existing session - branch pair is valid
+	return nil
 }
 
 func resolveBranchHash(repo *git.Repository, branch string) (plumbing.Hash, error) {
@@ -1894,7 +2048,7 @@ func describeStatus(st git.FileStatus) string {
 	}
 }
 
-func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, modelKey string, userInstructions string, docsBranchOverride string) (*models.DocGenerationResult, error) {
+func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, modelKey string, userInstructions string, docsBranchOverride string, sessionKeyOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
@@ -1912,7 +2066,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, fmt.Errorf("model is required")
 	}
 
-	sessionKey := makeSessionKey(projectID, branch)
+	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, branch)
 
 	runtime, modelInfo, err := s.newSessionRuntime(modelKey)
 	if err != nil {

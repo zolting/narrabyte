@@ -70,6 +70,10 @@ export function Push(arg1) {
   return window['go']['services']['GitService']['Push'](arg1);
 }
 
+export function StageAll(arg1) {
+  return window['go']['services']['GitService']['StageAll'](arg1);
+}
+
 export function StageFiles(arg1, arg2) {
   return window['go']['services']['GitService']['StageFiles'](arg1, arg2);
 }

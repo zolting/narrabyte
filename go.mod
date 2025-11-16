@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/99designs/keyring v1.2.2
+	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/cloudwego/eino v0.5.11
 	github.com/cloudwego/eino-ext/components/model/claude v0.1.9
 	github.com/cloudwego/eino-ext/components/model/gemini v0.1.10
