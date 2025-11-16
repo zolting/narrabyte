@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 // Zod schema for ToolEvent
 export const toolEventSchema = z.object({
 	id: z.string().uuid(),
-	type: z.enum(["success","info","warn", "error"]),
+	type: z.enum(["success", "info", "warn", "error"]),
 	message: z.string().min(1),
 	timestamp: z.coerce.date(),
 	sessionKey: z.string().optional(),
