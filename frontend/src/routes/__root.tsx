@@ -1,4 +1,8 @@
-import { createRootRoute, Outlet } from "@tanstack/react-router";
+import {
+	createRootRoute,
+	ErrorComponent,
+	Outlet,
+} from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { useEffect } from "react";
 import { CurrentGenerationsIndicator } from "@/components/CurrentGenerationsIndicator";
@@ -74,4 +78,5 @@ function RootLayout() {
 
 export const Route = createRootRoute({
 	component: RootLayout,
+	errorComponent: ({ error }) => <ErrorComponent error={error} />,
 });
