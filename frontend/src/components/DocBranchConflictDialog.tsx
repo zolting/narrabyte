@@ -95,7 +95,7 @@ export const DocBranchConflictDialog = ({
 			const key = sessionKey ?? createSessionKey(projectId, sourceBranch ?? "");
 			// If a generation session is in progress, ensure it is canceled
 			if (isInProgress) {
-				void cancelAction(projectId, key);
+				cancelAction(projectId, key);
 			}
 			clearConflict(key);
 		}

@@ -40,6 +40,7 @@ type catalogModel struct {
 
 	ReasoningEffort string
 	Thinking        *bool
+	DefaultEnabled  bool
 }
 
 type rawModelFile struct {
@@ -58,6 +59,7 @@ type rawModel struct {
 	APIName         string `json:"apiName"`
 	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 	Thinking        *bool  `json:"thinking,omitempty"`
+	Enabled         *bool  `json:"enabled,omitempty"`
 }
 
 func NewModelConfigService(repo repositories.ModelSettingRepository) ModelConfigService {
@@ -95,6 +97,10 @@ func (s *modelConfigService) Startup(ctx context.Context) error {
 			if key == "" {
 				continue
 			}
+			defaultEnabled := true
+			if mdl.Enabled != nil {
+				defaultEnabled = *mdl.Enabled
+			}
 			s.models[key] = &catalogModel{
 				Key:             key,
 				ProviderID:      providerID,
@@ -103,6 +109,7 @@ func (s *modelConfigService) Startup(ctx context.Context) error {
 				APIName:         strings.TrimSpace(mdl.APIName),
 				ReasoningEffort: strings.TrimSpace(mdl.ReasoningEffort),
 				Thinking:        mdl.Thinking,
+				DefaultEnabled:  defaultEnabled,
 			}
 		}
 	}
@@ -117,10 +124,10 @@ func (s *modelConfigService) Startup(ctx context.Context) error {
 	}
 	for key, def := range s.models {
 		if _, ok := s.settings[key]; !ok {
-			if _, err := s.repo.Upsert(key, def.ProviderID, true); err != nil {
+			if _, err := s.repo.Upsert(key, def.ProviderID, def.DefaultEnabled); err != nil {
 				return fmt.Errorf("seed model setting for %s: %w", key, err)
 			}
-			s.settings[key] = true
+			s.settings[key] = def.DefaultEnabled
 		}
 	}
 
