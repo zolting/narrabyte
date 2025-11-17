@@ -34,7 +34,7 @@ func TestRepoLinkService_Register_Success(t *testing.T) {
 	assert.NoError(t, os.Mkdir(filepath.Join(docDir, ".git"), 0o755))
 	assert.NoError(t, os.Mkdir(filepath.Join(codeDir, ".git"), 0o755))
 
-	link, err := service.Register("name", docDir, codeDir, "main")
+	link, err := service.Register("name", docDir, codeDir, "main", false)
 	assert.NoError(t, err)
 	assert.Equal(t, uint(99), link.ID)
 	assert.Equal(t, "main", link.DocumentationBaseBranch)
@@ -55,7 +55,7 @@ func TestRepoLinkService_Register_MissingGitRepo(t *testing.T) {
 	ctx := context.Background()
 	service.Startup(ctx)
 
-	link, err := service.Register("name", "docs", "code", "main")
+	link, err := service.Register("name", "docs", "code", "main", false)
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "missing_git_repo: documentation", err.Error())
@@ -70,7 +70,7 @@ func TestRepoLinkService_Register_MissingDocumentationRepo(t *testing.T) {
 	ctx := context.Background()
 	service.Startup(ctx)
 
-	link, err := service.Register("name", "", "code", "main")
+	link, err := service.Register("name", "", "code", "main", false)
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "documentation repo is required", err.Error())
@@ -85,7 +85,7 @@ func TestRepoLinkService_Register_MissingCodebaseRepo(t *testing.T) {
 	ctx := context.Background()
 	service.Startup(ctx)
 
-	link, err := service.Register("name", "docs", "", "main")
+	link, err := service.Register("name", "docs", "", "main", false)
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "codebase repo is required", err.Error())
@@ -100,7 +100,7 @@ func TestRepoLinkService_Register_MissingProjectName(t *testing.T) {
 	ctx := context.Background()
 	service.Startup(ctx)
 
-	link, err := service.Register("", "docs", "code", "main")
+	link, err := service.Register("", "docs", "code", "main", false)
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "project name is required", err.Error())
@@ -120,7 +120,7 @@ func TestRepoLinkService_Register_MissingBaseBranchForSeparateRepos(t *testing.T
 	assert.NoError(t, os.Mkdir(filepath.Join(docDir, ".git"), 0o755))
 	assert.NoError(t, os.Mkdir(filepath.Join(codeDir, ".git"), 0o755))
 
-	link, err := service.Register("name", docDir, codeDir, "")
+	link, err := service.Register("name", docDir, codeDir, "", false)
 	assert.Nil(t, link)
 	assert.Error(t, err)
 	assert.Equal(t, "documentation base branch is required", err.Error())
@@ -139,10 +139,33 @@ func TestRepoLinkService_Register_SharedRepoAllowsEmptyBaseBranch(t *testing.T) 
 	sharedDir := t.TempDir()
 	assert.NoError(t, os.Mkdir(filepath.Join(sharedDir, ".git"), 0o755))
 
-	link, err := service.Register("name", sharedDir, sharedDir, "")
+	link, err := service.Register("name", sharedDir, sharedDir, "", false)
 	assert.NoError(t, err)
 	assert.NotNil(t, link)
 	assert.Equal(t, uint(42), link.ID)
+	assert.Equal(t, "", link.DocumentationBaseBranch)
+}
+
+func TestRepoLinkService_Register_InitFumaDocsAllowsEmptyBaseBranch(t *testing.T) {
+	mockRepo := &mocks.RepoLinkRepositoryMock{
+		CreateFunc: func(ctx context.Context, link *models.RepoLink) error {
+			link.ID = 50
+			return nil
+		},
+	}
+	service := services.NewRepoLinkService(mockRepo, services.FumadocsService{}, services.GitService{})
+	service.Startup(context.Background())
+
+	docDir := t.TempDir()
+	codeDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(docDir, ".git"), 0o755))
+	assert.NoError(t, os.Mkdir(filepath.Join(codeDir, ".git"), 0o755))
+
+	// When initFumaDocs=true, empty branch should be allowed even for separate repos
+	link, err := service.Register("name", docDir, codeDir, "", true)
+	assert.NoError(t, err)
+	assert.NotNil(t, link)
+	assert.Equal(t, uint(50), link.ID)
 	assert.Equal(t, "", link.DocumentationBaseBranch)
 }
 
@@ -289,7 +312,7 @@ func TestRepoLinkService_Register_NestedPathsSameRepo(t *testing.T) {
 	docsDir := filepath.Join(repoDir, "docs")
 	assert.NoError(t, os.Mkdir(docsDir, 0o755))
 
-	link, err := service.Register("nested", docsDir, repoDir, "")
+	link, err := service.Register("nested", docsDir, repoDir, "", false)
 	assert.NoError(t, err)
 	assert.NotNil(t, link)
 	assert.Equal(t, uint(100), link.ID)

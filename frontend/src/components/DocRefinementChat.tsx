@@ -9,27 +9,30 @@ import { useDocGenerationStore } from "@/stores/docGeneration";
 export function DocRefinementChat({
 	projectId,
 	branch,
+	sessionKey,
 	hideHeader = false,
 	className,
 	style,
 }: {
 	projectId: number;
 	branch: string;
+	sessionKey: string | null;
 	hideHeader?: boolean;
 	className?: string;
 	style?: React.CSSProperties;
 }) {
 	const { t } = useTranslation();
 	const projectKey = useMemo(() => String(projectId), [projectId]);
+	const stateKey = sessionKey ?? projectKey;
 	const messages = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.messages ?? []
+		(s) => s.docStates[stateKey]?.messages ?? []
 	);
 	const chatOpen = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.chatOpen ?? false
+		(s) => s.docStates[stateKey]?.chatOpen ?? false
 	);
 	const refineDocs = useDocGenerationStore((s) => s.refine);
 	const status = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.status ?? "idle"
+		(s) => s.docStates[stateKey]?.status ?? "idle"
 	);
 
 	const [input, setInput] = useState("");
@@ -58,7 +61,12 @@ export function DocRefinementChat({
 			return;
 		}
 		setInput("");
-		await refineDocs({ projectId, branch, instruction: text });
+		await refineDocs({
+			branch,
+			instruction: text,
+			projectId,
+			sessionKey: sessionKey ?? undefined,
+		});
 	};
 
 	return (

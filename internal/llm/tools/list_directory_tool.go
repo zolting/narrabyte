@@ -80,7 +80,7 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 	if in != nil && strings.TrimSpace(in.Path) != "" {
 		req = strings.TrimSpace(in.Path)
 	}
-	events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("ListDirectory: resolving '%s' under base '%s'", req, base)))
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: resolving '%s' under base '%s'", req, base)))
 
 	// Resolve search path under base (absolute allowed if it resides under base)
 	var searchPath string
@@ -239,13 +239,13 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 
 			if d.IsDir() {
 				if matchIgnoredDir(rel, patterns) {
-					events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("ListDirectory: ignoring dir '%s'", rel)))
+					events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: ignoring dir '%s'", rel)))
 					return fs.SkipDir
 				}
 				return nil
 			}
 			if matchIgnoredFile(rel, patterns) {
-				events.Emit(ctx, events.LLMEventTool, events.NewDebug(fmt.Sprintf("ListDirectory: ignoring file '%s'", rel)))
+				events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: ignoring file '%s'", rel)))
 				return nil
 			}
 
