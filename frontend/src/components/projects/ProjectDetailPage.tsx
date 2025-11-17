@@ -31,6 +31,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useBranchManager } from "@/hooks/useBranchManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
+import { useAppSettingsStore } from "@/stores/appSettings";
 import {
 	type ModelOption,
 	useModelSettingsStore,
@@ -60,6 +61,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const branchManager = useBranchManager(repoPath);
 	const docManager = useDocGenerationManager(projectId);
 	const navigate = useNavigate();
+
+	// Read the app's default model preference (if any)
+	const { settings: appSettings } = useAppSettingsStore();
 
 	useEffect(() => {
 		setProject(undefined);
@@ -151,13 +155,23 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			setModelKey(null);
 			return;
 		}
+
 		setModelKey((current) => {
-			if (current && availableModels.some((model) => model.key === current)) {
+			// Preserve a valid current selection if present
+			if (current && availableModels.some((m) => m.key === current)) {
 				return current;
 			}
+
+			// Prefer the globally configured default model if it's available
+			const preferred = appSettings?.DefaultModelKey ?? null;
+			if (preferred && availableModels.some((m) => m.key === preferred)) {
+				return preferred;
+			}
+
+			// Fallback to the first available model
 			return availableModels[0]?.key ?? null;
 		});
-	}, [availableModels]);
+	}, [availableModels, appSettings?.DefaultModelKey]);
 
 	useEffect(() => {
 		if (docManager.docResult) {

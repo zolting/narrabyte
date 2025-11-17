@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import AddApiKeyDialog from "@/components/AddApiKeyDialog";
 import ApiKeyManager from "@/components/ApiKeyManager";
 import DefaultModel from "@/components/DefaultModel";
+import { SetDefaultModel } from "@go/services/appSettingsService";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -31,8 +32,8 @@ export const Route = createFileRoute("/settings")({
 
 function Settings() {
 	const { t } = useTranslation();
-	const { settings, initialized, loading, setTheme, setLocale } =
-		useAppSettingsStore();
+    const { settings, initialized, loading, setTheme, setLocale } =
+        useAppSettingsStore();
 
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [editingProvider, setEditingProvider] = useState<string | undefined>(
@@ -153,7 +154,24 @@ function Settings() {
 							onEditClick={handleEditClick}
 							ref={apiKeyManagerRef}
 						/>
-						<DefaultModel />
+                    <DefaultModel
+                        defaultModelKey={settings?.DefaultModelKey}
+                        onConfirm={async (key: string) => {
+                            // Persist to backend and refresh local settings
+                            const updated = await SetDefaultModel(key);
+                            // Optimistically update the in-memory store if available
+                            // without altering other fields
+                            try {
+                                useAppSettingsStore.setState((state) => ({
+                                    settings: state.settings
+                                        ? { ...state.settings, DefaultModelKey: updated.DefaultModelKey }
+                                        : updated,
+                                }));
+                            } catch {
+                                // ignore if Zustand store shape changes
+                            }
+                        }}
+                    />
 						<ModelsConfiguration />
 					</TabsContent>
 				</Tabs>

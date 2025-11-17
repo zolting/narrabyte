@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"narrabyte/internal/models"
@@ -12,6 +13,7 @@ import (
 type AppSettingsService interface {
 	Get() (*models.AppSettings, error)
 	Update(theme, locale string) (*models.AppSettings, error)
+	SetDefaultModel(modelKey string) (*models.AppSettings, error)
 	Startup(ctx context.Context)
 }
 
@@ -54,6 +56,28 @@ func (s *appSettingsService) Update(theme, locale string) (*models.AppSettings, 
 	// Update fields
 	current.Theme = theme
 	current.Locale = locale
+	current.UpdatedAt = time.Now().Format(time.RFC3339)
+
+	if err := s.appSettings.Update(context.Background(), current); err != nil {
+		return nil, err
+	}
+
+	return current, nil
+}
+
+func (s *appSettingsService) SetDefaultModel(modelKey string) (*models.AppSettings, error) {
+	modelKey = strings.TrimSpace(modelKey)
+	if modelKey == "" {
+		return nil, errors.New("model key is required")
+	}
+
+	// Get current settings
+	current, err := s.appSettings.Get(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	current.DefaultModelKey = modelKey
 	current.UpdatedAt = time.Now().Format(time.RFC3339)
 
 	if err := s.appSettings.Update(context.Background(), current); err != nil {

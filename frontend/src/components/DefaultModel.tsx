@@ -51,15 +51,15 @@ export default function DefaultModel(props: DefaultModelProps) {
 	// Saving state for confirm action
 	const [saving, setSaving] = useState(false);
 
-	// Compute the current value for the Select:
-	// 1) Use controlled prop if provided
-	// 2) Else use local state
-	// 3) Else first available model key (once loaded)
-	const effectiveValue = useMemo(() => {
-		if (defaultModelKey) return defaultModelKey;
-		if (localKey) return localKey;
-		return allModels[0]?.key ?? "";
-	}, [defaultModelKey, localKey, allModels]);
+    // Compute the current value for the Select:
+    // Prefer a user’s in-progress local selection (unconfirmed) if present,
+    // otherwise fall back to the controlled prop from settings, and finally
+    // the first available model.
+    const effectiveValue = useMemo(() => {
+        if (localKey) return localKey;
+        if (defaultModelKey) return defaultModelKey;
+        return allModels[0]?.key ?? "";
+    }, [defaultModelKey, localKey, allModels]);
 
 	const handleSelect = (value: string) => {
 		if (onChange) {

@@ -6,11 +6,12 @@ import i18n from "i18next";
 export type AppTheme = "light" | "dark" | "system";
 
 export type AppSettings = {
-	ID: number;
-	Version: number;
-	Theme: string;
-	Locale: string;
-	UpdatedAt?: string; // ISO string; may be zero-time when not persisted yet
+    ID: number;
+    Version: number;
+    Theme: string;
+    Locale: string;
+    DefaultModelKey?: string;
+    UpdatedAt?: string; // ISO string; may be zero-time when not persisted yet
 };
 
 type State = {
