@@ -111,7 +111,6 @@ type State = {
 	sessionMeta: Record<SessionKey, SessionMeta>;
 	// Active session per project (for backward compatibility)
 	activeSession: Record<ProjectKey, SessionKey | null>;
-
 	// Tab management actions
 	createTabSession: (
 		projectId: number,
@@ -1003,11 +1002,9 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			let docState: DocGenerationData | null = null;
 
 			if (sessionKeyParam) {
-				// New approach: sessionKey provided
 				sessionKey = sessionKeyParam;
 				docState = get().docStates[sessionKey] ?? null;
 			} else {
-				// Old approach: find session from activeSession or first docState for project
 				const projectKey = toKey(projectId);
 				const activeSessionKey = get().activeSession[projectKey];
 				if (activeSessionKey) {
@@ -1016,15 +1013,35 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				}
 			}
 
-			if (!(sessionKey && docState) || docState.status !== "running") {
+			if (!(sessionKey && docState)) {
 				return;
 			}
 
 			const branch = docState.sourceBranch ?? "";
+			const allowCancel =
+				docState.status === "running" ||
+				Boolean(docState.conflict?.isInProgress);
+			if (!(allowCancel && branch)) {
+				return;
+			}
+
 			setDocState(sessionKey, { cancellationRequested: true });
 			try {
 				await StopStream(Number(projectId), branch, sessionKey);
 				updateSessionMeta(sessionKey, { status: "canceled" });
+				setDocState(sessionKey, (prev) => ({
+					...prev,
+					cancellationRequested: false,
+					status: "canceled",
+					error: null,
+					events: [
+						...prev.events,
+						createLocalEvent(
+							"warn",
+							"Documentation generation canceled by user."
+						),
+					],
+				}));
 			} catch (error) {
 				const message = messageFromError(error);
 				console.error("Failed to cancel doc generation", error);
@@ -1695,14 +1712,11 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				setDocState(sessionKey, (prev) => ({
 					...prev,
 					error: mapErrorCodeToMessage(message),
+					status: "idle",
 					// Keep the conflict so the dialog remains open
-					events: [
-						...prev.events,
-						createLocalEvent(
-							"error",
-							`Failed to delete docs branch: ${message}`
-						),
-					],
+					conflict: prev.conflict,
+					// Avoid adding events so the session UI doesn't appear in background
+					events: [],
 				}));
 			}
 		},
@@ -1736,24 +1750,36 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					setTabSession(projectId, tabId, sessionKey);
 				}
 
-				// Transition to running and subscribe to events for live progress
-				setDocState(sessionKey, {
-					...EMPTY_DOC_STATE,
+				// Transition to running without wiping the prior activity feed
+				setDocState(sessionKey, (prev) => ({
+					...prev,
 					projectId,
 					projectName: state.projectName,
 					sessionKey,
 					activeTab: "activity",
 					status: "running",
 					sourceBranch,
-					targetBranch: mode === "diff" ? (targetBranch ?? null) : null,
-					// show an initial local event for clarity
+					targetBranch:
+						mode === "diff"
+							? (targetBranch ?? prev.targetBranch ?? null)
+							: (prev.targetBranch ?? null),
+					result: null,
+					error: null,
+					cancellationRequested: false,
+					docsInCodeRepo: false,
+					docsBranch: null,
+					mergeInProgress: false,
+					initialDiffSignatures: null,
+					changedSinceInitial: [],
+					todos: [],
 					events: [
+						...prev.events,
 						createLocalEvent(
 							"info",
 							`Using new docs branch name '${targetName}'`
 						),
 					],
-				});
+				}));
 
 				bindBackendSession(baseSessionKey, sessionKey);
 				clearSubscriptions(sessionKey);
@@ -1834,23 +1860,53 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				}));
 				updateSessionMeta(sessionKey, { status: "success" });
 			} catch (error) {
+				// On failure, ensure any in-flight generation is stopped
+				try {
+					await StopStream(Number(projectId), sourceBranch ?? "", sessionKey);
+				} catch {}
 				const message = messageFromError(error);
-				setDocState(sessionKey, (prev) => ({
-					...prev,
-					error: mapErrorCodeToMessage(message),
-					status: "error",
-					// Keep conflict so the dialog stays present and allow user to try another name
-					conflict: prev.conflict
-						? { ...prev.conflict, proposedDocsBranch: targetName }
-						: prev.conflict,
-					events: [
-						...prev.events,
-						createLocalEvent(
-							"error",
-							`Failed to create docs branch '${targetName}': ${message}`
-						),
-					],
-				}));
+				const normalized = message.toLowerCase();
+				const current = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
+				const canceled =
+					current.cancellationRequested ||
+					normalized.includes("context canceled") ||
+					normalized.includes("context cancelled") ||
+					normalized.includes("cancelled") ||
+					normalized.includes("canceled");
+				if (canceled) {
+					setDocState(sessionKey, (prev) => ({
+						...prev,
+						error: null,
+						status: "canceled",
+						cancellationRequested: false,
+						events: [
+							...prev.events,
+							createLocalEvent(
+								"warn",
+								"Documentation generation canceled by user."
+							),
+						],
+					}));
+					updateSessionMeta(sessionKey, { status: "canceled" });
+				} else {
+					setDocState(sessionKey, (prev) => ({
+						...prev,
+						error: mapErrorCodeToMessage(message),
+						status: "error",
+						// Keep conflict so the dialog stays present and allow user to try another name
+						conflict: prev.conflict
+							? { ...prev.conflict, proposedDocsBranch: targetName }
+							: prev.conflict,
+						events: [
+							...prev.events,
+							createLocalEvent(
+								"error",
+								`Failed to create docs branch '${targetName}': ${message}`
+							),
+						],
+					}));
+					updateSessionMeta(sessionKey, { status: "error" });
+				}
 			} finally {
 				unbindBackendSession(baseSessionKey, sessionKey);
 				clearSubscriptions(sessionKey);

@@ -77,6 +77,7 @@ export const DocBranchConflictDialog = ({
 	const renameAction = useDocGenerationStore(
 		(s) => s.resolveDocsBranchConflictByRename
 	);
+	const cancelAction = useDocGenerationStore((s) => s.cancel);
 	const clearConflict = useDocGenerationStore((s) => s.clearConflict);
 
 	// Disable confirm when input is empty or same as the existing docs branch
@@ -92,6 +93,10 @@ export const DocBranchConflictDialog = ({
 	const handleClose = (next: boolean) => {
 		if (!next) {
 			const key = sessionKey ?? createSessionKey(projectId, sourceBranch ?? "");
+			// If a generation session is in progress, ensure it is canceled
+			if (isInProgress) {
+				void cancelAction(projectId, key);
+			}
 			clearConflict(key);
 		}
 	};
