@@ -71,14 +71,14 @@ export const DocBranchConflictDialog = ({
 			setNewName(suggestName(proposedDocsBranch));
 		}
 	}, [open, proposedDocsBranch, suggestName]);
-  	const deleteAction = useDocGenerationStore(
-  		(s) => s.resolveDocsBranchConflictByDelete
-  	);
-  	const renameAction = useDocGenerationStore(
-  		(s) => s.resolveDocsBranchConflictByRename
-  	);
-  	const cancelAction = useDocGenerationStore((s) => s.cancel);
-  	const clearConflict = useDocGenerationStore((s) => s.clearConflict);
+	const deleteAction = useDocGenerationStore(
+		(s) => s.resolveDocsBranchConflictByDelete
+	);
+	const renameAction = useDocGenerationStore(
+		(s) => s.resolveDocsBranchConflictByRename
+	);
+	const cancelAction = useDocGenerationStore((s) => s.cancel);
+	const clearConflict = useDocGenerationStore((s) => s.clearConflict);
 
 	// Disable confirm when input is empty or same as the existing docs branch
 	const sameAsExisting = useMemo(

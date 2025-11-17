@@ -1021,7 +1021,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			const allowCancel =
 				docState.status === "running" ||
 				Boolean(docState.conflict?.isInProgress);
-			if (!allowCancel || !branch) {
+			if (!(allowCancel && branch)) {
 				return;
 			}
 
@@ -1761,8 +1761,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					sourceBranch,
 					targetBranch:
 						mode === "diff"
-							? targetBranch ?? prev.targetBranch ?? null
-							: prev.targetBranch ?? null,
+							? (targetBranch ?? prev.targetBranch ?? null)
+							: (prev.targetBranch ?? null),
 					result: null,
 					error: null,
 					cancellationRequested: false,
