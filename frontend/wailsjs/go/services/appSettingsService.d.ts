@@ -5,6 +5,8 @@ import {context} from '../models';
 
 export function Get():Promise<models.AppSettings>;
 
+export function SetDefaultModel(arg1:string):Promise<models.AppSettings>;
+
 export function Startup(arg1:context.Context):Promise<void>;
 
 export function Update(arg1:string,arg2:string):Promise<models.AppSettings>;

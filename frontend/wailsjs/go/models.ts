@@ -22,6 +22,7 @@ export namespace models {
 	    Version: number;
 	    Theme: string;
 	    Locale: string;
+	    DefaultModelKey: string;
 	    UpdatedAt: string;
 	
 	    static createFrom(source: any = {}) {
@@ -34,6 +35,7 @@ export namespace models {
 	        this.Version = source["Version"];
 	        this.Theme = source["Theme"];
 	        this.Locale = source["Locale"];
+	        this.DefaultModelKey = source["DefaultModelKey"];
 	        this.UpdatedAt = source["UpdatedAt"];
 	    }
 	}

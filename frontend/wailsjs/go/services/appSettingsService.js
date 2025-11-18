@@ -6,6 +6,10 @@ export function Get() {
   return window['go']['services']['appSettingsService']['Get']();
 }
 
+export function SetDefaultModel(arg1) {
+  return window['go']['services']['appSettingsService']['SetDefaultModel'](arg1);
+}
+
 export function Startup(arg1) {
   return window['go']['services']['appSettingsService']['Startup'](arg1);
 }

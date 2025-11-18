@@ -28,11 +28,12 @@ func (r *appSettingsRepository) Get(ctx context.Context) (*models.AppSettings, e
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Return default settings if not found
 			return &models.AppSettings{
-				ID:        1,
-				Version:   1,
-				Theme:     "system",
-				Locale:    "en",
-				UpdatedAt: "", // empty string represents zero time
+				ID:              1,
+				Version:         1,
+				Theme:           "system",
+				Locale:          "en",
+				DefaultModelKey: models.DefaultModelKeyValue,
+				UpdatedAt:       "", // empty string represents zero time
 			}, nil
 		}
 		return nil, err
