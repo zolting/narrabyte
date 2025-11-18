@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"narrabyte/internal/events"
 	"narrabyte/internal/llm/tools"
@@ -162,6 +163,14 @@ type GeminiModelOptions struct {
 	Model    string
 	Thinking bool
 }
+
+const (
+	reasoningMetadataStreamKey  = "stream"
+	reasoningMetadataStreamName = "reasoning"
+	reasoningMetadataStateKey   = "state"
+	reasoningMetadataReset      = "reset"
+	reasoningMetadataUpdate     = "update"
+)
 
 func NewOpenAIClient(ctx context.Context, key string, opts OpenAIModelOptions) (*LLMClient, error) {
 	modelName := strings.TrimSpace(opts.Model)
@@ -477,7 +486,7 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 	promptBuilder.WriteString("\n</git_diff>")
 
 	// Create runner for this generation session
-	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent, EnableStreaming: true})
 	println("=== GenerateDocs: Created runner ===")
 
 	// Store the user query as the first message in conversation history
@@ -505,9 +514,17 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 			events.Emit(ctx, events.LLMEventDone, events.NewError("LLM processing error"))
 			return nil, event.Err
 		}
-		msg, err := event.Output.MessageOutput.GetMessage()
+
+		output := event.Output
+		if output == nil || output.MessageOutput == nil {
+			continue
+		}
+		msg, err := o.consumeMessageVariant(ctx, output.MessageOutput)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("GenerateDocs: message error: %v", err)))
+			continue
+		}
+		if msg == nil {
 			continue
 		}
 		// Capture the message for conversation history
@@ -655,7 +672,7 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 	b.WriteString(strings.TrimSpace(req.Instruction))
 	b.WriteString("\n</user_instruction>")
 
-	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent, EnableStreaming: true})
 
 	// Build the messages array for the refinement session
 	var messages []adk.Message
@@ -700,9 +717,16 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 			events.Emit(ctx, events.LLMEventDone, events.NewError("LLM processing error"))
 			return nil, event.Err
 		}
-		msg, err := event.Output.MessageOutput.GetMessage()
+		output := event.Output
+		if output == nil || output.MessageOutput == nil {
+			continue
+		}
+		msg, err := o.consumeMessageVariant(ctx, output.MessageOutput)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("DocRefine: message error: %v", err)))
+			continue
+		}
+		if msg == nil {
 			continue
 		}
 		// Capture only the NEW messages from this round (assistant responses)
@@ -852,6 +876,106 @@ func (o *LLMClient) FileOpenHistory() []string {
 	out := make([]string, len(o.fileOpenHistory))
 	copy(out, o.fileOpenHistory)
 	return out
+}
+
+func (o *LLMClient) consumeMessageVariant(ctx context.Context, mv *adk.MessageVariant) (*schema.Message, error) {
+	if mv == nil {
+		return nil, nil
+	}
+	if mv.IsStreaming {
+		if mv.MessageStream == nil {
+			o.broadcastReasoningContent(ctx, mv.Message)
+			return mv.Message, nil
+		}
+		return o.consumeStreamingMessage(ctx, mv.MessageStream)
+	}
+	msg, err := mv.GetMessage()
+	if err != nil {
+		return nil, err
+	}
+	o.broadcastReasoningContent(ctx, msg)
+	return msg, nil
+}
+
+func (o *LLMClient) consumeStreamingMessage(ctx context.Context, stream adk.MessageStream) (*schema.Message, error) {
+	if stream == nil {
+		return nil, nil
+	}
+	stream.SetAutomaticClose()
+	defer stream.Close()
+
+	var (
+		chunks           []*schema.Message
+		reasoningBuilder strings.Builder
+		hasReasoning     bool
+	)
+
+	for {
+		chunk, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("stream receive error: %w", err)
+		}
+		if chunk == nil {
+			continue
+		}
+		if chunk.ReasoningContent != "" {
+			if !hasReasoning {
+				o.emitReasoningReset(ctx)
+				hasReasoning = true
+			}
+			_, _ = reasoningBuilder.WriteString(chunk.ReasoningContent)
+			o.emitReasoningUpdate(ctx, reasoningBuilder.String())
+		}
+		chunks = append(chunks, chunk)
+	}
+
+	if len(chunks) == 0 {
+		return nil, nil
+	}
+
+	msg, err := schema.ConcatMessages(chunks)
+	if err != nil {
+		return nil, err
+	}
+	if !hasReasoning {
+		o.broadcastReasoningContent(ctx, msg)
+	}
+	return msg, nil
+}
+
+func (o *LLMClient) broadcastReasoningContent(ctx context.Context, msg *schema.Message) {
+	if msg == nil {
+		return
+	}
+	if strings.TrimSpace(msg.ReasoningContent) == "" {
+		return
+	}
+	o.emitReasoningReset(ctx)
+	o.emitReasoningUpdate(ctx, msg.ReasoningContent)
+}
+
+func (o *LLMClient) emitReasoningReset(ctx context.Context) {
+	evt := events.NewSuccess("")
+	evt.Metadata = map[string]string{
+		reasoningMetadataStreamKey: reasoningMetadataStreamName,
+		reasoningMetadataStateKey:  reasoningMetadataReset,
+	}
+	events.Emit(ctx, events.LLMEventTool, evt)
+}
+
+func (o *LLMClient) emitReasoningUpdate(ctx context.Context, content string) {
+	if strings.TrimSpace(content) == "" {
+		return
+	}
+	evt := events.NewSuccess(content)
+	evt.Metadata = map[string]string{
+		reasoningMetadataStreamKey: reasoningMetadataStreamName,
+		reasoningMetadataStateKey:  reasoningMetadataUpdate,
+	}
+	events.Emit(ctx, events.LLMEventTool, evt)
 }
 
 func (o *LLMClient) captureListing(ctx context.Context, root string) (string, error) {

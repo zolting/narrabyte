@@ -6,11 +6,17 @@ import {
 	Loader2,
 	XCircle,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { DocGenerationStatus } from "@/stores/docGeneration";
 import type { TodoItem, ToolEvent } from "@/types/events";
+
+const REASONING_STREAM = "reasoning";
+const STREAM_METADATA_KEY = "stream";
+const STREAM_STATE_KEY = "state";
+const STREAM_STATE_RESET = "reset";
+const STREAM_STATE_UPDATE = "update";
 
 export function ActivityFeed({
 	events,
@@ -26,11 +32,44 @@ export function ActivityFeed({
 	const previousEventCountRef = useRef(0);
 	const [visibleEvents, setVisibleEvents] = useState<string[]>([]);
 	const [showAllTodos, setShowAllTodos] = useState(false);
+	const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
+
+	const { displayEvents, reasoningContent, hasReasoningStream } =
+		useMemo(() => {
+			const filtered: ToolEvent[] = [];
+			let reasoning = "";
+			let reasoningSeen = false;
+
+			for (const event of events) {
+				const streamName = event.metadata?.[STREAM_METADATA_KEY];
+				if (streamName === REASONING_STREAM) {
+					const state = event.metadata?.[STREAM_STATE_KEY];
+					if (state === STREAM_STATE_RESET) {
+						reasoning = "";
+						reasoningSeen = true;
+					} else if (state === STREAM_STATE_UPDATE) {
+						reasoning = event.message;
+						reasoningSeen = true;
+					}
+					continue;
+				}
+				filtered.push(event);
+			}
+
+			return {
+				displayEvents: filtered,
+				reasoningContent: reasoning,
+				hasReasoningStream: reasoningSeen,
+			};
+		}, [events]);
 
 	// Animate new events appearing
 	useEffect(() => {
-		const newEvents = events.slice(previousEventCountRef.current);
-		previousEventCountRef.current = events.length;
+		if (previousEventCountRef.current > displayEvents.length) {
+			previousEventCountRef.current = displayEvents.length;
+		}
+		const newEvents = displayEvents.slice(previousEventCountRef.current);
+		previousEventCountRef.current = displayEvents.length;
 
 		if (newEvents.length === 0) {
 			return;
@@ -52,16 +91,16 @@ export function ActivityFeed({
 				window.clearTimeout(timeout);
 			}
 		};
-	}, [events]);
+	}, [displayEvents]);
 
 	// Reset visible events when list changes
 	useEffect(() => {
-		setVisibleEvents(events.map((e) => e.id));
-	}, [events]);
+		setVisibleEvents(displayEvents.map((e) => e.id));
+	}, [displayEvents]);
 
 	// Auto-scroll to bottom when new events arrive
 	useEffect(() => {
-		if (events.length === 0) {
+		if (displayEvents.length === 0) {
 			return;
 		}
 
@@ -78,7 +117,7 @@ export function ActivityFeed({
 			window.cancelAnimationFrame(frameId);
 			window.clearTimeout(timeoutId);
 		};
-	}, [events.length]);
+	}, [displayEvents.length]);
 
 	// Find active todo
 	const activeTodo = todos.find((todo) => todo.status === "in_progress");
@@ -109,6 +148,9 @@ export function ActivityFeed({
 	const isRunning = status === "running";
 	const isCommitting = status === "committing";
 	const inProgress = isRunning || isCommitting;
+	const reasoningHasText = reasoningContent.trim().length > 0;
+	const showReasoningStream =
+		hasReasoningStream && (reasoningHasText || inProgress);
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-2">
@@ -253,11 +295,48 @@ export function ActivityFeed({
 					className="h-full w-full overflow-auto overflow-x-hidden px-3 pt-3 pb-6 text-sm"
 					ref={containerRef}
 				>
-					{events.length === 0 ? (
+					{/* Reasoning accordion */}
+					{showReasoningStream && (
+						<div className="mb-3 overflow-hidden rounded-md border border-amber-500/30 bg-amber-500/5">
+							<button
+								className="flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-amber-500/10"
+								onClick={() => setIsReasoningExpanded(!isReasoningExpanded)}
+								type="button"
+							>
+								<div className="flex items-center gap-2">
+									{inProgress && (
+										<Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600" />
+									)}
+									<span className="font-medium text-foreground text-sm">
+										{t("activity.thoughtProcess", "Thought process")}
+									</span>
+								</div>
+								{isReasoningExpanded ? (
+									<ChevronUp className="h-4 w-4 text-muted-foreground" />
+								) : (
+									<ChevronDown className="h-4 w-4 text-muted-foreground" />
+								)}
+							</button>
+							{isReasoningExpanded && (
+								<div className="max-h-48 overflow-y-auto border-amber-500/30 border-t bg-amber-500/5 px-3 py-2">
+									<p className="whitespace-pre-wrap font-mono text-muted-foreground text-xs leading-relaxed">
+										{reasoningHasText
+											? reasoningContent
+											: t(
+													"activity.reasoningPlaceholder",
+													"Waiting for reasoning…"
+												)}
+									</p>
+								</div>
+							)}
+						</div>
+					)}
+
+					{displayEvents.length === 0 ? (
 						<div className="text-muted-foreground">{t("common.noEvents")}</div>
 					) : (
 						<ul className="space-y-1">
-							{events.map((event) => {
+							{displayEvents.map((event) => {
 								const isVisible = visibleEvents.includes(event.id);
 								return (
 									<li
