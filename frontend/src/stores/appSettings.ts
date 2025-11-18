@@ -1,17 +1,17 @@
 import { create } from "zustand";
 import "../i18n";
-import { Get, Update } from "@go/services/appSettingsService";
+import { Get, SetDefaultModel, Update } from "@go/services/appSettingsService";
 import i18n from "i18next";
 
 export type AppTheme = "light" | "dark" | "system";
 
 export type AppSettings = {
-    ID: number;
-    Version: number;
-    Theme: string;
-    Locale: string;
-    DefaultModelKey?: string;
-    UpdatedAt?: string; // ISO string; may be zero-time when not persisted yet
+	ID: number;
+	Version: number;
+	Theme: string;
+	Locale: string;
+	DefaultModelKey?: string;
+	UpdatedAt?: string; // ISO string; may be zero-time when not persisted yet
 };
 
 type State = {
@@ -23,6 +23,7 @@ type State = {
 	setTheme: (theme: AppTheme) => Promise<void>;
 	setLocale: (locale: string) => Promise<void>;
 	update: (theme: AppTheme, locale: string) => Promise<void>;
+	setDefaultModel: (modelKey: string) => Promise<void>;
 };
 
 function isZeroTimeISOString(value?: string): boolean {
@@ -123,5 +124,10 @@ export const useAppSettingsStore = create<State>((set, get) => ({
 		if (i18n.language !== normalized) {
 			i18n.changeLanguage(normalized);
 		}
+	},
+
+	setDefaultModel: async (modelKey: string) => {
+		const updated = await SetDefaultModel(modelKey);
+		set({ settings: updated });
 	},
 }));

@@ -33,11 +33,11 @@ import {
 	type DocGenerationManager,
 	useDocGenerationManager,
 } from "@/hooks/useDocGenerationManager";
+import { useAppSettingsStore } from "@/stores/appSettings";
 import {
 	createSessionKey,
 	useDocGenerationStore,
 } from "@/stores/docGeneration";
-import { useAppSettingsStore } from "@/stores/appSettings";
 import {
 	type ModelOption,
 	useModelSettingsStore,
@@ -228,14 +228,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		() =>
 			Boolean(
 				project &&
-				modelKey &&
-				((mode === "diff" &&
+					modelKey &&
+					((mode === "diff" &&
 						branchManager.sourceBranch &&
 						branchManager.targetBranch &&
 						branchManager.sourceBranch !== branchManager.targetBranch) ||
-					(mode === "single" &&
-						branchManager.sourceBranch &&
-						hasInstructionContent))
+						(mode === "single" &&
+							branchManager.sourceBranch &&
+							hasInstructionContent))
 			),
 		[
 			branchManager.sourceBranch,

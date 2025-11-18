@@ -32,7 +32,7 @@ func (r *appSettingsRepository) Get(ctx context.Context) (*models.AppSettings, e
 				Version:         1,
 				Theme:           "system",
 				Locale:          "en",
-				DefaultModelKey: "",
+				DefaultModelKey: models.DefaultModelKeyValue,
 				UpdatedAt:       "", // empty string represents zero time
 			}, nil
 		}

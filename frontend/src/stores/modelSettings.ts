@@ -95,7 +95,7 @@ export const useModelSettingsStore = create<State>((set, get) => ({
 				groups: state.groups.map((group) => ({
 					...group,
 					models: group.models.map((model) =>
-						model.key === modelKey ? mapModel(updated) : model,
+						model.key === modelKey ? mapModel(updated) : model
 					),
 				})),
 				error: null,
@@ -121,7 +121,7 @@ export const useModelSettingsStore = create<State>((set, get) => ({
 									return next ? next : { ...model, enabled };
 								}),
 							}
-						: group,
+						: group
 				),
 				error: null,
 			}));
@@ -137,7 +137,7 @@ export const useModelSettingsStore = create<State>((set, get) => ({
 				groups: state.groups.map((group) => ({
 					...group,
 					models: group.models.map((model) =>
-						model.key === modelKey ? mapModel(refreshed) : model,
+						model.key === modelKey ? mapModel(refreshed) : model
 					),
 				})),
 			}));

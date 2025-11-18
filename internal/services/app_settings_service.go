@@ -67,9 +67,6 @@ func (s *appSettingsService) Update(theme, locale string) (*models.AppSettings, 
 
 func (s *appSettingsService) SetDefaultModel(modelKey string) (*models.AppSettings, error) {
 	modelKey = strings.TrimSpace(modelKey)
-	if modelKey == "" {
-		return nil, errors.New("model key is required")
-	}
 
 	// Get current settings
 	current, err := s.appSettings.Get(context.Background())

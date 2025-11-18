@@ -41,6 +41,10 @@ export default function DefaultModel(props: DefaultModelProps) {
 	}, [init, initialized]);
 
 	const allModels = useMemo(() => groups.flatMap((g) => g.models), [groups]);
+	const enabledModels = useMemo(
+		() => allModels.filter((model) => model.enabled),
+		[allModels]
+	);
 
 	// Uncontrolled local selection fallback (when no defaultModelKey/onChange provided)
 	const [localKey, setLocalKey] = useState<string>("");
@@ -51,15 +55,34 @@ export default function DefaultModel(props: DefaultModelProps) {
 	// Saving state for confirm action
 	const [saving, setSaving] = useState(false);
 
-    // Compute the current value for the Select:
-    // Prefer a user’s in-progress local selection (unconfirmed) if present,
-    // otherwise fall back to the controlled prop from settings, and finally
-    // the first available model.
-    const effectiveValue = useMemo(() => {
-        if (localKey) return localKey;
-        if (defaultModelKey) return defaultModelKey;
-        return allModels[0]?.key ?? "";
-    }, [defaultModelKey, localKey, allModels]);
+	useEffect(() => {
+		setConfirmedKey(
+			defaultModelKey && defaultModelKey.length > 0 ? defaultModelKey : null
+		);
+	}, [defaultModelKey]);
+
+	useEffect(() => {
+		if (localKey && !enabledModels.some((model) => model.key === localKey)) {
+			setLocalKey("");
+		}
+	}, [enabledModels, localKey]);
+
+	// Compute the current value for the Select:
+	// Prefer a user's in-progress local selection (unconfirmed) if present,
+	// otherwise fall back to the controlled prop from settings, and finally
+	// the first available model.
+	const effectiveValue = useMemo(() => {
+		if (localKey && enabledModels.some((model) => model.key === localKey)) {
+			return localKey;
+		}
+		if (
+			defaultModelKey &&
+			enabledModels.some((model) => model.key === defaultModelKey)
+		) {
+			return defaultModelKey;
+		}
+		return "";
+	}, [defaultModelKey, enabledModels, localKey]);
 
 	const handleSelect = (value: string) => {
 		if (onChange) {
@@ -70,7 +93,9 @@ export default function DefaultModel(props: DefaultModelProps) {
 	};
 
 	const handleConfirm = async () => {
-		if (!effectiveValue || saving) return;
+		if (!effectiveValue || saving) {
+			return;
+		}
 		try {
 			setSaving(true);
 			await onConfirm?.(effectiveValue);
@@ -91,7 +116,7 @@ export default function DefaultModel(props: DefaultModelProps) {
 	const isDirty = confirmedKey === null || effectiveValue !== confirmedKey;
 
 	const confirmDisabled =
-		saving || !effectiveValue || allModels.length === 0 || !isDirty;
+		saving || !effectiveValue || enabledModels.length === 0 || !isDirty;
 
 	return (
 		<Card>
@@ -111,20 +136,28 @@ export default function DefaultModel(props: DefaultModelProps) {
 				{!loading && initialized && allModels.length === 0 && (
 					<p className="text-muted-foreground text-sm">{t("models.empty")}</p>
 				)}
+				{!loading &&
+					initialized &&
+					allModels.length > 0 &&
+					enabledModels.length === 0 && (
+						<p className="text-muted-foreground text-sm">
+							{t("models.noEnabledModels")}
+						</p>
+					)}
 
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<Select
-						disabled={loading || allModels.length === 0}
-						value={effectiveValue}
+						disabled={loading || enabledModels.length === 0}
 						onValueChange={handleSelect}
+						value={effectiveValue}
 					>
 						<SelectTrigger className="w-full sm:w-[280px]">
 							<SelectValue
-								placeholder={"models.defaultModel.selectPlaceholder"}
+								placeholder={t("models.defaultModelSelectPlaceholder")}
 							/>
 						</SelectTrigger>
 						<SelectContent>
-							{allModels.map((m) => (
+							{enabledModels.map((m) => (
 								<SelectItem key={m.key} value={m.key}>
 									{m.displayName}
 								</SelectItem>
@@ -134,9 +167,9 @@ export default function DefaultModel(props: DefaultModelProps) {
 
 					<div className="flex justify-end">
 						<Button
-							type="button"
-							onClick={handleConfirm}
 							disabled={confirmDisabled}
+							onClick={handleConfirm}
+							type="button"
 						>
 							{saving ? t("common.saving") : t("models.defaultModelButton")}
 						</Button>
