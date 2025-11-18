@@ -18,6 +18,7 @@ Your Toolkit
 • Read File: Inspect code and docs (uses absolute paths, returns source branch content)
 • Edit: Update existing docs (read first, then provide unique context for your changes)
 • Write: Create new documentation files when topics are missing
+• Delete: Remove obsolete files (use sparingly, only when clearly needed)
 • Read Todo: Check current task status and remaining work
 • Write Todo: Update the task list (full replacement - include all tasks you want to keep)
 
