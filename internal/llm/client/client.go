@@ -1198,7 +1198,80 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		return nil, err
 	}
 
-	return []tool.BaseTool{listTool, readTool, writeTool, editTool, todoWriteTool, todoReadTool}, nil
+	deleteDesc := tools.ToolDescription("delete_file_tool")
+	if strings.TrimSpace(deleteDesc) == "" {
+		deleteDesc = "delete a file from the documentation repository"
+	}
+	deleteWithPolicy := func(ctx context.Context, in *tools.DeleteFileInput) (*tools.DeleteFileOutput, error) {
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo("DeleteFile(policy): starting"))
+		if in == nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("DeleteFile(policy): input is required"))
+			return &tools.DeleteFileOutput{
+				Output:   "Format error: input is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		p := strings.TrimSpace(in.FilePath)
+		if p == "" {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("DeleteFile(policy): file_path is required"))
+			return &tools.DeleteFileOutput{
+				Output:   "Format error: file_path is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("DeleteFile(policy): resolving '%s'", p)))
+		absCandidate, rerr := o.resolveAbsWithinBase(p)
+		if rerr != nil {
+			if rerr.Error() == "project root not set" {
+				events.Emit(ctx, events.LLMEventTool, events.NewError("DeleteFile(policy): documentation root not set"))
+				return &tools.DeleteFileOutput{
+					Output:   "Format error: project root not set",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			if strings.Contains(rerr.Error(), "escapes") {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("DeleteFile(policy): path escapes the documentation root"))
+				return &tools.DeleteFileOutput{
+					Title:    filepath.ToSlash(absCandidate),
+					Output:   "Format error: path escapes the documentation root",
+					Metadata: map[string]string{"error": "format_error"},
+				}, nil
+			}
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("DeleteFile(policy): resolve error: %v", rerr)))
+			return nil, rerr
+		}
+
+		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
+			if !o.hasRead(absCandidate) {
+				events.Emit(ctx, events.LLMEventTool, events.NewWarn("DeleteFile(policy): policy violation - must read before delete"))
+				return &tools.DeleteFileOutput{
+					Title:    filepath.ToSlash(absCandidate),
+					Output:   "Policy error: must read the file before deleting",
+					Metadata: map[string]string{"error": "policy_violation"},
+				}, nil
+			}
+		}
+
+		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("DeleteFile(policy): invoking underlying DeleteFile for '%s'", filepath.ToSlash(absCandidate))))
+		out, err := tools.DeleteFile(ctx, in)
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("DeleteFile(policy): underlying error: %v", err)))
+			return out, err
+		}
+		title := ""
+		if out != nil && strings.TrimSpace(out.Title) != "" {
+			title = filepath.ToSlash(out.Title)
+		}
+
+		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("tool=delete_file_tool path=%s", title)))
+		return out, nil
+	}
+	deleteTool, err := einoUtils.InferTool("delete_file_tool", deleteDesc, deleteWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	return []tool.BaseTool{listTool, readTool, writeTool, editTool, todoWriteTool, todoReadTool, deleteTool}, nil
 }
 
 func (o *LLMClient) withBaseRoot(root string, snapshot *tools.GitSnapshot, fn func() error) error {
