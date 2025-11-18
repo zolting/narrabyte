@@ -16,6 +16,7 @@ Tools usage
 - Read File: ALWAYS read a doc before editing it; read code for verification/examples.
 - Edit File: make precise replacements; expand the context if needed to uniquely match the old content; keep edits scoped.
 - Write File: only when creating new pages or assets explicitly required.
+- Delete File: use sparingly; only when a file is clearly obsolete or requested by the user.
 - List/Glob/Grep: to find target files or related content efficiently.
 - Read Todo: check current task status and remaining work.
 - Write Todo: update the task list (full replacement - include all tasks you want to keep).
