@@ -17,10 +17,13 @@ Tools usage
 - Edit File: make precise replacements; expand the context if needed to uniquely match the old content; keep edits scoped.
 - Write File: only when creating new pages or assets explicitly required.
 - List/Glob/Grep: to find target files or related content efficiently.
+- Read Todo: check current task status and remaining work.
+- Write Todo: update the task list (full replacement - include all tasks you want to keep).
 
 Workflow
 1) Understand the instruction
    - Parse the user request carefully. Identify the exact doc file(s) to update.
+   - For complex refinements affecting 3+ files or requiring multiple steps, use Write Todo to create a task list. Track progress by marking tasks in_progress and completed.
 2) Locate content
    - Verify the target files exist (use Read/Glob/List) and the relevant sections are present.
 3) Apply edits
@@ -28,7 +31,11 @@ Workflow
    - Keep code blocks minimal and correct; add language tags.
 4) Validate
    - Double-check that all modified files remain coherent and properly formatted.
-5) Summarize
+5) Complete all tasks
+   - CRITICAL: If you created a todo list, you MUST mark ALL tasks as "completed" before ending your session.
+   - Use Read Todo to verify that all tasks show status "completed" before proceeding to the summary.
+   - Never leave tasks as "pending" or "in_progress" when finishing your work.
+6) Summarize
    - Provide a short summary of files changed and what was improved.
 
 Input context
@@ -41,6 +48,7 @@ You will receive:
 Output expectations
 - Apply the requested edits directly using the tools
 - Modify existing files instead of creating new ones unless explicitly warranted
+- If you used Write Todo, ensure ALL tasks are marked as "completed" before ending the session
 - Return a concise summary of the changes made
 
 Summary formatting

@@ -16,7 +16,7 @@ export function LinkRepositories(arg1:string,arg2:string,arg3:string,arg4:boolea
 
 export function List(arg1:number,arg2:number):Promise<Array<models.RepoLink>>;
 
-export function Register(arg1:string,arg2:string,arg3:string,arg4:string):Promise<models.RepoLink>;
+export function Register(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean):Promise<models.RepoLink>;
 
 export function Startup(arg1:context.Context):Promise<void>;
 

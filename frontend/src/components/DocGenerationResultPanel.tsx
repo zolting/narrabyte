@@ -39,24 +39,27 @@ const statusClassMap: Record<string, string> = {
 export function DocGenerationResultPanel({
 	result,
 	projectId,
+	sessionKey,
 }: {
 	result: models.DocGenerationResult | null;
 	projectId: number;
+	sessionKey: string | null;
 }) {
 	const projectKey = useMemo(() => String(projectId), [projectId]);
+	const stateKey = sessionKey ?? projectKey;
 	const toggleChatStore = useDocGenerationStore((s) => s.toggleChat);
 	const chatOpen = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.chatOpen ?? false
+		(s) => s.docStates[stateKey]?.chatOpen ?? false
 	);
 	const changedSinceInitial = useDocGenerationStore(
-		(s) => s.docStates[projectKey]?.changedSinceInitial ?? []
+		(s) => s.docStates[stateKey]?.changedSinceInitial ?? []
 	);
 	const { t } = useTranslation();
 	const [viewType, setViewType] = useState<"split" | "unified">("unified");
 
 	const handleToggleChat = useCallback(() => {
-		toggleChatStore(projectKey);
-	}, [toggleChatStore, projectKey]);
+		toggleChatStore(stateKey);
+	}, [toggleChatStore, stateKey]);
 
 	const parsedDiff = useMemo(() => {
 		if (!result?.diff) {
@@ -260,7 +263,11 @@ export function DocGenerationResultPanel({
 
 					{chatOpen && (
 						<div className="h-full min-h-0 overflow-hidden">
-							<DocRefinementChat branch={result.branch} projectId={projectId} />
+							<DocRefinementChat
+								branch={result.branch}
+								projectId={projectId}
+								sessionKey={sessionKey}
+							/>
 						</div>
 					)}
 				</div>

@@ -1,0 +1,128 @@
+Use this tool to create and manage a structured task list for your documentation generation session. This helps track progress, organize documentation tasks, and provide visibility to the user.
+
+## CRITICAL: Full Replacement Semantics
+
+**This tool REPLACES the entire todo list with the todos you provide.**
+
+### Required Workflow:
+1. **First**: Call `todo_read_tool` to get the current todo list
+2. **Then**: Modify the list in memory (update status, add new tasks, remove obsolete ones)
+3. **Finally**: Call `todo_write_tool` with the COMPLETE updated list
+
+**⚠️ WARNING: Any todos not included in your call will be permanently deleted from the list.**
+
+### When Updating Tasks:
+- Always read the current list first (unless creating the initial list)
+- Include ALL existing tasks you want to keep, even if unchanged
+- Update only the specific fields that changed (status, content, activeForm)
+- Never send a partial list - always send the complete list
+
+## When to Use This Tool
+Use this tool proactively in these scenarios:
+
+1. Complex multi-step documentation tasks - When documentation generation requires 3 or more distinct steps
+2. Non-trivial documentation work - Tasks requiring careful planning or multiple file operations
+3. User explicitly requests task tracking - When the user asks to see your plan
+4. Multiple documentation sections - When generating docs for multiple modules, APIs, or components
+5. After receiving instructions - Immediately capture documentation requirements as todos
+6. When starting a task - Mark it as in_progress BEFORE beginning work (only ONE task in_progress at a time)
+7. After completing a task - Mark it completed and add any new follow-up tasks discovered
+
+## When NOT to Use This Tool
+
+Skip using this tool when:
+1. Single, straightforward documentation task
+2. The task is trivial (e.g., updating a single sentence)
+3. The task can be completed in less than 3 simple steps
+4. Purely conversational or informational exchanges
+
+## Examples of When to Use the Todo List
+
+<example>
+User: Generate comprehensive API documentation for the authentication module. Include examples and error codes.
+Assistant: I'll create a todo list to track this documentation generation.
+*Creates todo list:*
+1. Analyze authentication module code structure
+2. Document authentication endpoints and request/response formats
+3. Add usage examples for each endpoint
+4. Document error codes and troubleshooting
+5. Review and refine generated documentation
+*Marks first task as in_progress and begins work*
+</example>
+
+<example>
+User: Update the getting started guide and add a new section on deployment
+Assistant: I'll break this down into tasks.
+*Creates todo list:*
+1. Review existing getting started guide
+2. Update installation instructions
+3. Add deployment section with cloud provider examples
+4. Add troubleshooting section
+*Begins working systematically through each task*
+</example>
+
+<example>
+User: Continue working on the next task
+Assistant: Let me check the current task list first.
+*Uses todo_read_tool*
+Current todos:
+1. "Review existing getting started guide" (completed)
+2. "Update installation instructions" (completed)
+3. "Add deployment section" (in_progress)
+4. "Add troubleshooting section" (pending)
+
+I've completed the deployment section. Let me mark it complete and start the troubleshooting section.
+*Uses todo_write_tool with ALL FOUR tasks:*
+1. "Review existing getting started guide" (completed)
+2. "Update installation instructions" (completed)
+3. "Add deployment section" (completed) ← updated status
+4. "Add troubleshooting section" (in_progress) ← updated status
+</example>
+
+## Task States and Management
+
+1. **Task States**:
+   - pending: Task not yet started
+   - in_progress: Currently working on (limit to ONE at a time)
+   - completed: Task finished successfully
+   - cancelled: Task no longer needed
+
+   **IMPORTANT**: Task descriptions must have two forms:
+   - content: Imperative form ("Generate API documentation")
+   - activeForm: Present continuous form ("Generating API documentation")
+
+2. **Task Management**:
+   - **ALWAYS read the todo list before updating it** (except when creating the initial list)
+   - Update task status in real-time as you work
+   - Mark tasks complete IMMEDIATELY after finishing
+   - Include ALL existing tasks in every update - this tool does full replacement
+   - Only ONE task should be in_progress at any time
+   - Complete current tasks before starting new ones
+   - Remove tasks that become irrelevant (by excluding them from the list)
+   - **CRITICAL: If you created a todo list, you MUST complete ALL tasks before ending your session**
+   - Never leave tasks as pending or in_progress when finishing your work
+   - Verify all tasks are marked "completed" before providing your final summary
+
+3. **Task Completion Requirements**:
+   - ONLY mark completed when fully accomplished
+   - If blocked or encountering errors, keep as in_progress
+   - When blocked, create a new task describing what needs resolution
+   - Never mark completed if:
+     - File operations failed
+     - Documentation is incomplete
+     - Validation errors occurred
+
+4. **Task Breakdown**:
+   - Create specific, actionable items
+   - Break complex documentation into manageable steps
+   - Use clear, descriptive task names
+   - Always provide both content and activeForm
+
+5. **Session Completion Requirements**:
+   - **MANDATORY**: Before ending your session, ensure ALL tasks in your todo list are marked as "completed"
+   - Use todo_read_tool to verify final status before providing your summary
+   - If you cannot complete a task due to blockers, document the blocker in your summary but still mark uncompleted tasks appropriately
+   - Never end a session with tasks still marked as "pending" or "in_progress"
+   - The todo list represents your commitment - complete what you started
+
+When in doubt, use this tool. Proactive task management demonstrates thoroughness and ensures all documentation requirements are met.

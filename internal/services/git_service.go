@@ -11,11 +11,109 @@ import (
 	"time"
 
 	"narrabyte/internal/models"
+	"narrabyte/internal/utils"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
+
+var excludedPatterns = []string{
+	// Lock and dependency files
+	"package-lock.json",
+	"npm-shrinkwrap.json",
+	"yarn.lock",
+	"pnpm-lock.yaml",
+	"bun.lockb",
+	"composer.lock",
+	"Gemfile.lock",
+	"poetry.lock",
+	"Pipfile.lock",
+	"Cargo.lock",
+	"go.sum",
+	"gradle.lockfile",
+	"packages.lock.json",
+	"project.assets.json",
+	"pubspec.lock",
+
+	// Generated code
+	"*.pb.go",
+	"*.pb.ts",
+	"*.pb.swift",
+	"*.pb.cc",
+	"*_grpc.*",
+	"**/generated/**",
+	"generated/**",
+	"src/api/**",
+	"**snapshots/**",
+	"testdata/**/*.golden",
+	"**/*.expected",
+	"**/*.out",
+
+	// Build artifacts
+	"dist/**",
+	"build/**",
+	"public/**",
+	"coverage/**",
+	"sonarqube-report/**",
+	".next/**",
+	"docs/_build/**",
+	"site/**",
+	"generated-docs/**",
+
+	// Frontend / bundles
+	"*.min.js",
+	"*.min.css",
+	"*.bundle.js",
+	"*.map",
+
+	// Localization files
+	"locales/**/*.json",
+	"i18n/**/*.json",
+	"translations/**/*.json",
+	"config/locales/**/*.yml",
+
+	// Migrations / seeds / fixtures
+	"prisma/migrations/**/*",
+	"**/migrations/000*.py",
+	"db/migrate/**/*.rb",
+	"fixtures/**/*.json",
+	"seed/**/*.json",
+	"seed/**/*.sql",
+	"data/**/*.csv",
+	"data/**/*.json",
+
+	// Assets
+	"*.png",
+	"*.jpg",
+	"*.jpeg",
+	"*.gif",
+	"*.webp",
+	"*.svg",
+	"*.woff",
+	"*.woff2",
+	"*.ttf",
+	"*.mp3",
+	"*.mp4",
+	"*.webm",
+
+	// Editor / workspace
+	".vscode/**",
+	".idea/**",
+	"*.iml",
+	"*.pbxproj",
+	"*.xcworkspace/**",
+	"*.xcodeproj/**",
+	"workspace.json",
+	"project.json",
+	"nx.json",
+	"lerna.json",
+
+	// Miscellaneous build artifacts
+	"tsconfig.tsbuildinfo",
+	".eslintcache",
+}
 
 type GitService struct {
 	context context.Context
@@ -40,11 +138,23 @@ func (g *GitService) Init(path string) (*git.Repository, error) {
 
 // Open an existing repo
 func (g *GitService) Open(path string) (*git.Repository, error) {
+	clean := strings.TrimSpace(path)
+	if clean == "" {
+		return nil, fmt.Errorf("path cannot be empty")
+	}
 
-	repo, err := git.PlainOpen(path)
-
+	abs, err := filepath.Abs(clean)
 	if err != nil {
-		return nil, err
+		abs = filepath.Clean(clean)
+	}
+	// Resolve to the actual Git repository root to support being passed a nested folder (e.g., docs/)
+	if root, ok := utils.FindGitRepoRoot(abs); ok {
+		abs = root
+	}
+
+	repo, err := git.PlainOpen(abs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open repository at %s: %w", abs, err)
 	}
 
 	return repo, nil
@@ -123,12 +233,99 @@ func (g *GitService) DiffBetweenCommits(repo *git.Repository, hash1, hash2 strin
 	}
 
 	var buf bytes.Buffer
-	err = patch.Encode(&buf)
-
-	if err != nil {
+	if err := patch.Encode(&buf); err != nil {
 		return "", fmt.Errorf("failed to encode patch: %w", err)
 	}
-	return buf.String(), nil
+
+	filtered := filterUnifiedDiff(buf.String())
+	return filtered, nil
+}
+
+// filterUnifiedDiff removes segments whose file path matches shouldExclude; preserves unified diff markers.
+func filterUnifiedDiff(diffText string) string {
+	if diffText == "" {
+		return ""
+	}
+	lines := strings.Split(diffText, "\n")
+	var out strings.Builder
+	segment := make([]string, 0, 128)
+	fileA := ""
+	fileB := ""
+	flush := func() {
+		if (fileA != "" && shouldExclude(fileA)) || (fileB != "" && shouldExclude(fileB)) {
+			segment = segment[:0]
+			fileA, fileB = "", ""
+			return
+		}
+		for _, l := range segment {
+			out.WriteString(l)
+			out.WriteByte('\n')
+		}
+		segment = segment[:0]
+		fileA, fileB = "", ""
+	}
+	for _, l := range lines {
+		if strings.HasPrefix(l, "diff --git ") {
+			if len(segment) > 0 {
+				flush()
+			}
+			segment = append(segment, l)
+			parts := strings.Split(l, " ")
+			if len(parts) >= 5 {
+				if strings.HasPrefix(parts[2], "a/") {
+					fileA = normalizePathSlashes(strings.TrimPrefix(parts[2], "a/"))
+				}
+				if strings.HasPrefix(parts[3], "b/") {
+					fileB = normalizePathSlashes(strings.TrimPrefix(parts[3], "b/"))
+				}
+			}
+			continue
+		}
+		if strings.HasPrefix(l, "--- a/") {
+			fileA = normalizePathSlashes(strings.TrimPrefix(l, "--- a/"))
+		}
+		if strings.HasPrefix(l, "+++ b/") {
+			fileB = normalizePathSlashes(strings.TrimPrefix(l, "+++ b/"))
+		}
+		segment = append(segment, l)
+	}
+	if len(segment) > 0 {
+		flush()
+	}
+	return out.String()
+}
+
+// normalizePathSlashes ensures forward slashes and strips leading ./
+func normalizePathSlashes(p string) string {
+	clean := strings.TrimSpace(p)
+	clean = strings.TrimPrefix(clean, "./")
+	clean = strings.ReplaceAll(clean, "\\", "/")
+	return clean
+}
+
+// shouldExclude returns true if the provided path matches any of the excludedPatterns.
+func shouldExclude(path string) bool {
+	p := normalizePathSlashes(path)
+	if p == "" {
+		return false
+	}
+	base := filepath.Base(p)
+	for _, raw := range excludedPatterns {
+		pat := normalizePathSlashes(raw)
+		// Preserve previous behavior: exact base-name match anywhere
+		if pat == base {
+			return true
+		}
+		// Glob match against full path (e.g., dist/**, locales/**/*.json)
+		if ok, _ := doublestar.Match(pat, p); ok {
+			return true
+		}
+		// Glob match against the base name (e.g., *.pb.go)
+		if ok, _ := doublestar.Match(pat, base); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // DiffBetweenBranches returns the patch (diff) between two branches by name.
@@ -165,14 +362,21 @@ func (g *GitService) LatestCommit(repoPath string) (string, error) {
 		return "", fmt.Errorf("repository path cannot be empty")
 	}
 
-	// Validate that the path is a git repository
-	if err := g.ValidateRepository(repoPath); err != nil {
+	// Resolve to repo root and validate that the path is a git repository
+	abs, err := filepath.Abs(repoPath)
+	if err != nil {
+		abs = filepath.Clean(repoPath)
+	}
+	if root, ok := utils.FindGitRepoRoot(abs); ok {
+		abs = root
+	}
+	if err := g.ValidateRepository(abs); err != nil {
 		return "", fmt.Errorf("invalid repository: %w", err)
 	}
 
-	repo, err := git.PlainOpen(repoPath)
+	repo, err := git.PlainOpen(abs)
 	if err != nil {
-		return "", fmt.Errorf("failed to open repository at %s: %w", repoPath, err)
+		return "", fmt.Errorf("failed to open repository at %s: %w", abs, err)
 	}
 
 	ref, err := repo.Head()
@@ -189,7 +393,15 @@ func (g *GitService) ValidateRepository(repoPath string) error {
 		return fmt.Errorf("repository path cannot be empty")
 	}
 
-	repo, err := git.PlainOpen(repoPath)
+	abs, err := filepath.Abs(repoPath)
+	if err != nil {
+		abs = filepath.Clean(repoPath)
+	}
+	if root, ok := utils.FindGitRepoRoot(abs); ok {
+		abs = root
+	}
+
+	repo, err := git.PlainOpen(abs)
 	if err != nil {
 		return fmt.Errorf("not a valid git repository: %w", err)
 	}
@@ -240,9 +452,16 @@ func (g *GitService) ListBranchesByPath(repoPath string) ([]models.BranchInfo, e
 	if repoPath == "" {
 		return nil, fmt.Errorf("repository path cannot be empty")
 	}
-	repo, err := git.PlainOpen(repoPath)
+	abs, err := filepath.Abs(repoPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open repository at %s: %w", repoPath, err)
+		abs = filepath.Clean(repoPath)
+	}
+	if root, ok := utils.FindGitRepoRoot(abs); ok {
+		abs = root
+	}
+	repo, err := git.PlainOpen(abs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open repository at %s: %w", abs, err)
 	}
 	return g.ListBranches(repo)
 }
@@ -272,6 +491,24 @@ func (g *GitService) StageFiles(repo *git.Repository, paths []string) error {
 		}
 	}
 
+	return nil
+}
+
+// StageAll adds all files (including untracked) to the index of the repository.
+func (g *GitService) StageAll(repo *git.Repository) error {
+	if repo == nil {
+		return fmt.Errorf("repo cannot be nil")
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	// Simple approach: stage all files like `git add .`
+	if _, err := wt.Add("."); err != nil {
+		return fmt.Errorf("failed to stage files: %w", err)
+	}
 	return nil
 }
 
@@ -331,9 +568,17 @@ func (g *GitService) GetCurrentBranch(repoPath string) (string, error) {
 		return "", fmt.Errorf("repository path cannot be empty")
 	}
 
-	repo, err := git.PlainOpen(repoPath)
+	abs, err := filepath.Abs(repoPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to open repository at %s: %w", repoPath, err)
+		abs = filepath.Clean(repoPath)
+	}
+	if root, ok := utils.FindGitRepoRoot(abs); ok {
+		abs = root
+	}
+
+	repo, err := git.PlainOpen(abs)
+	if err != nil {
+		return "", fmt.Errorf("failed to open repository at %s: %w", abs, err)
 	}
 
 	ref, err := repo.Head()
@@ -350,9 +595,17 @@ func (g *GitService) HasUncommittedChanges(repoPath string) (bool, error) {
 		return false, fmt.Errorf("repository path cannot be empty")
 	}
 
-	repo, err := git.PlainOpen(repoPath)
+	abs, err := filepath.Abs(repoPath)
 	if err != nil {
-		return false, fmt.Errorf("failed to open repository at %s: %w", repoPath, err)
+		abs = filepath.Clean(repoPath)
+	}
+	if root, ok := utils.FindGitRepoRoot(abs); ok {
+		abs = root
+	}
+
+	repo, err := git.PlainOpen(abs)
+	if err != nil {
+		return false, fmt.Errorf("failed to open repository at %s: %w", abs, err)
 	}
 
 	wt, err := repo.Worktree()
@@ -367,4 +620,51 @@ func (g *GitService) HasUncommittedChanges(repoPath string) (bool, error) {
 
 	// Check if there are any changes (staged or unstaged)
 	return !status.IsClean(), nil
+}
+
+// BranchExists checks if a local branch exists in the given repository.
+func (g *GitService) BranchExists(repo *git.Repository, branch string) (bool, error) {
+	if repo == nil {
+		return false, fmt.Errorf("repo cannot be nil")
+	}
+	name := strings.TrimSpace(branch)
+	if name == "" {
+		return false, fmt.Errorf("branch name is required")
+	}
+	_, err := repo.Reference(plumbing.NewBranchReferenceName(name), true)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, plumbing.ErrReferenceNotFound) {
+		return false, nil
+	}
+	return false, fmt.Errorf("failed to check branch '%s': %w", name, err)
+}
+
+// DeleteBranch deletes a local branch reference from the repository.
+// It does not modify the working tree and will fail if the reference cannot be removed.
+func (g *GitService) DeleteBranch(repo *git.Repository, branch string) error {
+	if repo == nil {
+		return fmt.Errorf("repo cannot be nil")
+	}
+	name := strings.TrimSpace(branch)
+	if name == "" {
+		return fmt.Errorf("branch name is required")
+	}
+	refName := plumbing.NewBranchReferenceName(name)
+	return repo.Storer.RemoveReference(refName)
+}
+
+// DeleteBranchByPath opens the repository at the given path (resolving nested directories)
+// and deletes the specified local branch reference.
+func (g *GitService) DeleteBranchByPath(repoPath string, branch string) error {
+	clean := strings.TrimSpace(repoPath)
+	if clean == "" {
+		return fmt.Errorf("repository path cannot be empty")
+	}
+	repo, err := g.Open(clean)
+	if err != nil {
+		return err
+	}
+	return g.DeleteBranch(repo, branch)
 }

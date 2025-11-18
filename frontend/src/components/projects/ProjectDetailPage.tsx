@@ -7,13 +7,12 @@ import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
 import { useNavigate } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActionButtons } from "@/components/ActionButtons";
 import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
-import { GenerationTabs } from "@/components/GenerationTabs";
+import { DocBranchConflictDialog } from "@/components/DocBranchConflictDialog";
+import { ProjectDetailTabsSection } from "@/components/projects/ProjectDetailTabsSection";
 import { SingleBranchSelector } from "@/components/SingleBranchSelector";
 import { SuccessPanel } from "@/components/SuccessPanel";
 import { TemplateSelector } from "@/components/TemplateSelector";
@@ -30,7 +29,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useBranchManager } from "@/hooks/useBranchManager";
-import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
+import {
+	type DocGenerationManager,
+	useDocGenerationManager,
+} from "@/hooks/useDocGenerationManager";
+import {
+	createSessionKey,
+	useDocGenerationStore,
+} from "@/stores/docGeneration";
 import { useAppSettingsStore } from "@/stores/appSettings";
 import {
 	type ModelOption,
@@ -55,12 +61,21 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [userInstructions, setUserInstructions] = useState<string>("");
 	const [mode, setMode] = useState<"diff" | "single">("diff");
 	const [templateInstructions, setTemplateInstructions] = useState<string>("");
-	const containerRef = useRef<HTMLDivElement | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
 	const branchManager = useBranchManager(repoPath);
-	const docManager = useDocGenerationManager(projectId);
+	// Default docManager for auxiliary handlers (uses active session, no specific tab)
+	const activeDocManager = useDocGenerationManager(projectId);
 	const navigate = useNavigate();
+	const docsBranchConflict = useDocGenerationStore((s) => {
+		// Get conflict from active session (backward compat)
+		const activeSessionKey = s.activeSession[String(projectId)];
+		if (activeSessionKey) {
+			return s.docStates[activeSessionKey]?.conflict ?? null;
+		}
+		return null;
+	});
+	const createTabSession = useDocGenerationStore((s) => s.createTabSession);
 
 	// Read the app's default model preference (if any)
 	const { settings: appSettings } = useAppSettingsStore();
@@ -174,37 +189,28 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, [availableModels, appSettings?.DefaultModelKey]);
 
 	useEffect(() => {
-		if (docManager.docResult) {
-			const node = containerRef.current;
-			if (node) {
-				node.scrollIntoView({ behavior: "smooth", block: "nearest" });
-			}
-		}
-	}, [docManager.docResult]);
-
-	useEffect(() => {
 		if (
-			docManager.status === "success" &&
-			docManager.commitCompleted &&
+			activeDocManager.status === "success" &&
+			activeDocManager.commitCompleted &&
 			branchManager.sourceBranch &&
 			branchManager.targetBranch
 		) {
-			docManager.setCompletedCommit(
+			activeDocManager.setCompletedCommit(
 				branchManager.sourceBranch,
 				branchManager.targetBranch
 			);
 		}
 	}, [
-		docManager.status,
-		docManager.commitCompleted,
+		activeDocManager.status,
+		activeDocManager.commitCompleted,
 		branchManager.sourceBranch,
 		branchManager.targetBranch,
-		docManager.setCompletedCommit,
+		activeDocManager.setCompletedCommit,
 	]);
 
 	// Check current branch and uncommitted changes when docs are in code repo
 	useEffect(() => {
-		if (repoPath && docManager.docsInCodeRepo) {
+		if (repoPath && activeDocManager.docsInCodeRepo) {
 			Promise.all([
 				GetCurrentBranch(repoPath).catch(() => null),
 				HasUncommittedChanges(repoPath).catch(() => false),
@@ -216,26 +222,24 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			setCurrentBranch(null);
 			setHasUncommitted(false);
 		}
-	}, [repoPath, docManager.docsInCodeRepo]);
+	}, [repoPath, activeDocManager.docsInCodeRepo]);
 
 	const canGenerate = useMemo(
 		() =>
 			Boolean(
 				project &&
-					modelKey &&
-					!docManager.isBusy &&
-					((mode === "diff" &&
+				modelKey &&
+				((mode === "diff" &&
 						branchManager.sourceBranch &&
 						branchManager.targetBranch &&
 						branchManager.sourceBranch !== branchManager.targetBranch) ||
-						(mode === "single" &&
-							branchManager.sourceBranch &&
-							hasInstructionContent))
+					(mode === "single" &&
+						branchManager.sourceBranch &&
+						hasInstructionContent))
 			),
 		[
 			branchManager.sourceBranch,
 			branchManager.targetBranch,
-			docManager.isBusy,
 			hasInstructionContent,
 			mode,
 			modelKey,
@@ -243,125 +247,100 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		]
 	);
 
-	const handleGenerate = useCallback(() => {
-		if (!(project && branchManager.sourceBranch && modelKey)) {
-			return;
-		}
-
-		const instructions = buildInstructionPayload();
-
-		branchManager.setSourceOpen(false);
-		branchManager.setTargetOpen(false);
-		docManager.setActiveTab("activity");
-		if (mode === "diff") {
-			if (!branchManager.targetBranch) {
+	const handleGenerate = useCallback(
+		(tabId: string, manager: DocGenerationManager) => {
+			if (!(project && branchManager.sourceBranch && modelKey)) {
 				return;
 			}
-			docManager.startDocGeneration({
-				projectId: Number(project.ID),
-				projectName: project.ProjectName,
-				sourceBranch: branchManager.sourceBranch,
-				targetBranch: branchManager.targetBranch,
-				modelKey,
-				userInstructions: instructions,
-			});
-		} else if (mode === "single") {
-			const targetBranch = "";
-			docManager.startSingleBranchGeneration?.({
-				projectId: Number(project.ID),
-				projectName: project.ProjectName,
-				sourceBranch: branchManager.sourceBranch,
-				targetBranch,
-				modelKey,
-				userInstructions: instructions,
-			});
-		}
-	}, [
-		project,
-		branchManager,
-		docManager,
-		modelKey,
-		buildInstructionPayload,
-		mode,
-	]);
 
-	const handleApprove = useCallback(() => {
-		docManager.approveCommit();
-		const source =
-			docManager.sourceBranch ||
-			docManager.completedCommitInfo?.sourceBranch ||
-			branchManager.sourceBranch ||
-			"";
-		const target =
-			docManager.targetBranch ||
-			docManager.completedCommitInfo?.targetBranch ||
-			branchManager.targetBranch ||
-			"";
-		if (source && target) {
-			Promise.resolve(Delete(Number(projectId), source, target)).catch(() => {
+			const trimmedSourceBranch = branchManager.sourceBranch.trim();
+			if (!trimmedSourceBranch) {
 				return;
-			});
-		}
-	}, [
-		branchManager.sourceBranch,
-		branchManager.targetBranch,
-		docManager,
-		projectId,
-	]);
+			}
 
-	const handleReset = useCallback(() => {
-		docManager.reset();
-		branchManager.resetBranches();
-	}, [docManager, branchManager]);
+			const newSessionKey = createSessionKey(
+				Number(project.ID),
+				trimmedSourceBranch,
+				tabId
+			);
+			createTabSession(Number(project.ID), tabId, newSessionKey);
 
-	const handleStartNewTask = useCallback(() => {
-		handleReset();
-	}, [handleReset]);
+			const instructions = buildInstructionPayload();
 
-	const disableControls = docManager.isBusy;
+			branchManager.setSourceOpen(false);
+			branchManager.setTargetOpen(false);
+			manager.setActiveTab("activity");
+			if (mode === "diff") {
+				if (!branchManager.targetBranch) {
+					return;
+				}
+				manager.startDocGeneration({
+					projectId: Number(project.ID),
+					projectName: project.ProjectName,
+					sourceBranch: trimmedSourceBranch,
+					targetBranch: branchManager.targetBranch,
+					modelKey,
+					userInstructions: instructions,
+					tabId,
+				});
+			} else if (mode === "single") {
+				manager.startSingleBranchGeneration?.({
+					projectId: Number(project.ID),
+					projectName: project.ProjectName,
+					sourceBranch: trimmedSourceBranch,
+					targetBranch: "",
+					modelKey,
+					userInstructions: instructions,
+					tabId,
+				});
+			}
+		},
+		[
+			project,
+			branchManager,
+			modelKey,
+			buildInstructionPayload,
+			mode,
+			createTabSession,
+		]
+	);
 
-	// Calculate canMerge and merge disabled reason
-	const { canMerge, mergeDisabledReason } = useMemo(() => {
-		if (
-			!(
-				docManager.docResult &&
-				docManager.docsInCodeRepo &&
-				docManager.sourceBranch
-			) ||
-			docManager.isBusy
-		) {
-			return { canMerge: false, mergeDisabledReason: null };
-		}
+	const handleApprove = useCallback(
+		(manager: DocGenerationManager) => {
+			manager.approveCommit();
+			const source =
+				manager.sourceBranch ||
+				manager.completedCommitInfo?.sourceBranch ||
+				branchManager.sourceBranch ||
+				"";
+			const target =
+				manager.targetBranch ||
+				manager.completedCommitInfo?.targetBranch ||
+				branchManager.targetBranch ||
+				"";
+			if (source && target) {
+				Promise.resolve(Delete(Number(projectId), source, target)).catch(() => {
+					return;
+				});
+			}
+		},
+		[branchManager.sourceBranch, branchManager.targetBranch, projectId]
+	);
 
-		// Check if currently on source branch with uncommitted changes
-		if (currentBranch === docManager.sourceBranch && hasUncommitted) {
-			return {
-				canMerge: false,
-				mergeDisabledReason: "onSourceBranchWithUncommitted",
-			};
-		}
+	const handleReset = useCallback(
+		(manager: DocGenerationManager) => {
+			manager.reset();
+			branchManager.resetBranches();
+		},
+		[branchManager]
+	);
 
-		return { canMerge: true, mergeDisabledReason: null };
-	}, [
-		docManager.docResult,
-		docManager.docsInCodeRepo,
-		docManager.sourceBranch,
-		docManager.isBusy,
-		currentBranch,
-		hasUncommitted,
-	]);
-	const comparisonSourceBranch =
-		docManager.sourceBranch ??
-		docManager.completedCommitInfo?.sourceBranch ??
-		branchManager.sourceBranch;
-	const comparisonTargetBranch =
-		docManager.targetBranch ??
-		docManager.completedCommitInfo?.targetBranch ??
-		branchManager.targetBranch;
-	const successSourceBranch =
-		docManager.completedCommitInfo?.sourceBranch ??
-		docManager.sourceBranch ??
-		branchManager.sourceBranch;
+	const handleStartNewTask = useCallback(
+		(manager: DocGenerationManager) => {
+			handleReset(manager);
+		},
+		[handleReset]
+	);
 
 	if (project === undefined) {
 		return (
@@ -370,6 +349,163 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			</div>
 		);
 	}
+
+	const renderGenerationSetup = (tabDocManager: DocGenerationManager) => {
+		const disableControls = tabDocManager.isBusy;
+		return (
+			<>
+				<div className="flex flex-col gap-4 md:flex-row">
+					<div className="space-y-2 md:w-1/2">
+						<Label className="font-medium text-sm" htmlFor="model-select">
+							{t("common.llmModel")}
+						</Label>
+						<Select
+							disabled={
+								disableControls || modelsLoading || availableModels.length === 0
+							}
+							onValueChange={(value: string) => setModelKey(value)}
+							value={modelKey ?? undefined}
+						>
+							<SelectTrigger className="w-full" id="model-select">
+								<SelectValue placeholder={t("common.selectModel")} />
+							</SelectTrigger>
+							<SelectContent>
+								{groupedModelOptions.map((group) => (
+									<SelectGroup key={group.providerId}>
+										<SelectLabel>{group.providerName}</SelectLabel>
+										{group.models.map((model) => (
+											<SelectItem key={model.key} value={model.key}>
+												{model.displayName}
+											</SelectItem>
+										))}
+									</SelectGroup>
+								))}
+							</SelectContent>
+						</Select>
+						{modelsLoading && (
+							<p className="text-muted-foreground text-xs">
+								{t("models.loading")}
+							</p>
+						)}
+						{!modelsLoading && availableModels.length === 0 && (
+							<p className="text-muted-foreground text-xs">
+								{providerKeys.length === 0
+									? t("common.noProvidersConfigured")
+									: t("common.noModelsAvailable")}
+							</p>
+						)}
+					</div>
+					<div className="space-y-2 md:w-1/2">
+						<TemplateSelector
+							setTemplateInstructions={setTemplateInstructions}
+						/>
+					</div>
+				</div>
+				<div className="flex items-center gap-2">
+					<Label className="text-muted-foreground text-xs">
+						{t("common.generationMode")}
+					</Label>
+					<div className="flex gap-2">
+						<Button
+							onClick={() => setMode("diff")}
+							size="sm"
+							type="button"
+							variant={mode === "diff" ? "default" : "outline"}
+						>
+							{t("common.diffMode")}
+						</Button>
+						<Button
+							onClick={() => setMode("single")}
+							size="sm"
+							type="button"
+							variant={mode === "single" ? "default" : "outline"}
+						>
+							{t("common.singleBranchMode")}
+						</Button>
+					</div>
+				</div>
+				{mode === "diff" ? (
+					<BranchSelector
+						branches={branchManager.branches}
+						disableControls={disableControls}
+						setSourceBranch={branchManager.setSourceBranch}
+						setSourceOpen={branchManager.setSourceOpen}
+						setTargetBranch={branchManager.setTargetBranch}
+						setTargetOpen={branchManager.setTargetOpen}
+						sourceBranch={branchManager.sourceBranch}
+						sourceOpen={branchManager.sourceOpen}
+						swapBranches={branchManager.swapBranches}
+						targetBranch={branchManager.targetBranch}
+						targetOpen={branchManager.targetOpen}
+					/>
+				) : (
+					<SingleBranchSelector
+						branch={branchManager.sourceBranch}
+						branches={branchManager.branches}
+						disableControls={disableControls}
+						open={branchManager.sourceOpen}
+						setBranch={branchManager.setSourceBranch}
+						setOpen={branchManager.setSourceOpen}
+					/>
+				)}
+				<div className="space-y-2">
+					<Label className="font-medium text-sm" htmlFor="doc-instructions">
+						{t("common.docInstructionsLabel")}
+					</Label>
+					<Textarea
+						className="resize-vertical min-h-[200px] text-xs"
+						disabled={disableControls}
+						id="doc-instructions"
+						onChange={(e) => setUserInstructions(e.target.value)}
+						placeholder={t("common.docInstructionsPlaceholder")}
+						value={userInstructions}
+					/>
+					{mode === "single" && !hasInstructionContent && (
+						<p className="text-muted-foreground text-xs">
+							{t("common.instructionsRequired")}
+						</p>
+					)}
+				</div>
+			</>
+		);
+	};
+
+	const renderGenerationBody = (tabDocManager: DocGenerationManager) => {
+		const comparisonSourceBranch =
+			tabDocManager.sourceBranch ??
+			tabDocManager.completedCommitInfo?.sourceBranch ??
+			branchManager.sourceBranch;
+		const comparisonTargetBranch =
+			tabDocManager.targetBranch ??
+			tabDocManager.completedCommitInfo?.targetBranch ??
+			branchManager.targetBranch;
+		const successSourceBranch =
+			tabDocManager.completedCommitInfo?.sourceBranch ??
+			tabDocManager.sourceBranch ??
+			branchManager.sourceBranch;
+
+		if (tabDocManager.commitCompleted) {
+			return (
+				<SuccessPanel
+					completedCommitInfo={tabDocManager.completedCommitInfo}
+					onStartNewTask={() => handleStartNewTask(tabDocManager)}
+					overridenDocsBranch={tabDocManager.docResult?.docsBranch ?? undefined}
+					sourceBranch={successSourceBranch}
+				/>
+			);
+		}
+
+		if (tabDocManager.hasGenerationAttempt) {
+			return (
+				<ComparisonDisplay
+					sourceBranch={comparisonSourceBranch}
+					targetBranch={comparisonTargetBranch}
+				/>
+			);
+		}
+
+		return renderGenerationSetup(tabDocManager);
+	};
 
 	if (!project) {
 		return (
@@ -381,227 +517,48 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	return (
 		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
-			<section
-				className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4"
-				ref={containerRef}
-			>
-				<header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 bg-card pb-2">
-					<div className="space-y-2">
-						<h2 className="font-semibold text-foreground text-lg">
-							{t("common.generateDocs")}
-						</h2>
-						<p className="text-muted-foreground text-sm">
-							{mode === "diff"
-								? t("common.generateDocsDescriptionDiff")
-								: t("common.generateDocsDescriptionSingle")}
-						</p>
-					</div>
-					<div className="flex items-center gap-2">
-						<Button
-							onClick={() =>
-								navigate({
-									to: "/projects/$projectId/generations",
-									params: { projectId },
-								})
-							}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							{t("sidebar.ongoingGenerations")}
-						</Button>
-						<Button
-							onClick={() =>
-								navigate({
-									to: "/projects/$projectId/settings",
-									params: { projectId },
-								})
-							}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							<Settings size={16} />
-							{t("common.settings")}
-						</Button>
-					</div>
-				</header>
-				<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
-					{(() => {
-						if (docManager.commitCompleted) {
-							return (
-								<SuccessPanel
-									completedCommitInfo={docManager.completedCommitInfo}
-									onStartNewTask={handleStartNewTask}
-									sourceBranch={successSourceBranch}
-								/>
-							);
-						}
+			<ProjectDetailTabsSection
+				canGenerate={canGenerate}
+				currentBranch={currentBranch}
+				hasUncommitted={hasUncommitted}
+				mode={mode}
+				onApprove={handleApprove}
+				onGenerate={handleGenerate}
+				onNavigateToGenerations={() =>
+					navigate({
+						to: "/projects/$projectId/generations",
+						params: { projectId },
+					})
+				}
+				onNavigateToSettings={() =>
+					navigate({
+						to: "/projects/$projectId/settings",
+						params: { projectId },
+					})
+				}
+				onRefreshBranches={branchManager.fetchBranches}
+				onReset={handleReset}
+				project={project}
+				projectId={projectId}
+				renderGenerationBody={renderGenerationBody}
+			/>
 
-						if (docManager.hasGenerationAttempt) {
-							return (
-								<ComparisonDisplay
-									sourceBranch={comparisonSourceBranch}
-									targetBranch={comparisonTargetBranch}
-								/>
-							);
-						}
-
-						return (
-							<>
-								<div className="flex flex-col gap-4 md:flex-row">
-									<div className="space-y-2 md:w-1/2">
-										<Label
-											className="font-medium text-sm"
-											htmlFor="model-select"
-										>
-											{t("common.llmModel")}
-										</Label>
-										<Select
-											disabled={
-												disableControls ||
-												modelsLoading ||
-												availableModels.length === 0
-											}
-											onValueChange={(value: string) => setModelKey(value)}
-											value={modelKey ?? undefined}
-										>
-											<SelectTrigger className="w-full" id="model-select">
-												<SelectValue placeholder={t("common.selectModel")} />
-											</SelectTrigger>
-											<SelectContent>
-												{groupedModelOptions.map((group) => (
-													<SelectGroup key={group.providerId}>
-														<SelectLabel>{group.providerName}</SelectLabel>
-														{group.models.map((model) => (
-															<SelectItem key={model.key} value={model.key}>
-																{model.displayName}
-															</SelectItem>
-														))}
-													</SelectGroup>
-												))}
-											</SelectContent>
-										</Select>
-										{modelsLoading && (
-											<p className="text-muted-foreground text-xs">
-												{t("models.loading")}
-											</p>
-										)}
-										{!modelsLoading && availableModels.length === 0 && (
-											<p className="text-muted-foreground text-xs">
-												{providerKeys.length === 0
-													? t("common.noProvidersConfigured")
-													: t("common.noModelsAvailable")}
-											</p>
-										)}
-									</div>
-									<div className="space-y-2 md:w-1/2">
-										<TemplateSelector
-											setTemplateInstructions={setTemplateInstructions}
-										/>
-									</div>
-								</div>
-								<div className="flex items-center gap-2">
-									<Label className="text-muted-foreground text-xs">
-										{t("common.generationMode")}
-									</Label>
-									<div className="flex gap-2">
-										<Button
-											onClick={() => setMode("diff")}
-											size="sm"
-											type="button"
-											variant={mode === "diff" ? "default" : "outline"}
-										>
-											{t("common.diffMode")}
-										</Button>
-										<Button
-											onClick={() => setMode("single")}
-											size="sm"
-											type="button"
-											variant={mode === "single" ? "default" : "outline"}
-										>
-											{t("common.singleBranchMode")}
-										</Button>
-									</div>
-								</div>
-								{mode === "diff" ? (
-									<BranchSelector
-										branches={branchManager.branches}
-										disableControls={disableControls}
-										setSourceBranch={branchManager.setSourceBranch}
-										setSourceOpen={branchManager.setSourceOpen}
-										setTargetBranch={branchManager.setTargetBranch}
-										setTargetOpen={branchManager.setTargetOpen}
-										sourceBranch={branchManager.sourceBranch}
-										sourceOpen={branchManager.sourceOpen}
-										swapBranches={branchManager.swapBranches}
-										targetBranch={branchManager.targetBranch}
-										targetOpen={branchManager.targetOpen}
-									/>
-								) : (
-									<SingleBranchSelector
-										branch={branchManager.sourceBranch}
-										branches={branchManager.branches}
-										disableControls={disableControls}
-										open={branchManager.sourceOpen}
-										setBranch={branchManager.setSourceBranch}
-										setOpen={branchManager.setSourceOpen}
-									/>
-								)}
-								<div className="space-y-2">
-									<Label
-										className="font-medium text-sm"
-										htmlFor="doc-instructions"
-									>
-										{t("common.docInstructionsLabel")}
-									</Label>
-									<Textarea
-										className="resize-vertical min-h-[200px] text-xs"
-										disabled={disableControls}
-										id="doc-instructions"
-										onChange={(e) => setUserInstructions(e.target.value)}
-										placeholder={t("common.docInstructionsPlaceholder")}
-										value={userInstructions}
-									/>
-									{mode === "single" && !hasInstructionContent && (
-										<p className="text-muted-foreground text-xs">
-											{t("common.instructionsRequired")}
-										</p>
-									)}
-								</div>
-							</>
-						);
-					})()}
-
-					{docManager.hasGenerationAttempt && (
-						<GenerationTabs
-							activeTab={docManager.activeTab}
-							docResult={docManager.docResult}
-							events={docManager.events}
-							projectId={Number(project.ID)}
-							setActiveTab={docManager.setActiveTab}
-							status={docManager.status}
-						/>
-					)}
-				</div>
-				{!docManager.commitCompleted && (
-					<ActionButtons
-						canGenerate={canGenerate}
-						canMerge={canMerge}
-						docGenerationError={docManager.docGenerationError}
-						docResult={docManager.docResult}
-						isBusy={docManager.isBusy}
-						isMerging={docManager.isMerging}
-						isRunning={docManager.isRunning}
-						mergeDisabledReason={mergeDisabledReason}
-						onApprove={handleApprove}
-						onCancel={docManager.cancelDocGeneration}
-						onGenerate={handleGenerate}
-						onMerge={docManager.mergeDocs}
-						onReset={handleReset}
-					/>
-				)}
-			</section>
+			{docsBranchConflict && activeDocManager.sourceBranch && modelKey && (
+				<DocBranchConflictDialog
+					existingDocsBranch={docsBranchConflict.existingDocsBranch}
+					isInProgress={docsBranchConflict.isInProgress}
+					mode={docsBranchConflict.mode}
+					modelKey={modelKey}
+					open={true}
+					projectId={Number(project?.ID ?? projectId)}
+					projectName={project.ProjectName}
+					proposedDocsBranch={docsBranchConflict.proposedDocsBranch}
+					sessionKey={activeDocManager.sessionKey ?? undefined}
+					sourceBranch={activeDocManager.sourceBranch}
+					targetBranch={branchManager.targetBranch ?? undefined}
+					userInstructions={buildInstructionPayload()}
+				/>
+			)}
 		</div>
 	);
 }

@@ -5,11 +5,17 @@ import {plumbing} from '../models';
 import {models} from '../models';
 import {context} from '../models';
 
+export function BranchExists(arg1:git.Repository,arg2:string):Promise<boolean>;
+
 export function Checkout(arg1:git.Repository,arg2:string):Promise<void>;
 
 export function Clone(arg1:string,arg2:string):Promise<git.Repository>;
 
 export function Commit(arg1:git.Repository,arg2:string):Promise<plumbing.Hash>;
+
+export function DeleteBranch(arg1:git.Repository,arg2:string):Promise<void>;
+
+export function DeleteBranchByPath(arg1:string,arg2:string):Promise<void>;
 
 export function DiffBetweenBranches(arg1:git.Repository,arg2:string,arg3:string):Promise<string>;
 
@@ -32,6 +38,8 @@ export function Open(arg1:string):Promise<git.Repository>;
 export function Pull(arg1:git.Repository):Promise<void>;
 
 export function Push(arg1:git.Repository):Promise<void>;
+
+export function StageAll(arg1:git.Repository):Promise<void>;
 
 export function StageFiles(arg1:git.Repository,arg2:Array<string>):Promise<void>;
 
