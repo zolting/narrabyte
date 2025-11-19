@@ -1,0 +1,44 @@
+name: Build Wails App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: [1.25]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 24
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails@latest
+
+      - name: Install dependencies
+        run: |
+          npm install
+          npm run build
+
+      - name: Build Wails app
+        run: |
+          wails build -clean -frontend-prod
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: MyApp-${{ matrix.os }}
+          path: ./build/bin/*
