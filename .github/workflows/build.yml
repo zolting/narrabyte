@@ -1,7 +1,9 @@
 name: Build App
 
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -23,7 +25,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: 1.25
 
       - name: Install Node.js
         uses: actions/setup-node@v3
@@ -43,20 +45,37 @@ jobs:
         id: get_version
         run: |
           VERSION=$(jq -r '.version' frontend/package.json)
-          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "APP_VERSION=${VERSION}" >> $GITHUB_ENV
 
       - name: Build Wails app (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: |
-            wails build -tags webkit2_41
+        run: wails build -tags webkit2_41
 
       - name: Build Wails app (Windows/macOS)
         if: matrix.os != 'ubuntu-latest'
-        run: |
-            wails build
+        run: wails build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: narrabyte-${{ env.APP_VERSION }}-${{ matrix.os_short }}
           path: ./build/bin/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ env.APP_VERSION }}
+          files: |
+            artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
