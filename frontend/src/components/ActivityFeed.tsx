@@ -34,7 +34,7 @@ export function ActivityFeed({
 	const [visibleEvents, setVisibleEvents] = useState<string[]>([]);
 	const [showAllTodos, setShowAllTodos] = useState(false);
 	const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(
-		new Set(),
+		new Set()
 	);
 
 	const displayEvents = useMemo(() => {
@@ -94,7 +94,7 @@ export function ActivityFeed({
 					}
 					return [...prev, event.id];
 				});
-			}, index * 100),
+			}, index * 100)
 		);
 
 		return () => {
@@ -136,7 +136,7 @@ export function ActivityFeed({
 	// Calculate todo counts
 	const pendingCount = todos.filter((todo) => todo.status === "pending").length;
 	const completedCount = todos.filter(
-		(todo) => todo.status === "completed",
+		(todo) => todo.status === "completed"
 	).length;
 
 	// Check if all todos are completed
@@ -177,7 +177,7 @@ export function ActivityFeed({
 		const timeouts: number[] = [];
 		for (const reasoningId of expandedReasoning) {
 			const element = document.querySelector(
-				`[data-reasoning-id="${reasoningId}"]`,
+				`[data-reasoning-id="${reasoningId}"]`
 			);
 			if (element) {
 				// Scroll to bottom after content is rendered
@@ -273,7 +273,7 @@ export function ActivityFeed({
 															"bg-muted/50": todo.status === "pending",
 															"bg-muted/30 opacity-60":
 																todo.status === "cancelled",
-														},
+														}
 													)}
 													key={`${todo.content}-${todo.status}-${index}`}
 												>
@@ -288,7 +288,7 @@ export function ActivityFeed({
 																"text-muted-foreground line-through":
 																	todo.status === "cancelled",
 																"font-medium": todo.status === "in_progress",
-															},
+															}
 														)}
 													>
 														{displayText}
@@ -314,12 +314,12 @@ export function ActivityFeed({
 									if (isRunning) {
 										return t(
 											"common.generatingDocs",
-											"Generating documentation…",
+											"Generating documentation…"
 										);
 									}
 									return t(
 										"common.committingDocs",
-										"Committing documentation…",
+										"Committing documentation…"
 									);
 								}
 								return t("activity.toolActivity");
@@ -390,7 +390,7 @@ export function ActivityFeed({
 															<p className="font-mono text-muted-foreground text-xs italic">
 																{t(
 																	"activity.reasoningPlaceholder",
-																	"Waiting for reasoning…",
+																	"Waiting for reasoning…"
 																)}
 															</p>
 														)}
@@ -408,7 +408,7 @@ export function ActivityFeed({
 											{
 												"translate-y-0 opacity-100": isVisible,
 												"translate-y-2 opacity-0": !isVisible,
-											},
+											}
 										)}
 										key={event.id}
 									>
@@ -420,7 +420,7 @@ export function ActivityFeed({
 													warn: "bg-yellow-500/15 text-yellow-700",
 													info: "bg-blue-500/15 text-blue-700",
 													success: "bg-emerald-500/15 text-emerald-700",
-												}[event.type] || "bg-emerald-500/15 text-emerald-700",
+												}[event.type] || "bg-emerald-500/15 text-emerald-700"
 											)}
 										>
 											{event.type}
