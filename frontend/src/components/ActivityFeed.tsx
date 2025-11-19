@@ -172,6 +172,29 @@ export function ActivityFeed({
 		});
 	};
 
+	// Auto-scroll reasoning blocks to bottom when expanded or content updates
+	useEffect(() => {
+		const timeouts: number[] = [];
+		for (const reasoningId of expandedReasoning) {
+			const element = document.querySelector(
+				`[data-reasoning-id="${reasoningId}"]`,
+			);
+			if (element) {
+				// Scroll to bottom after content is rendered
+				// Use setTimeout to ensure DOM is fully updated
+				const timeoutId = window.setTimeout(() => {
+					element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+				}, 50);
+				timeouts.push(timeoutId);
+			}
+		}
+		return () => {
+			for (const timeout of timeouts) {
+				window.clearTimeout(timeout);
+			}
+		};
+	}, [expandedReasoning, displayEvents]);
+
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-2">
 			{/* Active todo or completion status - visible when todos exist */}
@@ -354,7 +377,10 @@ export function ActivityFeed({
 													)}
 												</button>
 												{isExpanded && (
-													<div className="max-h-48 overflow-y-auto border-amber-500/30 border-t bg-amber-500/5 px-4 py-2">
+													<div
+														className="max-h-48 overflow-y-auto border-amber-500/30 border-t bg-amber-500/5 px-4 py-2"
+														data-reasoning-id={event.id}
+													>
 														{event.message ? (
 															<MarkdownRenderer
 																className="text-muted-foreground"
