@@ -16,10 +16,13 @@ jobs:
         include:
           - os: ubuntu-latest
             os_short: ubuntu
+            ext: ""
           - os: windows-latest
             os_short: windows
+            ext: ".exe"
           - os: macos-latest
             os_short: macos
+            ext: ""
 
     steps:
       - name: Checkout code
@@ -51,6 +54,12 @@ jobs:
       - name: Build Wails app (Windows/macOS)
         if: matrix.os != 'ubuntu-latest'
         run: wails build
+
+      - name: Rename build output
+        run: |
+          mkdir -p release
+          mv ./build/bin/* "release/narrabyte-${{ github.ref_name }}-${{ matrix.os_short }}${{ matrix.ext }}"
+        shell: bash
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
