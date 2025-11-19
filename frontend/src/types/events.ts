@@ -4,9 +4,10 @@ import { z } from "zod/v4";
 export const toolEventSchema = z.object({
 	id: z.string().uuid(),
 	type: z.enum(["success", "info", "warn", "error"]),
-	message: z.string().min(1),
+	message: z.string(),
 	timestamp: z.coerce.date(),
 	sessionKey: z.string().optional(),
+	metadata: z.record(z.string(), z.string()).optional(),
 });
 
 export type ToolEvent = z.infer<typeof toolEventSchema>;

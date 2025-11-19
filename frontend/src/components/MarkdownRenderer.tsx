@@ -39,7 +39,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 						<ul className="my-1.5 list-disc pl-4">{children}</ul>
 					),
 					ol: ({ children }) => (
-						<ol className="my-1.5 list-decimal pl-4">{children}</ol>
+						<ol className="my-1.5 ml-3 list-decimal pl-4">{children}</ol>
 					),
 					li: ({ children }) => <li className="my-0.5">{children}</li>,
 					code: ({ children, className: codeClassName }) => {

@@ -352,6 +352,9 @@
     "title": "Activity Feed",
     "empty": "No activity yet.",
     "allTasks": "All Tasks",
-    "toolActivity": "Tool Activity"
+    "toolActivity": "Tool Activity",
+    "reasoning": "Reasoning",
+    "reasoningPlaceholder": "Waiting for reasoning…",
+    "thoughtProcess": "Thought process"
   }
 }

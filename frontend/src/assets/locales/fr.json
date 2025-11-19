@@ -349,6 +349,9 @@
     "title": "Fil d'activité",
     "empty": "Aucune activité pour le moment.",
     "allTasks": "Toutes les tâches",
-    "toolActivity": "Activité des outils"
+    "toolActivity": "Activité des outils",
+    "reasoning": "Raisonnement",
+    "reasoningPlaceholder": "En attente du raisonnement…",
+    "thoughtProcess": "Processus de pensée"
   }
 }
