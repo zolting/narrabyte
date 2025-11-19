@@ -75,7 +75,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: narrabyte-${{ github.ref_name }}-${{ matrix.os_short }}
-          path: release/*
+          path: |
+            release/narrabyte-${{ github.ref_name }}-ubuntu
+            release/narrabyte-${{ github.ref_name }}-windows.exe
+            release/narrabyte-${{ github.ref_name }}-macos.zip
 
   release:
     needs: build
