@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -41,12 +44,6 @@ jobs:
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      - name: Get App version
-        id: get_version
-        run: |
-          VERSION=$(jq -r '.version' frontend/package.json)
-          echo "APP_VERSION=${VERSION}" >> $GITHUB_ENV
-
       - name: Build Wails app (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: wails build -tags webkit2_41
@@ -58,7 +55,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: narrabyte-${{ env.APP_VERSION }}-${{ matrix.os_short }}
+          name: narrabyte-${{ github.ref_name }}-${{ matrix.os_short }}
           path: ./build/bin/*
 
   release:
@@ -74,7 +71,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          name: Release ${{ env.APP_VERSION }}
+          name: Release ${{ github.ref_name }}
           files: |
             artifacts/**/*
         env:
