@@ -50,8 +50,11 @@ jobs:
         run: |
             wails build
 
+      - name: Prepare artifact name
+        run: echo "OS_SHORT=$(echo '${{ matrix.os }}' | cut -d '-' -f1)" >> $GITHUB_ENV
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: narrabyte-${{ env.APP_VERSION }}-${{ matrix.os.replace('-latest','') }}
+          name: narrabyte-${{ env.APP_VERSION }}-${{ env.OS_SHORT }}
           path: ./build/bin/*
