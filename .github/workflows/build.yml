@@ -66,19 +66,14 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           mkdir -p release
-          cp -r ./build/bin/narrabyte.app release/
-          cd release
-          zip -r narrabyte-${{ github.ref_name }}}-${{ matrix.os_short }}${{ matrix.ext }}.zip narrabyte.app
+          zip -r release/narrabyte-${{ github.ref_name }}-${{ matrix.os_short }}.zip ./build/bin/narrabyte.app
         shell: bash
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: narrabyte-${{ github.ref_name }}-${{ matrix.os_short }}
-          path: |
-            release/narrabyte-${{ github.ref_name }}-ubuntu
-            release/narrabyte-${{ github.ref_name }}-windows.exe
-            release/narrabyte-${{ github.ref_name }}-macos.zip
+          path: release/*
 
   release:
     needs: build
