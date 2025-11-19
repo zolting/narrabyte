@@ -47,18 +47,28 @@ jobs:
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      - name: Build Wails app (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: wails build -tags webkit2_41
-
       - name: Build Wails app (Windows/macOS)
         if: matrix.os != 'ubuntu-latest'
         run: wails build
 
-      - name: Rename build output
+      - name: Build Wails app (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: wails build -tags webkit2_41
+
+      - name: Rename build output (Linux/Windows)
+        if: matrix.os != 'macos-latest'
         run: |
           mkdir -p release
           mv ./build/bin/* "release/narrabyte-${{ github.ref_name }}-${{ matrix.os_short }}${{ matrix.ext }}"
+        shell: bash
+
+      - name: Zip macOS .app
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p release
+          cp -r ./build/bin/narrabyte.app release/
+          cd release
+          zip -r narrabyte-${{ github.ref_name }}}-${{ matrix.os_short }}${{ matrix.ext }}.zip narrabyte.app
         shell: bash
 
       - name: Upload artifact
