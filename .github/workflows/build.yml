@@ -31,12 +31,12 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: |
-          npm install
+          npm ci
           npm run build
 
       - name: Build Wails app
         run: |
-          wails build -clean -frontend-prod
+          wails build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
