@@ -8,8 +8,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: [1.25]
+        include:
+          - os: ubuntu-latest
+            os_short: ubuntu
+          - os: windows-latest
+            os_short: windows
+          - os: macos-latest
+            os_short: macos
 
     steps:
       - name: Checkout code
@@ -50,11 +55,8 @@ jobs:
         run: |
             wails build
 
-      - name: Prepare artifact name
-        run: echo "OS_SHORT=$(echo '${{ matrix.os }}' | cut -d '-' -f1)" >> $GITHUB_ENV
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: narrabyte-${{ env.APP_VERSION }}-${{ env.OS_SHORT }}
+          name: narrabyte-${{ env.APP_VERSION }}-${{ matrix.os_short }}
           path: ./build/bin/*
