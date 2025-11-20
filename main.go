@@ -19,19 +19,16 @@ var assets embed.FS
 
 func main() {
 
-	// Create an instance of the app structure
 	app := NewApp()
 
-	//Initialize the database
 	db, err := database.Init(database.Config{
-		Path:     "narrabyte.db",
 		LogLevel: logger.Info,
 	})
 	if err != nil {
 		fmt.Println("Error opening database:", err)
 		return
 	}
-	//savais pas ou le mettre. Ici ou dans app.startup() ?
+
 	if sqlDB, err := db.DB(); err == nil {
 		app.dbClose = sqlDB.Close
 	}
