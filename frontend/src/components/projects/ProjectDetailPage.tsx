@@ -92,17 +92,31 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, [projectId]);
 
 	useEffect(() => {
-		ListApiKeys()
-			.then((keys) => {
-				if (!keys) {
+		const refreshProviders = () => {
+			ListApiKeys()
+				.then((keys) => {
+					if (!keys) {
+						setProviderKeys([]);
+						return;
+					}
+					setProviderKeys(keys.map((k) => k.provider));
+				})
+				.catch(() => {
 					setProviderKeys([]);
-					return;
-				}
-				setProviderKeys(keys.map((k) => k.provider));
-			})
-			.catch(() => {
-				setProviderKeys([]);
-			});
+				});
+			// Réinitialise
+			void initModelSettings();
+		};
+
+		// Load initial
+		refreshProviders();
+
+		// Refresh quand les clés ont été changées
+		const handler = () => refreshProviders();
+		window.addEventListener("narrabyte:keysChanged", handler);
+		return () => {
+			window.removeEventListener("narrabyte:keysChanged", handler);
+		};
 	}, []);
 
 	useEffect(() => {

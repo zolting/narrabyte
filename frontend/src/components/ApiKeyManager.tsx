@@ -41,10 +41,11 @@ export interface ApiKeyManagerHandle {
 interface ApiKeyManagerProps {
 	onAddClick: () => void;
 	onEditClick: (provider: string) => void;
+	onKeysChanged?: () => void;
 }
 
 const ApiKeyManager = forwardRef<ApiKeyManagerHandle, ApiKeyManagerProps>(
-	({ onAddClick, onEditClick }, ref) => {
+	({ onAddClick, onEditClick, onKeysChanged }, ref) => {
 		const { t } = useTranslation();
 		const [apiKeys, setApiKeys] = useState<ApiKeyInfo[]>([]);
 		const [loading, setLoading] = useState(false);
@@ -130,6 +131,12 @@ const ApiKeyManager = forwardRef<ApiKeyManagerHandle, ApiKeyManagerProps>(
 				// Update the list immediately without refetching
 				setApiKeys((prev) => prev.filter((key) => key.provider !== provider));
 				toast.success(t("apiKeys.deleteSuccess"));
+				// Notify parent that keys changed so other UI (models list) can refresh
+				try {
+					onKeysChanged?.();
+				} catch {
+					// ignore
+				}
 			} catch (_err) {
 				toast.error(t("apiKeys.deleteError"));
 			}

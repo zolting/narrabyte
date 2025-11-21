@@ -62,8 +62,18 @@ function Settings() {
 	const locale = settings?.Locale ?? "en";
 	const isLoading = !initialized || loading;
 
+	const initModelSettings = useModelSettingsStore((s) => s.init);
+
 	const handleKeyAdded = () => {
 		apiKeyManagerRef.current?.refresh();
+		// Ré-initialise les settings pour les les nouvelles clés soient ajoutées
+		void initModelSettings();
+		// Notify other parts of the app that keys have changed
+		try {
+			window.dispatchEvent(new Event("narrabyte:keysChanged"));
+		} catch {
+			// ignore si pas de window
+		}
 	};
 
 	const handleAddClick = () => {
@@ -170,6 +180,7 @@ function Settings() {
 						<ApiKeyManager
 							onAddClick={handleAddClick}
 							onEditClick={handleEditClick}
+							onKeysChanged={handleKeyAdded}
 							ref={apiKeyManagerRef}
 						/>
 						<DefaultModel
