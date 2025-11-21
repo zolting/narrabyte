@@ -544,6 +544,231 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		});
 	};
 
+	const subscribeToGenerationEvents = (
+		sessionKey: SessionKey,
+		baseSessionKey: SessionKey
+	) => {
+		clearSubscriptions(sessionKey);
+
+		const toolUnsub = EventsOn("event:llm:tool", (payload) => {
+			try {
+				const evt = toolEventSchema.parse(payload);
+				if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
+					return;
+				}
+				setDocState(sessionKey, (prev) => ({
+					...prev,
+					events: [...prev.events, evt],
+				}));
+			} catch (error) {
+				console.error("Invalid doc generation tool event", error, payload);
+			}
+		});
+
+		const doneUnsub = EventsOn("events:llm:done", (payload) => {
+			try {
+				const evt = toolEventSchema.parse(payload);
+				if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
+					return;
+				}
+				setDocState(sessionKey, (prev) => ({
+					...prev,
+					events: [...prev.events, evt],
+				}));
+			} catch (error) {
+				console.error("Invalid doc generation done event", error, payload);
+			}
+		});
+
+		const todoUnsub = EventsOn("event:llm:todo", (payload) => {
+			try {
+				const evt = todoEventSchema.parse(payload);
+				if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
+					return;
+				}
+				setDocState(sessionKey, (prev) => ({
+					...prev,
+					todos: evt.todos,
+				}));
+			} catch (error) {
+				console.error("Invalid todo event", error, payload);
+			}
+		});
+
+		subscriptions.set(sessionKey, {
+			tool: toolUnsub,
+			done: doneUnsub,
+			todo: todoUnsub,
+		});
+	};
+
+	type GenerationMode = "diff" | "single";
+	type RunGenerationArgs = {
+		projectId: number;
+		projectName: string;
+		sourceBranch: string;
+		targetBranch?: string;
+		modelKey: string;
+		userInstructions: string;
+		tabId?: TabId;
+		conflictMode: GenerationMode;
+		runRequest: (sessionKey: SessionKey) => Promise<models.DocGenerationResult>;
+	};
+
+	const runGeneration = async ({
+		projectId,
+		projectName,
+		sourceBranch,
+		targetBranch,
+		modelKey,
+		userInstructions,
+		tabId,
+		conflictMode,
+		runRequest,
+	}: RunGenerationArgs) => {
+		const projectKey = toKey(projectId);
+		const baseSessionKey = createSessionKey(projectId, sourceBranch);
+		const sessionKey = tabId
+			? createSessionKey(projectId, sourceBranch, tabId)
+			: baseSessionKey;
+		const currentState = get().docStates[sessionKey];
+		if (currentState?.status === "running") {
+			return;
+		}
+
+		if (tabId) {
+			setTabSession(projectId, tabId, sessionKey);
+		}
+
+		bindBackendSession(baseSessionKey, sessionKey);
+
+		setDocState(sessionKey, {
+			projectId,
+			projectName,
+			sessionKey,
+			events: [],
+			todos: [],
+			error: null,
+			result: null,
+			status: "running",
+			cancellationRequested: false,
+			activeTab: "activity",
+			commitCompleted: false,
+			completedCommitInfo: null,
+			sourceBranch,
+			targetBranch: targetBranch ?? null,
+			chatOpen: false,
+			messages: [],
+			initialDiffSignatures: null,
+			changedSinceInitial: [],
+			docsInCodeRepo: false,
+			docsBranch: null,
+			mergeInProgress: false,
+		});
+		setActiveSessionKey(projectKey, sessionKey);
+		updateSessionMeta(sessionKey, {
+			projectId,
+			projectName,
+			sourceBranch,
+			targetBranch: targetBranch ?? "",
+			status: "running",
+		});
+
+		subscribeToGenerationEvents(sessionKey, baseSessionKey);
+
+		try {
+			const result = await runRequest(sessionKey);
+			setDocState(sessionKey, {
+				result,
+				status: "success",
+				cancellationRequested: false,
+				initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
+				changedSinceInitial: [],
+				docsInCodeRepo: Boolean(result?.docsInCodeRepo),
+				docsBranch: result?.docsBranch ?? null,
+				mergeInProgress: false,
+			});
+			updateSessionMeta(sessionKey, { status: "success" });
+		} catch (error) {
+			const message = messageFromError(error);
+
+			const suggestion = extractBranchConflictSuggestion(message);
+			if (suggestion) {
+				setDocState(sessionKey, (prev) => ({
+					...prev,
+					error: null,
+					status: "idle",
+					conflict: {
+						existingDocsBranch: suggestion.existing,
+						proposedDocsBranch: suggestion.proposed,
+						mode: conflictMode,
+						isInProgress: suggestion.isInProgress,
+					},
+					activeTab: "activity",
+				}));
+				updateSessionMeta(sessionKey, { status: "idle" });
+				return;
+			}
+
+			if (message.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
+				const existing =
+					extractExistingDocsBranch(message) ?? `docs/${sourceBranch}`;
+				setDocState(sessionKey, (prev) => ({
+					...prev,
+					error: null,
+					status: "idle",
+					conflict: {
+						existingDocsBranch: existing,
+						proposedDocsBranch: existing,
+						mode: conflictMode,
+					},
+					activeTab: "activity",
+				}));
+				updateSessionMeta(sessionKey, { status: "idle" });
+				return;
+			}
+
+			const normalized = message.toLowerCase();
+			const docState = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
+			const canceled =
+				docState.cancellationRequested ||
+				normalized.includes("context canceled") ||
+				normalized.includes("context cancelled") ||
+				normalized.includes("cancelled") ||
+				normalized.includes("canceled");
+			if (canceled) {
+				setDocState(sessionKey, (prev) => ({
+					...prev,
+					error: null,
+					result: null,
+					status: "canceled",
+					cancellationRequested: false,
+					events: [
+						...prev.events,
+						createLocalEvent(
+							"warn",
+							"Documentation generation canceled by user."
+						),
+					],
+				}));
+				updateSessionMeta(sessionKey, { status: "canceled" });
+			} else {
+				setDocState(sessionKey, {
+					error: mapErrorCodeToMessage(message),
+					status: "error",
+					cancellationRequested: false,
+					result: null,
+					commitCompleted: false,
+				});
+				updateSessionMeta(sessionKey, { status: "error" });
+			}
+		} finally {
+			unbindBackendSession(baseSessionKey, sessionKey);
+			clearSubscriptions(sessionKey);
+			setDocState(sessionKey, { cancellationRequested: false });
+		}
+	};
+
 	return {
 		docStates: {},
 		tabSessions: {},
@@ -576,209 +801,26 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			userInstructions,
 			tabId,
 		}: StartArgs & { tabId?: TabId }) => {
-			const projectKey = toKey(projectId);
-			const baseSessionKey = createSessionKey(projectId, sourceBranch);
-			const sessionKey = tabId
-				? createSessionKey(projectId, sourceBranch, tabId)
-				: baseSessionKey;
-			const currentState = get().docStates[sessionKey];
-			if (currentState?.status === "running") {
-				return;
-			}
-
-			// If tabId provided, associate this session with the tab
-			if (tabId) {
-				setTabSession(projectId, tabId, sessionKey);
-			}
-
-			bindBackendSession(baseSessionKey, sessionKey);
-
-			setDocState(sessionKey, {
-				projectId,
-				projectName,
-				sessionKey,
-				events: [],
-				todos: [],
-				error: null,
-				result: null,
-				status: "running",
-				cancellationRequested: false,
-				activeTab: "activity",
-				commitCompleted: false,
-				completedCommitInfo: null,
-				sourceBranch,
-				targetBranch,
-				chatOpen: false,
-				messages: [],
-				initialDiffSignatures: null,
-				changedSinceInitial: [],
-				docsInCodeRepo: false,
-				docsBranch: null,
-				mergeInProgress: false,
-			});
-			setActiveSessionKey(projectKey, sessionKey);
-			updateSessionMeta(sessionKey, {
+			await runGeneration({
 				projectId,
 				projectName,
 				sourceBranch,
 				targetBranch,
-				status: "running",
+				modelKey,
+				userInstructions,
+				tabId,
+				conflictMode: "diff",
+				runRequest: (sessionKey) =>
+					GenerateDocs(
+						projectId,
+						sourceBranch,
+						targetBranch,
+						modelKey,
+						userInstructions,
+						"",
+						sessionKey
+					),
 			});
-
-			clearSubscriptions(sessionKey);
-
-			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
-				try {
-					const evt = toolEventSchema.parse(payload);
-					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
-						return;
-					}
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid doc generation tool event", error, payload);
-				}
-			});
-
-			const doneUnsub = EventsOn("events:llm:done", (payload) => {
-				try {
-					const evt = toolEventSchema.parse(payload);
-					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
-						return;
-					}
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid doc generation done event", error, payload);
-				}
-			});
-
-			const todoUnsub = EventsOn("event:llm:todo", (payload) => {
-				try {
-					const evt = todoEventSchema.parse(payload);
-					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
-						return;
-					}
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						todos: evt.todos,
-					}));
-				} catch (error) {
-					console.error("Invalid todo event", error, payload);
-				}
-			});
-
-			subscriptions.set(sessionKey, {
-				tool: toolUnsub,
-				done: doneUnsub,
-				todo: todoUnsub,
-			});
-
-			try {
-				const result = await GenerateDocs(
-					projectId,
-					sourceBranch,
-					targetBranch,
-					modelKey,
-					userInstructions,
-					"",
-					sessionKey
-				);
-				setDocState(sessionKey, {
-					result,
-					status: "success",
-					cancellationRequested: false,
-					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
-					changedSinceInitial: [],
-					docsInCodeRepo: Boolean(result?.docsInCodeRepo),
-					docsBranch: result?.docsBranch ?? null,
-					mergeInProgress: false,
-				});
-				updateSessionMeta(sessionKey, { status: "success" });
-			} catch (error) {
-				const message = messageFromError(error);
-
-				// Check for conflict with suggestion (new format)
-				const suggestion = extractBranchConflictSuggestion(message);
-				if (suggestion) {
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						error: null,
-						status: "idle",
-						conflict: {
-							existingDocsBranch: suggestion.existing,
-							proposedDocsBranch: suggestion.proposed,
-							mode: "diff",
-							isInProgress: suggestion.isInProgress,
-						},
-						activeTab: "activity",
-					}));
-					updateSessionMeta(sessionKey, { status: "idle" });
-					return;
-				}
-
-				// Detect conflict (old format, backward compatibility)
-				if (message.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
-					const existing =
-						extractExistingDocsBranch(message) ?? `docs/${sourceBranch}`;
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						error: null,
-						status: "idle",
-						conflict: {
-							existingDocsBranch: existing,
-							proposedDocsBranch: existing,
-							mode: "diff",
-						},
-						activeTab: "activity",
-					}));
-					updateSessionMeta(sessionKey, { status: "idle" });
-					return;
-				}
-				// ...existing non-conflict error handling...
-				const normalized = message.toLowerCase();
-				const docState = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
-				const canceled =
-					docState.cancellationRequested ||
-					normalized.includes("context canceled") ||
-					normalized.includes("context cancelled") ||
-					normalized.includes("cancelled") ||
-					normalized.includes("canceled");
-				if (canceled) {
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						error: null,
-						result: null,
-						status: "canceled",
-						cancellationRequested: false,
-						events: [
-							...prev.events,
-							createLocalEvent(
-								"warn",
-								"Documentation generation canceled by user."
-							),
-						],
-					}));
-					updateSessionMeta(sessionKey, { status: "canceled" });
-				} else {
-					setDocState(sessionKey, {
-						error: mapErrorCodeToMessage(message),
-						status: "error",
-						cancellationRequested: false,
-						result: null,
-						commitCompleted: false,
-					});
-					updateSessionMeta(sessionKey, { status: "error" });
-				}
-			} finally {
-				unbindBackendSession(baseSessionKey, sessionKey);
-				clearSubscriptions(sessionKey);
-				setDocState(sessionKey, { cancellationRequested: false });
-			}
 		},
 
 		startFromBranch: async ({
@@ -789,208 +831,25 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			userInstructions,
 			tabId,
 		}: StartArgs & { tabId?: TabId }) => {
-			const projectKey = toKey(projectId);
-			const baseSessionKey = createSessionKey(projectId, sourceBranch);
-			const sessionKey = tabId
-				? createSessionKey(projectId, sourceBranch, tabId)
-				: baseSessionKey;
-			const currentState = get().docStates[sessionKey];
-			if (currentState?.status === "running") {
-				return;
-			}
-
-			// If tabId provided, associate this session with the tab
-			if (tabId) {
-				setTabSession(projectId, tabId, sessionKey);
-			}
-
-			bindBackendSession(baseSessionKey, sessionKey);
-
-			setDocState(sessionKey, {
-				projectId,
-				projectName,
-				sessionKey,
-				events: [],
-				todos: [],
-				error: null,
-				result: null,
-				status: "running",
-				cancellationRequested: false,
-				activeTab: "activity",
-				commitCompleted: false,
-				completedCommitInfo: null,
-				sourceBranch,
-				targetBranch: null,
-				chatOpen: false,
-				messages: [],
-				initialDiffSignatures: null,
-				changedSinceInitial: [],
-				docsInCodeRepo: false,
-				docsBranch: null,
-				mergeInProgress: false,
-			});
-			setActiveSessionKey(projectKey, sessionKey);
-			updateSessionMeta(sessionKey, {
+			await runGeneration({
 				projectId,
 				projectName,
 				sourceBranch,
-				targetBranch: "",
-				status: "running",
+				targetBranch: undefined,
+				modelKey,
+				userInstructions,
+				tabId,
+				conflictMode: "single",
+				runRequest: (sessionKey) =>
+					GenerateDocsFromBranch(
+						projectId,
+						sourceBranch,
+						modelKey,
+						userInstructions,
+						"",
+						sessionKey
+					),
 			});
-
-			clearSubscriptions(sessionKey);
-
-			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
-				try {
-					const evt = toolEventSchema.parse(payload);
-					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
-						return;
-					}
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid doc generation tool event", error, payload);
-				}
-			});
-
-			const doneUnsub = EventsOn("events:llm:done", (payload) => {
-				try {
-					const evt = toolEventSchema.parse(payload);
-					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
-						return;
-					}
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid doc generation done event", error, payload);
-				}
-			});
-
-			const todoUnsub = EventsOn("event:llm:todo", (payload) => {
-				try {
-					const evt = todoEventSchema.parse(payload);
-					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
-						return;
-					}
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						todos: evt.todos,
-					}));
-				} catch (error) {
-					console.error("Invalid todo event", error, payload);
-				}
-			});
-
-			subscriptions.set(sessionKey, {
-				tool: toolUnsub,
-				done: doneUnsub,
-				todo: todoUnsub,
-			});
-
-			try {
-				const result = await GenerateDocsFromBranch(
-					projectId,
-					sourceBranch,
-					modelKey,
-					userInstructions,
-					"",
-					sessionKey
-				);
-				setDocState(sessionKey, {
-					result,
-					status: "success",
-					cancellationRequested: false,
-					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
-					changedSinceInitial: [],
-					docsInCodeRepo: Boolean(result?.docsInCodeRepo),
-					docsBranch: result?.docsBranch ?? null,
-					mergeInProgress: false,
-				});
-				updateSessionMeta(sessionKey, { status: "success" });
-			} catch (error) {
-				const message = messageFromError(error);
-
-				// Check for conflict with suggestion (new format)
-				const suggestion = extractBranchConflictSuggestion(message);
-				if (suggestion) {
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						error: null,
-						status: "idle",
-						conflict: {
-							existingDocsBranch: suggestion.existing,
-							proposedDocsBranch: suggestion.proposed,
-							mode: "single",
-							isInProgress: suggestion.isInProgress,
-						},
-						activeTab: "activity",
-					}));
-					updateSessionMeta(sessionKey, { status: "idle" });
-					return;
-				}
-
-				// Detect conflict (old format, backward compatibility)
-				if (message.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
-					const existing =
-						extractExistingDocsBranch(message) ?? `docs/${sourceBranch}`;
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						error: null,
-						status: "idle",
-						conflict: {
-							existingDocsBranch: existing,
-							proposedDocsBranch: existing,
-							mode: "single",
-						},
-						activeTab: "activity",
-					}));
-					updateSessionMeta(sessionKey, { status: "idle" });
-					return;
-				}
-				// ...existing non-conflict handling...
-				const normalized = message.toLowerCase();
-				const docState = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
-				const canceled =
-					docState.cancellationRequested ||
-					normalized.includes("context canceled") ||
-					normalized.includes("context cancelled") ||
-					normalized.includes("cancelled") ||
-					normalized.includes("canceled");
-				if (canceled) {
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						error: null,
-						result: null,
-						status: "canceled",
-						cancellationRequested: false,
-						events: [
-							...prev.events,
-							createLocalEvent(
-								"warn",
-								"Documentation generation canceled by user."
-							),
-						],
-					}));
-					updateSessionMeta(sessionKey, { status: "canceled" });
-				} else {
-					setDocState(sessionKey, {
-						error: mapErrorCodeToMessage(message),
-						status: "error",
-						cancellationRequested: false,
-						result: null,
-						commitCompleted: false,
-					});
-					updateSessionMeta(sessionKey, { status: "error" });
-				}
-			} finally {
-				unbindBackendSession(baseSessionKey, sessionKey);
-				clearSubscriptions(sessionKey);
-				setDocState(sessionKey, { cancellationRequested: false });
-			}
 		},
 
 		cancel: async (
@@ -1365,37 +1224,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}));
 
 			bindBackendSession(baseSessionKey, sessionKey);
-			clearSubscriptions(sessionKey);
-			const toolUnsub = EventsOn("event:llm:tool", (payload) => {
-				try {
-					const evt = toolEventSchema.parse(payload);
-					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
-						return;
-					}
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid refine tool event", error, payload);
-				}
-			});
-			const doneUnsub = EventsOn("events:llm:done", (payload) => {
-				try {
-					const evt = toolEventSchema.parse(payload);
-					if (!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)) {
-						return;
-					}
-					setDocState(sessionKey, (prev) => ({
-						...prev,
-						events: [...prev.events, evt],
-					}));
-				} catch (error) {
-					console.error("Invalid refine done event", error, payload);
-				}
-			});
-
-			subscriptions.set(sessionKey, { tool: toolUnsub, done: doneUnsub });
+			subscribeToGenerationEvents(sessionKey, baseSessionKey);
 
 			try {
 				const result = await RefineDocs(projectId, branch, trimmed, sessionKey);
@@ -1782,38 +1611,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				}));
 
 				bindBackendSession(baseSessionKey, sessionKey);
-				clearSubscriptions(sessionKey);
-				const toolUnsub = EventsOn("event:llm:tool", (payload) => {
-					try {
-						const evt = toolEventSchema.parse(payload);
-						if (
-							!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)
-						) {
-							return;
-						}
-						setDocState(sessionKey, (prev) => ({
-							...prev,
-							events: [...prev.events, evt],
-						}));
-					} catch (error) {
-						console.error("Invalid refine tool event", error, payload);
-					}
-				});
-				const doneUnsub = EventsOn("events:llm:done", (payload) => {
-					try {
-						const evt = toolEventSchema.parse(payload);
-						if (
-							!isEventForSession(evt.sessionKey, sessionKey, baseSessionKey)
-						) {
-							return;
-						}
-						setDocState(sessionKey, (prev) => ({
-							...prev,
-							events: [...prev.events, evt],
-						}));
-					} catch {}
-				});
-				subscriptions.set(sessionKey, { tool: toolUnsub, done: doneUnsub });
+				subscribeToGenerationEvents(sessionKey, baseSessionKey);
 
 				// Call backend to generate directly into the provided docs branch name
 				let result: models.DocGenerationResult | null = null;
