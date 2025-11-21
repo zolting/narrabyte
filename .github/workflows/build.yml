@@ -49,11 +49,11 @@ jobs:
 
       - name: Build Wails app (Windows/macOS)
         if: matrix.os != 'ubuntu-latest'
-        run: wails build
+        run: wails build -tags prod
 
       - name: Build Wails app (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: wails build -tags webkit2_41
+        run: wails build -tags "prod,webkit2_41"
 
       - name: Rename build output (Linux/Windows)
         if: matrix.os != 'macos-latest'
