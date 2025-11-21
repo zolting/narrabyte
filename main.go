@@ -21,7 +21,11 @@ func main() {
 
 	app := NewApp()
 
+	dbPath := database.GetDefaultDBPath()
+	fmt.Printf("Using database at: %s (dev mode: %v)\n", dbPath, database.IsDevelopment())
+
 	db, err := database.Init(database.Config{
+		Path:     dbPath,
 		LogLevel: logger.Info,
 	})
 	if err != nil {

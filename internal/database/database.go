@@ -3,8 +3,6 @@ package database
 import (
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"time"
 
 	"gorm.io/driver/sqlite"
@@ -16,6 +14,7 @@ import (
 
 // Config holds DB configuration
 type Config struct {
+	Path     string
 	LogLevel logger.LogLevel
 }
 
@@ -25,12 +24,7 @@ func Init(cfg Config) (*gorm.DB, error) {
 		cfg.LogLevel = logger.Warn
 	}
 
-	dbPath, err := GetDefaultDBPath()
-	if err != nil {
-		return nil, fmt.Errorf("get default db path: %w", err)
-	}
-
-	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON", dbPath)
+	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON", cfg.Path)
 
 	gormLogger := logger.New(
 		log.New(loggerWriter{}, "", log.LstdFlags),
@@ -84,22 +78,4 @@ type loggerWriter struct{}
 func (loggerWriter) Write(p []byte) (int, error) {
 	log.Printf("%s", p)
 	return len(p), nil
-}
-
-// GetDefaultDBPath returns the default database path in the user config directory.
-// It creates the directory if it doesn't exist.
-func GetDefaultDBPath() (string, error) {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("get user config dir: %w", err)
-	}
-
-	appDir := filepath.Join(configDir, "narrabyte")
-
-	if err := os.MkdirAll(appDir, 0755); err != nil {
-		return "", fmt.Errorf("create app directory: %w", err)
-	}
-
-	// Return the full path to the database file
-	return filepath.Join(appDir, "narrabyte.db"), nil
 }
