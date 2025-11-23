@@ -106,6 +106,15 @@
     "newDocsBranchAria": "Nouveau nom de branche de documentation",
     "deleteCurrentDocsBranch": "Supprimer la branche de docs actuelle"
   },
+  "fileStatus": {
+    "added": "Nouveau fichier",
+    "untracked": "Fichier non suivi",
+    "modified": "Fichier modifié",
+    "deleted": "Fichier supprimé",
+    "renamed": "Fichier renommé",
+    "copied": "Fichier copié",
+    "changed": "Fichier modifié"
+  },
   "projectManager": {
     "addProject": "Ajouter un projet",
     "projectName": "Nom du projet",

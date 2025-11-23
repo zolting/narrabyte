@@ -108,6 +108,15 @@
     "newDocsBranchAria": "New documentation branch name",
     "deleteCurrentDocsBranch": "Delete current docs branch"
   },
+  "fileStatus": {
+    "added": "New File",
+    "untracked": "Untracked File",
+    "modified": "Modified File",
+    "deleted": "Deleted File",
+    "renamed": "Renamed File",
+    "copied": "Copied File",
+    "changed": "Changed File"
+  },
   "projectManager": {
     "addProject": "Add Project",
     "projectName": "Project Name",

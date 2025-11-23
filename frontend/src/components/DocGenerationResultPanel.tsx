@@ -212,7 +212,7 @@ export function DocGenerationResultPanel({
 																		] ?? "text-foreground/70"
 																	)}
 																>
-																	{entry.status}
+																	{t(`fileStatus.${entry.status.toLowerCase()}`)}
 																	{isChanged && (
 																		<span className="ml-2 inline-flex items-center rounded border border-amber-200 bg-amber-100/60 px-1.5 py-0.5 font-medium text-[10px] text-amber-800">
 																			{t("common.updated")}
