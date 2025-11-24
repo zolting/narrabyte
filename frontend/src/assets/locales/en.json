@@ -214,7 +214,7 @@
     "deleteSuccess": "Project deleted successfully",
     "deleteError": "Failed to delete project",
     "reorderError": "Failed to update project order",
-    "ongoingGenerations": "Ongoing generations",
+    "ongoingGenerations": "Unfinished generations",
     "newGeneration": "New generation"
   },
   "apiDialog": {
@@ -276,7 +276,7 @@
     "providerDisabledHint": "All models for this provider are currently disabled."
   },
   "generations": {
-    "title": "Ongoing Generations",
+    "title": "Unfinished Generations",
     "description": "Resume documentation generation sessions that haven't been committed yet",
     "noSessions": "No Active Sessions",
     "noSessionsDescription": "There are no pending documentation generation sessions for this project.",

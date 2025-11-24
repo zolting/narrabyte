@@ -211,7 +211,7 @@
     "deleteSuccess": "Projet supprimé avec succès",
     "deleteError": "Échec de la suppression du projet",
     "reorderError": "Échec de la réorganisation de l'ordre des projets",
-    "ongoingGenerations": "Générations en cours",
+    "ongoingGenerations": "Générations non terminées",
     "newGeneration": "Nouvelle génération"
   },
   "apiDialog": {
@@ -273,7 +273,7 @@
     "providerDisabledHint": "Tous les modèles de ce fournisseur sont actuellement désactivés."
   },
   "generations": {
-    "title": "Générations en cours",
+    "title": "Générations non terminées",
     "description": "Reprendre les sessions de génération de documentation qui n'ont pas encore été validées",
     "noSessions": "Aucune session active",
     "noSessionsDescription": "Il n'y a aucune session de génération de documentation en attente pour ce projet.",
