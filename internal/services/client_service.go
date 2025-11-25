@@ -562,7 +562,8 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	}
 
 	// Propagate changes from temporary repository back to main repository
-	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
+	files, err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative)
+	if err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
 
@@ -577,21 +578,6 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 			}
 		}
 	}
-
-	// Get status from temporary repository to report changed files
-	tempRepo, err := git.PlainOpen(tempWorkspace.repoPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open temp repository for status: %w", err)
-	}
-	tempWT, err := tempRepo.Worktree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get temp repository worktree for status: %w", err)
-	}
-	docStatus, err := tempWT.Status()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read documentation repo status after generation: %w", err)
-	}
-	files := collectDocChangedFiles(docStatus, docCfg.DocsRelative)
 
 	// Generate diff between the new docs branch and its base branch
 	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, baseBranch, docsBranch)
@@ -769,24 +755,10 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	}
 
 	// Propagate changes back to the main documentation repository
-	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
+	files, err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative)
+	if err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
-
-	// Compute changed files from the temp repository status (post-run)
-	tempRepo, err := git.PlainOpen(tempWorkspace.repoPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open temp repository for status: %w", err)
-	}
-	tempWT, err := tempRepo.Worktree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get temp repository worktree for status: %w", err)
-	}
-	docStatus, err := tempWT.Status()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read documentation repo status after refinement: %w", err)
-	}
-	files := collectDocChangedFiles(docStatus, docCfg.DocsRelative)
 
 	// Update diff between base branch and docs branch for UI preview
 	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, baseBranch, docsBranch)
@@ -1670,6 +1642,7 @@ func collectDocChangedFiles(status git.Status, docsRelative string) []models.Doc
 		if st == nil {
 			continue
 		}
+		fmt.Printf("DEBUG: File %s, Worktree: %v, Staging: %v\n", path, st.Worktree, st.Staging)
 		if st.Staging == git.Unmodified && st.Worktree == git.Unmodified {
 			continue
 		}
@@ -1853,39 +1826,42 @@ func removeNarrabyteDir(ctx context.Context, sessionKey string, docsPath string)
 
 // propagateDocChanges commits documentation changes in the temp repository and updates
 // the branch reference in the main repository to point to the new commit.
-func propagateDocChanges(ctx context.Context, sessionKey string, workspace tempDocWorkspace, mainRepo *git.Repository, branch string, docsRelative string) error {
+// Returns the list of files that were changed (added/modified/etc).
+func propagateDocChanges(ctx context.Context, sessionKey string, workspace tempDocWorkspace, mainRepo *git.Repository, branch string, docsRelative string) ([]models.DocChangedFile, error) {
 	emitSessionInfo(ctx, sessionKey, "Propagating documentation changes back to main repository")
 
 	// Open temporary repository
 	tempRepo, err := git.PlainOpen(workspace.repoPath)
 	if err != nil {
-		return fmt.Errorf("failed to open temp repository: %w", err)
+		return nil, fmt.Errorf("failed to open temp repository: %w", err)
 	}
 
 	// Get temp repository worktree
 	tempWT, err := tempRepo.Worktree()
 	if err != nil {
-		return fmt.Errorf("failed to get temp repository worktree: %w", err)
+		return nil, fmt.Errorf("failed to get temp repository worktree: %w", err)
 	}
 
 	if err := removeNarrabyteDir(ctx, sessionKey, workspace.docsPath); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Check if there are any changes to commit
 	status, err := tempWT.Status()
 	if err != nil {
-		return fmt.Errorf("failed to get temp repository status: %w", err)
+		return nil, fmt.Errorf("failed to get temp repository status: %w", err)
 	}
+
+	changedFiles := collectDocChangedFiles(status, docsRelative)
 
 	if !hasDocsChanges(status, docsRelative) {
 		emitSessionInfo(ctx, sessionKey, "No documentation changes to propagate")
-		return nil
+		return nil, nil
 	}
 
 	// Add all changes
 	if err := addDocsChanges(tempWT, docsRelative); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Create commit with generated documentation
@@ -1897,25 +1873,25 @@ func propagateDocChanges(ctx context.Context, sessionKey string, workspace tempD
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to commit changes in temp repository: %w", err)
+		return nil, fmt.Errorf("failed to commit changes in temp repository: %w", err)
 	}
 
 	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Created documentation commit: %s", commitHash.String()[:8]))
 
 	// Transfer git objects from temp repository to main repository
 	if err := transferGitObjects(ctx, sessionKey, tempRepo, mainRepo, commitHash); err != nil {
-		return fmt.Errorf("failed to transfer git objects to main repository: %w", err)
+		return nil, fmt.Errorf("failed to transfer git objects to main repository: %w", err)
 	}
 
 	// Update the branch reference in main repository to point to new commit
 	refName := plumbing.NewBranchReferenceName(branch)
 	ref := plumbing.NewHashReference(refName, commitHash)
 	if err := mainRepo.Storer.SetReference(ref); err != nil {
-		return fmt.Errorf("failed to update branch '%s' in main repository: %w", branch, err)
+		return nil, fmt.Errorf("failed to update branch '%s' in main repository: %w", branch, err)
 	}
 
 	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Updated branch '%s' to commit %s", branch, commitHash.String()[:8]))
-	return nil
+	return changedFiles, nil
 }
 
 // transferGitObjects transfers all git objects (commit, tree, blobs) from source to target repository
@@ -2241,23 +2217,10 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 	}
 
 	// Propagate changes from temporary repository back to main repository
-	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
+	files, err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative)
+	if err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
-
-	tempRepo, err := git.PlainOpen(tempWorkspace.repoPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open temp repository for status: %w", err)
-	}
-	tempWT, err := tempRepo.Worktree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get temp repository worktree for status: %w", err)
-	}
-	docStatus, err := tempWT.Status()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read documentation repo status after generation: %w", err)
-	}
-	files := collectDocChangedFiles(docStatus, docCfg.DocsRelative)
 
 	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, baseBranch, docsBranch)
 	if err != nil {
