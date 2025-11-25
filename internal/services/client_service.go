@@ -567,6 +567,14 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
 
+	branchCreated, err := ensureDocsBranchExists(docRepo, docsBranch, baseHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare documentation branch '%s': %w", docsBranch, err)
+	}
+	if branchCreated {
+		emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Initialized docs branch '%s' from '%s' for diff", docsBranch, baseBranch))
+	}
+
 	if runtime.client != nil {
 		if jsonStr, err := runtime.client.ConversationHistoryJSON(); err == nil {
 			provider := runtime.providerID
@@ -1508,6 +1516,32 @@ func resolveDocumentationBase(project *models.RepoLink, repo *git.Repository) (p
 		return plumbing.Hash{}, "", fmt.Errorf("failed to resolve documentation base branch '%s': %w", branch, err)
 	}
 	return hash, branch, nil
+}
+
+func ensureDocsBranchExists(repo *git.Repository, branch string, baseHash plumbing.Hash) (bool, error) {
+	if repo == nil {
+		return false, fmt.Errorf("documentation repository is required")
+	}
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return false, fmt.Errorf("branch name is required")
+	}
+	refName := plumbing.NewBranchReferenceName(branch)
+	if _, err := repo.Reference(refName, true); err == nil {
+		return false, nil
+	} else if !errors.Is(err, plumbing.ErrReferenceNotFound) {
+		return false, fmt.Errorf("failed to resolve documentation branch '%s': %w", branch, err)
+	}
+
+	if baseHash == plumbing.ZeroHash {
+		return false, fmt.Errorf("cannot create documentation branch '%s': base hash is empty", branch)
+	}
+
+	if err := repo.Storer.SetReference(plumbing.NewHashReference(refName, baseHash)); err != nil {
+		return false, fmt.Errorf("failed to create documentation branch '%s': %w", branch, err)
+	}
+
+	return true, nil
 }
 
 func extractPathsFromDiff(diff string) []string {
