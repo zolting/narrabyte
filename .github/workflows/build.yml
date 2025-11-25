@@ -56,8 +56,21 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: wails build -tags "prod,webkit2_41"
 
-      - name: Rename build output (Linux/Windows)
-        if: matrix.os != 'macos-latest'
+      - name: Package Linux Release
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mkdir -p dist/narrabyte
+          cp build/bin/narrabyte dist/narrabyte/
+          cp build/appicon.png dist/narrabyte/
+          cp scripts/linux_dist_install.sh dist/narrabyte/install.sh
+          chmod +x dist/narrabyte/install.sh
+          mkdir -p release
+          cd dist
+          tar -czvf "../release/narrabyte-${{ github.ref_name }}-${{ matrix.os_short }}.tar.gz" narrabyte
+        shell: bash
+
+      - name: Rename build output (Windows)
+        if: matrix.os == 'windows-latest'
         run: |
           mkdir -p release
           mv ./build/bin/* "release/narrabyte-${{ github.ref_name }}-${{ matrix.os_short }}${{ matrix.ext }}"
