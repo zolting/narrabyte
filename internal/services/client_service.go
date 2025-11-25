@@ -108,6 +108,50 @@ func resolveSessionKey(sessionKeyOverride string, projectID uint, sourceBranch s
 	return makeSessionKey(projectID, sourceBranch)
 }
 
+func (s *ClientService) prepareProjectRepos(projectID uint) (*models.RepoLink, string, *docRepoConfig, error) {
+	project, err := s.repoLinks.Get(projectID)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	if project == nil {
+		return nil, "", nil, fmt.Errorf("project not found")
+	}
+
+	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
+	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
+	if codeRepoPath == "" || docRepoPath == "" {
+		return nil, "", nil, fmt.Errorf("project repositories are not configured")
+	}
+	if !utils.DirectoryExists(codeRepoPath) {
+		return nil, "", nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
+	}
+	if !utils.DirectoryExists(docRepoPath) {
+		return nil, "", nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
+	}
+	if !utils.HasGitRepo(codeRepoPath) {
+		return nil, "", nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
+	}
+	if !utils.HasGitRepo(docRepoPath) {
+		return nil, "", nil, fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
+	}
+
+	codeRootAbs, err := filepath.Abs(codeRepoPath)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
+	if !ok {
+		return nil, "", nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
+	}
+
+	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	return project, codeRepoRoot, docCfg, nil
+}
+
 func (s *ClientService) instantiateLLMClient(modelKey string) (*client.LLMClient, *models.LLMModel, error) {
 	if s.context == nil {
 		return nil, nil, fmt.Errorf("client service not initialized")
@@ -386,12 +430,9 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 
 	providerID := strings.TrimSpace(modelInfo.ProviderID)
 
-	project, err := s.repoLinks.Get(projectID)
+	project, codeRoot, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
 		return nil, err
-	}
-	if project == nil {
-		return nil, fmt.Errorf("project not found")
 	}
 
 	if strings.TrimSpace(docsBranchOverride) != "" {
@@ -404,39 +445,6 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 			"GenerateDocs: starting for project %s (%s -> %s) using %s via %s",
 			project.ProjectName, targetBranch, sourceBranch, runtime.modelDisplay, runtime.providerLabel,
 		))
-	}
-
-	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
-	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
-	if codeRepoPath == "" || docRepoPath == "" {
-		return nil, fmt.Errorf("project repositories are not configured")
-	}
-	if !utils.DirectoryExists(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
-	}
-	if !utils.DirectoryExists(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
-	}
-	if !utils.HasGitRepo(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	if !utils.HasGitRepo(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
-	}
-
-	codeRootAbs, err := filepath.Abs(codeRepoPath)
-	if err != nil {
-		return nil, err
-	}
-	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
-	if !ok {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	codeRoot := codeRepoRoot
-
-	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
-	if err != nil {
-		return nil, err
 	}
 
 	codeRepo, err := s.gitService.Open(codeRoot)
@@ -646,43 +654,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		projectID, docsBranch,
 	))
 
-	project, err := s.repoLinks.Get(projectID)
-	if err != nil {
-		return nil, err
-	}
-	if project == nil {
-		return nil, fmt.Errorf("project not found")
-	}
-
-	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
-	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
-	if codeRepoPath == "" || docRepoPath == "" {
-		return nil, fmt.Errorf("project repositories are not configured")
-	}
-	if !utils.DirectoryExists(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
-	}
-	if !utils.DirectoryExists(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
-	}
-	if !utils.HasGitRepo(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	if !utils.HasGitRepo(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
-	}
-
-	codeRootAbs, err := filepath.Abs(codeRepoPath)
-	if err != nil {
-		return nil, err
-	}
-	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
-	if !ok {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	codeRoot := codeRepoRoot
-
-	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
+	project, codeRoot, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -826,42 +798,7 @@ func (s *ClientService) MergeDocsIntoSource(projectID uint, sourceBranch string)
 		return fmt.Errorf("source branch is required")
 	}
 
-	project, err := s.repoLinks.Get(projectID)
-	if err != nil {
-		return err
-	}
-	if project == nil {
-		return fmt.Errorf("project not found")
-	}
-
-	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
-	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
-	if codeRepoPath == "" || docRepoPath == "" {
-		return fmt.Errorf("project repositories are not configured")
-	}
-	if !utils.DirectoryExists(codeRepoPath) {
-		return fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
-	}
-	if !utils.DirectoryExists(docRepoPath) {
-		return fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
-	}
-	if !utils.HasGitRepo(codeRepoPath) {
-		return fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	if !utils.HasGitRepo(docRepoPath) {
-		return fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
-	}
-
-	codeRootAbs, err := filepath.Abs(codeRepoPath)
-	if err != nil {
-		return err
-	}
-	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
-	if !ok {
-		return fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-
-	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
+	_, _, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
 		return err
 	}
@@ -2050,12 +1987,9 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 	}
 	s.setSessionRuntime(sessionKey, runtime)
 
-	project, err := s.repoLinks.Get(projectID)
+	project, codeRoot, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
 		return nil, err
-	}
-	if project == nil {
-		return nil, fmt.Errorf("project not found")
 	}
 
 	if docsBranchOverride != "" {
@@ -2068,39 +2002,6 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 			"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s",
 			project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel,
 		))
-	}
-
-	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
-	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
-	if codeRepoPath == "" || docRepoPath == "" {
-		return nil, fmt.Errorf("project repositories are not configured")
-	}
-	if !utils.DirectoryExists(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
-	}
-	if !utils.DirectoryExists(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
-	}
-	if !utils.HasGitRepo(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	if !utils.HasGitRepo(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
-	}
-
-	codeRootAbs, err := filepath.Abs(codeRepoPath)
-	if err != nil {
-		return nil, err
-	}
-	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
-	if !ok {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	codeRoot := codeRepoRoot
-
-	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
-	if err != nil {
-		return nil, err
 	}
 
 	// Open documentation repo
