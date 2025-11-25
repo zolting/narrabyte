@@ -105,7 +105,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					setProviderKeys([]);
 				});
 			// Réinitialise
-			void initModelSettings();
+			initModelSettings();
 		};
 
 		// Load initial
