@@ -9,5 +9,8 @@
   "author": {
     "name": "Dillan Choinière",
     "email": "choinieredillan@gmail.com"
+  },
+  "build": {
+    "icon": "build/appicon.png"
   }
 }
