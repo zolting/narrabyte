@@ -11,12 +11,13 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 
 	// Get the sessionKey for this tab (or fallback to active session)
 	const sessionKey = useDocGenerationStore((s) => {
+		const activeSession = s.activeSession[projectKey] ?? null;
 		if (tabId) {
-			// Only use sessions explicitly associated with this tab
-			return s.tabSessions[projectKey]?.[tabId] ?? null;
+			// Prefer a session explicitly associated with this tab, but fall back to the active session
+			return s.tabSessions[projectKey]?.[tabId] ?? activeSession;
 		}
 		// No tab context: use the active session for backward compatibility
-		return s.activeSession[projectKey] ?? null;
+		return activeSession;
 	});
 
 	// All state is now keyed by sessionKey instead of projectKey
