@@ -1607,11 +1607,16 @@ func (o *LLMClient) ConversationHistoryJSON() (string, error) {
 	msgs := make([]persistableMessage, 0, len(o.conversationHistory))
 	for _, m := range o.conversationHistory {
 		// Skip messages with empty content (e.g., tool-call-only messages)
-		// since we can't properly restore them without tool call details
+		// and skip messages with roles we can't restore (like tool)
 		if strings.TrimSpace(m.Content) == "" {
 			continue
 		}
-		msgs = append(msgs, persistableMessage{Role: string(m.Role), Content: m.Content})
+		switch m.Role {
+		case schema.User, schema.Assistant, schema.System:
+			msgs = append(msgs, persistableMessage{Role: string(m.Role), Content: m.Content})
+		default:
+			continue
+		}
 	}
 	data, err := json.Marshal(msgs)
 	if err != nil {
@@ -1640,17 +1645,21 @@ func (o *LLMClient) LoadConversationHistoryJSON(jsonStr string) error {
 		if strings.TrimSpace(pm.Content) == "" {
 			continue
 		}
-
-		msg := &schema.Message{Role: schema.RoleType(pm.Role), Content: pm.Content}
-		history = append(history, msg)
+		// Only restore supported roles
+		role := schema.RoleType(pm.Role)
+		switch role {
+		case schema.User, schema.Assistant, schema.System:
+			msg := &schema.Message{Role: role, Content: pm.Content}
+			history = append(history, msg)
+		default:
+			// skip unsupported roles like 'tool'
+			continue
+		}
 	}
 
-	// Validate that first message is a user message (required by Anthropic and good practice for all providers)
-	if len(history) > 0 && history[0].Role != schema.User {
-		return fmt.Errorf("invalid conversation history: first message must be a user message (got %s)", history[0].Role)
-	}
-
-	o.conversationHistory = history
+	// Normalize history so it starts with a user message when needed
+	normalized, _ := normalizeConversationHistory(history, "")
+	o.conversationHistory = normalized
 	return nil
 }
 
