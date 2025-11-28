@@ -415,10 +415,11 @@ const normalizeChatMessages = (raw: unknown): ChatMessage[] => {
 	for (let i = 0; i < raw.length; i += 1) {
 		const entry = raw[i] as Record<string, unknown>;
 		const roleValue = typeof entry?.role === "string" ? entry.role.trim() : "";
-		const role = roleValue === "assistant" || roleValue === "user" ? roleValue : null;
+		const role =
+			roleValue === "assistant" || roleValue === "user" ? roleValue : null;
 		const content =
 			typeof entry?.content === "string" ? entry.content.trim() : "";
-		if (!role || !content) {
+		if (!(role && content)) {
 			continue;
 		}
 		const parsedDate =
@@ -1309,7 +1310,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						? ({
 								...result,
 								chatMessages: (result as any)?.chatMessages,
-						  } as models.DocGenerationResult)
+							} as models.DocGenerationResult)
 						: result;
 
 					return {
@@ -1459,8 +1460,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					result,
 					status: "success",
 					sourceBranch: result?.branch ?? sourceBranch ?? null,
-					targetBranch:
-						(result?.targetBranch ?? targetBranch)?.trim() || null,
+					targetBranch: (result?.targetBranch ?? targetBranch)?.trim() || null,
 					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
 					changedSinceInitial: [],
 					docsInCodeRepo: result?.docsInCodeRepo,
