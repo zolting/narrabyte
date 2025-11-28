@@ -1458,8 +1458,9 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					sessionKey,
 					result,
 					status: "success",
-					sourceBranch: sourceBranch || null,
-					targetBranch: targetBranch || null,
+					sourceBranch: result?.branch ?? sourceBranch ?? null,
+					targetBranch:
+						(result?.targetBranch ?? targetBranch)?.trim() || null,
 					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
 					changedSinceInitial: [],
 					docsInCodeRepo: result?.docsInCodeRepo,
