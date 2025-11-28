@@ -22,6 +22,6 @@ export function Startup(arg1) {
   return window['go']['services']['generationSessionService']['Startup'](arg1);
 }
 
-export function Upsert(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['services']['generationSessionService']['Upsert'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function Upsert(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['services']['generationSessionService']['Upsert'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }

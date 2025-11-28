@@ -1747,6 +1747,25 @@ func (o *LLMClient) HasConversationHistory() bool {
 	return len(o.conversationHistory) > 0
 }
 
+// LastAssistantMessage returns the content of the most recent assistant message
+// with non-empty text. Used when restoring sessions to surface the latest
+// summary after a restart.
+func (o *LLMClient) LastAssistantMessage() string {
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+
+	for i := len(o.conversationHistory) - 1; i >= 0; i-- {
+		msg := o.conversationHistory[i]
+		if msg == nil || msg.Role != schema.Assistant {
+			continue
+		}
+		if trimmed := strings.TrimSpace(msg.Content); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
 func (o *LLMClient) conversationHistoryForRun(fallbackFirstUser string) ([]adk.Message, bool) {
 	o.conversationHistoryMu.Lock()
 	defer o.conversationHistoryMu.Unlock()
