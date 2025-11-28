@@ -248,7 +248,7 @@ function Home() {
 							</CardTitle>
 							<CardDescription>{t("home.welcomeMessage")}</CardDescription>
 						</CardHeader>
-						<CardContent className="flex flex-col gap-4 pt-6">
+						<CardContent className="flex flex-col gap-4">
 							<p className="text-muted-foreground text-sm">
 								{t("home.newSessionDescription")}
 							</p>
@@ -362,7 +362,7 @@ function Home() {
 									{t("home.pendingSessionsDescription")}
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="flex flex-col gap-4 pt-6">
+							<CardContent className="flex flex-col gap-4">
 								{sessionsLoading && (
 									<div className="flex items-center gap-2 text-muted-foreground text-sm">
 										<Loader2 className="h-4 w-4 animate-spin" />
