@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"narrabyte/internal/events"
 	"narrabyte/internal/llm/tools"
@@ -356,6 +357,12 @@ func (o *LLMClient) loadPrompt(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", fmt.Errorf("prompt name is required")
+	}
+	embeddedPath := fmt.Sprintf("prompts/%s", strings.ReplaceAll(name, "\\", "/"))
+	if data, err := embeddedPrompts.ReadFile(embeddedPath); err == nil {
+		return string(data), nil
+	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", fmt.Errorf("failed to read embedded prompt %q: %w", name, err)
 	}
 	projectRoot, err := utils.FindProjectRoot()
 	if err != nil {
