@@ -29,7 +29,7 @@ function TabLabel({ projectId, tabId }: { projectId: string; tabId: string }) {
 				const hasAnyTabs = Object.keys(projectTabs).length > 0;
 				const sessionKey =
 					projectTabs[tabId] ??
-					(hasAnyTabs ? null : state.activeSession[projectKey] ?? null);
+					(hasAnyTabs ? null : (state.activeSession[projectKey] ?? null));
 				if (!sessionKey) {
 					return null;
 				}

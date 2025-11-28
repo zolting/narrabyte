@@ -1,6 +1,6 @@
-import { models } from "@go/models";
-import { List as listProjects } from "@go/services/repoLinkService";
+import type { models } from "@go/models";
 import { List as listSessions } from "@go/services/generationSessionService";
+import { List as listProjects } from "@go/services/repoLinkService";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Clock, Loader2, PlayCircle, PlusCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -21,6 +21,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -29,11 +30,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { useDocGenerationStore } from "@/stores/docGeneration";
-import { Label } from "@/components/ui/label";
 
 const PROJECT_FETCH_LIMIT = 100;
 const PROJECT_FETCH_OFFSET = 0;
-const RECENT_SESSION_LIMIT = 5;
 
 type PendingSessionSummary = {
 	id: string;
@@ -54,14 +53,18 @@ function Home() {
 	const [projects, setProjects] = useState<models.RepoLink[]>([]);
 	const [projectsLoading, setProjectsLoading] = useState(true);
 	const [sessionsLoading, setSessionsLoading] = useState(false);
-	const [pendingSessions, setPendingSessions] = useState<PendingSessionSummary[]>([]);
+	const [pendingSessions, setPendingSessions] = useState<
+		PendingSessionSummary[]
+	>([]);
 	const [restoringKey, setRestoringKey] = useState<string | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 	const sessionMeta = useDocGenerationStore((state) => state.sessionMeta);
 	const activeSessions = useDocGenerationStore((state) => state.activeSession);
 	const restoreSession = useDocGenerationStore((state) => state.restoreSession);
-	const setActiveSession = useDocGenerationStore((state) => state.setActiveSession);
+	const setActiveSession = useDocGenerationStore(
+		(state) => state.setActiveSession
+	);
 
 	const loadProjects = useCallback(() => {
 		setProjectsLoading(true);
@@ -141,17 +144,15 @@ function Home() {
 	const runningSessions = useMemo(
 		() =>
 			Object.entries(sessionMeta)
-				.filter(([, meta]) => meta.status === "running" || meta.status === "committing")
+				.filter(
+					([, meta]) =>
+						meta.status === "running" || meta.status === "committing"
+				)
 				.map(([sessionKey, meta]) => ({
 					sessionKey,
 					meta,
 				})),
 		[sessionMeta]
-	);
-
-	const limitedPendingSessions = useMemo(
-		() => pendingSessions.slice(0, RECENT_SESSION_LIMIT),
-		[pendingSessions]
 	);
 
 	const formatUpdated = useCallback((raw: string | null) => {
@@ -278,26 +279,28 @@ function Home() {
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="pt-6">
-								<ul className="flex flex-col gap-4">
-										{runningSessions.map(({ sessionKey, meta }) => {
-											const restoreKey = `running:${sessionKey}`;
-											const isRestoring = restoringKey === restoreKey;
-											const branchLabel = meta.targetBranch
-												? `${meta.sourceBranch} -> ${meta.targetBranch}`
-												: meta.sourceBranch;
-											const statusLabel =
-												meta.status === "committing"
-													? t("generations.statusCommitting")
-													: t("generations.statusRunning");
-											const projectKey = String(meta.projectId);
-											const isActive = activeSessions[projectKey] === sessionKey;
-											return (
-												<li
-													className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
-														isActive ? "border-primary/60 bg-primary/5" : "border-border/60 bg-card/60"
-													}`}
-													key={sessionKey}
-												>
+								<ul className="flex max-h-[500px] flex-col gap-4 overflow-y-auto">
+									{runningSessions.map(({ sessionKey, meta }) => {
+										const restoreKey = `running:${sessionKey}`;
+										const isRestoring = restoringKey === restoreKey;
+										const branchLabel = meta.targetBranch
+											? `${meta.sourceBranch} -> ${meta.targetBranch}`
+											: meta.sourceBranch;
+										const statusLabel =
+											meta.status === "committing"
+												? t("generations.statusCommitting")
+												: t("generations.statusRunning");
+										const projectKey = String(meta.projectId);
+										const isActive = activeSessions[projectKey] === sessionKey;
+										return (
+											<li
+												className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+													isActive
+														? "border-primary/60 bg-primary/5"
+														: "border-border/60 bg-card/60"
+												}`}
+												key={sessionKey}
+											>
 												<div className="space-y-1">
 													<p className="font-medium text-sm">
 														{meta.projectName}
@@ -305,47 +308,47 @@ function Home() {
 													<p className="text-muted-foreground text-xs">
 														{branchLabel}
 													</p>
-													<p className="text-primary text-xs font-medium">
+													<p className="font-medium text-primary text-xs">
 														{statusLabel}
 													</p>
 												</div>
-											<div className="flex flex-wrap items-center gap-2">
-												<Button
-													variant="outline"
-													onClick={() =>
-														navigate({
-															to: "/projects/$projectId",
-															params: { projectId: projectKey },
-														})
-													}
-													size="sm"
-													type="button"
-												>
-													{t("home.viewProject")}
-												</Button>
-												<Button
-													onClick={() =>
-														handleResumeRunning(sessionKey, {
-															projectId: meta.projectId,
-															sourceBranch: meta.sourceBranch,
-															targetBranch: meta.targetBranch,
-														})
-													}
-													size="sm"
-													type="button"
-													disabled={isRestoring}
-												>
-													{isRestoring ? (
-														<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-													) : (
-														<PlayCircle className="mr-2 h-4 w-4" />
-													)}
-													{t("home.resumeSession")}
-												</Button>
-											</div>
-										</li>
-									);
-								})}
+												<div className="flex flex-col gap-2">
+													<Button
+														onClick={() =>
+															navigate({
+																to: "/projects/$projectId",
+																params: { projectId: projectKey },
+															})
+														}
+														size="sm"
+														type="button"
+														variant="outline"
+													>
+														{t("home.viewProject")}
+													</Button>
+													<Button
+														disabled={isRestoring}
+														onClick={() =>
+															handleResumeRunning(sessionKey, {
+																projectId: meta.projectId,
+																sourceBranch: meta.sourceBranch,
+																targetBranch: meta.targetBranch,
+															})
+														}
+														size="sm"
+														type="button"
+													>
+														{isRestoring ? (
+															<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+														) : (
+															<PlayCircle className="mr-2 h-4 w-4" />
+														)}
+														{t("home.resumeSession")}
+													</Button>
+												</div>
+											</li>
+										);
+									})}
 								</ul>
 							</CardContent>
 						</Card>
@@ -366,8 +369,8 @@ function Home() {
 										{t("home.loadingSessions")}
 									</div>
 								)}
-								<ul className="flex flex-col gap-4">
-									{limitedPendingSessions.map((summary) => {
+								<ul className="flex max-h-[500px] flex-col gap-4 overflow-y-auto">
+									{pendingSessions.map((summary) => {
 										const restoreKey = `pending:${summary.id}`;
 										const isRestoring = restoringKey === restoreKey;
 										const updatedLabel = formatUpdated(summary.updatedAt);
@@ -387,31 +390,33 @@ function Home() {
 														{branchLabel}
 													</p>
 													{updatedLabel && (
-														<span className="flex items-center gap-1 text-muted-foreground text-[11px]">
+														<span className="flex items-center gap-1 text-[11px] text-muted-foreground">
 															<Clock className="h-3.5 w-3.5" />
 															{updatedLabel}
 														</span>
 													)}
 												</div>
-												<div className="flex flex-wrap items-center gap-2">
+												<div className="flex flex-col gap-2">
 													<Button
-														variant="outline"
 														onClick={() =>
 															navigate({
 																to: "/projects/$projectId",
-																params: { projectId: String(summary.projectId) },
+																params: {
+																	projectId: String(summary.projectId),
+																},
 															})
 														}
 														size="sm"
 														type="button"
+														variant="outline"
 													>
 														{t("home.viewProject")}
 													</Button>
 													<Button
+														disabled={isRestoring}
 														onClick={() => handleResumePending(summary)}
 														size="sm"
 														type="button"
-														disabled={isRestoring}
 													>
 														{isRestoring ? (
 															<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -425,13 +430,6 @@ function Home() {
 										);
 									})}
 								</ul>
-								{pendingSessions.length > RECENT_SESSION_LIMIT && (
-									<p className="text-muted-foreground text-xs">
-										{t("home.pendingSessionsMore", {
-											count: pendingSessions.length - RECENT_SESSION_LIMIT,
-										})}
-									</p>
-								)}
 							</CardContent>
 						</Card>
 					)}
@@ -473,8 +471,8 @@ function Home() {
 					<DialogFooter className="gap-2 pt-4">
 						<Button
 							onClick={() => setDialogOpen(false)}
-							variant="outline"
 							type="button"
+							variant="outline"
 						>
 							{t("common.cancel")}
 						</Button>

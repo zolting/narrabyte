@@ -27,7 +27,9 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 
 	// Get the sessionKey for this tab (or fallback to active session for the first tab only)
 	const sessionKey = useDocGenerationStore((s) => {
-		const tabSessionKey = tabId ? s.tabSessions[projectKey]?.[tabId] ?? null : null;
+		const tabSessionKey = tabId
+			? (s.tabSessions[projectKey]?.[tabId] ?? null)
+			: null;
 		const active = s.activeSession[projectKey] ?? null;
 
 		// If a tab-specific session exists, always use it
