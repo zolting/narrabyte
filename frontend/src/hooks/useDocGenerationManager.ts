@@ -9,15 +9,74 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 	const projectKey = useMemo(() => String(projectId), [projectId]);
 	const projectIdNum = useMemo(() => Number(projectId), [projectId]);
 
-	// Get the sessionKey for this tab (or fallback to active session)
+	// Session mapping helpers
+	const tabSessions = useDocGenerationStore(
+		(s) => s.tabSessions[projectKey] ?? null
+	);
+	const createTabSession = useDocGenerationStore((s) => s.createTabSession);
+
+	// Active session for backward compatibility / default tab
+	const activeSession = useDocGenerationStore(
+		(s) => s.activeSession[projectKey] ?? null
+	);
+
+	const hasAnyTabSessions = useMemo(
+		() => (tabSessions ? Object.keys(tabSessions).length > 0 : false),
+		[tabSessions]
+	);
+
+	// Get the sessionKey for this tab (or fallback to active session for the first tab only)
 	const sessionKey = useDocGenerationStore((s) => {
-		if (tabId) {
-			// Only use sessions explicitly associated with this tab
-			return s.tabSessions[projectKey]?.[tabId] ?? null;
+		const tabSessionKey = tabId
+			? (s.tabSessions[projectKey]?.[tabId] ?? null)
+			: null;
+		const active = s.activeSession[projectKey] ?? null;
+
+		// If a tab-specific session exists, always use it
+		if (tabSessionKey) {
+			return tabSessionKey;
 		}
+
+		// If tabs already have assignments, don't fall back to active session for new tabs
+		if (tabId && Object.keys(s.tabSessions[projectKey] ?? {}).length > 0) {
+			return null;
+		}
+
+		// No tab-specific session yet: allow fallback (e.g., landing on project page with an active session)
+		if (tabId) {
+			return active;
+		}
+
 		// No tab context: use the active session for backward compatibility
-		return s.activeSession[projectKey] ?? null;
+		return active;
 	});
+
+	const persistedFallbackRef = useRef(false);
+
+	// Reset persistence guard when the tab or project changes
+	useEffect(() => {
+		persistedFallbackRef.current = false;
+	}, [projectKey, tabId]);
+
+	// Persist the fallback mapping so subsequent tabs don't inherit the active session
+	useEffect(() => {
+		if (!(tabId && sessionKey && !hasAnyTabSessions && activeSession)) {
+			return;
+		}
+		if (persistedFallbackRef.current) {
+			return;
+		}
+		persistedFallbackRef.current = true;
+		// Map the active session to this tab (typically the initial tab) so new tabs start empty
+		createTabSession(projectIdNum, tabId, sessionKey);
+	}, [
+		activeSession,
+		createTabSession,
+		hasAnyTabSessions,
+		projectIdNum,
+		sessionKey,
+		tabId,
+	]);
 
 	// All state is now keyed by sessionKey instead of projectKey
 	const docResult = useDocGenerationStore(
