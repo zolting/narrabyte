@@ -108,6 +108,74 @@ func resolveSessionKey(sessionKeyOverride string, projectID uint, sourceBranch s
 	return makeSessionKey(projectID, sourceBranch)
 }
 
+func (s *ClientService) ensureDocsBranchAvailable(docRepo *git.Repository, docsBranch string) error {
+	if s.isDocsBranchInProgress(docsBranch) {
+		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
+		if suggestErr != nil {
+			return fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS:%s", docsBranch)
+		}
+		return fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:%s:%s", docsBranch, suggested)
+	}
+
+	exists, err := s.gitService.BranchExists(docRepo, docsBranch)
+	if err != nil {
+		return fmt.Errorf("failed to check documentation branch existence: %w", err)
+	}
+	if exists {
+		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
+		if suggestErr != nil {
+			return fmt.Errorf("ERR_DOCS_BRANCH_EXISTS:%s", docsBranch)
+		}
+		return fmt.Errorf("ERR_DOCS_BRANCH_EXISTS_SUGGEST:%s:%s", docsBranch, suggested)
+	}
+
+	return nil
+}
+
+func (s *ClientService) prepareProjectRepos(projectID uint) (*models.RepoLink, string, *docRepoConfig, error) {
+	project, err := s.repoLinks.Get(projectID)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	if project == nil {
+		return nil, "", nil, fmt.Errorf("project not found")
+	}
+
+	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
+	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
+	if codeRepoPath == "" || docRepoPath == "" {
+		return nil, "", nil, fmt.Errorf("project repositories are not configured")
+	}
+	if !utils.DirectoryExists(codeRepoPath) {
+		return nil, "", nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
+	}
+	if !utils.DirectoryExists(docRepoPath) {
+		return nil, "", nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
+	}
+	if !utils.HasGitRepo(codeRepoPath) {
+		return nil, "", nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
+	}
+	if !utils.HasGitRepo(docRepoPath) {
+		return nil, "", nil, fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
+	}
+
+	codeRootAbs, err := filepath.Abs(codeRepoPath)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
+	if !ok {
+		return nil, "", nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
+	}
+
+	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	return project, codeRepoRoot, docCfg, nil
+}
+
 func (s *ClientService) instantiateLLMClient(modelKey string) (*client.LLMClient, *models.LLMModel, error) {
 	if s.context == nil {
 		return nil, nil, fmt.Errorf("client service not initialized")
@@ -386,12 +454,9 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 
 	providerID := strings.TrimSpace(modelInfo.ProviderID)
 
-	project, err := s.repoLinks.Get(projectID)
+	project, codeRoot, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
 		return nil, err
-	}
-	if project == nil {
-		return nil, fmt.Errorf("project not found")
 	}
 
 	if strings.TrimSpace(docsBranchOverride) != "" {
@@ -404,39 +469,6 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 			"GenerateDocs: starting for project %s (%s -> %s) using %s via %s",
 			project.ProjectName, targetBranch, sourceBranch, runtime.modelDisplay, runtime.providerLabel,
 		))
-	}
-
-	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
-	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
-	if codeRepoPath == "" || docRepoPath == "" {
-		return nil, fmt.Errorf("project repositories are not configured")
-	}
-	if !utils.DirectoryExists(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
-	}
-	if !utils.DirectoryExists(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
-	}
-	if !utils.HasGitRepo(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	if !utils.HasGitRepo(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
-	}
-
-	codeRootAbs, err := filepath.Abs(codeRepoPath)
-	if err != nil {
-		return nil, err
-	}
-	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
-	if !ok {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	codeRoot := codeRepoRoot
-
-	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
-	if err != nil {
-		return nil, err
 	}
 
 	codeRepo, err := s.gitService.Open(codeRoot)
@@ -499,28 +531,9 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		docsBranch = docsBranchOverride
 	}
 
-	// Check if branch is already being generated
-	if s.isDocsBranchInProgress(docsBranch) {
-		// Suggest an alternative branch name
-		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
-		if suggestErr != nil {
-			return nil, fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS:%s", docsBranch)
-		}
-		return nil, fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:%s:%s", docsBranch, suggested)
-	}
-
 	// PRE-CHECK: prevent silently overwriting an existing docs/<source> branch
-	exists, err := s.gitService.BranchExists(docRepo, docsBranch)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check documentation branch existence: %w", err)
-	}
-	if exists {
-		// Suggest an alternative branch name
-		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
-		if suggestErr != nil {
-			return nil, fmt.Errorf("ERR_DOCS_BRANCH_EXISTS:%s", docsBranch)
-		}
-		return nil, fmt.Errorf("ERR_DOCS_BRANCH_EXISTS_SUGGEST:%s:%s", docsBranch, suggested)
+	if err := s.ensureDocsBranchAvailable(docRepo, docsBranch); err != nil {
+		return nil, err
 	}
 
 	// Mark this docs branch as in-progress to prevent concurrent generations
@@ -562,8 +575,17 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	}
 
 	// Propagate changes from temporary repository back to main repository
-	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
+	files, err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative)
+	if err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
+	}
+
+	branchCreated, err := ensureDocsBranchExists(docRepo, docsBranch, baseHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare documentation branch '%s': %w", docsBranch, err)
+	}
+	if branchCreated {
+		emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Initialized docs branch '%s' from '%s' for diff", docsBranch, baseBranch))
 	}
 
 	if runtime.client != nil {
@@ -577,21 +599,6 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 			}
 		}
 	}
-
-	// Get status from temporary repository to report changed files
-	tempRepo, err := git.PlainOpen(tempWorkspace.repoPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open temp repository for status: %w", err)
-	}
-	tempWT, err := tempRepo.Worktree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get temp repository worktree for status: %w", err)
-	}
-	docStatus, err := tempWT.Status()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read documentation repo status after generation: %w", err)
-	}
-	files := collectDocChangedFiles(docStatus, docCfg.DocsRelative)
 
 	// Generate diff between the new docs branch and its base branch
 	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, baseBranch, docsBranch)
@@ -660,43 +667,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		projectID, docsBranch,
 	))
 
-	project, err := s.repoLinks.Get(projectID)
-	if err != nil {
-		return nil, err
-	}
-	if project == nil {
-		return nil, fmt.Errorf("project not found")
-	}
-
-	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
-	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
-	if codeRepoPath == "" || docRepoPath == "" {
-		return nil, fmt.Errorf("project repositories are not configured")
-	}
-	if !utils.DirectoryExists(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
-	}
-	if !utils.DirectoryExists(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
-	}
-	if !utils.HasGitRepo(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	if !utils.HasGitRepo(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
-	}
-
-	codeRootAbs, err := filepath.Abs(codeRepoPath)
-	if err != nil {
-		return nil, err
-	}
-	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
-	if !ok {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	codeRoot := codeRepoRoot
-
-	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
+	project, codeRoot, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -769,24 +740,10 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	}
 
 	// Propagate changes back to the main documentation repository
-	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
+	files, err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative)
+	if err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
-
-	// Compute changed files from the temp repository status (post-run)
-	tempRepo, err := git.PlainOpen(tempWorkspace.repoPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open temp repository for status: %w", err)
-	}
-	tempWT, err := tempRepo.Worktree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get temp repository worktree for status: %w", err)
-	}
-	docStatus, err := tempWT.Status()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read documentation repo status after refinement: %w", err)
-	}
-	files := collectDocChangedFiles(docStatus, docCfg.DocsRelative)
 
 	// Update diff between base branch and docs branch for UI preview
 	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, baseBranch, docsBranch)
@@ -854,42 +811,7 @@ func (s *ClientService) MergeDocsIntoSource(projectID uint, sourceBranch string)
 		return fmt.Errorf("source branch is required")
 	}
 
-	project, err := s.repoLinks.Get(projectID)
-	if err != nil {
-		return err
-	}
-	if project == nil {
-		return fmt.Errorf("project not found")
-	}
-
-	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
-	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
-	if codeRepoPath == "" || docRepoPath == "" {
-		return fmt.Errorf("project repositories are not configured")
-	}
-	if !utils.DirectoryExists(codeRepoPath) {
-		return fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
-	}
-	if !utils.DirectoryExists(docRepoPath) {
-		return fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
-	}
-	if !utils.HasGitRepo(codeRepoPath) {
-		return fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	if !utils.HasGitRepo(docRepoPath) {
-		return fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
-	}
-
-	codeRootAbs, err := filepath.Abs(codeRepoPath)
-	if err != nil {
-		return err
-	}
-	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
-	if !ok {
-		return fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-
-	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
+	_, _, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
 		return err
 	}
@@ -980,21 +902,25 @@ func (s *ClientService) MergeDocsIntoSource(projectID uint, sourceBranch string)
 	return nil
 }
 
-// createTempDocRepoAtBranchHead clones the documentation repository into a temp directory
-// and checks out the specified branch at its current HEAD.
-func createTempDocRepoAtBranchHead(ctx context.Context, sessionKey string, cfg *docRepoConfig, branch string, baseBranch string, baseHash plumbing.Hash) (workspace tempDocWorkspace, cleanup func(), err error) {
+func createTempDocWorkspace(ctx context.Context, sessionKey string, cfg *docRepoConfig, branch string, baseBranch string, baseHash plumbing.Hash, checkoutHead bool) (workspace tempDocWorkspace, cleanup func(), err error) {
 	if cfg == nil {
 		return tempDocWorkspace{}, nil, fmt.Errorf("documentation repository configuration is required")
 	}
 	repoPath, cleanup := newTempRepoDir(ctx, sessionKey)
 	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Creating temporary docs workspace at %s", repoPath))
+
 	cloneOpts := &git.CloneOptions{
-		URL:           cfg.RepoRoot,
-		Depth:         1,
-		Progress:      nil,
-		SingleBranch:  true,
-		ReferenceName: plumbing.NewBranchReferenceName(branch),
+		URL:          cfg.RepoRoot,
+		Depth:        1,
+		Progress:     nil,
+		SingleBranch: true,
 	}
+	if checkoutHead {
+		cloneOpts.ReferenceName = plumbing.NewBranchReferenceName(branch)
+	} else if strings.TrimSpace(baseBranch) != "" {
+		cloneOpts.ReferenceName = plumbing.NewBranchReferenceName(baseBranch)
+	}
+
 	tempRepo, err := git.PlainClone(repoPath, false, cloneOpts)
 	if err != nil {
 		cleanup()
@@ -1012,36 +938,50 @@ func createTempDocRepoAtBranchHead(ctx context.Context, sessionKey string, cfg *
 		cleanup()
 		return tempDocWorkspace{}, nil, fmt.Errorf("failed to get temp repository worktree: %w", err)
 	}
-	refName := plumbing.NewBranchReferenceName(branch)
-	if err := wt.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
-		srcRepo, srcOpenErr := git.PlainOpen(cfg.RepoRoot)
-		if srcOpenErr != nil {
-			cleanup()
-			return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
-		}
 
-		var headHash plumbing.Hash
-		if srcRef, refErr := srcRepo.Reference(refName, true); refErr == nil {
-			headHash = srcRef.Hash()
-		} else {
-			if baseHash == plumbing.ZeroHash {
+	refName := plumbing.NewBranchReferenceName(branch)
+	if checkoutHead {
+		if err := wt.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
+			srcRepo, srcOpenErr := git.PlainOpen(cfg.RepoRoot)
+			if srcOpenErr != nil {
 				cleanup()
 				return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
 			}
-			if baseBranch != "" {
-				emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Creating docs branch '%s' from base '%s'", branch, baseBranch))
+
+			var headHash plumbing.Hash
+			if srcRef, refErr := srcRepo.Reference(refName, true); refErr == nil {
+				headHash = srcRef.Hash()
+			} else {
+				if baseHash == plumbing.ZeroHash {
+					cleanup()
+					return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
+				}
+				if baseBranch != "" {
+					emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Creating docs branch '%s' from base '%s'", branch, baseBranch))
+				}
+				headHash = baseHash
 			}
-			headHash = baseHash
+
+			if setErr := tempRepo.Storer.SetReference(plumbing.NewHashReference(refName, headHash)); setErr != nil {
+				cleanup()
+				return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
+			}
+
+			if coErr := wt.Checkout(&git.CheckoutOptions{Branch: refName}); coErr != nil {
+				cleanup()
+				return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, coErr)
+			}
+		}
+	} else {
+		ref := plumbing.NewHashReference(refName, baseHash)
+		if err := tempRepo.Storer.SetReference(ref); err != nil {
+			cleanup()
+			return tempDocWorkspace{}, nil, fmt.Errorf("failed to create branch '%s' in temp repo: %w", branch, err)
 		}
 
-		if setErr := tempRepo.Storer.SetReference(plumbing.NewHashReference(refName, headHash)); setErr != nil {
+		if err := wt.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
 			cleanup()
 			return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
-		}
-
-		if coErr := wt.Checkout(&git.CheckoutOptions{Branch: refName}); coErr != nil {
-			cleanup()
-			return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, coErr)
 		}
 	}
 
@@ -1057,6 +997,12 @@ func createTempDocRepoAtBranchHead(ctx context.Context, sessionKey string, cfg *
 
 	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Temporary docs workspace ready: branch '%s' at %s", branch, repoPath))
 	return tempDocWorkspace{repoPath: repoPath, docsPath: tempDocsPath}, cleanup, nil
+}
+
+// createTempDocRepoAtBranchHead clones the documentation repository into a temp directory
+// and checks out the specified branch at its current HEAD.
+func createTempDocRepoAtBranchHead(ctx context.Context, sessionKey string, cfg *docRepoConfig, branch string, baseBranch string, baseHash plumbing.Hash) (workspace tempDocWorkspace, cleanup func(), err error) {
+	return createTempDocWorkspace(ctx, sessionKey, cfg, branch, baseBranch, baseHash, true)
 }
 
 func (s *ClientService) findDefaultModelForProvider(provider string) (*models.LLMModel, error) {
@@ -1538,6 +1484,32 @@ func resolveDocumentationBase(project *models.RepoLink, repo *git.Repository) (p
 	return hash, branch, nil
 }
 
+func ensureDocsBranchExists(repo *git.Repository, branch string, baseHash plumbing.Hash) (bool, error) {
+	if repo == nil {
+		return false, fmt.Errorf("documentation repository is required")
+	}
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return false, fmt.Errorf("branch name is required")
+	}
+	refName := plumbing.NewBranchReferenceName(branch)
+	if _, err := repo.Reference(refName, true); err == nil {
+		return false, nil
+	} else if !errors.Is(err, plumbing.ErrReferenceNotFound) {
+		return false, fmt.Errorf("failed to resolve documentation branch '%s': %w", branch, err)
+	}
+
+	if baseHash == plumbing.ZeroHash {
+		return false, fmt.Errorf("cannot create documentation branch '%s': base hash is empty", branch)
+	}
+
+	if err := repo.Storer.SetReference(plumbing.NewHashReference(refName, baseHash)); err != nil {
+		return false, fmt.Errorf("failed to create documentation branch '%s': %w", branch, err)
+	}
+
+	return true, nil
+}
+
 func extractPathsFromDiff(diff string) []string {
 	seen := map[string]struct{}{}
 	scanner := bufio.NewScanner(strings.NewReader(diff))
@@ -1670,6 +1642,7 @@ func collectDocChangedFiles(status git.Status, docsRelative string) []models.Doc
 		if st == nil {
 			continue
 		}
+		fmt.Printf("DEBUG: File %s, Worktree: %v, Staging: %v\n", path, st.Worktree, st.Staging)
 		if st.Staging == git.Unmodified && st.Worktree == git.Unmodified {
 			continue
 		}
@@ -1704,63 +1677,7 @@ func generateUniqueID() string {
 // checked out to the specified branch. Returns the temp workspace (repo root
 // and docs path) alongside a cleanup function.
 func createTempDocRepo(ctx context.Context, sessionKey string, cfg *docRepoConfig, branch string, baseBranch string, baseHash plumbing.Hash) (workspace tempDocWorkspace, cleanup func(), err error) {
-	if cfg == nil {
-		return tempDocWorkspace{}, nil, fmt.Errorf("documentation repository configuration is required")
-	}
-	repoPath, cleanup := newTempRepoDir(ctx, sessionKey)
-	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Creating temporary docs workspace at %s", repoPath))
-
-	cloneOpts := &git.CloneOptions{
-		URL:          cfg.RepoRoot,
-		Depth:        1,
-		Progress:     nil,
-		SingleBranch: true,
-	}
-	if strings.TrimSpace(baseBranch) != "" {
-		cloneOpts.ReferenceName = plumbing.NewBranchReferenceName(baseBranch)
-	}
-	tempRepo, err := git.PlainClone(repoPath, false, cloneOpts)
-	if err != nil {
-		cleanup()
-		repoPath, cleanup = newTempRepoDir(ctx, sessionKey)
-		emitSessionWarn(ctx, sessionKey, "Shallow clone failed; retrying with full clone")
-		tempRepo, err = git.PlainClone(repoPath, false, &git.CloneOptions{URL: cfg.RepoRoot, Progress: nil})
-		if err != nil {
-			cleanup()
-			return tempDocWorkspace{}, nil, fmt.Errorf("failed to clone repository to temp location: %w", err)
-		}
-	}
-
-	tempWT, err := tempRepo.Worktree()
-	if err != nil {
-		cleanup()
-		return tempDocWorkspace{}, nil, fmt.Errorf("failed to get temp repository worktree: %w", err)
-	}
-
-	refName := plumbing.NewBranchReferenceName(branch)
-	ref := plumbing.NewHashReference(refName, baseHash)
-	if err := tempRepo.Storer.SetReference(ref); err != nil {
-		cleanup()
-		return tempDocWorkspace{}, nil, fmt.Errorf("failed to create branch '%s' in temp repo: %w", branch, err)
-	}
-
-	if err := tempWT.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
-		cleanup()
-		return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
-	}
-
-	tempDocsPath := repoPath
-	if cfg.DocsRelative != "." {
-		tempDocsPath = filepath.Join(repoPath, cfg.DocsRelative)
-	}
-
-	if err := copyNarrabyteDir(ctx, sessionKey, cfg.DocsPath, tempDocsPath); err != nil {
-		cleanup()
-		return tempDocWorkspace{}, nil, err
-	}
-
-	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Temporary docs workspace ready: branch '%s' at %s", branch, repoPath))
-	return tempDocWorkspace{repoPath: repoPath, docsPath: tempDocsPath}, cleanup, nil
+	return createTempDocWorkspace(ctx, sessionKey, cfg, branch, baseBranch, baseHash, false)
 }
 
 func copyNarrabyteDir(ctx context.Context, sessionKey string, sourceDocsPath, destDocsPath string) error {
@@ -1853,39 +1770,42 @@ func removeNarrabyteDir(ctx context.Context, sessionKey string, docsPath string)
 
 // propagateDocChanges commits documentation changes in the temp repository and updates
 // the branch reference in the main repository to point to the new commit.
-func propagateDocChanges(ctx context.Context, sessionKey string, workspace tempDocWorkspace, mainRepo *git.Repository, branch string, docsRelative string) error {
+// Returns the list of files that were changed (added/modified/etc).
+func propagateDocChanges(ctx context.Context, sessionKey string, workspace tempDocWorkspace, mainRepo *git.Repository, branch string, docsRelative string) ([]models.DocChangedFile, error) {
 	emitSessionInfo(ctx, sessionKey, "Propagating documentation changes back to main repository")
 
 	// Open temporary repository
 	tempRepo, err := git.PlainOpen(workspace.repoPath)
 	if err != nil {
-		return fmt.Errorf("failed to open temp repository: %w", err)
+		return nil, fmt.Errorf("failed to open temp repository: %w", err)
 	}
 
 	// Get temp repository worktree
 	tempWT, err := tempRepo.Worktree()
 	if err != nil {
-		return fmt.Errorf("failed to get temp repository worktree: %w", err)
+		return nil, fmt.Errorf("failed to get temp repository worktree: %w", err)
 	}
 
 	if err := removeNarrabyteDir(ctx, sessionKey, workspace.docsPath); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Check if there are any changes to commit
 	status, err := tempWT.Status()
 	if err != nil {
-		return fmt.Errorf("failed to get temp repository status: %w", err)
+		return nil, fmt.Errorf("failed to get temp repository status: %w", err)
 	}
+
+	changedFiles := collectDocChangedFiles(status, docsRelative)
 
 	if !hasDocsChanges(status, docsRelative) {
 		emitSessionInfo(ctx, sessionKey, "No documentation changes to propagate")
-		return nil
+		return nil, nil
 	}
 
 	// Add all changes
 	if err := addDocsChanges(tempWT, docsRelative); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Create commit with generated documentation
@@ -1897,25 +1817,25 @@ func propagateDocChanges(ctx context.Context, sessionKey string, workspace tempD
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to commit changes in temp repository: %w", err)
+		return nil, fmt.Errorf("failed to commit changes in temp repository: %w", err)
 	}
 
 	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Created documentation commit: %s", commitHash.String()[:8]))
 
 	// Transfer git objects from temp repository to main repository
 	if err := transferGitObjects(ctx, sessionKey, tempRepo, mainRepo, commitHash); err != nil {
-		return fmt.Errorf("failed to transfer git objects to main repository: %w", err)
+		return nil, fmt.Errorf("failed to transfer git objects to main repository: %w", err)
 	}
 
 	// Update the branch reference in main repository to point to new commit
 	refName := plumbing.NewBranchReferenceName(branch)
 	ref := plumbing.NewHashReference(refName, commitHash)
 	if err := mainRepo.Storer.SetReference(ref); err != nil {
-		return fmt.Errorf("failed to update branch '%s' in main repository: %w", branch, err)
+		return nil, fmt.Errorf("failed to update branch '%s' in main repository: %w", branch, err)
 	}
 
 	emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Updated branch '%s' to commit %s", branch, commitHash.String()[:8]))
-	return nil
+	return changedFiles, nil
 }
 
 // transferGitObjects transfers all git objects (commit, tree, blobs) from source to target repository
@@ -2074,12 +1994,9 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 	}
 	s.setSessionRuntime(sessionKey, runtime)
 
-	project, err := s.repoLinks.Get(projectID)
+	project, codeRoot, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
 		return nil, err
-	}
-	if project == nil {
-		return nil, fmt.Errorf("project not found")
 	}
 
 	if docsBranchOverride != "" {
@@ -2092,39 +2009,6 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 			"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s",
 			project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel,
 		))
-	}
-
-	codeRepoPath := strings.TrimSpace(project.CodebaseRepo)
-	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
-	if codeRepoPath == "" || docRepoPath == "" {
-		return nil, fmt.Errorf("project repositories are not configured")
-	}
-	if !utils.DirectoryExists(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository path does not exist: %s", codeRepoPath)
-	}
-	if !utils.DirectoryExists(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository path does not exist: %s", docRepoPath)
-	}
-	if !utils.HasGitRepo(codeRepoPath) {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	if !utils.HasGitRepo(docRepoPath) {
-		return nil, fmt.Errorf("documentation repository is not a git repository: %s", docRepoPath)
-	}
-
-	codeRootAbs, err := filepath.Abs(codeRepoPath)
-	if err != nil {
-		return nil, err
-	}
-	codeRepoRoot, ok := utils.FindGitRepoRoot(codeRootAbs)
-	if !ok {
-		return nil, fmt.Errorf("codebase repository is not a git repository: %s", codeRepoPath)
-	}
-	codeRoot := codeRepoRoot
-
-	docCfg, err := newDocRepoConfig(docRepoPath, codeRepoRoot)
-	if err != nil {
-		return nil, err
 	}
 
 	// Open documentation repo
@@ -2156,28 +2040,8 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		docsBranch = docsBranchOverride
 	}
 
-	// Check if branch is already being generated
-	if s.isDocsBranchInProgress(docsBranch) {
-		// Suggest an alternative branch name
-		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
-		if suggestErr != nil {
-			return nil, fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS:%s", docsBranch)
-		}
-		return nil, fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:%s:%s", docsBranch, suggested)
-	}
-
-	// Ensure destination docs branch name is available
-	exists, err := s.gitService.BranchExists(docRepo, docsBranch)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check documentation branch existence: %w", err)
-	}
-	if exists {
-		// Suggest an alternative branch name
-		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
-		if suggestErr != nil {
-			return nil, fmt.Errorf("ERR_DOCS_BRANCH_EXISTS:%s", docsBranch)
-		}
-		return nil, fmt.Errorf("ERR_DOCS_BRANCH_EXISTS_SUGGEST:%s:%s", docsBranch, suggested)
+	if err := s.ensureDocsBranchAvailable(docRepo, docsBranch); err != nil {
+		return nil, err
 	}
 
 	// Mark this docs branch as in-progress to prevent concurrent generations
@@ -2241,23 +2105,10 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 	}
 
 	// Propagate changes from temporary repository back to main repository
-	if err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative); err != nil {
+	files, err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative)
+	if err != nil {
 		return nil, fmt.Errorf("failed to propagate documentation changes: %w", err)
 	}
-
-	tempRepo, err := git.PlainOpen(tempWorkspace.repoPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open temp repository for status: %w", err)
-	}
-	tempWT, err := tempRepo.Worktree()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get temp repository worktree for status: %w", err)
-	}
-	docStatus, err := tempWT.Status()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read documentation repo status after generation: %w", err)
-	}
-	files := collectDocChangedFiles(docStatus, docCfg.DocsRelative)
 
 	docDiff, err := s.gitService.DiffBetweenBranches(docRepo, baseBranch, docsBranch)
 	if err != nil {

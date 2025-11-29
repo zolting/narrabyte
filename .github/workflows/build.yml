@@ -1,6 +1,7 @@
 name: Build App
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -78,6 +79,7 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v4

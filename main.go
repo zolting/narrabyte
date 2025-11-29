@@ -17,6 +17,9 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+//go:embed build/appicon.png
+var appIcon []byte
+
 func main() {
 
 	app := NewApp()
@@ -53,6 +56,7 @@ func main() {
 			Assets: assets,
 		},
 		Linux: &linux.Options{
+			Icon:                appIcon,
 			WindowIsTranslucent: false,
 			WebviewGpuPolicy:    linux.WebviewGpuPolicyAlways,
 			ProgramName:         "Narrabyte",

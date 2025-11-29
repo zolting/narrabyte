@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"narrabyte/internal/events"
 	"narrabyte/internal/llm/tools"
@@ -147,6 +148,14 @@ type DocRefineRequest struct {
 
 type DocGenerationResponse struct {
 	Summary string
+}
+
+type docSessionResources struct {
+	docListing      string
+	codeListing     string
+	tools           []tool.BaseTool
+	projectInstr    string
+	projectInstrErr error
 }
 
 type OpenAIModelOptions struct {
@@ -349,6 +358,12 @@ func (o *LLMClient) loadPrompt(name string) (string, error) {
 	if name == "" {
 		return "", fmt.Errorf("prompt name is required")
 	}
+	embeddedPath := fmt.Sprintf("prompts/%s", strings.ReplaceAll(name, "\\", "/"))
+	if data, err := embeddedPrompts.ReadFile(embeddedPath); err == nil {
+		return string(data), nil
+	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", fmt.Errorf("failed to read embedded prompt %q: %w", name, err)
+	}
 	projectRoot, err := utils.FindProjectRoot()
 	if err != nil {
 		return "", err
@@ -359,6 +374,70 @@ func (o *LLMClient) loadPrompt(name string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+func (o *LLMClient) initDocSession(ctx context.Context, docPath string, codePath string, docRel string, sourceBranch string, targetBranch string, sourceCommit string, targetCommit string) (string, string, error) {
+	docPath = strings.TrimSpace(docPath)
+	codePath = strings.TrimSpace(codePath)
+	if docPath == "" {
+		return "", "", fmt.Errorf("documentation path is required")
+	}
+	if codePath == "" {
+		return "", "", fmt.Errorf("codebase path is required")
+	}
+
+	docRoot, err := filepath.Abs(docPath)
+	if err != nil {
+		return "", "", err
+	}
+	codeRoot, err := filepath.Abs(codePath)
+	if err != nil {
+		return "", "", err
+	}
+
+	if trimmed := strings.TrimSpace(docRel); trimmed != "" {
+		o.docRelative = trimmed
+	} else {
+		o.docRelative = "."
+	}
+	o.docRoot = docRoot
+	o.codeRoot = codeRoot
+	o.sourceBranch = strings.TrimSpace(sourceBranch)
+	o.targetBranch = strings.TrimSpace(targetBranch)
+	o.sourceCommit = strings.TrimSpace(sourceCommit)
+	o.targetCommit = strings.TrimSpace(targetCommit)
+	o.SetListDirectoryBaseRoot(docRoot)
+
+	if err := o.prepareSnapshots(ctx); err != nil {
+		return "", "", err
+	}
+	return docRoot, codeRoot, nil
+}
+
+func (o *LLMClient) prepareDocResources(ctx context.Context, docRoot string, codeRoot string) (*docSessionResources, error) {
+	docListing, err := o.captureListing(ctx, docRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list documentation root: %w", err)
+	}
+	codeListing, err := o.captureListing(ctx, codeRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list codebase root: %w", err)
+	}
+
+	toolsForSession, err := o.initDocumentationTools(docRoot, codeRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	projectInstr, repoErr := o.loadRepoLLMInstructions(docRoot)
+
+	return &docSessionResources{
+		docListing:      docListing,
+		codeListing:     codeListing,
+		tools:           toolsForSession,
+		projectInstr:    projectInstr,
+		projectInstrErr: repoErr,
+	}, nil
 }
 
 func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest) (*DocGenerationResponse, error) {
@@ -376,41 +455,12 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 	if strings.TrimSpace(req.CodebasePath) == "" {
 		return nil, fmt.Errorf("codebase path is required")
 	}
-	docRoot, err := filepath.Abs(req.DocumentationPath)
+	docRoot, codeRoot, err := o.initDocSession(ctx, req.DocumentationPath, req.CodebasePath, req.DocumentationRelPath, req.SourceBranch, req.TargetBranch, req.SourceCommit, "")
 	if err != nil {
 		return nil, err
 	}
-	codeRoot, err := filepath.Abs(req.CodebasePath)
-	if err != nil {
-		return nil, err
-	}
-	o.docRoot = docRoot
-	o.codeRoot = codeRoot
-	if trimmed := strings.TrimSpace(req.DocumentationRelPath); trimmed != "" {
-		o.docRelative = trimmed
-	} else {
-		o.docRelative = "."
-	}
-	o.sourceBranch = strings.TrimSpace(req.SourceBranch)
-	o.targetBranch = strings.TrimSpace(req.TargetBranch)
-	o.sourceCommit = strings.TrimSpace(req.SourceCommit)
-	o.targetCommit = ""
-	o.SetListDirectoryBaseRoot(docRoot)
 
-	if err := o.prepareSnapshots(ctx); err != nil {
-		return nil, err
-	}
-
-	docListing, err := o.captureListing(ctx, docRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list documentation root: %w", err)
-	}
-	codeListing, err := o.captureListing(ctx, codeRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list codebase root: %w", err)
-	}
-
-	toolsForSession, err := o.initDocumentationTools(docRoot, codeRoot)
+	resources, err := o.prepareDocResources(ctx, docRoot, codeRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -420,16 +470,15 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		return nil, fmt.Errorf("failed to load system instructions: %w", err)
 	}
 
-	projectInstr, repoErr := o.loadRepoLLMInstructions(docRoot)
-	if repoErr != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo LLM instructions: %v", repoErr)))
+	if resources.projectInstrErr != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo LLM instructions: %v", resources.projectInstrErr)))
 	}
 
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Model: o.chatModel,
 		ToolsConfig: adk.ToolsConfig{
 			ToolsNodeConfig: compose.ToolsNodeConfig{
-				Tools: toolsForSession,
+				Tools: resources.tools,
 			},
 		},
 		Name:          "Documentation Assistant",
@@ -464,9 +513,9 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		ProjectName:   req.ProjectName,
 		DocRoot:       docRoot,
 		CodeRoot:      codeRoot,
-		DocListing:    docListing,
-		CodeListing:   codeListing,
-		ProjectInstr:  projectInstr,
+		DocListing:    resources.docListing,
+		CodeListing:   resources.codeListing,
+		ProjectInstr:  resources.projectInstr,
 		SpecificInstr: req.SpecificInstr,
 		ExtraContext:  extraContext,
 	})
@@ -561,44 +610,15 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 		return nil, fmt.Errorf("instruction is required")
 	}
 
-	docRoot, err := filepath.Abs(req.DocumentationPath)
+	docRoot, codeRoot, err := o.initDocSession(ctx, req.DocumentationPath, req.CodebasePath, req.DocumentationRelPath, req.SourceBranch, "", "", "")
 	if err != nil {
-		return nil, err
-	}
-	codeRoot, err := filepath.Abs(req.CodebasePath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set up client state for this session
-	o.docRoot = docRoot
-	o.codeRoot = codeRoot
-	o.sourceBranch = strings.TrimSpace(req.SourceBranch)
-	o.targetBranch = ""
-	o.sourceCommit = ""
-	o.targetCommit = ""
-	o.SetListDirectoryBaseRoot(docRoot)
-
-	// Snapshots: live docs; code snapshot not required here
-	if err := o.prepareSnapshots(ctx); err != nil {
 		return nil, err
 	}
 
 	// Always create a new session for refinement, but include conversation history if available
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo("DocRefine: creating refinement session"))
 
-	// Capture repository listings for context
-	docListing, err := o.captureListing(ctx, docRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list documentation root: %w", err)
-	}
-	codeListing, err := o.captureListing(ctx, codeRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list codebase root: %w", err)
-	}
-
-	// Initialize documentation-aware tools
-	toolsForSession, err := o.initDocumentationTools(docRoot, codeRoot)
+	resources, err := o.prepareDocResources(ctx, docRoot, codeRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -609,16 +629,15 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 		return nil, err
 	}
 
-	projectInstr, repoErr := o.loadRepoLLMInstructions(docRoot)
-	if repoErr != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo LLM instructions: %v", repoErr)))
+	if resources.projectInstrErr != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo LLM instructions: %v", resources.projectInstrErr)))
 	}
 
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Model: o.chatModel,
 		ToolsConfig: adk.ToolsConfig{
 			ToolsNodeConfig: compose.ToolsNodeConfig{
-				Tools: toolsForSession,
+				Tools: resources.tools,
 			},
 		},
 		Name:        "Documentation Refiner",
@@ -638,9 +657,9 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 		ProjectName:   req.ProjectName,
 		DocRoot:       docRoot,
 		CodeRoot:      codeRoot,
-		DocListing:    docListing,
-		CodeListing:   codeListing,
-		ProjectInstr:  projectInstr,
+		DocListing:    resources.docListing,
+		CodeListing:   resources.codeListing,
+		ProjectInstr:  resources.projectInstr,
 		SpecificInstr: req.SpecificInstr,
 		ExtraContext:  extraContext,
 	})

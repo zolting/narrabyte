@@ -67,7 +67,7 @@ function Settings() {
 	const handleKeyAdded = () => {
 		apiKeyManagerRef.current?.refresh();
 		// Ré-initialise les settings pour les les nouvelles clés soient ajoutées
-		void initModelSettings();
+		initModelSettings();
 		// Notify other parts of the app that keys have changed
 		try {
 			window.dispatchEvent(new Event("narrabyte:keysChanged"));

@@ -27,7 +27,7 @@ function normalizeDiffPath(path?: string | null): string {
 		.replace(STARTS_WITH_B_SLASH_REGEX, "");
 }
 
-const statusClassMap: Record<string, string> = {
+const statusClassMap = {
 	added: "text-emerald-600",
 	modified: "text-blue-600",
 	deleted: "text-red-600",
@@ -35,6 +35,9 @@ const statusClassMap: Record<string, string> = {
 	copied: "text-purple-600",
 	untracked: "text-emerald-600",
 };
+
+type FileStatus = keyof typeof statusClassMap;
+type FileStatusKey = `fileStatus.${FileStatus}`;
 
 export function DocGenerationResultPanel({
 	result,
@@ -202,17 +205,23 @@ export function DocGenerationResultPanel({
 														const isChanged = (
 															changedSinceInitial || []
 														).includes(entry.path);
+
+														const lowerStatus = entry.status.toLowerCase();
+														const statusClass =
+															statusClassMap[lowerStatus as FileStatus] ??
+															"text-foreground/70";
+														const statusKey =
+															`fileStatus.${lowerStatus}` as FileStatusKey;
+
 														return (
 															<div>
 																<div
 																	className={cn(
 																		"font-medium text-[11px]",
-																		statusClassMap[
-																			entry.status.toLowerCase()
-																		] ?? "text-foreground/70"
+																		statusClass
 																	)}
 																>
-																	{entry.status}
+																	{t(statusKey)}
 																	{isChanged && (
 																		<span className="ml-2 inline-flex items-center rounded border border-amber-200 bg-amber-100/60 px-1.5 py-0.5 font-medium text-[10px] text-amber-800">
 																			{t("common.updated")}
