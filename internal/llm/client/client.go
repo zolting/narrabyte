@@ -1720,14 +1720,6 @@ func (o *LLMClient) LoadConversationHistoryJSON(jsonStr string) error {
 			}
 		}
 
-		// Backward compatibility: tool responses persisted without tool metadata
-		// can surface as invalid function_response payloads. Treat them as
-		// assistant text to keep the context without breaking providers.
-		if msg.Role == schema.Tool && strings.TrimSpace(msg.ToolName) == "" {
-			msg.Role = schema.Assistant
-			msg.ToolCallID = ""
-		}
-
 		history = append(history, msg)
 	}
 
