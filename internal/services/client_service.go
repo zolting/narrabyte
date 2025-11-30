@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -595,7 +596,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 				provider = providerID
 			}
 			if strings.TrimSpace(provider) != "" {
-				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, runtime.modelKey, provider, jsonStr)
+				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, runtime.modelKey, provider, jsonStr, "[]")
 			}
 		}
 	}
@@ -697,6 +698,9 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	if strings.TrimSpace(runtime.targetBranch) == "" && strings.TrimSpace(baseBranch) != "" {
 		runtime.targetBranch = strings.TrimSpace(baseBranch)
 	}
+
+	existingChat := s.loadStoredChatMessages(projectID, sourceBranch, baseBranch)
+
 	refName := plumbing.NewBranchReferenceName(docsBranch)
 	// Ensure the docs branch exists in the main repo; if not, create it off base
 	if _, err := docRepo.Reference(refName, true); err != nil {
@@ -739,6 +743,13 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		return nil, err
 	}
 
+	assistantSummary := ""
+	if llmResult != nil {
+		assistantSummary = llmResult.Summary
+	}
+	chatMessages := appendChatMessages(existingChat, instruction, assistantSummary)
+	chatMessagesJSON := marshalChatMessages(chatMessages)
+
 	// Propagate changes back to the main documentation repository
 	files, err := propagateDocChanges(ctx, sessionKey, tempWorkspace, docRepo, docsBranch, docCfg.DocsRelative)
 	if err != nil {
@@ -771,7 +782,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 				}
 			}
 			if modelKeyForSession != "" && providerForSession != "" {
-				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, modelKeyForSession, providerForSession, jsonStr)
+				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, modelKeyForSession, providerForSession, jsonStr, chatMessagesJSON)
 				runtime.modelKey = modelKeyForSession
 				runtime.providerID = providerForSession
 			}
@@ -792,6 +803,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		Files:          files,
 		Diff:           docDiff,
 		Summary:        summary,
+		ChatMessages:   chatMessages,
 	}, nil
 }
 
@@ -1276,6 +1288,16 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
 	}
 
+	summary := ""
+	if runtime.client != nil {
+		summary = strings.TrimSpace(runtime.client.LastAssistantMessage())
+	}
+	if summary == "" {
+		summary = "Restored from previous session"
+	}
+
+	chatMessages := parseChatMessagesJSON(session.ChatMessagesJSON)
+
 	emitSessionInfo(ctx, sessionKey, "LoadSession: session restored successfully")
 
 	return &models.DocGenerationResult{
@@ -1285,7 +1307,8 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 		DocsInCodeRepo: docCfg.SharedWithCode,
 		Files:          files,
 		Diff:           docDiff,
-		Summary:        "Restored from previous session",
+		Summary:        summary,
+		ChatMessages:   chatMessages,
 	}, nil
 }
 
@@ -1574,6 +1597,86 @@ func documentationBranchName(sourceBranch string) string {
 	}
 	cleaned := strings.ReplaceAll(trimmed, " ", "-")
 	return fmt.Sprintf("docs/%s", cleaned)
+}
+
+func parseChatMessagesJSON(raw string) []models.ChatMessage {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var msgs []models.ChatMessage
+	if err := json.Unmarshal([]byte(raw), &msgs); err != nil {
+		return nil
+	}
+	clean := make([]models.ChatMessage, 0, len(msgs))
+	for _, m := range msgs {
+		role := strings.TrimSpace(strings.ToLower(m.Role))
+		content := strings.TrimSpace(m.Content)
+		if role != "user" && role != "assistant" {
+			continue
+		}
+		if content == "" {
+			continue
+		}
+		clean = append(clean, models.ChatMessage{
+			Role:      role,
+			Content:   content,
+			CreatedAt: strings.TrimSpace(m.CreatedAt),
+		})
+	}
+	return clean
+}
+
+func marshalChatMessages(msgs []models.ChatMessage) string {
+	if len(msgs) == 0 {
+		return "[]"
+	}
+	data, err := json.Marshal(msgs)
+	if err != nil {
+		return "[]"
+	}
+	return string(data)
+}
+
+func appendChatMessages(existing []models.ChatMessage, userText, assistantText string) []models.ChatMessage {
+	user := strings.TrimSpace(userText)
+	assistant := strings.TrimSpace(assistantText)
+	if user == "" && assistant == "" {
+		return existing
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	updated := make([]models.ChatMessage, 0, len(existing)+2)
+	updated = append(updated, existing...)
+
+	if user != "" {
+		updated = append(updated, models.ChatMessage{
+			Role:      "user",
+			Content:   user,
+			CreatedAt: now,
+		})
+	}
+
+	if assistant != "" {
+		updated = append(updated, models.ChatMessage{
+			Role:      "assistant",
+			Content:   assistant,
+			CreatedAt: now,
+		})
+	}
+
+	return updated
+}
+
+func (s *ClientService) loadStoredChatMessages(projectID uint, sourceBranch, targetBranch string) []models.ChatMessage {
+	if s.generationSessions == nil || projectID == 0 {
+		return nil
+	}
+	session, err := s.generationSessions.Get(projectID, sourceBranch, targetBranch)
+	if err != nil || session == nil {
+		return nil
+	}
+	return parseChatMessagesJSON(session.ChatMessagesJSON)
 }
 
 func newTempRepoDir(ctx context.Context, sessionKey string) (string, func()) {
@@ -2076,6 +2179,8 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		docsBranch,
 	))
 
+	existingChat := s.loadStoredChatMessages(projectID, branch, baseBranch)
+
 	streamCtx := runtime.client.StartStream(ctx, sessionKey)
 	defer runtime.client.StopStream()
 
@@ -2091,6 +2196,13 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, err
 	}
 
+	assistantSummary := ""
+	if llmResult != nil {
+		assistantSummary = llmResult.Summary
+	}
+	chatMessages := appendChatMessages(existingChat, userInstructions, assistantSummary)
+	chatMessagesJSON := marshalChatMessages(chatMessages)
+
 	if runtime.client != nil {
 		if jsonStr, err := runtime.client.ConversationHistoryJSON(); err == nil {
 			provider := strings.TrimSpace(runtime.providerID)
@@ -2098,7 +2210,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 				provider = strings.TrimSpace(modelInfo.ProviderID)
 			}
 			if provider != "" {
-				_, _ = s.generationSessions.Upsert(projectID, branch, baseBranch, runtime.modelKey, provider, jsonStr)
+				_, _ = s.generationSessions.Upsert(projectID, branch, baseBranch, runtime.modelKey, provider, jsonStr, chatMessagesJSON)
 				runtime.providerID = provider
 			}
 		}
@@ -2129,5 +2241,6 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		Files:          files,
 		Diff:           docDiff,
 		Summary:        summary,
+		ChatMessages:   chatMessages,
 	}, nil
 }

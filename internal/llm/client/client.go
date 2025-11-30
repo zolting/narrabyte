@@ -1602,23 +1602,60 @@ func (o *LLMClient) loadRepoLLMInstructions(docRoot string) (string, error) {
 }
 
 type persistableMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string                `json:"role"`
+	Content    string                `json:"content,omitempty"`
+	ToolName   string                `json:"toolName,omitempty"`
+	ToolCallID string                `json:"toolCallId,omitempty"`
+	ToolCalls  []persistableToolCall `json:"toolCalls,omitempty"`
 }
 
-// ConversationHistoryJSON returns a compact JSON array of messages containing
-// only role and content, suitable for persistence.
+type persistableToolCall struct {
+	ID        string `json:"id,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
+}
+
+// ConversationHistoryJSON returns a compact JSON array of messages, including
+// enough tool-call metadata to restore a runnable conversation.
 func (o *LLMClient) ConversationHistoryJSON() (string, error) {
 	o.conversationHistoryMu.Lock()
 	defer o.conversationHistoryMu.Unlock()
 	msgs := make([]persistableMessage, 0, len(o.conversationHistory))
 	for _, m := range o.conversationHistory {
-		// Skip messages with empty content (e.g., tool-call-only messages)
-		// since we can't properly restore them without tool call details
-		if strings.TrimSpace(m.Content) == "" {
+		if m == nil {
 			continue
 		}
-		msgs = append(msgs, persistableMessage{Role: string(m.Role), Content: m.Content})
+		hasContent := strings.TrimSpace(m.Content) != ""
+		hasToolContext := len(m.ToolCalls) > 0 || strings.TrimSpace(m.ToolName) != "" || strings.TrimSpace(m.ToolCallID) != ""
+		if !hasContent && !hasToolContext {
+			continue
+		}
+
+		pm := persistableMessage{
+			Role:       string(m.Role),
+			Content:    m.Content,
+			ToolName:   strings.TrimSpace(m.ToolName),
+			ToolCallID: strings.TrimSpace(m.ToolCallID),
+		}
+
+		if len(m.ToolCalls) > 0 {
+			pm.ToolCalls = make([]persistableToolCall, len(m.ToolCalls))
+			for i, tc := range m.ToolCalls {
+				pm.ToolCalls[i] = persistableToolCall{
+					ID:        strings.TrimSpace(tc.ID),
+					Type:      strings.TrimSpace(tc.Type),
+					Name:      strings.TrimSpace(tc.Function.Name),
+					Arguments: strings.TrimSpace(tc.Function.Arguments),
+				}
+			}
+		}
+
+		if !hasContent && pm.ToolCallID == "" && len(pm.ToolCalls) == 0 {
+			continue
+		}
+
+		msgs = append(msgs, pm)
 	}
 	data, err := json.Marshal(msgs)
 	if err != nil {
@@ -1643,12 +1680,46 @@ func (o *LLMClient) LoadConversationHistoryJSON(jsonStr string) error {
 
 	var history []adk.Message
 	for _, pm := range msgs {
-		// Skip messages with empty content
-		if strings.TrimSpace(pm.Content) == "" {
+		hasContent := strings.TrimSpace(pm.Content) != ""
+		hasToolContext := len(pm.ToolCalls) > 0 || strings.TrimSpace(pm.ToolName) != "" || strings.TrimSpace(pm.ToolCallID) != ""
+		if !hasContent && !hasToolContext {
 			continue
 		}
 
-		msg := &schema.Message{Role: schema.RoleType(pm.Role), Content: pm.Content}
+		msg := &schema.Message{
+			Role:    schema.RoleType(pm.Role),
+			Content: pm.Content,
+		}
+
+		if trimmed := strings.TrimSpace(pm.ToolName); trimmed != "" {
+			msg.ToolName = trimmed
+		}
+		if trimmed := strings.TrimSpace(pm.ToolCallID); trimmed != "" {
+			msg.ToolCallID = trimmed
+		}
+
+		if len(pm.ToolCalls) > 0 {
+			msg.ToolCalls = make([]schema.ToolCall, len(pm.ToolCalls))
+			for i, tc := range pm.ToolCalls {
+				callType := strings.TrimSpace(tc.Type)
+				if callType == "" {
+					callType = "function"
+				}
+				callID := strings.TrimSpace(tc.ID)
+				if callID == "" {
+					callID = fmt.Sprintf("call-%d", i+1)
+				}
+				msg.ToolCalls[i] = schema.ToolCall{
+					ID:   callID,
+					Type: callType,
+					Function: schema.FunctionCall{
+						Name:      strings.TrimSpace(tc.Name),
+						Arguments: strings.TrimSpace(tc.Arguments),
+					},
+				}
+			}
+		}
+
 		history = append(history, msg)
 	}
 
@@ -1666,6 +1737,25 @@ func (o *LLMClient) HasConversationHistory() bool {
 	o.conversationHistoryMu.Lock()
 	defer o.conversationHistoryMu.Unlock()
 	return len(o.conversationHistory) > 0
+}
+
+// LastAssistantMessage returns the content of the most recent assistant message
+// with non-empty text. Used when restoring sessions to surface the latest
+// summary after a restart.
+func (o *LLMClient) LastAssistantMessage() string {
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+
+	for i := len(o.conversationHistory) - 1; i >= 0; i-- {
+		msg := o.conversationHistory[i]
+		if msg == nil || msg.Role != schema.Assistant {
+			continue
+		}
+		if trimmed := strings.TrimSpace(msg.Content); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func (o *LLMClient) conversationHistoryForRun(fallbackFirstUser string) ([]adk.Message, bool) {

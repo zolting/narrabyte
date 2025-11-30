@@ -407,6 +407,44 @@ const computeDiffSignatures = (diffText: string | null | undefined) => {
 	}
 };
 
+const normalizeChatMessages = (raw: unknown): ChatMessage[] => {
+	if (!Array.isArray(raw)) {
+		return [];
+	}
+	const normalized: ChatMessage[] = [];
+	for (let i = 0; i < raw.length; i += 1) {
+		const entry = raw[i] as Record<string, unknown>;
+		const roleValue = typeof entry?.role === "string" ? entry.role.trim() : "";
+		const role =
+			roleValue === "assistant" || roleValue === "user" ? roleValue : null;
+		const content =
+			typeof entry?.content === "string" ? entry.content.trim() : "";
+		if (!(role && content)) {
+			continue;
+		}
+		const parsedDate =
+			entry?.createdAt && typeof entry.createdAt === "string"
+				? new Date(entry.createdAt)
+				: new Date();
+		const createdAt = Number.isNaN(parsedDate.getTime())
+			? new Date()
+			: parsedDate;
+		const fallbackId = `chat-${role}-${createdAt.getTime()}-${i}`;
+		const id =
+			typeof crypto !== "undefined" && "randomUUID" in crypto
+				? crypto.randomUUID()
+				: fallbackId;
+		normalized.push({
+			id,
+			role,
+			content,
+			createdAt,
+			status: "sent",
+		});
+	}
+	return normalized;
+};
+
 type SubscriptionMap = {
 	tool?: () => void;
 	done?: () => void;
@@ -687,6 +725,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				docsInCodeRepo: Boolean(result?.docsInCodeRepo),
 				docsBranch: result?.docsBranch ?? null,
 				mergeInProgress: false,
+				messages: normalizeChatMessages((result as any)?.chatMessages),
 			});
 			updateSessionMeta(sessionKey, { status: "success" });
 		} catch (error) {
@@ -1256,14 +1295,28 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 									role: "assistant",
 									content: summary,
 									createdAt: new Date(),
+									status: "sent",
 								},
 							]
 						: [];
+					const persistedChat = normalizeChatMessages(
+						(result as any)?.chatMessages
+					);
+					const chatMessages =
+						persistedChat.length > 0
+							? persistedChat
+							: [...updatedMessages, ...assistantMessages];
+					const nextResult = result
+						? ({
+								...result,
+								chatMessages: (result as any)?.chatMessages,
+							} as models.DocGenerationResult)
+						: result;
 
 					return {
 						...prev,
-						messages: [...updatedMessages, ...assistantMessages],
-						result,
+						messages: chatMessages,
+						result: nextResult,
 						status: "success",
 						events: [
 							...prev.events,
@@ -1396,6 +1449,9 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					sourceBranch,
 					targetBranch
 				);
+				const restoredChat = normalizeChatMessages(
+					(result as any)?.chatMessages
+				);
 
 				setDocState(sessionKey, {
 					projectId,
@@ -1403,8 +1459,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					sessionKey,
 					result,
 					status: "success",
-					sourceBranch: sourceBranch || null,
-					targetBranch: targetBranch || null,
+					sourceBranch: result?.branch ?? sourceBranch ?? null,
+					targetBranch: (result?.targetBranch ?? targetBranch)?.trim() || null,
 					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
 					changedSinceInitial: [],
 					docsInCodeRepo: result?.docsInCodeRepo,
@@ -1421,7 +1477,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					commitCompleted: false,
 					completedCommitInfo: null,
 					chatOpen: false,
-					messages: [],
+					messages: restoredChat,
 					mergeInProgress: false,
 				});
 				setActiveSessionKey(projectKey, sessionKey);

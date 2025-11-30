@@ -72,6 +72,22 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class ChatMessage {
+	    role: string;
+	    content: string;
+	    createdAt?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChatMessage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.role = source["role"];
+	        this.content = source["content"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
 	export class DocChangedFile {
 	    path: string;
 	    status: string;
@@ -94,6 +110,7 @@ export namespace models {
 	    files: DocChangedFile[];
 	    diff: string;
 	    summary: string;
+	    chatMessages?: ChatMessage[];
 	
 	    static createFrom(source: any = {}) {
 	        return new DocGenerationResult(source);
@@ -108,6 +125,7 @@ export namespace models {
 	        this.files = this.convertValues(source["files"], DocChangedFile);
 	        this.diff = source["diff"];
 	        this.summary = source["summary"];
+	        this.chatMessages = this.convertValues(source["chatMessages"], ChatMessage);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -136,6 +154,7 @@ export namespace models {
 	    Provider: string;
 	    ModelKey: string;
 	    MessagesJSON: string;
+	    ChatMessagesJSON: string;
 	    // Go type: time
 	    CreatedAt: any;
 	    // Go type: time
@@ -154,6 +173,7 @@ export namespace models {
 	        this.Provider = source["Provider"];
 	        this.ModelKey = source["ModelKey"];
 	        this.MessagesJSON = source["MessagesJSON"];
+	        this.ChatMessagesJSON = source["ChatMessagesJSON"];
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
 	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
 	    }
