@@ -108,6 +108,13 @@
 			"displayName": "Google Gemini",
 			"models": [
 				{
+					"key": "gemini:gemini-3-pro-preview:thinking",
+					"displayName": "Gemini 3 Pro Preview",
+					"apiName": "gemini-3-pro-preview",
+					"thinking": true,
+					"enabled": true
+				},
+				{
 					"key": "gemini:gemini-2.5-pro:thinking",
 					"displayName": "Gemini 2.5 Pro",
 					"apiName": "gemini-2.5-pro",
