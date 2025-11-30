@@ -21,8 +21,24 @@ import { useDocGenerationStore } from "@/stores/docGeneration";
 
 function TabLabel({ projectId, tabId }: { projectId: string; tabId: string }) {
 	const { t } = useTranslation();
-	const docManager = useDocGenerationManager(projectId, tabId);
-	const branchName = docManager.sourceBranch?.trim();
+	const branchName = useDocGenerationStore(
+		useCallback(
+			(state) => {
+				const projectKey = String(projectId);
+				const projectTabs = state.tabSessions[projectKey] ?? {};
+				const hasAnyTabs = Object.keys(projectTabs).length > 0;
+				const sessionKey =
+					projectTabs[tabId] ??
+					(hasAnyTabs ? null : (state.activeSession[projectKey] ?? null));
+				if (!sessionKey) {
+					return null;
+				}
+				const source = state.docStates[sessionKey]?.sourceBranch?.trim();
+				return source && source.length > 0 ? source : null;
+			},
+			[projectId, tabId]
+		)
+	);
 	return branchName && branchName.length > 0
 		? branchName
 		: t("sidebar.newGeneration");
