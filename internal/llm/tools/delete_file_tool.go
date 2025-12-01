@@ -149,7 +149,7 @@ func DeleteFile(ctx context.Context, in *DeleteFileInput) (*DeleteFileOutput, er
 
 	outputMsg := fmt.Sprintf("Deleted file: %s", filepath.ToSlash(absPath))
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(outputMsg))
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("DeleteFile: done for '%s'", filepath.ToSlash(absPath))))
+	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("DeleteFile: done for '%s'", filepath.ToSlash(absPath)), "delete", filepath.ToSlash(absPath)))
 
 	return &DeleteFileOutput{
 		Title:  filepath.ToSlash(absPath),

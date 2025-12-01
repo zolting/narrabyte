@@ -231,7 +231,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 		lines := strings.Split(string(data), "\n")
 		out, readCount, totalLines := BuildReadFileOutput(filepath.ToSlash(absPath), lines, input.Offset, input.Limit)
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s' [%s]", readCount, totalLines, filepath.ToSlash(absPath), snapshotInfo)))
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s) [%s]", filepath.ToSlash(absPath), snapshotInfo)))
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("ReadFile: done (%s) [%s]", filepath.ToSlash(absPath), snapshotInfo), "read", filepath.ToSlash(absPath)))
 		return out, nil
 	}
 
@@ -321,7 +321,7 @@ func ReadFile(ctx context.Context, input *ReadFileInput) (*ReadFileOutput, error
 	lines := strings.Split(string(data), "\n")
 	out, readCount, totalLines := BuildReadFileOutput(filepath.ToSlash(absPath), lines, input.Offset, input.Limit)
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: read %d/%d lines from '%s' [%s]", readCount, totalLines, filepath.ToSlash(absPath), snapshotInfo)))
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ReadFile: done (%s) [%s]", filepath.ToSlash(absPath), snapshotInfo)))
+	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("ReadFile: done (%s) [%s]", filepath.ToSlash(absPath), snapshotInfo), "read", filepath.ToSlash(absPath)))
 	return out, nil
 }
 

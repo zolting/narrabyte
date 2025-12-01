@@ -381,5 +381,18 @@
     "reasoning": "Reasoning",
     "reasoningPlaceholder": "Waiting for reasoning…",
     "thoughtProcess": "Thought process"
+  },
+  "tools": {
+    "read": "Read {{path}}",
+    "write": "Created {{path}}",
+    "edit": "Edited {{path}}",
+    "list": "Listed files in {{path}}",
+    "glob": "Found files matching {{pattern}}",
+    "grep": "Searched for {{pattern}}",
+    "bash": "Executed command",
+    "delete": "Deleted {{path}}",
+    "move": "Moved {{path}}",
+    "copy": "Copied {{path}}",
+    "unknown": "Tool action"
   }
 }

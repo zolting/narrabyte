@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { cn } from "@/lib/utils";
+import { getToolIcon, type ToolType } from "@/lib/toolIcons";
 import type { DocGenerationStatus } from "@/stores/docGeneration";
 import type { TodoItem, ToolEvent } from "@/types/events";
 
@@ -170,6 +171,21 @@ export function ActivityFeed({
 			}
 			return next;
 		});
+	};
+
+	// Helper to parse tool events and extract parameters
+	const parseToolEvent = (event: ToolEvent) => {
+		const toolType = event.metadata?.tool as ToolType | undefined;
+		if (!toolType) return null;
+
+		// Extract parameters from metadata or message
+		const path = event.metadata?.path || "";
+		const pattern = event.metadata?.pattern || "";
+
+		return {
+			toolType,
+			params: { path, pattern },
+		};
 	};
 
 	// Auto-scroll reasoning blocks to bottom when expanded or content updates
@@ -401,6 +417,35 @@ export function ActivityFeed({
 									);
 								}
 
+								// Check if this is a tool event
+								const toolData = parseToolEvent(event);
+								if (toolData) {
+									const ToolIcon = getToolIcon(toolData.toolType);
+									return (
+										<li
+											className={cn(
+												"flex items-start gap-2 transition-all duration-300",
+												{
+													"translate-y-0 opacity-100": isVisible,
+													"translate-y-2 opacity-0": !isVisible,
+												}
+											)}
+											key={event.id}
+										>
+											<div className="mt-0.5 shrink-0">
+												<ToolIcon className="h-4 w-4 text-blue-600" />
+											</div>
+											<span className="min-w-0 flex-1 break-words text-foreground/90">
+												{t(`tools.${toolData.toolType}`, toolData.params)}
+											</span>
+											<span className="ml-auto shrink-0 text-muted-foreground text-xs">
+												{event.timestamp.toLocaleTimeString()}
+											</span>
+										</li>
+									);
+								}
+
+								// Regular event display
 								return (
 									<li
 										className={cn(
