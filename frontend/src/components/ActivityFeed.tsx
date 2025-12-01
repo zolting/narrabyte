@@ -9,12 +9,12 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
-import { cn } from "@/lib/utils";
 import {
 	getPathPrefixIcon,
 	stripPathPrefix,
 	type ToolType,
 } from "@/lib/toolIcons";
+import { cn } from "@/lib/utils";
 import type { DocGenerationStatus } from "@/stores/docGeneration";
 import type { TodoItem, ToolEvent } from "@/types/events";
 
@@ -357,7 +357,7 @@ export function ActivityFeed({
 			)}
 
 			{/* Tool events feed */}
-			<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-muted/30">
+			<div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-muted/30">
 				<div className="border-border border-b bg-muted/50 px-3 py-2">
 					<div className="flex items-center justify-between">
 						<span className="font-medium text-foreground text-sm">
@@ -387,7 +387,7 @@ export function ActivityFeed({
 
 				<div
 					aria-live="polite"
-					className="h-full w-full overflow-auto overflow-x-hidden px-3 pt-3 pb-6 text-sm"
+					className="min-h-0 w-full flex-1 overflow-auto overflow-x-hidden px-3 pt-3 pb-6 text-sm"
 					ref={containerRef}
 				>
 					{displayEvents.length === 0 ? (

@@ -1,18 +1,18 @@
 import {
-	FileText,
-	FilePlus,
+	BookOpen,
+	Code,
+	Copy,
 	FileEdit,
+	FilePlus,
+	FileText,
 	FolderOpen,
+	type LucideIcon,
+	Move,
 	Search,
 	SearchCode,
 	Terminal,
 	Trash2,
-	Move,
-	Copy,
 	Wrench,
-	Code,
-	BookOpen,
-	type LucideIcon,
 } from "lucide-react";
 
 export type ToolType =
