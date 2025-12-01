@@ -30,3 +30,7 @@ frontend/.tanstack/tmp
 *.db-wal
 *.sqlite
 
+# Binaries
+narrabyte
+wails
+

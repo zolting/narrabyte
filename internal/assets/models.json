@@ -116,7 +116,7 @@
 				},
 				{
 					"key": "gemini:gemini-2.5-pro:thinking",
-					"displayName": "Gemini 2.5 Pro",
+					"displayName": "Gemini 2.5 Pro Thinking",
 					"apiName": "gemini-2.5-pro",
 					"thinking": true,
 					"enabled": true
