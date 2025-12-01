@@ -380,16 +380,16 @@
     "thoughtProcess": "Processus de pensée"
   },
   "tools": {
-    "read": "Lu {{path}}",
-    "write": "Créé {{path}}",
-    "edit": "Modifié {{path}}",
-    "list": "Listé les fichiers dans {{path}}",
-    "glob": "Fichiers trouvés correspondant à {{pattern}}",
-    "grep": "Recherché {{pattern}}",
+    "read": "Lu <0>{{path}}</0>",
+    "write": "Créé <0>{{path}}</0>",
+    "edit": "Modifié <0>{{path}}</0>",
+    "list": "Listé les fichiers dans <0>{{path}}</0>",
+    "glob": "Fichiers trouvés correspondant à <0>{{pattern}}</0>",
+    "grep": "Recherché <0>{{pattern}}</0>",
     "bash": "Commande exécutée",
-    "delete": "Supprimé {{path}}",
-    "move": "Déplacé {{path}}",
-    "copy": "Copié {{path}}",
+    "delete": "Supprimé <0>{{path}}</0>",
+    "move": "Déplacé <0>{{path}}</0>",
+    "copy": "Copié <0>{{path}}</0>",
     "unknown": "Action d'outil"
   }
 }

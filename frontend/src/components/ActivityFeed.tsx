@@ -7,7 +7,7 @@ import {
 	XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import {
 	getPathPrefixIcon,
@@ -478,7 +478,19 @@ export function ActivityFeed({
 												<DisplayIcon className={cn("h-4 w-4", iconColor)} />
 											</div>
 											<span className="min-w-0 flex-1 break-words text-foreground/90">
-												{t(`tools.${toolData.toolType}`, toolData.params)}
+												<Trans
+													components={[
+														<code
+															className="rounded bg-muted px-1 py-0.5 text-xs"
+															key="path-code"
+														/>,
+													]}
+													i18nKey={`tools.${toolData.toolType}`}
+													values={{
+														path: toolData.params.path,
+														pattern: toolData.params.pattern,
+													}}
+												/>
 											</span>
 											<span className="ml-auto shrink-0 text-muted-foreground text-xs">
 												{event.timestamp.toLocaleTimeString()}
