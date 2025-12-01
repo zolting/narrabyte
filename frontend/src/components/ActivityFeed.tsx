@@ -175,7 +175,34 @@ export function ActivityFeed({
 
 	// Helper to parse tool events and extract parameters
 	const parseToolEvent = (event: ToolEvent) => {
-		const toolType = event.metadata?.tool as ToolType | undefined;
+		const toolMetadata = event.metadata?.tool;
+		if (!toolMetadata) return null;
+
+		// Map backend tool names to frontend tool types
+		const toolNameMap: Record<string, ToolType> = {
+			read_file_tool: "read",
+			read: "read",
+			write_file_tool: "write",
+			write: "write",
+			edit_file_tool: "edit",
+			edit: "edit",
+			list_directory_tool: "list",
+			list: "list",
+			glob_tool: "glob",
+			glob: "glob",
+			grep_tool: "grep",
+			grep: "grep",
+			bash_tool: "bash",
+			bash: "bash",
+			delete_file_tool: "delete",
+			delete: "delete",
+			move_file_tool: "move",
+			move: "move",
+			copy_file_tool: "copy",
+			copy: "copy",
+		};
+
+		const toolType = toolNameMap[toolMetadata];
 		if (!toolType) return null;
 
 		// Extract parameters from metadata or message

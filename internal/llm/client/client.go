@@ -1058,10 +1058,11 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			return nil
 		})
 
+		displayPath := o.cleanDisplayPath(root, rel)
 		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("tool=list_directory_tool path=%s", filepath.ToSlash(rel))))
+			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventError, "List directory", "list", filepath.ToSlash(displayPath)))
 		} else {
-			events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("tool=list_directory_tool path=%s", filepath.ToSlash(rel))))
+			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "List directory", "list", filepath.ToSlash(displayPath)))
 		}
 
 		return output, err
@@ -1115,7 +1116,8 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			o.recordOpenedFile(abs)
 		}
 
-		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("tool=read_file_tool path=%s", filepath.ToSlash(rel))))
+		displayPath := o.cleanDisplayPath(root, rel)
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Read file", "read", filepath.ToSlash(displayPath)))
 		return out, nil
 	}
 	readTool, err := einoUtils.InferTool("read_file_tool", readDesc, readWithPolicy)
@@ -1186,7 +1188,8 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			title = filepath.ToSlash(out.Title)
 		}
 
-		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("tool=write_file_tool path=%s", title)))
+		displayPath := o.cleanDisplayPathFromAbs(title)
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Write file", "write", filepath.ToSlash(displayPath)))
 		return out, nil
 	}
 	writeTool, err := einoUtils.InferTool("write_file_tool", writeDesc, writeWithPolicy)
@@ -1257,7 +1260,8 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			title = filepath.ToSlash(out.Title)
 		}
 
-		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("tool=edit_file_tool path=%s", title)))
+		displayPath := o.cleanDisplayPathFromAbs(title)
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Edit file", "edit", filepath.ToSlash(displayPath)))
 		return out, nil
 	}
 	editTool, err := einoUtils.InferTool("edit_tool", editDesc, editWithPolicy)
@@ -1406,7 +1410,8 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			title = filepath.ToSlash(out.Title)
 		}
 
-		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("tool=delete_file_tool path=%s", title)))
+		displayPath := o.cleanDisplayPathFromAbs(title)
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Delete file", "delete", filepath.ToSlash(displayPath)))
 		return out, nil
 	}
 	deleteTool, err := einoUtils.InferTool("delete_file_tool", deleteDesc, deleteWithPolicy)
@@ -1516,6 +1521,63 @@ func relOrDot(rel string) string {
 		return "."
 	}
 	return rel
+}
+
+// cleanDisplayPath returns a user-friendly path for display in events.
+// Always prefixes with "docs:" or "code:" to make it unambiguous which repository.
+func (o *LLMClient) cleanDisplayPath(root, rel string) string {
+	// If it's a code repository path, prefix with "code:"
+	if root == o.codeRoot && o.codeRoot != "" {
+		if rel == "." || rel == "" {
+			return "code:/"
+		}
+		return filepath.Join("code:", rel)
+	}
+
+	// For documentation files, prefix with "docs:"
+	if root == o.docRoot && o.docRoot != "" {
+		if rel == "." || rel == "" {
+			return "docs:/"
+		}
+		return filepath.Join("docs:", rel)
+	}
+
+	// Fallback - show relative path without prefix
+	if rel == "." || rel == "" {
+		return "/"
+	}
+	return rel
+}
+
+// cleanDisplayPathFromAbs converts an absolute path to a clean display path
+// by stripping the baseRoot (temp workspace) prefix and adding "docs:" or "code:" prefix.
+func (o *LLMClient) cleanDisplayPathFromAbs(absPath string) string {
+	if absPath == "" {
+		return ""
+	}
+
+	// Try to get relative path from docRoot
+	if o.docRoot != "" {
+		if rel, err := filepath.Rel(o.docRoot, absPath); err == nil && !strings.HasPrefix(rel, "..") {
+			if rel == "." || rel == "" {
+				return "docs:/"
+			}
+			return filepath.Join("docs:", rel)
+		}
+	}
+
+	// Try to get relative path from codeRoot
+	if o.codeRoot != "" {
+		if rel, err := filepath.Rel(o.codeRoot, absPath); err == nil && !strings.HasPrefix(rel, "..") {
+			if rel == "." || rel == "" {
+				return "code:/"
+			}
+			return filepath.Join("code:", rel)
+		}
+	}
+
+	// Fallback to showing filename only with "unknown:" prefix
+	return "unknown:" + filepath.Base(absPath)
 }
 
 func snapshotInfo(snapshot *tools.GitSnapshot) string {
