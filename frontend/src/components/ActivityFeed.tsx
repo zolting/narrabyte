@@ -10,7 +10,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { cn } from "@/lib/utils";
-import { getToolIcon, type ToolType } from "@/lib/toolIcons";
+import {
+	getPathPrefixIcon,
+	stripPathPrefix,
+	type ToolType,
+} from "@/lib/toolIcons";
 import type { DocGenerationStatus } from "@/stores/docGeneration";
 import type { TodoItem, ToolEvent } from "@/types/events";
 
@@ -209,9 +213,14 @@ export function ActivityFeed({
 		const path = event.metadata?.path || "";
 		const pattern = event.metadata?.pattern || "";
 
+		// Check for path prefix (docs: or code:) and use appropriate icon
+		const prefixIcon = getPathPrefixIcon(path);
+		const cleanPath = stripPathPrefix(path);
+
 		return {
 			toolType,
-			params: { path, pattern },
+			params: { path: cleanPath, pattern },
+			prefixIcon,
 		};
 	};
 
@@ -446,8 +455,14 @@ export function ActivityFeed({
 
 								// Check if this is a tool event
 								const toolData = parseToolEvent(event);
-								if (toolData) {
-									const ToolIcon = getToolIcon(toolData.toolType);
+								if (toolData && toolData.prefixIcon) {
+									// Use repository-based icon (BookOpen for docs, Code for codebase)
+									const DisplayIcon = toolData.prefixIcon;
+									// Color based on prefix: amber for docs, blue for code
+									const iconColor = event.metadata?.path?.startsWith("docs:")
+										? "text-amber-600"
+										: "text-blue-600";
+
 									return (
 										<li
 											className={cn(
@@ -460,7 +475,7 @@ export function ActivityFeed({
 											key={event.id}
 										>
 											<div className="mt-0.5 shrink-0">
-												<ToolIcon className="h-4 w-4 text-blue-600" />
+												<DisplayIcon className={cn("h-4 w-4", iconColor)} />
 											</div>
 											<span className="min-w-0 flex-1 break-words text-foreground/90">
 												{t(`tools.${toolData.toolType}`, toolData.params)}
