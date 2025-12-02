@@ -361,7 +361,7 @@ func (o *LLMClient) loadPrompt(name string) (string, error) {
 	embeddedPath := fmt.Sprintf("prompts/%s", strings.ReplaceAll(name, "\\", "/"))
 	if data, err := embeddedPrompts.ReadFile(embeddedPath); err == nil {
 		return string(data), nil
-	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return "", fmt.Errorf("failed to read embedded prompt %q: %w", name, err)
 	}
 	projectRoot, err := utils.FindProjectRoot()
@@ -1295,6 +1295,7 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			return nil, err
 		}
 		// Emit the todo update as a special event with metadata
+		evt := events.NewToolEvent(events.EventSuccess, fmt.Sprintf("TodoWrite: %s", out.Title), "todo_write", "")
 		if out.Metadata != nil {
 			if todos, ok := out.Metadata["todos"].([]tools.Todo); ok {
 				events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("TodoWrite: %s", out.Title)))
@@ -1309,10 +1310,15 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 				}
 				// Emit a special todo update event that frontend can listen to
 				events.EmitTodoUpdate(ctx, todoItems)
+
+				// Add serialized todos to event metadata for history display
+				if todosJSON, err := json.Marshal(todos); err == nil {
+					evt.Metadata["todos"] = string(todosJSON)
+				}
 			}
 		}
 
-		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("TodoWrite: %s", out.Title)))
+		events.Emit(ctx, events.LLMEventTool, evt)
 		return out, nil
 	}
 	todoWriteTool, err := einoUtils.InferTool("todo_write_tool", todoWriteDesc, todoWriteWithPolicy)
@@ -1337,7 +1343,8 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			return nil, err
 		}
 
-		events.Emit(ctx, events.LLMEventTool, events.NewSuccess(fmt.Sprintf("TodoRead: %s", out.Title)))
+		evt := events.NewToolEvent(events.EventSuccess, fmt.Sprintf("TodoRead: %s", out.Title), "todo_read", "")
+		events.Emit(ctx, events.LLMEventTool, evt)
 		return out, nil
 	}
 	todoReadTool, err := einoUtils.InferTool("todo_read_tool", todoReadDesc, todoReadWithPolicy)

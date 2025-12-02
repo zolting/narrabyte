@@ -11,6 +11,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import {
 	getPathPrefixIcon,
+	getToolIcon,
 	stripPathPrefix,
 	type ToolType,
 } from "@/lib/toolIcons";
@@ -39,7 +40,7 @@ export function ActivityFeed({
 	const [visibleEvents, setVisibleEvents] = useState<string[]>([]);
 	const [showAllTodos, setShowAllTodos] = useState(false);
 	const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(
-		new Set()
+		new Set(),
 	);
 
 	const displayEvents = useMemo(() => {
@@ -73,6 +74,10 @@ export function ActivityFeed({
 				}
 				continue;
 			}
+			// Filter out todo_read events
+			if (event.metadata?.tool === "todo_read") {
+				continue;
+			}
 			result.push(event);
 		}
 
@@ -99,7 +104,7 @@ export function ActivityFeed({
 					}
 					return [...prev, event.id];
 				});
-			}, index * 100)
+			}, index * 100),
 		);
 
 		return () => {
@@ -141,19 +146,28 @@ export function ActivityFeed({
 	// Calculate todo counts
 	const pendingCount = todos.filter((todo) => todo.status === "pending").length;
 	const completedCount = todos.filter(
-		(todo) => todo.status === "completed"
+		(todo) => todo.status === "completed",
 	).length;
 
 	// Check if all todos are completed
 	const allCompleted = todos.length > 0 && completedCount === todos.length;
 
 	// Get icon for todo status
-	const getStatusIcon = (todoStatus: TodoItem["status"]) => {
+	const getStatusIcon = (
+		todoStatus: TodoItem["status"],
+		animate: boolean = true,
+	) => {
 		switch (todoStatus) {
 			case "completed":
 				return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
 			case "in_progress":
-				return <Loader2 className="h-4 w-4 animate-spin text-blue-600" />;
+				return (
+					<Loader2
+						className={cn("h-4 w-4 text-blue-600", {
+							"animate-spin": animate,
+						})}
+					/>
+				);
 			case "cancelled":
 				return <XCircle className="h-4 w-4 text-muted-foreground" />;
 			default:
@@ -204,6 +218,10 @@ export function ActivityFeed({
 			move: "move",
 			copy_file_tool: "copy",
 			copy: "copy",
+			todo_read_tool: "todo_read",
+			todo_read: "todo_read",
+			todo_write_tool: "todo_write",
+			todo_write: "todo_write",
 		};
 
 		const toolType = toolNameMap[toolMetadata];
@@ -215,12 +233,14 @@ export function ActivityFeed({
 
 		// Check for path prefix (docs: or code:) and use appropriate icon
 		const prefixIcon = getPathPrefixIcon(path);
+		const toolIcon = getToolIcon(toolType);
 		const cleanPath = stripPathPrefix(path);
 
 		return {
 			toolType,
 			params: { path: cleanPath, pattern },
 			prefixIcon,
+			toolIcon,
 		};
 	};
 
@@ -229,7 +249,7 @@ export function ActivityFeed({
 		const timeouts: number[] = [];
 		for (const reasoningId of expandedReasoning) {
 			const element = document.querySelector(
-				`[data-reasoning-id="${reasoningId}"]`
+				`[data-reasoning-id="${reasoningId}"]`,
 			);
 			if (element) {
 				// Scroll to bottom after content is rendered
@@ -325,7 +345,7 @@ export function ActivityFeed({
 															"bg-muted/50": todo.status === "pending",
 															"bg-muted/30 opacity-60":
 																todo.status === "cancelled",
-														}
+														},
 													)}
 													key={`${todo.content}-${todo.status}-${index}`}
 												>
@@ -340,7 +360,7 @@ export function ActivityFeed({
 																"text-muted-foreground line-through":
 																	todo.status === "cancelled",
 																"font-medium": todo.status === "in_progress",
-															}
+															},
 														)}
 													>
 														{displayText}
@@ -366,12 +386,12 @@ export function ActivityFeed({
 									if (isRunning) {
 										return t(
 											"common.generatingDocs",
-											"Generating documentation…"
+											"Generating documentation…",
 										);
 									}
 									return t(
 										"common.committingDocs",
-										"Committing documentation…"
+										"Committing documentation…",
 									);
 								}
 								return t("activity.toolActivity");
@@ -394,11 +414,12 @@ export function ActivityFeed({
 						<div className="text-muted-foreground">{t("common.noEvents")}</div>
 					) : (
 						<ul className="space-y-2">
-							{displayEvents.map((event) => {
-								const isVisible = visibleEvents.includes(event.id);
+							{displayEvents.map((event, index) => {
 								const isReasoning = event.metadata?.isReasoning === "true";
+								const isLastEvent = index === displayEvents.length - 1;
 
 								if (isReasoning) {
+									const isVisible = visibleEvents.includes(event.id);
 									const isExpanded = expandedReasoning.has(event.id);
 									return (
 										<li
@@ -415,6 +436,9 @@ export function ActivityFeed({
 													type="button"
 												>
 													<div className="flex items-center gap-2">
+														{isLastEvent && inProgress && (
+															<Loader2 className="h-3 w-3 animate-spin text-amber-600" />
+														)}
 														<span className="font-medium text-amber-700 text-sm">
 															{t("activity.thoughtProcess", "Thought process")}
 														</span>
@@ -442,7 +466,7 @@ export function ActivityFeed({
 															<p className="font-mono text-muted-foreground text-xs italic">
 																{t(
 																	"activity.reasoningPlaceholder",
-																	"Waiting for reasoning…"
+																	"Waiting for reasoning…",
 																)}
 															</p>
 														)}
@@ -455,13 +479,25 @@ export function ActivityFeed({
 
 								// Check if this is a tool event
 								const toolData = parseToolEvent(event);
-								if (toolData && toolData.prefixIcon) {
+								if (
+									toolData &&
+									(toolData.prefixIcon || toolData.toolType === "todo_write")
+								) {
 									// Use repository-based icon (BookOpen for docs, Code for codebase)
-									const DisplayIcon = toolData.prefixIcon;
+									const DisplayIcon = toolData.prefixIcon || toolData.toolIcon;
 									// Color based on prefix: amber for docs, blue for code
-									const iconColor = event.metadata?.path?.startsWith("docs:")
-										? "text-amber-600"
-										: "text-blue-600";
+									const iconColor =
+										event.type === "error"
+											? "text-red-600"
+											: event.metadata?.path?.startsWith("docs:")
+												? "text-amber-600"
+												: event.metadata?.path?.startsWith("code:")
+													? "text-blue-600"
+													: toolData.toolType === "todo_write"
+														? "text-emerald-600"
+														: "text-muted-foreground";
+
+									const isVisible = visibleEvents.includes(event.id);
 
 									return (
 										<li
@@ -470,28 +506,114 @@ export function ActivityFeed({
 												{
 													"translate-y-0 opacity-100": isVisible,
 													"translate-y-2 opacity-0": !isVisible,
-												}
+												},
 											)}
 											key={event.id}
 										>
 											<div className="mt-0.5 shrink-0">
 												<DisplayIcon className={cn("h-4 w-4", iconColor)} />
 											</div>
-											<span className="min-w-0 flex-1 break-words text-foreground/90">
-												<Trans
-													components={[
-														<code
-															className="rounded bg-muted px-1 py-0.5 text-xs"
-															key="path-code"
-														/>,
-													]}
-													i18nKey={`tools.${toolData.toolType}`}
-													values={{
-														path: toolData.params.path,
-														pattern: toolData.params.pattern,
-													}}
-												/>
-											</span>
+											<div className="min-w-0 flex-1 flex-col gap-2">
+												{toolData.toolType === "todo_write" &&
+												event.metadata?.todos ? (
+													<div className="flex items-center gap-2">
+														{(() => {
+															try {
+																const snapshotTodos = JSON.parse(
+																	event.metadata.todos,
+																) as TodoItem[];
+																const activeItem = snapshotTodos.find(
+																	(t) => t.status === "in_progress",
+																);
+																const allDone =
+																	snapshotTodos.length > 0 &&
+																	snapshotTodos.every(
+																		(t) => t.status === "completed",
+																	);
+
+																if (activeItem) {
+																	// Use current status from live todos if available to show progress/completion
+																	const currentItem = todos.find(
+																		(t) => t.content === activeItem.content,
+																	);
+																	const displayStatus = currentItem
+																		? currentItem.status
+																		: activeItem.status;
+
+																	return (
+																		<>
+																			<div className="shrink-0">
+																				{getStatusIcon(displayStatus, true)}
+																			</div>
+																			<span
+																				className={cn(
+																					"break-words font-medium text-sm",
+																					{
+																						"text-foreground":
+																							displayStatus !== "cancelled",
+																						"text-muted-foreground line-through":
+																							displayStatus === "cancelled",
+																					},
+																				)}
+																			>
+																				{activeItem.activeForm}
+																			</span>
+																		</>
+																	);
+																}
+																if (allDone) {
+																	return (
+																		<>
+																			<div className="shrink-0">
+																				{getStatusIcon("completed", false)}
+																			</div>
+																			<span className="break-words font-medium text-foreground text-sm">
+																				{t("todos.allCompleted")}
+																			</span>
+																		</>
+																	);
+																}
+																// Fallback: show count of pending
+																const pending = snapshotTodos.filter(
+																	(t) => t.status === "pending",
+																).length;
+																return (
+																	<>
+																		<div className="shrink-0">
+																			{getStatusIcon("pending", false)}
+																		</div>
+																		<span className="break-words text-foreground/90 text-sm">
+																			{t("todos.pending", { count: pending })}
+																		</span>
+																	</>
+																);
+															} catch (_e) {
+																return (
+																	<span className="text-muted-foreground">
+																		Invalid todo data
+																	</span>
+																);
+															}
+														})()}
+													</div>
+												) : (
+													<span className="break-words text-foreground/90">
+														<Trans
+															components={[
+																<code
+																	className="rounded bg-muted px-1 py-0.5 text-xs"
+																	key="path-code"
+																/>,
+															]}
+															i18nKey={`tools.${toolData.toolType}`}
+															values={{
+																path: toolData.params.path,
+																pattern: toolData.params.pattern,
+															}}
+														/>
+													</span>
+												)}
+											</div>
 											<span className="ml-auto shrink-0 text-muted-foreground text-xs">
 												{event.timestamp.toLocaleTimeString()}
 											</span>
@@ -500,6 +622,7 @@ export function ActivityFeed({
 								}
 
 								// Regular event display
+								const isVisible = visibleEvents.includes(event.id);
 								return (
 									<li
 										className={cn(
@@ -507,7 +630,7 @@ export function ActivityFeed({
 											{
 												"translate-y-0 opacity-100": isVisible,
 												"translate-y-2 opacity-0": !isVisible,
-											}
+											},
 										)}
 										key={event.id}
 									>
@@ -519,7 +642,7 @@ export function ActivityFeed({
 													warn: "bg-yellow-500/15 text-yellow-700",
 													info: "bg-blue-500/15 text-blue-700",
 													success: "bg-emerald-500/15 text-emerald-700",
-												}[event.type] || "bg-emerald-500/15 text-emerald-700"
+												}[event.type] || "bg-emerald-500/15 text-emerald-700",
 											)}
 										>
 											{event.type}

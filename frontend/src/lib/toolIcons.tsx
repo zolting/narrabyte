@@ -1,11 +1,13 @@
 import {
 	BookOpen,
+	CheckSquare,
 	Code,
 	Copy,
 	FileEdit,
 	FilePlus,
 	FileText,
 	FolderOpen,
+	ListTodo,
 	type LucideIcon,
 	Move,
 	Search,
@@ -26,6 +28,8 @@ export type ToolType =
 	| "delete"
 	| "move"
 	| "copy"
+	| "todo_read"
+	| "todo_write"
 	| "unknown";
 
 export const toolIconMap: Record<ToolType, LucideIcon> = {
@@ -39,6 +43,8 @@ export const toolIconMap: Record<ToolType, LucideIcon> = {
 	delete: Trash2,
 	move: Move,
 	copy: Copy,
+	todo_read: ListTodo,
+	todo_write: CheckSquare,
 	unknown: Wrench,
 };
 
