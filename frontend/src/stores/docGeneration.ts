@@ -582,6 +582,23 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		});
 	};
 
+	const findTabIdForSession = (
+		projectId: number,
+		sessionKey: SessionKey
+	): TabId | null => {
+		const projectKey = toKey(projectId);
+		const projectTabs = get().tabSessions[projectKey];
+		if (!projectTabs) {
+			return null;
+		}
+		for (const [tabId, mappedSession] of Object.entries(projectTabs)) {
+			if (mappedSession === sessionKey) {
+				return tabId;
+			}
+		}
+		return null;
+	};
+
 	const subscribeToGenerationEvents = (
 		sessionKey: SessionKey,
 		baseSessionKey: SessionKey
@@ -1540,6 +1557,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				(tabId
 					? createSessionKey(projectId, sourceBranch, tabId)
 					: createSessionKey(projectId, sourceBranch));
+			const resolvedTabId =
+				tabId ?? findTabIdForSession(projectId, sessionKey) ?? undefined;
 			const state = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
 			const existing = state.conflict?.existingDocsBranch?.trim();
 			if (!existing) {
@@ -1579,7 +1598,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						targetBranch: targetBranch ?? "",
 						modelKey,
 						userInstructions,
-						tabId,
+						tabId: resolvedTabId,
 					});
 				} else {
 					await get().startFromBranch?.({
@@ -1589,7 +1608,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						targetBranch: "",
 						modelKey,
 						userInstructions,
-						tabId,
+						tabId: resolvedTabId,
 					} as StartArgs & { tabId?: TabId });
 				}
 			} catch (error) {
