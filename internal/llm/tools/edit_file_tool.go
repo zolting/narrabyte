@@ -190,7 +190,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Edit: write error: %v", err)))
 			return nil, err
 		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: done for '%s'", title)))
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("Edit: done for '%s'", title), "edit", title))
 		return &EditOutput{
 			Title:  title,
 			Output: "Edit success: file overwritten",
@@ -257,7 +257,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 			return nil, err
 		}
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: replaced %d occurrence(s)", map[bool]int{true: n, false: 1}[in.ReplaceAll])))
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: done for '%s'", title)))
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("Edit: done for '%s'", title), "edit", title))
 		return &EditOutput{
 			Title:  title,
 			Output: "Edit success",
@@ -299,7 +299,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	}
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: replaced %d occurrence(s)", replacedCount)))
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: done for '%s'", title)))
+	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("Edit: done for '%s'", title), "edit", title))
 
 	return &EditOutput{
 		Title:  title,

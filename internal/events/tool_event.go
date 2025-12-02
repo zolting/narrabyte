@@ -85,3 +85,26 @@ func NewError(message string) ToolEvent {
 func NewSuccess(message string) ToolEvent {
 	return CreateToolEvent(EventSuccess, message)
 }
+
+// WithMetadata adds metadata to a ToolEvent.
+func (te ToolEvent) WithMetadata(metadata map[string]string) ToolEvent {
+	if te.Metadata == nil {
+		te.Metadata = make(map[string]string)
+	}
+	for k, v := range metadata {
+		te.Metadata[k] = v
+	}
+	return te
+}
+
+// NewToolEvent creates a ToolEvent with tool type and path metadata for common tool operations.
+func NewToolEvent(eventType EventType, message, toolType, path string) ToolEvent {
+	event := CreateToolEvent(eventType, message)
+	event.Metadata = map[string]string{
+		"tool": toolType,
+	}
+	if path != "" {
+		event.Metadata["path"] = path
+	}
+	return event
+}

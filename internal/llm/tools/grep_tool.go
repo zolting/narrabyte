@@ -487,7 +487,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 
 	if len(matches) == 0 {
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo("Grep: no matches"))
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Grep: done for '%s'", pattern)))
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("Grep: done for '%s'", pattern), "grep", ""))
 		return &GrepOutput{
 			Title:  pattern,
 			Output: "No files found",
@@ -530,7 +530,7 @@ func Grep(ctx context.Context, in *GrepInput) (*GrepOutput, error) {
 	}
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Grep: matched %d item(s)%s", len(matches), map[bool]string{true: " (truncated)", false: ""}[truncated])))
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Grep: done for '%s'", pattern)))
+	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("Grep: done for '%s'", pattern), "grep", ""))
 
 	return &GrepOutput{
 		Title:  pattern,

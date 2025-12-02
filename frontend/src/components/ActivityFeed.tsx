@@ -7,8 +7,14 @@ import {
 	XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import {
+	getPathPrefixIcon,
+	getToolIcon,
+	stripPathPrefix,
+	type ToolType,
+} from "@/lib/toolIcons";
 import { cn } from "@/lib/utils";
 import type { DocGenerationStatus } from "@/stores/docGeneration";
 import type { TodoItem, ToolEvent } from "@/types/events";
@@ -66,6 +72,10 @@ export function ActivityFeed({
 						existingBlock.timestamp = event.timestamp;
 					}
 				}
+				continue;
+			}
+			// Filter out todo_read events
+			if (event.metadata?.tool === "todo_read") {
 				continue;
 			}
 			result.push(event);
@@ -143,12 +153,18 @@ export function ActivityFeed({
 	const allCompleted = todos.length > 0 && completedCount === todos.length;
 
 	// Get icon for todo status
-	const getStatusIcon = (todoStatus: TodoItem["status"]) => {
+	const getStatusIcon = (todoStatus: TodoItem["status"], animate = true) => {
 		switch (todoStatus) {
 			case "completed":
 				return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
 			case "in_progress":
-				return <Loader2 className="h-4 w-4 animate-spin text-blue-600" />;
+				return (
+					<Loader2
+						className={cn("h-4 w-4 text-blue-600", {
+							"animate-spin": animate,
+						})}
+					/>
+				);
 			case "cancelled":
 				return <XCircle className="h-4 w-4 text-muted-foreground" />;
 			default:
@@ -170,6 +186,59 @@ export function ActivityFeed({
 			}
 			return next;
 		});
+	};
+
+	// Helper to parse tool events and extract parameters
+	const parseToolEvent = (event: ToolEvent) => {
+		const toolMetadata = event.metadata?.tool;
+		if (!toolMetadata) return null;
+
+		// Map backend tool names to frontend tool types
+		const toolNameMap: Record<string, ToolType> = {
+			read_file_tool: "read",
+			read: "read",
+			write_file_tool: "write",
+			write: "write",
+			edit_file_tool: "edit",
+			edit: "edit",
+			list_directory_tool: "list",
+			list: "list",
+			glob_tool: "glob",
+			glob: "glob",
+			grep_tool: "grep",
+			grep: "grep",
+			bash_tool: "bash",
+			bash: "bash",
+			delete_file_tool: "delete",
+			delete: "delete",
+			move_file_tool: "move",
+			move: "move",
+			copy_file_tool: "copy",
+			copy: "copy",
+			todo_read_tool: "todo_read",
+			todo_read: "todo_read",
+			todo_write_tool: "todo_write",
+			todo_write: "todo_write",
+		};
+
+		const toolType = toolNameMap[toolMetadata];
+		if (!toolType) return null;
+
+		// Extract parameters from metadata or message
+		const path = event.metadata?.path || "";
+		const pattern = event.metadata?.pattern || "";
+
+		// Check for path prefix (docs: or code:) and use appropriate icon
+		const prefixIcon = getPathPrefixIcon(path);
+		const toolIcon = getToolIcon(toolType);
+		const cleanPath = stripPathPrefix(path);
+
+		return {
+			toolType,
+			params: { path: cleanPath, pattern },
+			prefixIcon,
+			toolIcon,
+		};
 	};
 
 	// Auto-scroll reasoning blocks to bottom when expanded or content updates
@@ -199,35 +268,30 @@ export function ActivityFeed({
 		<div className="flex min-h-0 flex-1 flex-col gap-2">
 			{/* Active todo or completion status - visible when todos exist */}
 			{(activeTodo || allCompleted) && (
-				<div className="flex flex-col gap-2">
-					{activeTodo ? (
-						<div className="flex items-center gap-2.5 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2.5">
-							<div className="shrink-0">
-								<Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-							</div>
-							<span className="min-w-0 flex-1 break-words font-medium text-foreground text-sm">
-								{activeTodo.activeForm}
-							</span>
-						</div>
-					) : (
-						<div className="flex items-center gap-2.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
-							<div className="shrink-0">
-								<CheckCircle2 className="h-4 w-4 text-emerald-600" />
-							</div>
-							<span className="min-w-0 flex-1 break-words font-medium text-foreground text-sm">
-								{t("todos.allCompleted")}
-							</span>
-						</div>
-					)}
-
-					{/* Collapsible todo list */}
-					{todos.length > 1 && (
-						<div className="overflow-hidden rounded-md border border-border bg-muted/30">
-							<button
-								className="flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
-								onClick={() => setShowAllTodos(!showAllTodos)}
-								type="button"
-							>
+				<div
+					className={cn("overflow-hidden rounded-md border transition-colors", {
+						"border-blue-500/30 bg-blue-500/10": !showAllTodos && activeTodo,
+						"border-emerald-500/30 bg-emerald-500/10":
+							!(showAllTodos || activeTodo) && allCompleted,
+						"border-border bg-muted/30": showAllTodos,
+					})}
+				>
+					<button
+						className={cn(
+							"flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors",
+							{
+								"hover:bg-blue-500/20": !showAllTodos && activeTodo,
+								"hover:bg-emerald-500/20":
+									!(showAllTodos || activeTodo) && allCompleted,
+								"hover:bg-muted/50": showAllTodos,
+							}
+						)}
+						onClick={() => setShowAllTodos(!showAllTodos)}
+						type="button"
+					>
+						{showAllTodos ? (
+							/* Expanded State: Show Header */
+							<div className="flex min-w-0 flex-1 items-center justify-between">
 								<span className="font-medium text-foreground">
 									{t("activity.allTasks")}
 								</span>
@@ -246,66 +310,80 @@ export function ActivityFeed({
 											})}
 										</span>
 									)}
-									{showAllTodos ? (
-										<ChevronUp className="h-4 w-4 text-muted-foreground" />
+								</div>
+							</div>
+						) : (
+							/* Collapsed State: Show Active/Completed Summary */
+							<div className="flex min-w-0 flex-1 items-center gap-2.5">
+								<div className="shrink-0">
+									{activeTodo ? (
+										<Loader2 className="h-4 w-4 animate-spin text-blue-600" />
 									) : (
-										<ChevronDown className="h-4 w-4 text-muted-foreground" />
+										<CheckCircle2 className="h-4 w-4 text-emerald-600" />
 									)}
 								</div>
-							</button>
+								<span className="min-w-0 flex-1 break-words font-medium text-foreground text-sm">
+									{activeTodo ? activeTodo.activeForm : t("todos.allCompleted")}
+								</span>
+							</div>
+						)}
 
-							{showAllTodos && (
-								<div className="border-border border-t px-3 py-2">
-									<ul className="space-y-1.5">
-										{todos.map((todo, index) => {
-											const displayText =
-												todo.status === "in_progress"
-													? todo.activeForm
-													: todo.content;
-
-											return (
-												<li
-													className={cn(
-														"flex items-start gap-2.5 rounded-md px-2 py-1.5",
-														{
-															"bg-emerald-500/10": todo.status === "completed",
-															"bg-blue-500/10": todo.status === "in_progress",
-															"bg-muted/50": todo.status === "pending",
-															"bg-muted/30 opacity-60":
-																todo.status === "cancelled",
-														}
-													)}
-													key={`${todo.content}-${todo.status}-${index}`}
-												>
-													<div className="mt-0.5 shrink-0">
-														{getStatusIcon(todo.status)}
-													</div>
-													<span
-														className={cn(
-															"min-w-0 flex-1 break-words text-sm",
-															{
-																"text-foreground": todo.status !== "cancelled",
-																"text-muted-foreground line-through":
-																	todo.status === "cancelled",
-																"font-medium": todo.status === "in_progress",
-															}
-														)}
-													>
-														{displayText}
-													</span>
-												</li>
-											);
-										})}
-									</ul>
-								</div>
+						{/* Chevron */}
+						<div className="ml-2 shrink-0">
+							{showAllTodos ? (
+								<ChevronUp className="h-4 w-4 text-muted-foreground" />
+							) : (
+								<ChevronDown className="h-4 w-4 text-muted-foreground" />
 							)}
+						</div>
+					</button>
+
+					{showAllTodos && (
+						<div className="border-border border-t px-3 py-2">
+							<ul className="space-y-1.5">
+								{todos.map((todo, index) => {
+									const displayText =
+										todo.status === "in_progress"
+											? todo.activeForm
+											: todo.content;
+
+									return (
+										<li
+											className={cn(
+												"flex items-start gap-2.5 rounded-md px-2 py-1.5",
+												{
+													"bg-emerald-500/10": todo.status === "completed",
+													"bg-blue-500/10": todo.status === "in_progress",
+													"bg-muted/50": todo.status === "pending",
+													"bg-muted/30 opacity-60": todo.status === "cancelled",
+												}
+											)}
+											key={`${todo.content}-${todo.status}-${index}`}
+										>
+											<div className="mt-0.5 shrink-0">
+												{getStatusIcon(todo.status)}
+											</div>
+											<span
+												className={cn("min-w-0 flex-1 break-words text-sm", {
+													"text-foreground": todo.status !== "cancelled",
+													"text-muted-foreground line-through":
+														todo.status === "cancelled",
+													"font-medium": todo.status === "in_progress",
+												})}
+											>
+												{displayText}
+											</span>
+										</li>
+									);
+								})}
+							</ul>
 						</div>
 					)}
 				</div>
 			)}
 
 			{/* Tool events feed */}
-			<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-muted/30">
+			<div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-muted/30">
 				<div className="border-border border-b bg-muted/50 px-3 py-2">
 					<div className="flex items-center justify-between">
 						<span className="font-medium text-foreground text-sm">
@@ -335,18 +413,19 @@ export function ActivityFeed({
 
 				<div
 					aria-live="polite"
-					className="h-full w-full overflow-auto overflow-x-hidden px-3 pt-3 pb-6 text-sm"
+					className="min-h-0 w-full flex-1 overflow-auto overflow-x-hidden px-3 pt-3 pb-6 text-sm"
 					ref={containerRef}
 				>
 					{displayEvents.length === 0 ? (
 						<div className="text-muted-foreground">{t("common.noEvents")}</div>
 					) : (
 						<ul className="space-y-2">
-							{displayEvents.map((event) => {
-								const isVisible = visibleEvents.includes(event.id);
+							{displayEvents.map((event, index) => {
 								const isReasoning = event.metadata?.isReasoning === "true";
+								const isLastEvent = index === displayEvents.length - 1;
 
 								if (isReasoning) {
+									const isVisible = visibleEvents.includes(event.id);
 									const isExpanded = expandedReasoning.has(event.id);
 									return (
 										<li
@@ -363,6 +442,9 @@ export function ActivityFeed({
 													type="button"
 												>
 													<div className="flex items-center gap-2">
+														{isLastEvent && inProgress && (
+															<Loader2 className="h-3 w-3 animate-spin text-amber-600" />
+														)}
 														<span className="font-medium text-amber-700 text-sm">
 															{t("activity.thoughtProcess", "Thought process")}
 														</span>
@@ -401,6 +483,152 @@ export function ActivityFeed({
 									);
 								}
 
+								// Check if this is a tool event
+								const toolData = parseToolEvent(event);
+								if (
+									toolData &&
+									(toolData.prefixIcon || toolData.toolType === "todo_write")
+								) {
+									// Use repository-based icon (BookOpen for docs, Code for codebase)
+									const DisplayIcon = toolData.prefixIcon || toolData.toolIcon;
+									// Color based on prefix: amber for docs, blue for code
+									const iconColor =
+										event.type === "error"
+											? "text-red-600"
+											: event.metadata?.path?.startsWith("docs:")
+												? "text-amber-600"
+												: event.metadata?.path?.startsWith("code:")
+													? "text-blue-600"
+													: toolData.toolType === "todo_write"
+														? "text-emerald-600"
+														: "text-muted-foreground";
+
+									const isVisible = visibleEvents.includes(event.id);
+
+									return (
+										<li
+											className={cn(
+												"flex items-start gap-2 transition-all duration-300",
+												{
+													"translate-y-0 opacity-100": isVisible,
+													"translate-y-2 opacity-0": !isVisible,
+												}
+											)}
+											key={event.id}
+										>
+											<div className="mt-0.5 shrink-0">
+												<DisplayIcon className={cn("h-4 w-4", iconColor)} />
+											</div>
+											<div className="min-w-0 flex-1 flex-col gap-2">
+												{toolData.toolType === "todo_write" &&
+												event.metadata?.todos ? (
+													<div className="flex items-center gap-2">
+														{(() => {
+															try {
+																const snapshotTodos = JSON.parse(
+																	event.metadata.todos
+																) as TodoItem[];
+																const activeItem = snapshotTodos.find(
+																	(t) => t.status === "in_progress"
+																);
+																const allDone =
+																	snapshotTodos.length > 0 &&
+																	snapshotTodos.every(
+																		(t) => t.status === "completed"
+																	);
+
+																if (activeItem) {
+																	// Use current status from live todos if available to show progress/completion
+																	const currentItem = todos.find(
+																		(t) => t.content === activeItem.content
+																	);
+																	const displayStatus = currentItem
+																		? currentItem.status
+																		: activeItem.status;
+
+																	return (
+																		<>
+																			<div className="shrink-0">
+																				{getStatusIcon(displayStatus, true)}
+																			</div>
+																			<span
+																				className={cn(
+																					"break-words font-medium text-sm",
+																					{
+																						"text-foreground":
+																							displayStatus !== "cancelled",
+																						"text-muted-foreground line-through":
+																							displayStatus === "cancelled",
+																					}
+																				)}
+																			>
+																				{activeItem.activeForm}
+																			</span>
+																		</>
+																	);
+																}
+																if (allDone) {
+																	return (
+																		<>
+																			<div className="shrink-0">
+																				{getStatusIcon("completed", false)}
+																			</div>
+																			<span className="break-words font-medium text-foreground text-sm">
+																				{t("todos.allCompleted")}
+																			</span>
+																		</>
+																	);
+																}
+																// Fallback: show count of pending
+																const pending = snapshotTodos.filter(
+																	(t) => t.status === "pending"
+																).length;
+																return (
+																	<>
+																		<div className="shrink-0">
+																			{getStatusIcon("pending", false)}
+																		</div>
+																		<span className="break-words text-foreground/90 text-sm">
+																			{t("todos.pending", { count: pending })}
+																		</span>
+																	</>
+																);
+															} catch (_e) {
+																return (
+																	<span className="text-muted-foreground">
+																		Invalid todo data
+																	</span>
+																);
+															}
+														})()}
+													</div>
+												) : (
+													<span className="break-words text-foreground/90">
+														<Trans
+															components={[
+																<code
+																	className="rounded bg-muted px-1 py-0.5 text-xs"
+																	key="path-code"
+																/>,
+															]}
+															i18nKey={`tools.${toolData.toolType}`}
+															values={{
+																path: toolData.params.path,
+																pattern: toolData.params.pattern,
+															}}
+														/>
+													</span>
+												)}
+											</div>
+											<span className="ml-auto shrink-0 text-muted-foreground text-xs">
+												{event.timestamp.toLocaleTimeString()}
+											</span>
+										</li>
+									);
+								}
+
+								// Regular event display
+								const isVisible = visibleEvents.includes(event.id);
 								return (
 									<li
 										className={cn(

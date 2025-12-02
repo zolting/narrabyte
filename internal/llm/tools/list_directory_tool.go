@@ -359,7 +359,7 @@ func ListDirectory(ctx context.Context, in *ListLSInput) (*ListDirectoryOutput, 
 	b.WriteByte('\n')
 	b.WriteString(renderDir(".", 0))
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("ListDirectory: done, %d files listed for '%s' [%s]", len(files), filepath.ToSlash(searchPath), snapshotInfo)))
+	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("ListDirectory: done, %d files listed for '%s' [%s]", len(files), filepath.ToSlash(searchPath), snapshotInfo), "list", filepath.ToSlash(searchPath)))
 	return &ListDirectoryOutput{
 		Title:  filepath.ToSlash(searchPath),
 		Output: b.String(),

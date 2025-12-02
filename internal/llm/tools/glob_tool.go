@@ -357,7 +357,7 @@ func Glob(ctx context.Context, in *GlobInput) (*GlobOutput, error) {
 	relTitle := filepath.ToSlash(searchPath)
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Glob: matched %d file(s)%s", len(files), map[bool]string{true: " (truncated)", false: ""}[truncated])))
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Glob: done for '%s'", filepath.ToSlash(searchPath))))
+	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("Glob: done for '%s'", filepath.ToSlash(searchPath)), "glob", filepath.ToSlash(searchPath)))
 
 	out := &GlobOutput{
 		Title:  relTitle,

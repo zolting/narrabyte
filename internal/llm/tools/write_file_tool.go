@@ -160,7 +160,7 @@ func WriteFile(ctx context.Context, in *WriteFileInput) (*WriteFileOutput, error
 		outputMsg = fmt.Sprintf("Created file: %s", filepath.ToSlash(absPath))
 	}
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(outputMsg))
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile: done for '%s'", filepath.ToSlash(absPath))))
+	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("WriteFile: done for '%s'", filepath.ToSlash(absPath)), "write", filepath.ToSlash(absPath)))
 
 	return &WriteFileOutput{
 		Title:  filepath.ToSlash(absPath),

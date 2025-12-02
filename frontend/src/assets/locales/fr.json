@@ -367,7 +367,7 @@
     "title": "Progression des tâches",
     "pending": "{{count}} en attente",
     "inProgress": "{{count}} en cours",
-    "completed": "{{count}} terminée(s)",
+    "completed": "{{count}} terminées",
     "allCompleted": "Toutes les tâches sont terminées"
   },
   "activity": {
@@ -378,5 +378,18 @@
     "reasoning": "Raisonnement",
     "reasoningPlaceholder": "En attente du raisonnement…",
     "thoughtProcess": "Processus de pensée"
+  },
+  "tools": {
+    "read": "Lu <0>{{path}}</0>",
+    "write": "Créé <0>{{path}}</0>",
+    "edit": "Modifié <0>{{path}}</0>",
+    "list": "Listé les fichiers dans <0>{{path}}</0>",
+    "glob": "Fichiers trouvés correspondant à <0>{{pattern}}</0>",
+    "grep": "Recherché <0>{{pattern}}</0>",
+    "bash": "Commande exécutée",
+    "delete": "Supprimé <0>{{path}}</0>",
+    "move": "Déplacé <0>{{path}}</0>",
+    "copy": "Copié <0>{{path}}</0>",
+    "unknown": "Action d'outil"
   }
 }

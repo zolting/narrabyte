@@ -380,6 +380,22 @@
     "toolActivity": "Tool Activity",
     "reasoning": "Reasoning",
     "reasoningPlaceholder": "Waiting for reasoning…",
-    "thoughtProcess": "Thought process"
+    "thoughtProcess": "Thought process",
+    "todoSnapshot": "Todo List Snapshot"
+  },
+  "tools": {
+    "read": "Read <0>{{path}}</0>",
+    "write": "Created <0>{{path}}</0>",
+    "edit": "Edited <0>{{path}}</0>",
+    "list": "Listed files in <0>{{path}}</0>",
+    "glob": "Found files matching <0>{{pattern}}</0>",
+    "grep": "Searched for <0>{{pattern}}</0>",
+    "bash": "Executed command",
+    "delete": "Deleted <0>{{path}}</0>",
+    "move": "Moved <0>{{path}}</0>",
+    "copy": "Copied <0>{{path}}</0>",
+    "todo_read": "Read todo list",
+    "todo_write": "Updated todo list",
+    "unknown": "Tool action"
   }
 }
