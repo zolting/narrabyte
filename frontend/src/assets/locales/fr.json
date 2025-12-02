@@ -367,7 +367,7 @@
     "title": "Progression des tâches",
     "pending": "{{count}} en attente",
     "inProgress": "{{count}} en cours",
-    "completed": "{{count}} terminée(s)",
+    "completed": "{{count}} terminées",
     "allCompleted": "Toutes les tâches sont terminées"
   },
   "activity": {
