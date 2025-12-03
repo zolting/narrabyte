@@ -404,5 +404,9 @@
     "todo_read": "Read todo list",
     "todo_write": "Updated todo list",
     "unknown": "Tool action"
+  },
+  "docRefinementChat": {
+    "emptyState": "Ask for refinements, e.g. \"Make the settings.mdx persistence section more concise and add a concrete code example.\"",
+    "placeholder": "Describe the change you want to make…"
   }
 }

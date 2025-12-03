@@ -46,7 +46,7 @@
     "reset": "Réinitialiser",
     "inProgress": "En cours",
     "submit": "Soumettre",
-    "noEvents": "Aucune activité d'outil pour le moment.",
+    "noEvents": "Aucune activité pour le moment.",
     "files": "Fichiers",
     "updated": "Mis à jour",
     "selectFile": "Sélectionnez un fichier pour afficher le diff.",
@@ -398,5 +398,9 @@
     "move": "Déplacé <0>{{path}}</0>",
     "copy": "Copié <0>{{path}}</0>",
     "unknown": "Action d'outil"
+  },
+  "docRefinementChat": {
+    "emptyState": "Demandez des améliorations, par ex. \"Rends la section persistance de settings.mdx plus concise et ajoute un exemple de code concret.\"",
+    "placeholder": "Décrivez le changement que vous souhaitez apporter…"
   }
 }
