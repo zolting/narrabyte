@@ -42,7 +42,7 @@
     "reset": "Réinitialiser",
     "inProgress": "En cours",
     "submit": "Soumettre",
-    "noEvents": "Aucune activité d'outil pour le moment.",
+    "noEvents": "Aucune activité pour le moment.",
     "files": "Fichiers",
     "updated": "Mis à jour",
     "selectFile": "Sélectionnez un fichier pour afficher le diff.",
