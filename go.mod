@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/99designs/keyring v1.2.2
 	github.com/bmatcuk/doublestar/v4 v4.9.1
-	github.com/cloudwego/eino v0.7.3
+	github.com/cloudwego/eino v0.7.4
 	github.com/cloudwego/eino-ext/components/model/claude v0.1.10
 	github.com/cloudwego/eino-ext/components/model/gemini v0.1.15
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.5
@@ -59,7 +59,7 @@ require (
 	github.com/bytedance/sonic/loader v0.4.0 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.4 // indirect
+	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.6 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

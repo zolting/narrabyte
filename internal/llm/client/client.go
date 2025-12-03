@@ -198,6 +198,7 @@ func NewOpenAIClient(ctx context.Context, key string, opts OpenAIModelOptions) (
 	chatModel, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		APIKey:          key,
 		Model:           modelName,
+		BaseURL:         "https://api.x.ai/v1/",
 		ReasoningEffort: effort,
 	})
 
@@ -485,7 +486,8 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		Description:   "Analyzes code diffs and proposes documentation updates",
 		Instruction:   systemInstr,
 		MaxIterations: 100,
-	})
+	},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -545,7 +547,7 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 		Content: promptBuilder.String(),
 	}
 
-	iter := runner.Query(ctx, promptBuilder.String())
+	iter := runner.Query(ctx, promptBuilder.String(), adk.WithChatModelOptions([]model.Option{claude.WithEnableAutoCache(true)}))
 
 	// Initialize conversation history with the user query
 	conversationHistory := []adk.Message{userQueryMessage}
