@@ -524,7 +524,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	if (!project) {
 		return (
 			<div className="p-2 text-muted-foreground text-sm">
-				Project not found: {projectId}
+				 {t('common.projectNotFound', { projectId })}
 			</div>
 		);
 	}

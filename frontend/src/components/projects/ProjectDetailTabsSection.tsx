@@ -15,6 +15,12 @@ import { GenerationTabs } from "@/components/GenerationTabs";
 import { SessionSelectorModal } from "@/components/SessionSelectorModal";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { DocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationStore } from "@/stores/docGeneration";
@@ -63,6 +69,7 @@ type TabContentRendererProps = {
 	onStartNew: (tabId: string) => void;
 };
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: none
 function TabContentRenderer({
 	tabId,
 	projectId,
@@ -136,25 +143,35 @@ function TabContentRenderer({
 		);
 	}
 
+	let title: string;
+	if (docManager.isRunning) {
+		title = t("common.generatingDocs");
+	} else if (docManager.docResult) {
+		title = t("common.docsGenerated");
+	} else {
+		title = t("common.generateDocs");
+	}
+
+	let description: string;
+	if (docManager.isRunning) {
+		description = t("common.generatingDocsDescription");
+	} else if (docManager.docResult) {
+		description = t("common.docsGeneratedDescription");
+	} else if (mode === "diff") {
+		description = t("common.generateDocsDescriptionDiff");
+	} else {
+		description = t("common.generateDocsDescriptionSingle");
+	}
+
 	return (
 		<>
 			<header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 bg-card pb-2">
 				<div className="space-y-2">
-					<h2 className="font-semibold text-foreground text-lg">
-						{docManager.isRunning
-							? t("common.generatingDocs")
-							: t("common.generateDocs")}
-					</h2>
-					<p className="text-muted-foreground text-sm">
-						{docManager.isRunning
-							? t("common.generatingDocsDescription")
-							: mode === "diff"
-								? t("common.generateDocsDescriptionDiff")
-								: t("common.generateDocsDescriptionSingle")}
-					</p>
+					<h2 className="font-semibold text-foreground text-lg">{title}</h2>
+					<p className="text-muted-foreground text-sm">{description}</p>
 				</div>
-				{!docManager.isRunning && (
-					<div className="flex flex-wrap items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2">
+					{!(docManager.isRunning || docManager.docResult) && (
 						<Button
 							onClick={onNavigateToGenerations}
 							size="sm"
@@ -163,25 +180,36 @@ function TabContentRenderer({
 						>
 							{t("sidebar.ongoingGenerations")}
 						</Button>
-						<Button
-							onClick={onNavigateToSettings}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							<Settings size={16} />
-							{t("common.settings")}
-						</Button>
-						<Button
-							onClick={onRefreshBranches}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							<RefreshCw className="h-4 w-4" />
-						</Button>
-					</div>
-				)}
+					)}
+					<Button
+						onClick={onNavigateToSettings}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						<Settings size={16} />
+						{t("common.settings")}
+					</Button>
+					{!(docManager.isRunning || docManager.docResult) && (
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										onClick={onRefreshBranches}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										<RefreshCw className="h-4 w-4" />
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>
+									<p>{t("common.refreshBranches")}</p>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+				</div>
 			</header>
 			<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
 				{renderGenerationBody(docManager)}
