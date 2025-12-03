@@ -136,19 +136,6 @@
 					"enabled": true
 				}
 			]
-		},
-		{
-			"id": "grok",
-			"displayName": "Grok",
-			"models": [
-				{
-					"key": "grok:grok-4-1-fast-reasoning:thinking",
-					"displayName": "Grok 4.1 Fast Thinking",
-					"apiName": "grok-4-1-fast-reasoning",
-					"thinking": true,
-					"enabled": true
-				}
-			]
 		}
 	]
 }
