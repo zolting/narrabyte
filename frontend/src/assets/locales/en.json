@@ -131,7 +131,9 @@
     "chooseNewOrExisitingDoc": "Choose if you want to create a new documentation repository or link an existing one.",
     "llmInstructions": "LLM instructions specific to this project (optional)",
     "documentationBaseBranchDescription": "Select the branch in your documentation repository that new documentation branches will be based on.",
-    "documentationBaseBranchRequired": "Select the documentation base branch before continuing."
+    "documentationBaseBranchRequired": "Select the documentation base branch before continuing.",
+    "codeAndDocsMustDiffer": "Documentation and codebase paths must be different.",
+    "codeWithinDocs": "Codebase path cannot be inside the documentation directory."
   },
   "home": {
     "greeting": "Please enter your name below 👇",

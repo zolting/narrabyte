@@ -864,6 +864,59 @@ func (o *LLMClient) resolveAbsWithinBase(p string) (abs string, err error) {
 	return absCandidate, nil
 }
 
+func normalizeAbsolutePath(p string) string {
+	clean := strings.TrimSpace(p)
+	if clean == "" {
+		return ""
+	}
+	if abs, err := filepath.Abs(clean); err == nil {
+		clean = abs
+	}
+	if eval, err := filepath.EvalSymlinks(clean); err == nil {
+		return eval
+	}
+	return clean
+}
+
+func pathWithinBase(base, candidate string) bool {
+	absBase := normalizeAbsolutePath(base)
+	absCandidate := normalizeAbsolutePath(candidate)
+	if absBase == "" || absCandidate == "" {
+		return false
+	}
+	rel, err := filepath.Rel(absBase, absCandidate)
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+	return !strings.HasPrefix(rel, "..")
+}
+
+func (o *LLMClient) ensureDocsWriteScope(absPath string) error {
+	target := normalizeAbsolutePath(absPath)
+	if target == "" {
+		return fmt.Errorf("file_path is required")
+	}
+
+	docRoot := normalizeAbsolutePath(o.docRoot)
+	if docRoot == "" {
+		return fmt.Errorf("documentation root not set")
+	}
+
+	if pathWithinBase(docRoot, target) {
+		return nil
+	}
+
+	codeRoot := normalizeAbsolutePath(o.codeRoot)
+	if codeRoot != "" && pathWithinBase(codeRoot, target) {
+		return fmt.Errorf("editing or deleting codebase files is not allowed")
+	}
+
+	return fmt.Errorf("path escapes the documentation workspace")
+}
+
 // hasRead checks if the absolute path has been read in this session.
 func (o *LLMClient) hasRead(absPath string) bool {
 	norm := filepath.ToSlash(strings.TrimSpace(absPath))
@@ -1239,6 +1292,14 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): resolve error: %v", rerr)))
 			return nil, rerr
 		}
+		if scopeErr := o.ensureDocsWriteScope(absCandidate); scopeErr != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("EditFile(policy): %v", scopeErr)))
+			return &tools.EditOutput{
+				Title:    filepath.ToSlash(absCandidate),
+				Output:   fmt.Sprintf("Policy error: %s", scopeErr.Error()),
+				Metadata: map[string]string{"error": "policy_violation"},
+			}, nil
+		}
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
 			if !o.hasRead(absCandidate) {
 				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): policy violation - must read before edit"))
@@ -1250,7 +1311,12 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			}
 		}
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("EditFile(policy): invoking underlying Edit for '%s'", filepath.ToSlash(absCandidate))))
-		out, err := tools.Edit(ctx, in)
+		var out *tools.EditOutput
+		err := o.withBaseRoot(o.docRoot, nil, func() error {
+			res, innerErr := tools.Edit(ctx, in)
+			out = res
+			return innerErr
+		})
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): underlying error: %v", err)))
 			return out, err
@@ -1395,6 +1461,15 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			return nil, rerr
 		}
 
+		if scopeErr := o.ensureDocsWriteScope(absCandidate); scopeErr != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("DeleteFile(policy): %v", scopeErr)))
+			return &tools.DeleteFileOutput{
+				Title:    filepath.ToSlash(absCandidate),
+				Output:   fmt.Sprintf("Policy error: %s", scopeErr.Error()),
+				Metadata: map[string]string{"error": "policy_violation"},
+			}, nil
+		}
+
 		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
 			if !o.hasRead(absCandidate) {
 				events.Emit(ctx, events.LLMEventTool, events.NewWarn("DeleteFile(policy): policy violation - must read before delete"))
@@ -1407,7 +1482,12 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		}
 
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("DeleteFile(policy): invoking underlying DeleteFile for '%s'", filepath.ToSlash(absCandidate))))
-		out, err := tools.DeleteFile(ctx, in)
+		var out *tools.DeleteFileOutput
+		err := o.withBaseRoot(o.docRoot, nil, func() error {
+			res, innerErr := tools.DeleteFile(ctx, in)
+			out = res
+			return innerErr
+		})
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("DeleteFile(policy): underlying error: %v", err)))
 			return out, err
