@@ -133,6 +133,43 @@ func (s *ClientService) ensureDocsBranchAvailable(docRepo *git.Repository, docsB
 	return nil
 }
 
+// CheckDocsBranchAvailability checks if a docs branch can be created without conflict.
+// This should be called before starting a generation to allow the UI to show
+// conflict dialogs before transitioning to "running" state.
+// Returns nil if the branch is available, or an error with the conflict details.
+func (s *ClientService) CheckDocsBranchAvailability(projectID uint, sourceBranch string, docsBranchOverride string) error {
+	sourceBranch = strings.TrimSpace(sourceBranch)
+	if projectID == 0 || sourceBranch == "" {
+		return fmt.Errorf("project id and source branch are required")
+	}
+
+	project, err := s.repoLinks.Get(projectID)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+	if project == nil {
+		return fmt.Errorf("project not found")
+	}
+
+	docRepoPath := strings.TrimSpace(project.DocumentationRepo)
+	if docRepoPath == "" {
+		return fmt.Errorf("documentation repository is not configured")
+	}
+
+	docRepo, err := s.gitService.Open(docRepoPath)
+	if err != nil {
+		return fmt.Errorf("failed to open documentation repository: %w", err)
+	}
+
+	// Determine docs branch name
+	docsBranch := strings.TrimSpace(docsBranchOverride)
+	if docsBranch == "" {
+		docsBranch = fmt.Sprintf("docs/%s", sourceBranch)
+	}
+
+	return s.ensureDocsBranchAvailable(docRepo, docsBranch)
+}
+
 func (s *ClientService) prepareProjectRepos(projectID uint) (*models.RepoLink, string, *docRepoConfig, error) {
 	project, err := s.repoLinks.Get(projectID)
 	if err != nil {

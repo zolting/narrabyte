@@ -6,6 +6,8 @@ import {context} from '../models';
 
 export function BindSessionToTab(arg1:number,arg2:string):Promise<void>;
 
+export function CheckDocsBranchAvailability(arg1:number,arg2:string,arg3:string):Promise<void>;
+
 export function CommitDocs(arg1:number,arg2:string,arg3:Array<string>):Promise<void>;
 
 export function GenerateDocs(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<models.DocGenerationResult>;

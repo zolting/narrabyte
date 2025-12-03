@@ -6,6 +6,10 @@ export function BindSessionToTab(arg1, arg2) {
   return window['go']['services']['ClientService']['BindSessionToTab'](arg1, arg2);
 }
 
+export function CheckDocsBranchAvailability(arg1, arg2, arg3) {
+  return window['go']['services']['ClientService']['CheckDocsBranchAvailability'](arg1, arg2, arg3);
+}
+
 export function CommitDocs(arg1, arg2, arg3) {
   return window['go']['services']['ClientService']['CommitDocs'](arg1, arg2, arg3);
 }

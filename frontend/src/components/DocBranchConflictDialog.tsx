@@ -114,7 +114,8 @@ export const DocBranchConflictDialog = ({
 				userInstructions,
 				sessionKey,
 			});
-			handleClose(false);
+			// Don't call handleClose - deleteAction already clears the conflict
+			// and starts a new generation. Calling handleClose would cancel it.
 		} finally {
 			setBusy(false);
 		}
@@ -137,7 +138,8 @@ export const DocBranchConflictDialog = ({
 				userInstructions,
 				sessionKey,
 			});
-			handleClose(false);
+			// Don't call handleClose - renameAction already clears the conflict
+			// and starts a new generation. Calling handleClose would cancel it.
 		} finally {
 			setBusy(false);
 		}
@@ -189,26 +191,22 @@ export const DocBranchConflictDialog = ({
 					</DialogClose>
 					<div className="flex flex-wrap items-center gap-2">
 						{!isInProgress && (
-							<DialogClose asChild>
-								<Button
-									disabled={busy}
-									onClick={handleDelete}
-									type="button"
-									variant="destructive"
-								>
-									{t("common.deleteCurrentDocsBranch")}
-								</Button>
-							</DialogClose>
-						)}
-						<DialogClose asChild>
 							<Button
-								disabled={disableConfirm}
-								onClick={handleRename}
+								disabled={busy}
+								onClick={handleDelete}
 								type="button"
+								variant="destructive"
 							>
-								{t("common.useBranchOption", { branch: newName || "" })}
+								{t("common.deleteCurrentDocsBranch")}
 							</Button>
-						</DialogClose>
+						)}
+						<Button
+							disabled={disableConfirm}
+							onClick={handleRename}
+							type="button"
+						>
+							{t("common.useBranchOption", { branch: newName || "" })}
+						</Button>
 					</div>
 				</DialogFooter>
 			</DialogContent>
