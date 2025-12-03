@@ -905,13 +905,23 @@ func (o *LLMClient) ensureDocsWriteScope(absPath string) error {
 		return fmt.Errorf("documentation root not set")
 	}
 
-	if pathWithinBase(docRoot, target) {
-		return nil
-	}
-
 	codeRoot := normalizeAbsolutePath(o.codeRoot)
 	if codeRoot != "" && pathWithinBase(codeRoot, target) {
+		// Allow when docs live inside the codebase tree (e.g., /repo/docs) but block
+		// when the codebase is at or inside the docs root.
+		if pathWithinBase(docRoot, target) {
+			// Docs nested under codebase: permit only if docs are a strict subtree.
+			if pathWithinBase(codeRoot, docRoot) && !pathsEqual(codeRoot, docRoot) {
+				return nil
+			}
+			// Docs root equals or contains codebase: treat as codebase and block edits.
+			return fmt.Errorf("editing or deleting codebase files is not allowed")
+		}
 		return fmt.Errorf("editing or deleting codebase files is not allowed")
+	}
+
+	if pathWithinBase(docRoot, target) {
+		return nil
 	}
 
 	return fmt.Errorf("path escapes the documentation workspace")
