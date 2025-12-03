@@ -91,8 +91,7 @@ export function DocRefinementChat({
 					>
 						{messages.length === 0 ? (
 							<div className="text-[11px] text-muted-foreground">
-								Ask for refinements, e.g. "Make the settings.mdx persistence
-								section more concise and add a concrete code example."
+								{t("docRefinementChat.emptyState")}
 							</div>
 						) : (
 							<ul className="space-y-1.5">
@@ -141,7 +140,7 @@ export function DocRefinementChat({
 									handleSend();
 								}
 							}}
-							placeholder="Describe the change you want to make…"
+							placeholder={t("docRefinementChat.placeholder")}
 							rows={2}
 							value={input}
 						/>

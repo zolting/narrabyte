@@ -393,5 +393,9 @@
     "move": "Déplacé <0>{{path}}</0>",
     "copy": "Copié <0>{{path}}</0>",
     "unknown": "Action d'outil"
+  },
+  "docRefinementChat": {
+    "emptyState": "Demandez des améliorations, par ex. \"Rends la section persistance de settings.mdx plus concise et ajoute un exemple de code concret.\"",
+    "placeholder": "Décrivez le changement que vous souhaitez apporter…"
   }
 }
