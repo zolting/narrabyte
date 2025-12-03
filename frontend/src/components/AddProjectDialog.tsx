@@ -17,6 +17,9 @@ import { Input } from "@/components/ui/input";
 import { pathsShareRoot } from "@/lib/pathUtils";
 import { sortBranches } from "@/lib/sortBranches";
 
+const normalizePathForCompare = (value: string) =>
+	value.replace(/\\/g, "/").replace(/\/+$/u, "").trim();
+
 type AddProjectDialogProps = {
 	open: boolean;
 	onClose: () => void;
@@ -61,6 +64,25 @@ export default function AddProjectDialog({
 		() => pathsShareRoot(docRepoPath, codebaseDirectory),
 		[docRepoPath, codebaseDirectory]
 	);
+
+	const normalizedDocPath = useMemo(
+		() => normalizePathForCompare(docRepoPath),
+		[docRepoPath]
+	);
+	const normalizedCodePath = useMemo(
+		() => normalizePathForCompare(codebaseDirectory),
+		[codebaseDirectory]
+	);
+
+	const sameLocation =
+		Boolean(normalizedDocPath) &&
+		Boolean(normalizedCodePath) &&
+		normalizedDocPath === normalizedCodePath;
+	const codeWithinDocs =
+		Boolean(normalizedDocPath) &&
+		Boolean(normalizedCodePath) &&
+		normalizedCodePath !== normalizedDocPath &&
+		normalizedCodePath.startsWith(`${normalizedDocPath}/`);
 
 	const showDocBranchSelector = Boolean(
 		docRepoPath && !sharedRepo && !initFumaDocs
@@ -134,7 +156,9 @@ export default function AddProjectDialog({
 
 	const submitDisabled =
 		!(name && docDirectory && codebaseDirectory) ||
-		(requiresDocBaseBranch && !docBaseBranch.trim());
+		(requiresDocBaseBranch && !docBaseBranch.trim()) ||
+		sameLocation ||
+		codeWithinDocs;
 
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
@@ -164,6 +188,22 @@ export default function AddProjectDialog({
 							required
 							value={name}
 						/>
+					</div>
+
+					<div>
+						<label
+							className="mb-1 block font-medium text-foreground"
+							htmlFor="codebase-directory"
+						>
+							{t("projectManager.codebaseDirectory")}
+						</label>
+						<DirectoryPicker
+							id="codebase-directory"
+							onDirectorySelected={setCodebaseDirectory}
+						/>
+						{codebaseDirectory && (
+							<div className="mt-1 text-xs">{codebaseDirectory}</div>
+						)}
 					</div>
 
 					<div className="space-y-3">
@@ -205,6 +245,16 @@ export default function AddProjectDialog({
 									{docRepoPath || docDirectory}
 								</div>
 							)}
+							{sameLocation && (
+								<p className="text-destructive text-xs">
+									{t("projectManager.codeAndDocsMustDiffer")}
+								</p>
+							)}
+							{!sameLocation && codeWithinDocs && (
+								<p className="text-destructive text-xs">
+									{t("projectManager.codeWithinDocs")}
+								</p>
+							)}
 						</div>
 					</div>
 
@@ -226,22 +276,6 @@ export default function AddProjectDialog({
 							)}
 						</>
 					)}
-
-					<div>
-						<label
-							className="mb-1 block font-medium text-foreground"
-							htmlFor="codebase-directory"
-						>
-							{t("projectManager.codebaseDirectory")}
-						</label>
-						<DirectoryPicker
-							id="codebase-directory"
-							onDirectorySelected={setCodebaseDirectory}
-						/>
-						{codebaseDirectory && (
-							<div className="mt-1 text-xs">{codebaseDirectory}</div>
-						)}
-					</div>
 
 					<div>
 						<label

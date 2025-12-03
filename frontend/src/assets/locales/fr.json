@@ -129,7 +129,9 @@
     "chooseNewOrExisitingDoc": "Choisir si vous voulez créer un nouveau dépôt de documentation ou lier un existant.",
     "llmInstructions": "Instructions LLM spécifiques à ce projet (optionnel)",
     "documentationBaseBranchDescription": "Sélectionnez la branche du dépôt de documentation qui servira de base aux nouvelles branches de documentation.",
-    "documentationBaseBranchRequired": "Veuillez sélectionner la branche de base de la documentation."
+    "documentationBaseBranchRequired": "Veuillez sélectionner la branche de base de la documentation.",
+    "codeAndDocsMustDiffer": "Les chemins de la documentation et du code doivent être différents.",
+    "codeWithinDocs": "Le répertoire du code ne peut pas être à l'intérieur du répertoire de documentation."
   },
   "home": {
     "greeting": "Veuillez entrer votre nom ci-dessous 👇",
