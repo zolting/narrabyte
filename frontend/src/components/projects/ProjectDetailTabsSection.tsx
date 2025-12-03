@@ -136,47 +136,52 @@ function TabContentRenderer({
 		);
 	}
 
-	// Tab has a session, render normally
 	return (
 		<>
 			<header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 bg-card pb-2">
 				<div className="space-y-2">
 					<h2 className="font-semibold text-foreground text-lg">
-						{t("common.generateDocs")}
+						{docManager.isRunning
+							? t("common.generatingDocs")
+							: t("common.generateDocs")}
 					</h2>
 					<p className="text-muted-foreground text-sm">
-						{mode === "diff"
-							? t("common.generateDocsDescriptionDiff")
-							: t("common.generateDocsDescriptionSingle")}
+						{docManager.isRunning
+							? t("common.generatingDocsDescription")
+							: mode === "diff"
+								? t("common.generateDocsDescriptionDiff")
+								: t("common.generateDocsDescriptionSingle")}
 					</p>
 				</div>
-				<div className="flex flex-wrap items-center gap-2">
-					<Button
-						onClick={onNavigateToGenerations}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						{t("sidebar.ongoingGenerations")}
-					</Button>
-					<Button
-						onClick={onNavigateToSettings}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						<Settings size={16} />
-						{t("common.settings")}
-					</Button>
-					<Button
-						onClick={onRefreshBranches}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						<RefreshCw className="h-4 w-4" />
-					</Button>
-				</div>
+				{!docManager.isRunning && (
+					<div className="flex flex-wrap items-center gap-2">
+						<Button
+							onClick={onNavigateToGenerations}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							{t("sidebar.ongoingGenerations")}
+						</Button>
+						<Button
+							onClick={onNavigateToSettings}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							<Settings size={16} />
+							{t("common.settings")}
+						</Button>
+						<Button
+							onClick={onRefreshBranches}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							<RefreshCw className="h-4 w-4" />
+						</Button>
+					</div>
+				)}
 			</header>
 			<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
 				{renderGenerationBody(docManager)}

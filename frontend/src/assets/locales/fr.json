@@ -33,6 +33,7 @@
     "documentationUpdates": "Mises à jour de la documentation",
     "branch": "Branche",
     "generatingDocs": "Génération de la documentation…",
+    "generatingDocsDescription": "Veuillez patienter pendant que la documentation se génère...",
     "committingDocs": "Validation de la documentation…",
     "recentActivity": "Activité récente",
     "review": "Révision",

@@ -34,6 +34,7 @@
     "documentationUpdates": "Documentation Updates",
     "branch": "Branch",
     "generatingDocs": "Generating documentation…",
+    "generatingDocsDescription": "Please wait while the documentation is being generated...",
     "committingDocs": "Committing documentation…",
     "recentActivity": "Recent activity",
     "review": "Review",
