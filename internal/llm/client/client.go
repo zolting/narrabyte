@@ -1104,7 +1104,7 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			}
 			ignore = in.Ignore
 		}
-		root, rel, _, err := o.resolveToolPath(requested, true)
+		root, rel, abs, err := o.resolveToolPath(requested, true)
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory(policy): %v", err)))
 			return "", err
@@ -1112,7 +1112,7 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		var output string
 		snapshot := o.snapshotForRoot(root)
 		err = o.withBaseRoot(root, snapshot, func() error {
-			res, innerErr := tools.ListDirectory(ctx, &tools.ListLSInput{Path: rel, Ignore: ignore})
+			res, innerErr := tools.ListDirectory(ctx, &tools.ListLSInput{Path: abs, Ignore: ignore})
 			if innerErr != nil {
 				events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory(policy): %v", innerErr)))
 				return innerErr
@@ -1241,7 +1241,14 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			}
 		}
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): invoking underlying WriteFile for '%s'", filepath.ToSlash(absCandidate))))
-		out, err := tools.WriteFile(ctx, in)
+		payload := *in
+		payload.FilePath = absCandidate
+		var out *tools.WriteFileOutput
+		err := o.withBaseRoot(o.docRoot, nil, func() error {
+			res, innerErr := tools.WriteFile(ctx, &payload)
+			out = res
+			return innerErr
+		})
 		if err != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): underlying error: %v", err)))
 			return out, err
@@ -1321,9 +1328,11 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 			}
 		}
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("EditFile(policy): invoking underlying Edit for '%s'", filepath.ToSlash(absCandidate))))
+		payload := *in
+		payload.FilePath = absCandidate
 		var out *tools.EditOutput
 		err := o.withBaseRoot(o.docRoot, nil, func() error {
-			res, innerErr := tools.Edit(ctx, in)
+			res, innerErr := tools.Edit(ctx, &payload)
 			out = res
 			return innerErr
 		})
@@ -1492,9 +1501,11 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		}
 
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("DeleteFile(policy): invoking underlying DeleteFile for '%s'", filepath.ToSlash(absCandidate))))
+		payload := *in
+		payload.FilePath = absCandidate
 		var out *tools.DeleteFileOutput
 		err := o.withBaseRoot(o.docRoot, nil, func() error {
-			res, innerErr := tools.DeleteFile(ctx, in)
+			res, innerErr := tools.DeleteFile(ctx, &payload)
 			out = res
 			return innerErr
 		})
