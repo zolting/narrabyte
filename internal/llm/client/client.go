@@ -198,7 +198,6 @@ func NewOpenAIClient(ctx context.Context, key string, opts OpenAIModelOptions) (
 	chatModel, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
 		APIKey:          key,
 		Model:           modelName,
-		BaseURL:         "https://api.x.ai/v1/",
 		ReasoningEffort: effort,
 	})
 
