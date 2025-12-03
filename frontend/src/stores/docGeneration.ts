@@ -1,5 +1,6 @@
 import type { models } from "@go/models";
 import {
+	CheckDocsBranchAvailability,
 	CommitDocs,
 	GenerateDocs,
 	GenerateDocsFromBranch,
@@ -227,23 +228,32 @@ export const createSessionKey = (
 	return normalizedTab ? `${baseKey}:${normalizedTab}` : baseKey;
 };
 
-const backendSessionBindings = new Map<SessionKey, SessionKey>();
+const backendSessionBindings = new Map<SessionKey, Set<SessionKey>>();
 
 const bindBackendSession = (
 	baseSessionKey: SessionKey,
 	sessionKey: SessionKey
 ) => {
-	backendSessionBindings.set(baseSessionKey, sessionKey);
+	const existing = backendSessionBindings.get(baseSessionKey) ?? new Set();
+	existing.add(sessionKey);
+	backendSessionBindings.set(baseSessionKey, existing);
 };
 
 const unbindBackendSession = (
 	baseSessionKey: SessionKey,
 	sessionKey?: SessionKey
 ) => {
-	if (sessionKey && backendSessionBindings.get(baseSessionKey) !== sessionKey) {
+	if (!sessionKey) {
+		backendSessionBindings.delete(baseSessionKey);
 		return;
 	}
-	backendSessionBindings.delete(baseSessionKey);
+	const existing = backendSessionBindings.get(baseSessionKey);
+	if (existing) {
+		existing.delete(sessionKey);
+		if (existing.size === 0) {
+			backendSessionBindings.delete(baseSessionKey);
+		}
+	}
 };
 
 const isEventForSession = (
@@ -260,9 +270,9 @@ const isEventForSession = (
 	if (incomingKey !== baseSessionKey) {
 		return false;
 	}
-	const boundSession = backendSessionBindings.get(baseSessionKey);
-	if (boundSession) {
-		return boundSession === sessionKey;
+	const boundSessions = backendSessionBindings.get(baseSessionKey);
+	if (boundSessions) {
+		return boundSessions.has(sessionKey);
 	}
 	return sessionKey === baseSessionKey;
 };
@@ -695,6 +705,98 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			setTabSession(projectId, tabId, sessionKey);
 		}
 
+		// Pre-check for docs branch conflicts BEFORE setting UI to "running"
+		try {
+			await CheckDocsBranchAvailability(projectId, sourceBranch, "");
+		} catch (checkError) {
+			const checkMessage = messageFromError(checkError);
+			const suggestion = extractBranchConflictSuggestion(checkMessage);
+			if (suggestion) {
+				// Set up session state for the conflict dialog (but NOT "running")
+				setDocState(sessionKey, {
+					projectId,
+					projectName,
+					sessionKey,
+					events: [],
+					todos: [],
+					error: null,
+					result: null,
+					status: "idle",
+					cancellationRequested: false,
+					activeTab: "activity",
+					commitCompleted: false,
+					completedCommitInfo: null,
+					sourceBranch,
+					targetBranch: targetBranch ?? null,
+					chatOpen: false,
+					messages: [],
+					initialDiffSignatures: null,
+					changedSinceInitial: [],
+					docsInCodeRepo: false,
+					docsBranch: null,
+					mergeInProgress: false,
+					conflict: {
+						existingDocsBranch: suggestion.existing,
+						proposedDocsBranch: suggestion.proposed,
+						mode: conflictMode,
+						isInProgress: suggestion.isInProgress,
+					},
+				});
+				setActiveSessionKey(projectKey, sessionKey);
+				updateSessionMeta(sessionKey, {
+					projectId,
+					projectName,
+					sourceBranch,
+					targetBranch: targetBranch ?? "",
+					status: "idle",
+				});
+				return;
+			}
+
+			if (checkMessage.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
+				const existing =
+					extractExistingDocsBranch(checkMessage) ?? `docs/${sourceBranch}`;
+				setDocState(sessionKey, {
+					projectId,
+					projectName,
+					sessionKey,
+					events: [],
+					todos: [],
+					error: null,
+					result: null,
+					status: "idle",
+					cancellationRequested: false,
+					activeTab: "activity",
+					commitCompleted: false,
+					completedCommitInfo: null,
+					sourceBranch,
+					targetBranch: targetBranch ?? null,
+					chatOpen: false,
+					messages: [],
+					initialDiffSignatures: null,
+					changedSinceInitial: [],
+					docsInCodeRepo: false,
+					docsBranch: null,
+					mergeInProgress: false,
+					conflict: {
+						existingDocsBranch: existing,
+						proposedDocsBranch: existing,
+						mode: conflictMode,
+					},
+				});
+				setActiveSessionKey(projectKey, sessionKey);
+				updateSessionMeta(sessionKey, {
+					projectId,
+					projectName,
+					sourceBranch,
+					targetBranch: targetBranch ?? "",
+					status: "idle",
+				});
+				return;
+			}
+			// For other errors, let them fall through to the main generation flow
+		}
+
 		bindBackendSession(baseSessionKey, sessionKey);
 
 		setDocState(sessionKey, {
@@ -742,7 +844,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				docsInCodeRepo: Boolean(result?.docsInCodeRepo),
 				docsBranch: result?.docsBranch ?? null,
 				mergeInProgress: false,
-				messages: normalizeChatMessages((result as any)?.chatMessages),
+				messages: normalizeChatMessages(result?.chatMessages ?? []),
 			});
 			updateSessionMeta(sessionKey, { status: "success" });
 		} catch (error) {
@@ -1655,6 +1757,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				}
 
 				// Transition to running without wiping the prior activity feed
+				// Clear conflict immediately so the dialog closes
 				setDocState(sessionKey, (prev) => ({
 					...prev,
 					projectId,
@@ -1676,6 +1779,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					initialDiffSignatures: null,
 					changedSinceInitial: [],
 					todos: [],
+					conflict: null,
 					events: [
 						...prev.events,
 						createLocalEvent(

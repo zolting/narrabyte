@@ -21,9 +21,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useBranchSelection } from "@/hooks/useBranchManager";
 import type { DocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationStore } from "@/stores/docGeneration";
+
+export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
 
 function TabLabel({ projectId, tabId }: { projectId: string; tabId: string }) {
 	const { t } = useTranslation();
@@ -55,13 +58,24 @@ type TabContentRendererProps = {
 	projectId: string;
 	project: models.RepoLink;
 	mode: "diff" | "single";
-	renderGenerationBody: (docManager: DocGenerationManager) => ReactNode;
-	canGenerate: boolean;
+	renderGenerationBody: (
+		docManager: DocGenerationManager,
+		branchSelection: BranchSelectionState
+	) => ReactNode;
+	canGenerateBase: boolean;
 	currentBranch: string | null;
 	hasUncommitted: boolean;
+	hasInstructionContent: boolean;
 	onApprove: (docManager: DocGenerationManager) => void;
-	onGenerate: (tabId: string, docManager: DocGenerationManager) => void;
-	onReset: (docManager: DocGenerationManager) => void;
+	onGenerate: (
+		tabId: string,
+		docManager: DocGenerationManager,
+		branchSelection: BranchSelectionState
+	) => void;
+	onReset: (
+		docManager: DocGenerationManager,
+		branchSelection: BranchSelectionState
+	) => void;
 	onNavigateToGenerations: () => void;
 	onNavigateToSettings: () => void;
 	onRefreshBranches: () => void;
@@ -76,9 +90,10 @@ function TabContentRenderer({
 	project,
 	mode,
 	renderGenerationBody,
-	canGenerate,
+	canGenerateBase,
 	currentBranch,
 	hasUncommitted,
+	hasInstructionContent,
 	onApprove,
 	onGenerate,
 	onReset,
@@ -90,8 +105,33 @@ function TabContentRenderer({
 }: TabContentRendererProps) {
 	const { t } = useTranslation();
 	const docManager = useDocGenerationManager(projectId, tabId);
+	const branchSelection = useBranchSelection();
 	const [showSetupWithoutSession, setShowSetupWithoutSession] = useState(false);
-	const tabCanGenerate = canGenerate && !docManager.isBusy;
+
+	// Compute canGenerate based on mode and this tab's branch selection
+	const canGenerate = useMemo(() => {
+		if (!canGenerateBase) return false;
+		if (docManager.isBusy) return false;
+
+		if (mode === "diff") {
+			return Boolean(
+				branchSelection.sourceBranch &&
+					branchSelection.targetBranch &&
+					branchSelection.sourceBranch !== branchSelection.targetBranch
+			);
+		}
+		// single mode
+		return Boolean(branchSelection.sourceBranch && hasInstructionContent);
+	}, [
+		canGenerateBase,
+		docManager.isBusy,
+		mode,
+		branchSelection.sourceBranch,
+		branchSelection.targetBranch,
+		hasInstructionContent,
+	]);
+
+	const tabCanGenerate = canGenerate;
 
 	const { canMerge, mergeDisabledReason } = useMemo(() => {
 		if (
@@ -212,7 +252,7 @@ function TabContentRenderer({
 				</div>
 			</header>
 			<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
-				{renderGenerationBody(docManager)}
+				{renderGenerationBody(docManager, branchSelection)}
 				{docManager.hasGenerationAttempt && (
 					<GenerationTabs
 						activeTab={docManager.activeTab}
@@ -238,9 +278,9 @@ function TabContentRenderer({
 					mergeDisabledReason={mergeDisabledReason}
 					onApprove={() => onApprove(docManager)}
 					onCancel={docManager.cancelDocGeneration}
-					onGenerate={() => onGenerate(tabId, docManager)}
+					onGenerate={() => onGenerate(tabId, docManager, branchSelection)}
 					onMerge={docManager.mergeDocs}
-					onReset={() => onReset(docManager)}
+					onReset={() => onReset(docManager, branchSelection)}
 				/>
 			)}
 		</>
@@ -251,13 +291,24 @@ export type ProjectDetailTabsSectionProps = {
 	projectId: string;
 	project: models.RepoLink;
 	mode: "diff" | "single";
-	renderGenerationBody: (docManager: DocGenerationManager) => ReactNode;
-	canGenerate: boolean;
+	renderGenerationBody: (
+		docManager: DocGenerationManager,
+		branchSelection: BranchSelectionState
+	) => ReactNode;
+	canGenerateBase: boolean;
+	hasInstructionContent: boolean;
 	currentBranch: string | null;
 	hasUncommitted: boolean;
 	onApprove: (docManager: DocGenerationManager) => void;
-	onGenerate: (tabId: string, docManager: DocGenerationManager) => void;
-	onReset: (docManager: DocGenerationManager) => void;
+	onGenerate: (
+		tabId: string,
+		docManager: DocGenerationManager,
+		branchSelection: BranchSelectionState
+	) => void;
+	onReset: (
+		docManager: DocGenerationManager,
+		branchSelection: BranchSelectionState
+	) => void;
 	onNavigateToGenerations: () => void;
 	onNavigateToSettings: () => void;
 	onRefreshBranches: () => void;
@@ -268,7 +319,8 @@ export function ProjectDetailTabsSection({
 	project,
 	mode,
 	renderGenerationBody,
-	canGenerate,
+	canGenerateBase,
+	hasInstructionContent,
 	currentBranch,
 	hasUncommitted,
 	onApprove,
@@ -462,8 +514,9 @@ export function ProjectDetailTabsSection({
 							value={tabId}
 						>
 							<TabContentRenderer
-								canGenerate={canGenerate}
+								canGenerateBase={canGenerateBase}
 								currentBranch={currentBranch}
+								hasInstructionContent={hasInstructionContent}
 								hasUncommitted={hasUncommitted}
 								mode={mode}
 								onApprove={onApprove}

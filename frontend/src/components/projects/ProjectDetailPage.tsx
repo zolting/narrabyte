@@ -12,7 +12,10 @@ import { useTranslation } from "react-i18next";
 import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
 import { DocBranchConflictDialog } from "@/components/DocBranchConflictDialog";
-import { ProjectDetailTabsSection } from "@/components/projects/ProjectDetailTabsSection";
+import {
+	type BranchSelectionState,
+	ProjectDetailTabsSection,
+} from "@/components/projects/ProjectDetailTabsSection";
 import { SingleBranchSelector } from "@/components/SingleBranchSelector";
 import { SuccessPanel } from "@/components/SuccessPanel";
 import { TemplateSelector } from "@/components/TemplateSelector";
@@ -28,7 +31,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useBranchManager } from "@/hooks/useBranchManager";
+import { useBranchList } from "@/hooks/useBranchManager";
 import {
 	type DocGenerationManager,
 	useDocGenerationManager,
@@ -63,7 +66,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [templateInstructions, setTemplateInstructions] = useState<string>("");
 
 	const repoPath = project?.CodebaseRepo;
-	const branchManager = useBranchManager(repoPath);
+	const { branches, fetchBranches } = useBranchList(repoPath);
 	// Default docManager for auxiliary handlers (uses active session, no specific tab)
 	const activeDocManager = useDocGenerationManager(projectId);
 	const navigate = useNavigate();
@@ -125,9 +128,10 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		}
 	}, [initModelSettings, modelsInitialized]);
 
+	// Fetch branches on mount
 	useEffect(() => {
-		branchManager.resetBranches();
-	}, [branchManager.resetBranches]);
+		fetchBranches();
+	}, [fetchBranches]);
 
 	const groupedModelOptions = useMemo(() => {
 		if (providerKeys.length === 0) {
@@ -206,19 +210,19 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		if (
 			activeDocManager.status === "success" &&
 			activeDocManager.commitCompleted &&
-			branchManager.sourceBranch &&
-			branchManager.targetBranch
+			activeDocManager.sourceBranch &&
+			activeDocManager.targetBranch
 		) {
 			activeDocManager.setCompletedCommit(
-				branchManager.sourceBranch,
-				branchManager.targetBranch
+				activeDocManager.sourceBranch,
+				activeDocManager.targetBranch
 			);
 		}
 	}, [
 		activeDocManager.status,
 		activeDocManager.commitCompleted,
-		branchManager.sourceBranch,
-		branchManager.targetBranch,
+		activeDocManager.sourceBranch,
+		activeDocManager.targetBranch,
 		activeDocManager.setCompletedCommit,
 	]);
 
@@ -238,36 +242,24 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		}
 	}, [repoPath, activeDocManager.docsInCodeRepo]);
 
-	const canGenerate = useMemo(
-		() =>
-			Boolean(
-				project &&
-					modelKey &&
-					((mode === "diff" &&
-						branchManager.sourceBranch &&
-						branchManager.targetBranch &&
-						branchManager.sourceBranch !== branchManager.targetBranch) ||
-						(mode === "single" &&
-							branchManager.sourceBranch &&
-							hasInstructionContent))
-			),
-		[
-			branchManager.sourceBranch,
-			branchManager.targetBranch,
-			hasInstructionContent,
-			mode,
-			modelKey,
-			project,
-		]
+	// Base generation requirements (project + model selected)
+	// Branch selection requirements are checked per-tab
+	const canGenerateBase = useMemo(
+		() => Boolean(project && modelKey),
+		[modelKey, project]
 	);
 
 	const handleGenerate = useCallback(
-		(tabId: string, manager: DocGenerationManager) => {
-			if (!(project && branchManager.sourceBranch && modelKey)) {
+		(
+			tabId: string,
+			manager: DocGenerationManager,
+			branchSelection: BranchSelectionState
+		) => {
+			if (!(project && branchSelection.sourceBranch && modelKey)) {
 				return;
 			}
 
-			const trimmedSourceBranch = branchManager.sourceBranch.trim();
+			const trimmedSourceBranch = branchSelection.sourceBranch.trim();
 			if (!trimmedSourceBranch) {
 				return;
 			}
@@ -281,18 +273,18 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 			const instructions = buildInstructionPayload();
 
-			branchManager.setSourceOpen(false);
-			branchManager.setTargetOpen(false);
+			branchSelection.setSourceOpen(false);
+			branchSelection.setTargetOpen(false);
 			manager.setActiveTab("activity");
 			if (mode === "diff") {
-				if (!branchManager.targetBranch) {
+				if (!branchSelection.targetBranch) {
 					return;
 				}
 				manager.startDocGeneration({
 					projectId: Number(project.ID),
 					projectName: project.ProjectName,
 					sourceBranch: trimmedSourceBranch,
-					targetBranch: branchManager.targetBranch,
+					targetBranch: branchSelection.targetBranch,
 					modelKey,
 					userInstructions: instructions,
 					tabId,
@@ -309,49 +301,36 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				});
 			}
 		},
-		[
-			project,
-			branchManager,
-			modelKey,
-			buildInstructionPayload,
-			mode,
-			createTabSession,
-		]
+		[project, modelKey, buildInstructionPayload, mode, createTabSession]
 	);
 
 	const handleApprove = useCallback(
 		(manager: DocGenerationManager) => {
 			manager.approveCommit();
 			const source =
-				manager.sourceBranch ||
-				manager.completedCommitInfo?.sourceBranch ||
-				branchManager.sourceBranch ||
-				"";
+				manager.sourceBranch || manager.completedCommitInfo?.sourceBranch || "";
 			const target =
-				manager.targetBranch ||
-				manager.completedCommitInfo?.targetBranch ||
-				branchManager.targetBranch ||
-				"";
+				manager.targetBranch || manager.completedCommitInfo?.targetBranch || "";
 			if (source && target) {
 				Promise.resolve(Delete(Number(projectId), source, target)).catch(() => {
 					return;
 				});
 			}
 		},
-		[branchManager.sourceBranch, branchManager.targetBranch, projectId]
+		[projectId]
 	);
 
 	const handleReset = useCallback(
-		(manager: DocGenerationManager) => {
+		(manager: DocGenerationManager, branchSelection: BranchSelectionState) => {
 			manager.reset();
-			branchManager.resetBranches();
+			branchSelection.resetSelection();
 		},
-		[branchManager]
+		[]
 	);
 
 	const handleStartNewTask = useCallback(
-		(manager: DocGenerationManager) => {
-			handleReset(manager);
+		(manager: DocGenerationManager, branchSelection: BranchSelectionState) => {
+			handleReset(manager, branchSelection);
 		},
 		[handleReset]
 	);
@@ -364,7 +343,10 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		);
 	}
 
-	const renderGenerationSetup = (tabDocManager: DocGenerationManager) => {
+	const renderGenerationSetup = (
+		tabDocManager: DocGenerationManager,
+		branchSelection: BranchSelectionState
+	) => {
 		const disableControls = tabDocManager.isBusy;
 		return (
 			<>
@@ -440,26 +422,26 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				</div>
 				{mode === "diff" ? (
 					<BranchSelector
-						branches={branchManager.branches}
+						branches={branches}
 						disableControls={disableControls}
-						setSourceBranch={branchManager.setSourceBranch}
-						setSourceOpen={branchManager.setSourceOpen}
-						setTargetBranch={branchManager.setTargetBranch}
-						setTargetOpen={branchManager.setTargetOpen}
-						sourceBranch={branchManager.sourceBranch}
-						sourceOpen={branchManager.sourceOpen}
-						swapBranches={branchManager.swapBranches}
-						targetBranch={branchManager.targetBranch}
-						targetOpen={branchManager.targetOpen}
+						setSourceBranch={branchSelection.setSourceBranch}
+						setSourceOpen={branchSelection.setSourceOpen}
+						setTargetBranch={branchSelection.setTargetBranch}
+						setTargetOpen={branchSelection.setTargetOpen}
+						sourceBranch={branchSelection.sourceBranch}
+						sourceOpen={branchSelection.sourceOpen}
+						swapBranches={branchSelection.swapBranches}
+						targetBranch={branchSelection.targetBranch}
+						targetOpen={branchSelection.targetOpen}
 					/>
 				) : (
 					<SingleBranchSelector
-						branch={branchManager.sourceBranch}
-						branches={branchManager.branches}
+						branch={branchSelection.sourceBranch}
+						branches={branches}
 						disableControls={disableControls}
-						open={branchManager.sourceOpen}
-						setBranch={branchManager.setSourceBranch}
-						setOpen={branchManager.setSourceOpen}
+						open={branchSelection.sourceOpen}
+						setBranch={branchSelection.setSourceBranch}
+						setOpen={branchSelection.setSourceOpen}
 					/>
 				)}
 				<div className="space-y-2">
@@ -484,25 +466,30 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		);
 	};
 
-	const renderGenerationBody = (tabDocManager: DocGenerationManager) => {
+	const renderGenerationBody = (
+		tabDocManager: DocGenerationManager,
+		branchSelection: BranchSelectionState
+	) => {
 		const comparisonSourceBranch =
 			tabDocManager.sourceBranch ??
 			tabDocManager.completedCommitInfo?.sourceBranch ??
-			branchManager.sourceBranch;
+			branchSelection.sourceBranch;
 		const comparisonTargetBranch =
 			tabDocManager.targetBranch ??
 			tabDocManager.completedCommitInfo?.targetBranch ??
-			branchManager.targetBranch;
+			branchSelection.targetBranch;
 		const successSourceBranch =
 			tabDocManager.completedCommitInfo?.sourceBranch ??
 			tabDocManager.sourceBranch ??
-			branchManager.sourceBranch;
+			branchSelection.sourceBranch;
 
 		if (tabDocManager.commitCompleted) {
 			return (
 				<SuccessPanel
 					completedCommitInfo={tabDocManager.completedCommitInfo}
-					onStartNewTask={() => handleStartNewTask(tabDocManager)}
+					onStartNewTask={() =>
+						handleStartNewTask(tabDocManager, branchSelection)
+					}
 					overridenDocsBranch={tabDocManager.docResult?.docsBranch ?? undefined}
 					sourceBranch={successSourceBranch}
 				/>
@@ -518,13 +505,13 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			);
 		}
 
-		return renderGenerationSetup(tabDocManager);
+		return renderGenerationSetup(tabDocManager, branchSelection);
 	};
 
 	if (!project) {
 		return (
 			<div className="p-2 text-muted-foreground text-sm">
-				 {t('common.projectNotFound', { projectId })}
+				{t("common.projectNotFound", { projectId })}
 			</div>
 		);
 	}
@@ -532,8 +519,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	return (
 		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
 			<ProjectDetailTabsSection
-				canGenerate={canGenerate}
+				canGenerateBase={canGenerateBase}
 				currentBranch={currentBranch}
+				hasInstructionContent={hasInstructionContent}
 				hasUncommitted={hasUncommitted}
 				mode={mode}
 				onApprove={handleApprove}
@@ -550,7 +538,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						params: { projectId },
 					})
 				}
-				onRefreshBranches={branchManager.fetchBranches}
+				onRefreshBranches={fetchBranches}
 				onReset={handleReset}
 				project={project}
 				projectId={projectId}
@@ -569,7 +557,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					proposedDocsBranch={docsBranchConflict.proposedDocsBranch}
 					sessionKey={activeDocManager.sessionKey ?? undefined}
 					sourceBranch={activeDocManager.sourceBranch}
-					targetBranch={branchManager.targetBranch ?? undefined}
+					targetBranch={activeDocManager.targetBranch ?? undefined}
 					userInstructions={buildInstructionPayload()}
 				/>
 			)}
