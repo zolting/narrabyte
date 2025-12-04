@@ -7,7 +7,7 @@ import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
@@ -19,7 +19,7 @@ import {
 import { SingleBranchSelector } from "@/components/SingleBranchSelector";
 import { SuccessPanel } from "@/components/SuccessPanel";
 import { TemplateSelector } from "@/components/TemplateSelector";
-import { Button } from "@/components/ui/button";
+
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -30,6 +30,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useBranchList } from "@/hooks/useBranchManager";
 import {
@@ -51,7 +52,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
 		undefined
 	);
-	const [modelKey, setModelKey] = useState<string | null>(null);
+	const [lastSelectedModelKey, setLastSelectedModelKey] = useState<
+		string | null
+	>(null);
 	const [providerKeys, setProviderKeys] = useState<string[]>([]);
 	const {
 		groups: modelGroups,
@@ -62,7 +65,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
-	const [mode, setMode] = useState<"diff" | "single">("diff");
 	const [templateInstructions, setTemplateInstructions] = useState<string>("");
 
 	const repoPath = project?.CodebaseRepo;
@@ -82,6 +84,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	// Read the app's default model preference (if any)
 	const { settings: appSettings } = useAppSettingsStore();
+
+	const modelSelectId = useId();
+	const docInstructionsId = useId();
 
 	useEffect(() => {
 		setProject(undefined);
@@ -120,7 +125,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		return () => {
 			window.removeEventListener("narrabyte:keysChanged", handler);
 		};
-	}, []);
+	}, [initModelSettings]);
 
 	useEffect(() => {
 		if (!modelsInitialized) {
@@ -160,6 +165,17 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		[groupedModelOptions]
 	);
 
+	const defaultModelKey = useMemo(() => {
+		if (availableModels.length === 0) {
+			return null;
+		}
+		const preferred = appSettings?.DefaultModelKey ?? null;
+		if (preferred && availableModels.some((m) => m.key === preferred)) {
+			return preferred;
+		}
+		return availableModels[0]?.key ?? null;
+	}, [availableModels, appSettings?.DefaultModelKey]);
+
 	const hasInstructionContent = useMemo(() => {
 		const template = templateInstructions.trim();
 		const user = userInstructions.trim();
@@ -184,27 +200,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, [templateInstructions, userInstructions]);
 
 	useEffect(() => {
-		if (availableModels.length === 0) {
-			setModelKey(null);
-			return;
+		if (defaultModelKey) {
+			setLastSelectedModelKey((current) => current ?? defaultModelKey);
+		} else {
+			setLastSelectedModelKey(null);
 		}
-
-		setModelKey((current) => {
-			// Preserve a valid current selection if present
-			if (current && availableModels.some((m) => m.key === current)) {
-				return current;
-			}
-
-			// Prefer the globally configured default model if it's available
-			const preferred = appSettings?.DefaultModelKey ?? null;
-			if (preferred && availableModels.some((m) => m.key === preferred)) {
-				return preferred;
-			}
-
-			// Fallback to the first available model
-			return availableModels[0]?.key ?? null;
-		});
-	}, [availableModels, appSettings?.DefaultModelKey]);
+	}, [defaultModelKey]);
 
 	useEffect(() => {
 		if (
@@ -245,15 +246,17 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	// Base generation requirements (project + model selected)
 	// Branch selection requirements are checked per-tab
 	const canGenerateBase = useMemo(
-		() => Boolean(project && modelKey),
-		[modelKey, project]
+		() => Boolean(project && availableModels.length > 0),
+		[availableModels, project]
 	);
 
 	const handleGenerate = useCallback(
 		(
 			tabId: string,
 			manager: DocGenerationManager,
-			branchSelection: BranchSelectionState
+			branchSelection: BranchSelectionState,
+			mode: "diff" | "single",
+			modelKey: string | null
 		) => {
 			if (!(project && branchSelection.sourceBranch && modelKey)) {
 				return;
@@ -301,7 +304,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				});
 			}
 		},
-		[project, modelKey, buildInstructionPayload, mode, createTabSession]
+		[project, buildInstructionPayload, createTabSession]
 	);
 
 	const handleApprove = useCallback(
@@ -345,24 +348,36 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const renderGenerationSetup = (
 		tabDocManager: DocGenerationManager,
-		branchSelection: BranchSelectionState
+		branchSelection: BranchSelectionState,
+		mode: "diff" | "single",
+		onModeChange: (mode: "diff" | "single") => void,
+		modelKey: string | null,
+		onModelChange: (modelKey: string | null) => void,
+		availableModels: ModelOption[],
+		groupedModelOptions: Array<{
+			providerId: string;
+			providerName: string;
+			models: ModelOption[];
+		}>,
+		modelsLoading: boolean,
+		providerKeys: string[]
 	) => {
 		const disableControls = tabDocManager.isBusy;
 		return (
 			<>
 				<div className="flex flex-col gap-4 md:flex-row">
 					<div className="space-y-2 md:w-1/2">
-						<Label className="font-medium text-sm" htmlFor="model-select">
+						<Label className="font-medium text-sm" htmlFor={modelSelectId}>
 							{t("common.llmModel")}
 						</Label>
 						<Select
 							disabled={
 								disableControls || modelsLoading || availableModels.length === 0
 							}
-							onValueChange={(value: string) => setModelKey(value)}
+							onValueChange={(value: string) => onModelChange(value)}
 							value={modelKey ?? undefined}
 						>
-							<SelectTrigger className="w-full" id="model-select">
+							<SelectTrigger className="w-full" id={modelSelectId}>
 								<SelectValue placeholder={t("common.selectModel")} />
 							</SelectTrigger>
 							<SelectContent>
@@ -401,24 +416,17 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					<Label className="text-muted-foreground text-xs">
 						{t("common.generationMode")}
 					</Label>
-					<div className="flex gap-2">
-						<Button
-							onClick={() => setMode("diff")}
-							size="sm"
-							type="button"
-							variant={mode === "diff" ? "default" : "outline"}
-						>
-							{t("common.diffMode")}
-						</Button>
-						<Button
-							onClick={() => setMode("single")}
-							size="sm"
-							type="button"
-							variant={mode === "single" ? "default" : "outline"}
-						>
-							{t("common.singleBranchMode")}
-						</Button>
-					</div>
+					<Tabs
+						onValueChange={(v) => onModeChange(v as "diff" | "single")}
+						value={mode}
+					>
+						<TabsList>
+							<TabsTrigger value="diff">{t("common.diffMode")}</TabsTrigger>
+							<TabsTrigger value="single">
+								{t("common.singleBranchMode")}
+							</TabsTrigger>
+						</TabsList>
+					</Tabs>
 				</div>
 				{mode === "diff" ? (
 					<BranchSelector
@@ -445,13 +453,13 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					/>
 				)}
 				<div className="space-y-2">
-					<Label className="font-medium text-sm" htmlFor="doc-instructions">
+					<Label className="font-medium text-sm" htmlFor={docInstructionsId}>
 						{t("common.docInstructionsLabel")}
 					</Label>
 					<Textarea
 						className="resize-vertical min-h-[200px] text-xs"
 						disabled={disableControls}
-						id="doc-instructions"
+						id={docInstructionsId}
 						onChange={(e) => setUserInstructions(e.target.value)}
 						placeholder={t("common.docInstructionsPlaceholder")}
 						value={userInstructions}
@@ -468,7 +476,19 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const renderGenerationBody = (
 		tabDocManager: DocGenerationManager,
-		branchSelection: BranchSelectionState
+		branchSelection: BranchSelectionState,
+		mode: "diff" | "single",
+		onModeChange: (mode: "diff" | "single") => void,
+		modelKey: string | null,
+		onModelChange: (modelKey: string | null) => void,
+		availableModels: ModelOption[],
+		groupedModelOptions: Array<{
+			providerId: string;
+			providerName: string;
+			models: ModelOption[];
+		}>,
+		modelsLoading: boolean,
+		providerKeys: string[]
 	) => {
 		const comparisonSourceBranch =
 			tabDocManager.sourceBranch ??
@@ -505,7 +525,18 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			);
 		}
 
-		return renderGenerationSetup(tabDocManager, branchSelection);
+		return renderGenerationSetup(
+			tabDocManager,
+			branchSelection,
+			mode,
+			onModeChange,
+			modelKey,
+			onModelChange,
+			availableModels,
+			groupedModelOptions,
+			modelsLoading,
+			providerKeys
+		);
 	};
 
 	if (!project) {
@@ -517,15 +548,19 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}
 
 	return (
-		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
+		<div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-4">
 			<ProjectDetailTabsSection
+				availableModels={availableModels}
 				canGenerateBase={canGenerateBase}
 				currentBranch={currentBranch}
+				defaultModelKey={defaultModelKey}
+				groupedModelOptions={groupedModelOptions}
 				hasInstructionContent={hasInstructionContent}
 				hasUncommitted={hasUncommitted}
-				mode={mode}
+				modelsLoading={modelsLoading}
 				onApprove={handleApprove}
 				onGenerate={handleGenerate}
+				onModelChange={setLastSelectedModelKey}
 				onNavigateToGenerations={() =>
 					navigate({
 						to: "/projects/$projectId/generations",
@@ -542,25 +577,38 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				onReset={handleReset}
 				project={project}
 				projectId={projectId}
+				providerKeys={providerKeys}
 				renderGenerationBody={renderGenerationBody}
 			/>
 
-			{docsBranchConflict && activeDocManager.sourceBranch && modelKey && (
-				<DocBranchConflictDialog
-					existingDocsBranch={docsBranchConflict.existingDocsBranch}
-					isInProgress={docsBranchConflict.isInProgress}
-					mode={docsBranchConflict.mode}
-					modelKey={modelKey}
-					open={true}
-					projectId={Number(project?.ID ?? projectId)}
-					projectName={project.ProjectName}
-					proposedDocsBranch={docsBranchConflict.proposedDocsBranch}
-					sessionKey={activeDocManager.sessionKey ?? undefined}
-					sourceBranch={activeDocManager.sourceBranch}
-					targetBranch={activeDocManager.targetBranch ?? undefined}
-					userInstructions={buildInstructionPayload()}
-				/>
-			)}
+			{(() => {
+				const conflictModelKey = lastSelectedModelKey ?? defaultModelKey;
+				if (
+					!(
+						docsBranchConflict &&
+						activeDocManager.sourceBranch &&
+						conflictModelKey
+					)
+				) {
+					return null;
+				}
+				return (
+					<DocBranchConflictDialog
+						existingDocsBranch={docsBranchConflict.existingDocsBranch}
+						isInProgress={docsBranchConflict.isInProgress}
+						mode={docsBranchConflict.mode}
+						modelKey={conflictModelKey}
+						open={true}
+						projectId={Number(project?.ID ?? projectId)}
+						projectName={project.ProjectName}
+						proposedDocsBranch={docsBranchConflict.proposedDocsBranch}
+						sessionKey={activeDocManager.sessionKey ?? undefined}
+						sourceBranch={activeDocManager.sourceBranch}
+						targetBranch={activeDocManager.targetBranch ?? undefined}
+						userInstructions={buildInstructionPayload()}
+					/>
+				);
+			})()}
 		</div>
 	);
 }

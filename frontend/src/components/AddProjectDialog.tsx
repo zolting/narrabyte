@@ -207,24 +207,24 @@ export default function AddProjectDialog({
 					</div>
 
 					<div className="space-y-3">
-						<div className="font-medium text-foreground">
+						{/* <div className="font-medium text-foreground">
 							{t("projectManager.chooseNewOrExisitingDoc")}
-						</div>
+						</div> */}
 						<div className="flex gap-2">
-							<Button
+							{/* <Button
 								onClick={() => setInitFumaDocs(false)}
 								type="button"
 								variant={initFumaDocs ? "outline" : "default"}
 							>
 								{t("projectManager.existingDocumentationRepository")}
-							</Button>
-							<Button
+							</Button> */}
+							{/* <Button
 								onClick={() => setInitFumaDocs(true)}
 								type="button"
 								variant={initFumaDocs ? "default" : "outline"}
 							>
 								{t("projectManager.newDocumentationRepository")}
-							</Button>
+							</Button> */}
 						</div>
 
 						<div className="space-y-2">

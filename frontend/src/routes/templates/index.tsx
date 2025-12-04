@@ -3,6 +3,17 @@ import { AlertCircle, Plus, Trash } from "lucide-react";
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -178,7 +189,7 @@ function TemplatesPage() {
 	};
 
 	return (
-		<div className="flex min-h-screen flex-1 flex-col gap-6 bg-background p-4">
+		<div className="flex flex-1 flex-col gap-6 bg-background p-4">
 			<div className="space-y-2">
 				<h1 className="font-semibold text-2xl text-foreground">
 					{t("home.templateManagerTitle")}
@@ -298,14 +309,32 @@ function TemplatesPage() {
 										/>
 									</div>
 									<div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-										<Button
-											onClick={handleDelete}
-											type="button"
-											variant="destructive"
-										>
-											<Trash className="mr-2 h-4 w-4" />
-											{t("common.delete")}
-										</Button>
+										<AlertDialog>
+											<AlertDialogTrigger asChild>
+												<Button type="button" variant="destructive">
+													<Trash className="mr-2 h-4 w-4" />
+													{t("common.delete")}
+												</Button>
+											</AlertDialogTrigger>
+											<AlertDialogContent>
+												<AlertDialogHeader>
+													<AlertDialogTitle>
+														{t("common.confirmDelete")}
+													</AlertDialogTitle>
+													<AlertDialogDescription>
+														{t("common.confirmDeleteHelp")}
+													</AlertDialogDescription>
+												</AlertDialogHeader>
+												<AlertDialogFooter>
+													<AlertDialogCancel>
+														{t("common.cancel")}
+													</AlertDialogCancel>
+													<AlertDialogAction onClick={handleDelete}>
+														{t("common.delete")}
+													</AlertDialogAction>
+												</AlertDialogFooter>
+											</AlertDialogContent>
+										</AlertDialog>
 										<div className="flex gap-2">
 											<Button
 												onClick={handleCancelEdit}
@@ -341,14 +370,32 @@ function TemplatesPage() {
 										</div>
 									</div>
 									<div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-										<Button
-											onClick={handleDelete}
-											type="button"
-											variant="destructive"
-										>
-											<Trash className="mr-2 h-4 w-4" />
-											{t("common.delete")}
-										</Button>
+										<AlertDialog>
+											<AlertDialogTrigger asChild>
+												<Button type="button" variant="destructive">
+													<Trash className="mr-2 h-4 w-4" />
+													{t("common.delete")}
+												</Button>
+											</AlertDialogTrigger>
+											<AlertDialogContent>
+												<AlertDialogHeader>
+													<AlertDialogTitle>
+														{t("common.confirmDelete")}
+													</AlertDialogTitle>
+													<AlertDialogDescription>
+														{t("common.confirmDeleteHelp")}
+													</AlertDialogDescription>
+												</AlertDialogHeader>
+												<AlertDialogFooter>
+													<AlertDialogCancel>
+														{t("common.cancel")}
+													</AlertDialogCancel>
+													<AlertDialogAction onClick={handleDelete}>
+														{t("common.delete")}
+													</AlertDialogAction>
+												</AlertDialogFooter>
+											</AlertDialogContent>
+										</AlertDialog>
 										<Button onClick={() => setIsEditing(true)} type="button">
 											{t("common.editTemplate")}
 										</Button>

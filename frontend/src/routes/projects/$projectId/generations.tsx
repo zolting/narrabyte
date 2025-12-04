@@ -3,6 +3,17 @@ import { Delete, List } from "@go/services/generationSessionService";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -90,9 +101,6 @@ function RouteComponent() {
 
 	const handleDelete = useCallback(
 		async (s: models.GenerationSession) => {
-			if (!window.confirm(t("generations.deleteConfirm"))) {
-				return;
-			}
 			setDeletingId(Number(s.ID));
 			try {
 				await Delete(Number(projectId), s.SourceBranch, s.TargetBranch);
@@ -102,11 +110,11 @@ function RouteComponent() {
 				setDeletingId(null);
 			}
 		},
-		[projectId, refreshSessions, t]
+		[projectId, refreshSessions, clearSessionMeta]
 	);
 
 	return (
-		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
+		<div className="flex h-full flex-col gap-6 overflow-hidden p-8">
 			<section className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4">
 				<header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 bg-card pb-2">
 					<div className="space-y-2">
@@ -170,15 +178,36 @@ function RouteComponent() {
 										</div>
 									</CardContent>
 									<div className="flex gap-2 px-6 pb-4">
-										<Button
-											disabled={deletingId === Number(s.ID)}
-											onClick={() => handleDelete(s)}
-											size="sm"
-											type="button"
-											variant="destructive"
-										>
-											{t("generations.deleteSession")}
-										</Button>
+										<AlertDialog>
+											<AlertDialogTrigger asChild>
+												<Button
+													disabled={deletingId === Number(s.ID)}
+													size="sm"
+													type="button"
+													variant="destructive"
+												>
+													{t("generations.deleteSession")}
+												</Button>
+											</AlertDialogTrigger>
+											<AlertDialogContent>
+												<AlertDialogHeader>
+													<AlertDialogTitle>
+														{t("generations.deleteSession")}
+													</AlertDialogTitle>
+													<AlertDialogDescription>
+														{t("generations.deleteConfirm")}
+													</AlertDialogDescription>
+												</AlertDialogHeader>
+												<AlertDialogFooter>
+													<AlertDialogCancel>
+														{t("common.cancel")}
+													</AlertDialogCancel>
+													<AlertDialogAction onClick={() => handleDelete(s)}>
+														{t("common.delete")}
+													</AlertDialogAction>
+												</AlertDialogFooter>
+											</AlertDialogContent>
+										</AlertDialog>
 									</div>
 								</Card>
 							))}

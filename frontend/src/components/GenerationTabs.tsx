@@ -62,6 +62,7 @@ export const GenerationTabs = ({
 			</TabsList>
 			<TabsContent
 				className="mt-0 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+				forceMount
 				value="activity"
 			>
 				<ActivityFeed events={events} status={status} todos={todos} />
@@ -69,6 +70,7 @@ export const GenerationTabs = ({
 			{docResult && (
 				<TabsContent
 					className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+					forceMount
 					value="review"
 				>
 					<DocGenerationResultPanel
@@ -81,6 +83,7 @@ export const GenerationTabs = ({
 			{docResult?.summary && (
 				<TabsContent
 					className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+					forceMount
 					value="summary"
 				>
 					<div className="flex h-full flex-col gap-4 overflow-hidden rounded-lg border border-border bg-card p-6">

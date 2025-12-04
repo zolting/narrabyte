@@ -25,6 +25,13 @@ import { useBranchSelection } from "@/hooks/useBranchManager";
 import type { DocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationStore } from "@/stores/docGeneration";
+import type { ModelOption } from "@/stores/modelSettings";
+
+type GroupedModelOption = {
+	providerId: string;
+	providerName: string;
+	models: ModelOption[];
+};
 
 export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
 
@@ -57,10 +64,17 @@ type TabContentRendererProps = {
 	tabId: string;
 	projectId: string;
 	project: models.RepoLink;
-	mode: "diff" | "single";
 	renderGenerationBody: (
 		docManager: DocGenerationManager,
-		branchSelection: BranchSelectionState
+		branchSelection: BranchSelectionState,
+		mode: "diff" | "single",
+		onModeChange: (mode: "diff" | "single") => void,
+		modelKey: string | null,
+		onModelChange: (modelKey: string | null) => void,
+		availableModels: ModelOption[],
+		groupedModelOptions: GroupedModelOption[],
+		modelsLoading: boolean,
+		providerKeys: string[]
 	) => ReactNode;
 	canGenerateBase: boolean;
 	currentBranch: string | null;
@@ -70,7 +84,9 @@ type TabContentRendererProps = {
 	onGenerate: (
 		tabId: string,
 		docManager: DocGenerationManager,
-		branchSelection: BranchSelectionState
+		branchSelection: BranchSelectionState,
+		mode: "diff" | "single",
+		modelKey: string | null
 	) => void;
 	onReset: (
 		docManager: DocGenerationManager,
@@ -81,6 +97,12 @@ type TabContentRendererProps = {
 	onRefreshBranches: () => void;
 	onLoadSession: (tabId: string) => void;
 	onStartNew: (tabId: string) => void;
+	defaultModelKey: string | null;
+	availableModels: ModelOption[];
+	groupedModelOptions: GroupedModelOption[];
+	modelsLoading: boolean;
+	providerKeys: string[];
+	onModelChange: (modelKey: string | null) => void;
 };
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: none
@@ -88,7 +110,6 @@ function TabContentRenderer({
 	tabId,
 	projectId,
 	project,
-	mode,
 	renderGenerationBody,
 	canGenerateBase,
 	currentBranch,
@@ -102,15 +123,24 @@ function TabContentRenderer({
 	onRefreshBranches,
 	onLoadSession,
 	onStartNew,
+	defaultModelKey,
+	availableModels,
+	groupedModelOptions,
+	modelsLoading,
+	providerKeys,
+	onModelChange,
 }: TabContentRendererProps) {
 	const { t } = useTranslation();
 	const docManager = useDocGenerationManager(projectId, tabId);
 	const branchSelection = useBranchSelection();
+	const [mode, setMode] = useState<"diff" | "single">("diff");
+	const [modelKey, setModelKey] = useState<string | null>(defaultModelKey);
 	const [showSetupWithoutSession, setShowSetupWithoutSession] = useState(false);
 
 	// Compute canGenerate based on mode and this tab's branch selection
 	const canGenerate = useMemo(() => {
 		if (!canGenerateBase) return false;
+		if (!modelKey) return false;
 		if (docManager.isBusy) return false;
 
 		if (mode === "diff") {
@@ -126,6 +156,7 @@ function TabContentRenderer({
 		canGenerateBase,
 		docManager.isBusy,
 		mode,
+		modelKey,
 		branchSelection.sourceBranch,
 		branchSelection.targetBranch,
 		hasInstructionContent,
@@ -167,6 +198,28 @@ function TabContentRenderer({
 			setShowSetupWithoutSession(false);
 		}
 	}, [docManager.sessionKey]);
+
+	useEffect(() => {
+		if (!docManager.hasGenerationAttempt) {
+			return;
+		}
+		setMode(docManager.targetBranch ? "diff" : "single");
+	}, [docManager.hasGenerationAttempt, docManager.targetBranch]);
+
+	useEffect(() => {
+		if (modelKey) {
+			return;
+		}
+		const fallback = defaultModelKey ?? availableModels[0]?.key ?? null;
+		if (!fallback) {
+			return;
+		}
+		setModelKey(fallback);
+	}, [availableModels, defaultModelKey, modelKey]);
+
+	useEffect(() => {
+		onModelChange(modelKey);
+	}, [modelKey, onModelChange]);
 
 	// If no session is associated with this tab, show empty state
 	if (!(docManager.sessionKey || showSetupWithoutSession)) {
@@ -252,7 +305,18 @@ function TabContentRenderer({
 				</div>
 			</header>
 			<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-2">
-				{renderGenerationBody(docManager, branchSelection)}
+				{renderGenerationBody(
+					docManager,
+					branchSelection,
+					mode,
+					(nextMode) => setMode(nextMode),
+					modelKey,
+					(nextModel: string | null) => setModelKey(nextModel),
+					availableModels,
+					groupedModelOptions,
+					modelsLoading,
+					providerKeys
+				)}
 				{docManager.hasGenerationAttempt && (
 					<GenerationTabs
 						activeTab={docManager.activeTab}
@@ -278,7 +342,9 @@ function TabContentRenderer({
 					mergeDisabledReason={mergeDisabledReason}
 					onApprove={() => onApprove(docManager)}
 					onCancel={docManager.cancelDocGeneration}
-					onGenerate={() => onGenerate(tabId, docManager, branchSelection)}
+					onGenerate={() =>
+						onGenerate(tabId, docManager, branchSelection, mode, modelKey)
+					}
 					onMerge={docManager.mergeDocs}
 					onReset={() => onReset(docManager, branchSelection)}
 				/>
@@ -290,10 +356,17 @@ function TabContentRenderer({
 export type ProjectDetailTabsSectionProps = {
 	projectId: string;
 	project: models.RepoLink;
-	mode: "diff" | "single";
 	renderGenerationBody: (
 		docManager: DocGenerationManager,
-		branchSelection: BranchSelectionState
+		branchSelection: BranchSelectionState,
+		mode: "diff" | "single",
+		onModeChange: (mode: "diff" | "single") => void,
+		modelKey: string | null,
+		onModelChange: (modelKey: string | null) => void,
+		availableModels: ModelOption[],
+		groupedModelOptions: GroupedModelOption[],
+		modelsLoading: boolean,
+		providerKeys: string[]
 	) => ReactNode;
 	canGenerateBase: boolean;
 	hasInstructionContent: boolean;
@@ -303,7 +376,9 @@ export type ProjectDetailTabsSectionProps = {
 	onGenerate: (
 		tabId: string,
 		docManager: DocGenerationManager,
-		branchSelection: BranchSelectionState
+		branchSelection: BranchSelectionState,
+		mode: "diff" | "single",
+		modelKey: string | null
 	) => void;
 	onReset: (
 		docManager: DocGenerationManager,
@@ -312,12 +387,17 @@ export type ProjectDetailTabsSectionProps = {
 	onNavigateToGenerations: () => void;
 	onNavigateToSettings: () => void;
 	onRefreshBranches: () => void;
+	defaultModelKey: string | null;
+	availableModels: ModelOption[];
+	groupedModelOptions: GroupedModelOption[];
+	modelsLoading: boolean;
+	providerKeys: string[];
+	onModelChange: (modelKey: string | null) => void;
 };
 
 export function ProjectDetailTabsSection({
 	projectId,
 	project,
-	mode,
 	renderGenerationBody,
 	canGenerateBase,
 	hasInstructionContent,
@@ -329,6 +409,12 @@ export function ProjectDetailTabsSection({
 	onNavigateToGenerations,
 	onNavigateToSettings,
 	onRefreshBranches,
+	defaultModelKey,
+	availableModels,
+	groupedModelOptions,
+	modelsLoading,
+	providerKeys,
+	onModelChange,
 }: ProjectDetailTabsSectionProps) {
 	const { t } = useTranslation();
 	const containerRef = useRef<HTMLDivElement | null>(null);
@@ -510,18 +596,23 @@ export function ProjectDetailTabsSection({
 					{uiTabs.map((tabId) => (
 						<TabsContent
 							className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+							forceMount
 							key={tabId}
 							value={tabId}
 						>
 							<TabContentRenderer
+								availableModels={availableModels}
 								canGenerateBase={canGenerateBase}
 								currentBranch={currentBranch}
+								defaultModelKey={defaultModelKey}
+								groupedModelOptions={groupedModelOptions}
 								hasInstructionContent={hasInstructionContent}
 								hasUncommitted={hasUncommitted}
-								mode={mode}
+								modelsLoading={modelsLoading}
 								onApprove={onApprove}
 								onGenerate={onGenerate}
 								onLoadSession={handleLoadSession}
+								onModelChange={onModelChange}
 								onNavigateToGenerations={onNavigateToGenerations}
 								onNavigateToSettings={onNavigateToSettings}
 								onRefreshBranches={onRefreshBranches}
@@ -529,6 +620,7 @@ export function ProjectDetailTabsSection({
 								onStartNew={handleStartNew}
 								project={project}
 								projectId={projectId}
+								providerKeys={providerKeys}
 								renderGenerationBody={renderGenerationBody}
 								tabId={tabId}
 							/>
