@@ -68,7 +68,13 @@ type TabContentRendererProps = {
 		docManager: DocGenerationManager,
 		branchSelection: BranchSelectionState,
 		mode: "diff" | "single",
-		onModeChange: (mode: "diff" | "single") => void
+		onModeChange: (mode: "diff" | "single") => void,
+		modelKey: string | null,
+		onModelChange: (modelKey: string | null) => void,
+		availableModels: ModelOption[],
+		groupedModelOptions: GroupedModelOption[],
+		modelsLoading: boolean,
+		providerKeys: string[]
 	) => ReactNode;
 	canGenerateBase: boolean;
 	currentBranch: string | null;
@@ -79,7 +85,8 @@ type TabContentRendererProps = {
 		tabId: string,
 		docManager: DocGenerationManager,
 		branchSelection: BranchSelectionState,
-		mode: "diff" | "single"
+		mode: "diff" | "single",
+		modelKey: string | null
 	) => void;
 	onReset: (
 		docManager: DocGenerationManager,
@@ -149,6 +156,7 @@ function TabContentRenderer({
 		canGenerateBase,
 		docManager.isBusy,
 		mode,
+		modelKey,
 		branchSelection.sourceBranch,
 		branchSelection.targetBranch,
 		hasInstructionContent,
@@ -303,7 +311,7 @@ function TabContentRenderer({
 					mode,
 					(nextMode) => setMode(nextMode),
 					modelKey,
-					(nextModel) => setModelKey(nextModel),
+					(nextModel: string | null) => setModelKey(nextModel),
 					availableModels,
 					groupedModelOptions,
 					modelsLoading,
@@ -593,26 +601,26 @@ export function ProjectDetailTabsSection({
 							value={tabId}
 						>
 							<TabContentRenderer
+								availableModels={availableModels}
 								canGenerateBase={canGenerateBase}
 								currentBranch={currentBranch}
+								defaultModelKey={defaultModelKey}
+								groupedModelOptions={groupedModelOptions}
 								hasInstructionContent={hasInstructionContent}
 								hasUncommitted={hasUncommitted}
+								modelsLoading={modelsLoading}
 								onApprove={onApprove}
 								onGenerate={onGenerate}
 								onLoadSession={handleLoadSession}
+								onModelChange={onModelChange}
 								onNavigateToGenerations={onNavigateToGenerations}
 								onNavigateToSettings={onNavigateToSettings}
 								onRefreshBranches={onRefreshBranches}
 								onReset={onReset}
 								onStartNew={handleStartNew}
-								defaultModelKey={defaultModelKey}
-								availableModels={availableModels}
-								groupedModelOptions={groupedModelOptions}
-								modelsLoading={modelsLoading}
-								providerKeys={providerKeys}
-								onModelChange={onModelChange}
 								project={project}
 								projectId={projectId}
+								providerKeys={providerKeys}
 								renderGenerationBody={renderGenerationBody}
 								tabId={tabId}
 							/>

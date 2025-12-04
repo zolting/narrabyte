@@ -550,12 +550,17 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	return (
 		<div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-4">
 			<ProjectDetailTabsSection
+				availableModels={availableModels}
 				canGenerateBase={canGenerateBase}
 				currentBranch={currentBranch}
+				defaultModelKey={defaultModelKey}
+				groupedModelOptions={groupedModelOptions}
 				hasInstructionContent={hasInstructionContent}
 				hasUncommitted={hasUncommitted}
+				modelsLoading={modelsLoading}
 				onApprove={handleApprove}
 				onGenerate={handleGenerate}
+				onModelChange={setLastSelectedModelKey}
 				onNavigateToGenerations={() =>
 					navigate({
 						to: "/projects/$projectId/generations",
@@ -570,35 +575,40 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				}
 				onRefreshBranches={fetchBranches}
 				onReset={handleReset}
-				availableModels={availableModels}
-				defaultModelKey={defaultModelKey}
-				groupedModelOptions={groupedModelOptions}
-				modelsLoading={modelsLoading}
-				onModelChange={setLastSelectedModelKey}
-				providerKeys={providerKeys}
 				project={project}
 				projectId={projectId}
+				providerKeys={providerKeys}
 				renderGenerationBody={renderGenerationBody}
 			/>
 
-			{docsBranchConflict &&
-				activeDocManager.sourceBranch &&
-				(lastSelectedModelKey ?? defaultModelKey) && (
-				<DocBranchConflictDialog
-					existingDocsBranch={docsBranchConflict.existingDocsBranch}
-					isInProgress={docsBranchConflict.isInProgress}
-					mode={docsBranchConflict.mode}
-					modelKey={lastSelectedModelKey ?? defaultModelKey ?? undefined}
-					open={true}
-					projectId={Number(project?.ID ?? projectId)}
-					projectName={project.ProjectName}
-					proposedDocsBranch={docsBranchConflict.proposedDocsBranch}
-					sessionKey={activeDocManager.sessionKey ?? undefined}
-					sourceBranch={activeDocManager.sourceBranch}
-					targetBranch={activeDocManager.targetBranch ?? undefined}
-					userInstructions={buildInstructionPayload()}
-				/>
-			)}
+			{(() => {
+				const conflictModelKey = lastSelectedModelKey ?? defaultModelKey;
+				if (
+					!(
+						docsBranchConflict &&
+						activeDocManager.sourceBranch &&
+						conflictModelKey
+					)
+				) {
+					return null;
+				}
+				return (
+					<DocBranchConflictDialog
+						existingDocsBranch={docsBranchConflict.existingDocsBranch}
+						isInProgress={docsBranchConflict.isInProgress}
+						mode={docsBranchConflict.mode}
+						modelKey={conflictModelKey}
+						open={true}
+						projectId={Number(project?.ID ?? projectId)}
+						projectName={project.ProjectName}
+						proposedDocsBranch={docsBranchConflict.proposedDocsBranch}
+						sessionKey={activeDocManager.sessionKey ?? undefined}
+						sourceBranch={activeDocManager.sourceBranch}
+						targetBranch={activeDocManager.targetBranch ?? undefined}
+						userInstructions={buildInstructionPayload()}
+					/>
+				);
+			})()}
 		</div>
 	);
 }
