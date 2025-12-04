@@ -510,6 +510,7 @@ export function ProjectDetailTabsSection({
 					{uiTabs.map((tabId) => (
 						<TabsContent
 							className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+							forceMount
 							key={tabId}
 							value={tabId}
 						>
