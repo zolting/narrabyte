@@ -77,7 +77,7 @@ export default function AddApiKeyDialog({
 						// Find first available provider that doesn't have a key
 						const existingProviders = new Set(apiKeys.map((k) => k.provider));
 						const availableProvider = PROVIDERS.find(
-							(p) => !existingProviders.has(p.name),
+							(p) => !existingProviders.has(p.name)
 						);
 						if (availableProvider) {
 							setProvider(availableProvider.name);
