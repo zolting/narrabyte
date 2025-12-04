@@ -92,11 +92,11 @@ function Settings() {
 	};
 
 	return (
-		<div className="h-full w-full overflow-y-auto bg-background font-mono">
-			<div className="mx-auto w-full max-w-4xl px-6 py-12">
-				<div className="mb-8">
+		<div className="h-full w-full overflow-y-auto bg-background">
+			<div className="mx-auto w-full max-w-5xl p-4">
+				<div className="mb-6">
 					<Button
-						className="mb-6"
+						className="mb-4"
 						onClick={() => window.history.back()}
 						size="sm"
 						variant="ghost"
@@ -104,12 +104,12 @@ function Settings() {
 						<ArrowLeft className="mr-2 h-4 w-4" />
 						{t("common.goBack")}
 					</Button>
-					<h1 className="font-bold text-4xl tracking-tight">
+					<h1 className="font-semibold text-2xl tracking-tight">
 						{t("settings.title")}
 					</h1>
 				</div>
 
-				<Tabs className="space-y-8" defaultValue="general">
+				<Tabs className="space-y-6" defaultValue="general">
 					<TabsList className="grid w-full max-w-sm grid-cols-2">
 						<TabsTrigger value="general">
 							{t("settings.generalTab")}
@@ -176,7 +176,7 @@ function Settings() {
 							</CardContent>
 						</Card>
 					</TabsContent>
-					<TabsContent className="space-y-8" value="models">
+					<TabsContent className="space-y-6" value="models">
 						<ApiKeyManager
 							onAddClick={handleAddClick}
 							onEditClick={handleEditClick}

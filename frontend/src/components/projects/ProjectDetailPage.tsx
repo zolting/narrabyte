@@ -7,7 +7,7 @@ import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
@@ -50,7 +50,7 @@ import {
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { t } = useTranslation();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
-		undefined,
+		undefined
 	);
 	const [modelKey, setModelKey] = useState<string | null>(null);
 	const [providerKeys, setProviderKeys] = useState<string[]>([]);
@@ -83,6 +83,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	// Read the app's default model preference (if any)
 	const { settings: appSettings } = useAppSettingsStore();
+
+	const modelSelectId = useId();
+	const docInstructionsId = useId();
 
 	useEffect(() => {
 		setProject(undefined);
@@ -121,7 +124,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		return () => {
 			window.removeEventListener("narrabyte:keysChanged", handler);
 		};
-	}, []);
+	}, [initModelSettings]);
 
 	useEffect(() => {
 		if (!modelsInitialized) {
@@ -158,7 +161,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const availableModels = useMemo<ModelOption[]>(
 		() => groupedModelOptions.flatMap((group) => group.models),
-		[groupedModelOptions],
+		[groupedModelOptions]
 	);
 
 	const hasInstructionContent = useMemo(() => {
@@ -174,7 +177,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 		if (template.length > 0) {
 			sections.push(
-				`<DOCUMENTATION_TEMPLATE>${template}</DOCUMENTATION_TEMPLATE>`,
+				`<DOCUMENTATION_TEMPLATE>${template}</DOCUMENTATION_TEMPLATE>`
 			);
 		}
 		if (user.length > 0) {
@@ -216,7 +219,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		) {
 			activeDocManager.setCompletedCommit(
 				activeDocManager.sourceBranch,
-				activeDocManager.targetBranch,
+				activeDocManager.targetBranch
 			);
 		}
 	}, [
@@ -247,14 +250,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	// Branch selection requirements are checked per-tab
 	const canGenerateBase = useMemo(
 		() => Boolean(project && modelKey),
-		[modelKey, project],
+		[modelKey, project]
 	);
 
 	const handleGenerate = useCallback(
 		(
 			tabId: string,
 			manager: DocGenerationManager,
-			branchSelection: BranchSelectionState,
+			branchSelection: BranchSelectionState
 		) => {
 			if (!(project && branchSelection.sourceBranch && modelKey)) {
 				return;
@@ -268,7 +271,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			const newSessionKey = createSessionKey(
 				Number(project.ID),
 				trimmedSourceBranch,
-				tabId,
+				tabId
 			);
 			createTabSession(Number(project.ID), tabId, newSessionKey);
 
@@ -302,7 +305,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				});
 			}
 		},
-		[project, modelKey, buildInstructionPayload, mode, createTabSession],
+		[project, modelKey, buildInstructionPayload, mode, createTabSession]
 	);
 
 	const handleApprove = useCallback(
@@ -318,7 +321,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				});
 			}
 		},
-		[projectId],
+		[projectId]
 	);
 
 	const handleReset = useCallback(
@@ -326,14 +329,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			manager.reset();
 			branchSelection.resetSelection();
 		},
-		[],
+		[]
 	);
 
 	const handleStartNewTask = useCallback(
 		(manager: DocGenerationManager, branchSelection: BranchSelectionState) => {
 			handleReset(manager, branchSelection);
 		},
-		[handleReset],
+		[handleReset]
 	);
 
 	if (project === undefined) {
@@ -346,14 +349,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const renderGenerationSetup = (
 		tabDocManager: DocGenerationManager,
-		branchSelection: BranchSelectionState,
+		branchSelection: BranchSelectionState
 	) => {
 		const disableControls = tabDocManager.isBusy;
 		return (
 			<>
 				<div className="flex flex-col gap-4 md:flex-row">
 					<div className="space-y-2 md:w-1/2">
-						<Label className="font-medium text-sm" htmlFor="model-select">
+						<Label className="font-medium text-sm" htmlFor={modelSelectId}>
 							{t("common.llmModel")}
 						</Label>
 						<Select
@@ -363,7 +366,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							onValueChange={(value: string) => setModelKey(value)}
 							value={modelKey ?? undefined}
 						>
-							<SelectTrigger className="w-full" id="model-select">
+							<SelectTrigger className="w-full" id={modelSelectId}>
 								<SelectValue placeholder={t("common.selectModel")} />
 							</SelectTrigger>
 							<SelectContent>
@@ -403,8 +406,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						{t("common.generationMode")}
 					</Label>
 					<Tabs
-						value={mode}
 						onValueChange={(v) => setMode(v as "diff" | "single")}
+						value={mode}
 					>
 						<TabsList>
 							<TabsTrigger value="diff">{t("common.diffMode")}</TabsTrigger>
@@ -439,13 +442,13 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					/>
 				)}
 				<div className="space-y-2">
-					<Label className="font-medium text-sm" htmlFor="doc-instructions">
+					<Label className="font-medium text-sm" htmlFor={docInstructionsId}>
 						{t("common.docInstructionsLabel")}
 					</Label>
 					<Textarea
 						className="resize-vertical min-h-[200px] text-xs"
 						disabled={disableControls}
-						id="doc-instructions"
+						id={docInstructionsId}
 						onChange={(e) => setUserInstructions(e.target.value)}
 						placeholder={t("common.docInstructionsPlaceholder")}
 						value={userInstructions}
@@ -462,7 +465,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const renderGenerationBody = (
 		tabDocManager: DocGenerationManager,
-		branchSelection: BranchSelectionState,
+		branchSelection: BranchSelectionState
 	) => {
 		const comparisonSourceBranch =
 			tabDocManager.sourceBranch ??
@@ -511,7 +514,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}
 
 	return (
-		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
+		<div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-4">
 			<ProjectDetailTabsSection
 				canGenerateBase={canGenerateBase}
 				currentBranch={currentBranch}

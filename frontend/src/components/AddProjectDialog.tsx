@@ -62,16 +62,16 @@ export default function AddProjectDialog({
 
 	const sharedRepo = useMemo(
 		() => pathsShareRoot(docRepoPath, codebaseDirectory),
-		[docRepoPath, codebaseDirectory],
+		[docRepoPath, codebaseDirectory]
 	);
 
 	const normalizedDocPath = useMemo(
 		() => normalizePathForCompare(docRepoPath),
-		[docRepoPath],
+		[docRepoPath]
 	);
 	const normalizedCodePath = useMemo(
 		() => normalizePathForCompare(codebaseDirectory),
-		[codebaseDirectory],
+		[codebaseDirectory]
 	);
 
 	const sameLocation =
@@ -85,11 +85,11 @@ export default function AddProjectDialog({
 		normalizedCodePath.startsWith(`${normalizedDocPath}/`);
 
 	const showDocBranchSelector = Boolean(
-		docRepoPath && !sharedRepo && !initFumaDocs,
+		docRepoPath && !sharedRepo && !initFumaDocs
 	);
 
 	const requiresDocBaseBranch = Boolean(
-		docRepoPath && codebaseDirectory && !sharedRepo && !initFumaDocs,
+		docRepoPath && codebaseDirectory && !sharedRepo && !initFumaDocs
 	);
 
 	const handleSubmit = (e: React.FormEvent) => {
@@ -138,7 +138,7 @@ export default function AddProjectDialog({
 			.then((branches) => {
 				if (!cancelled) {
 					setAvailableDocBranches(
-						sortBranches(branches, { prioritizeMainMaster: true }),
+						sortBranches(branches, { prioritizeMainMaster: true })
 					);
 				}
 			})
@@ -263,7 +263,7 @@ export default function AddProjectDialog({
 							<DocumentationBranchSelector
 								branches={availableDocBranches}
 								description={t(
-									"projectManager.documentationBaseBranchDescription",
+									"projectManager.documentationBaseBranchDescription"
 								)}
 								disabled={!docRepoPath}
 								onChange={setDocBaseBranch}
