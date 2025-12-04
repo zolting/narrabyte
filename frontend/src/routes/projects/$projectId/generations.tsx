@@ -114,7 +114,7 @@ function RouteComponent() {
 	);
 
 	return (
-		<div className="flex h-[calc(100dvh-4rem)] flex-col gap-6 overflow-hidden p-8">
+		<div className="flex h-full flex-col gap-6 overflow-hidden p-8">
 			<section className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4">
 				<header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 bg-card pb-2">
 					<div className="space-y-2">

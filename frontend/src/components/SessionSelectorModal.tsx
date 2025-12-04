@@ -75,7 +75,7 @@ export function SessionSelectorModal({
 
 	return (
 		<Dialog onOpenChange={onClose} open={open}>
-			<DialogContent className="flex max-h-[80vh] w-auto max-w-2xl flex-col">
+			<DialogContent className="flex max-h-[80vh] flex-col sm:max-w-3xl">
 				<DialogHeader>
 					<DialogTitle className="text-foreground text-lg">
 						{t("sessionSelector.title")}

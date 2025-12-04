@@ -189,7 +189,7 @@ function TemplatesPage() {
 	};
 
 	return (
-		<div className="flex min-h-screen flex-1 flex-col gap-6 bg-background p-4">
+		<div className="flex flex-1 flex-col gap-6 bg-background p-4">
 			<div className="space-y-2">
 				<h1 className="font-semibold text-2xl text-foreground">
 					{t("home.templateManagerTitle")}

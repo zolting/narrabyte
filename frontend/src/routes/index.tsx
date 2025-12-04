@@ -3,7 +3,7 @@ import { List as listSessions } from "@go/services/generationSessionService";
 import { List as listProjects } from "@go/services/repoLinkService";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Clock, Loader2, PlayCircle, PlusCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -212,6 +212,8 @@ function Home() {
 		[navigate, restoreSession, setActiveSession]
 	);
 
+	const projectSelectId = useId();
+
 	const handleOpenDialog = () => {
 		if (projects.length === 0) {
 			return;
@@ -239,7 +241,7 @@ function Home() {
 
 	return (
 		<>
-			<div className="flex w-full justify-center overflow-hidden bg-background">
+			<div className="flex h-full w-full justify-center overflow-y-auto bg-background">
 				<div className="flex w-full max-w-6xl flex-col gap-6 p-6 md:p-10">
 					<Card className="border border-border/60">
 						<CardHeader className="border-border/60 border-b">
@@ -446,14 +448,14 @@ function Home() {
 					</DialogHeader>
 					<div className="space-y-3">
 						<div className="space-y-1">
-							<Label htmlFor="project-select">
+							<Label htmlFor={projectSelectId}>
 								{t("home.projectSelectLabel")}
 							</Label>
 							<Select
 								onValueChange={(value) => setSelectedProjectId(value)}
 								value={selectedProjectId}
 							>
-								<SelectTrigger id="project-select">
+								<SelectTrigger id={projectSelectId}>
 									<SelectValue
 										placeholder={t("home.projectSelectPlaceholder")}
 									/>
