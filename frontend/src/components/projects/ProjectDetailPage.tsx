@@ -52,7 +52,9 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
 		undefined
 	);
-	const [modelKey, setModelKey] = useState<string | null>(null);
+	const [lastSelectedModelKey, setLastSelectedModelKey] = useState<
+		string | null
+	>(null);
 	const [providerKeys, setProviderKeys] = useState<string[]>([]);
 	const {
 		groups: modelGroups,
@@ -63,7 +65,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [currentBranch, setCurrentBranch] = useState<string | null>(null);
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
-	const [mode, setMode] = useState<"diff" | "single">("diff");
 	const [templateInstructions, setTemplateInstructions] = useState<string>("");
 
 	const repoPath = project?.CodebaseRepo;
@@ -164,6 +165,17 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		[groupedModelOptions]
 	);
 
+	const defaultModelKey = useMemo(() => {
+		if (availableModels.length === 0) {
+			return null;
+		}
+		const preferred = appSettings?.DefaultModelKey ?? null;
+		if (preferred && availableModels.some((m) => m.key === preferred)) {
+			return preferred;
+		}
+		return availableModels[0]?.key ?? null;
+	}, [availableModels, appSettings?.DefaultModelKey]);
+
 	const hasInstructionContent = useMemo(() => {
 		const template = templateInstructions.trim();
 		const user = userInstructions.trim();
@@ -188,27 +200,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, [templateInstructions, userInstructions]);
 
 	useEffect(() => {
-		if (availableModels.length === 0) {
-			setModelKey(null);
-			return;
+		if (defaultModelKey) {
+			setLastSelectedModelKey((current) => current ?? defaultModelKey);
+		} else {
+			setLastSelectedModelKey(null);
 		}
-
-		setModelKey((current) => {
-			// Preserve a valid current selection if present
-			if (current && availableModels.some((m) => m.key === current)) {
-				return current;
-			}
-
-			// Prefer the globally configured default model if it's available
-			const preferred = appSettings?.DefaultModelKey ?? null;
-			if (preferred && availableModels.some((m) => m.key === preferred)) {
-				return preferred;
-			}
-
-			// Fallback to the first available model
-			return availableModels[0]?.key ?? null;
-		});
-	}, [availableModels, appSettings?.DefaultModelKey]);
+	}, [defaultModelKey]);
 
 	useEffect(() => {
 		if (
@@ -249,15 +246,17 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	// Base generation requirements (project + model selected)
 	// Branch selection requirements are checked per-tab
 	const canGenerateBase = useMemo(
-		() => Boolean(project && modelKey),
-		[modelKey, project]
+		() => Boolean(project && availableModels.length > 0),
+		[availableModels, project]
 	);
 
 	const handleGenerate = useCallback(
 		(
 			tabId: string,
 			manager: DocGenerationManager,
-			branchSelection: BranchSelectionState
+			branchSelection: BranchSelectionState,
+			mode: "diff" | "single",
+			modelKey: string | null
 		) => {
 			if (!(project && branchSelection.sourceBranch && modelKey)) {
 				return;
@@ -305,7 +304,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				});
 			}
 		},
-		[project, modelKey, buildInstructionPayload, mode, createTabSession]
+		[project, buildInstructionPayload, createTabSession]
 	);
 
 	const handleApprove = useCallback(
@@ -349,7 +348,19 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const renderGenerationSetup = (
 		tabDocManager: DocGenerationManager,
-		branchSelection: BranchSelectionState
+		branchSelection: BranchSelectionState,
+		mode: "diff" | "single",
+		onModeChange: (mode: "diff" | "single") => void,
+		modelKey: string | null,
+		onModelChange: (modelKey: string | null) => void,
+		availableModels: ModelOption[],
+		groupedModelOptions: Array<{
+			providerId: string;
+			providerName: string;
+			models: ModelOption[];
+		}>,
+		modelsLoading: boolean,
+		providerKeys: string[]
 	) => {
 		const disableControls = tabDocManager.isBusy;
 		return (
@@ -363,7 +374,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							disabled={
 								disableControls || modelsLoading || availableModels.length === 0
 							}
-							onValueChange={(value: string) => setModelKey(value)}
+							onValueChange={(value: string) => onModelChange(value)}
 							value={modelKey ?? undefined}
 						>
 							<SelectTrigger className="w-full" id={modelSelectId}>
@@ -406,7 +417,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 						{t("common.generationMode")}
 					</Label>
 					<Tabs
-						onValueChange={(v) => setMode(v as "diff" | "single")}
+						onValueChange={(v) => onModeChange(v as "diff" | "single")}
 						value={mode}
 					>
 						<TabsList>
@@ -465,7 +476,19 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const renderGenerationBody = (
 		tabDocManager: DocGenerationManager,
-		branchSelection: BranchSelectionState
+		branchSelection: BranchSelectionState,
+		mode: "diff" | "single",
+		onModeChange: (mode: "diff" | "single") => void,
+		modelKey: string | null,
+		onModelChange: (modelKey: string | null) => void,
+		availableModels: ModelOption[],
+		groupedModelOptions: Array<{
+			providerId: string;
+			providerName: string;
+			models: ModelOption[];
+		}>,
+		modelsLoading: boolean,
+		providerKeys: string[]
 	) => {
 		const comparisonSourceBranch =
 			tabDocManager.sourceBranch ??
@@ -502,7 +525,18 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			);
 		}
 
-		return renderGenerationSetup(tabDocManager, branchSelection);
+		return renderGenerationSetup(
+			tabDocManager,
+			branchSelection,
+			mode,
+			onModeChange,
+			modelKey,
+			onModelChange,
+			availableModels,
+			groupedModelOptions,
+			modelsLoading,
+			providerKeys
+		);
 	};
 
 	if (!project) {
@@ -520,7 +554,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				currentBranch={currentBranch}
 				hasInstructionContent={hasInstructionContent}
 				hasUncommitted={hasUncommitted}
-				mode={mode}
 				onApprove={handleApprove}
 				onGenerate={handleGenerate}
 				onNavigateToGenerations={() =>
@@ -537,17 +570,25 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				}
 				onRefreshBranches={fetchBranches}
 				onReset={handleReset}
+				availableModels={availableModels}
+				defaultModelKey={defaultModelKey}
+				groupedModelOptions={groupedModelOptions}
+				modelsLoading={modelsLoading}
+				onModelChange={setLastSelectedModelKey}
+				providerKeys={providerKeys}
 				project={project}
 				projectId={projectId}
 				renderGenerationBody={renderGenerationBody}
 			/>
 
-			{docsBranchConflict && activeDocManager.sourceBranch && modelKey && (
+			{docsBranchConflict &&
+				activeDocManager.sourceBranch &&
+				(lastSelectedModelKey ?? defaultModelKey) && (
 				<DocBranchConflictDialog
 					existingDocsBranch={docsBranchConflict.existingDocsBranch}
 					isInProgress={docsBranchConflict.isInProgress}
 					mode={docsBranchConflict.mode}
-					modelKey={modelKey}
+					modelKey={lastSelectedModelKey ?? defaultModelKey ?? undefined}
 					open={true}
 					projectId={Number(project?.ID ?? projectId)}
 					projectName={project.ProjectName}
