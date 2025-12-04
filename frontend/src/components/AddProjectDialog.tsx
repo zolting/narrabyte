@@ -62,16 +62,16 @@ export default function AddProjectDialog({
 
 	const sharedRepo = useMemo(
 		() => pathsShareRoot(docRepoPath, codebaseDirectory),
-		[docRepoPath, codebaseDirectory]
+		[docRepoPath, codebaseDirectory],
 	);
 
 	const normalizedDocPath = useMemo(
 		() => normalizePathForCompare(docRepoPath),
-		[docRepoPath]
+		[docRepoPath],
 	);
 	const normalizedCodePath = useMemo(
 		() => normalizePathForCompare(codebaseDirectory),
-		[codebaseDirectory]
+		[codebaseDirectory],
 	);
 
 	const sameLocation =
@@ -85,11 +85,11 @@ export default function AddProjectDialog({
 		normalizedCodePath.startsWith(`${normalizedDocPath}/`);
 
 	const showDocBranchSelector = Boolean(
-		docRepoPath && !sharedRepo && !initFumaDocs
+		docRepoPath && !sharedRepo && !initFumaDocs,
 	);
 
 	const requiresDocBaseBranch = Boolean(
-		docRepoPath && codebaseDirectory && !sharedRepo && !initFumaDocs
+		docRepoPath && codebaseDirectory && !sharedRepo && !initFumaDocs,
 	);
 
 	const handleSubmit = (e: React.FormEvent) => {
@@ -138,7 +138,7 @@ export default function AddProjectDialog({
 			.then((branches) => {
 				if (!cancelled) {
 					setAvailableDocBranches(
-						sortBranches(branches, { prioritizeMainMaster: true })
+						sortBranches(branches, { prioritizeMainMaster: true }),
 					);
 				}
 			})
@@ -207,24 +207,24 @@ export default function AddProjectDialog({
 					</div>
 
 					<div className="space-y-3">
-						<div className="font-medium text-foreground">
+						{/* <div className="font-medium text-foreground">
 							{t("projectManager.chooseNewOrExisitingDoc")}
-						</div>
+						</div> */}
 						<div className="flex gap-2">
-							<Button
+							{/* <Button
 								onClick={() => setInitFumaDocs(false)}
 								type="button"
 								variant={initFumaDocs ? "outline" : "default"}
 							>
 								{t("projectManager.existingDocumentationRepository")}
-							</Button>
-							<Button
+							</Button> */}
+							{/* <Button
 								onClick={() => setInitFumaDocs(true)}
 								type="button"
 								variant={initFumaDocs ? "default" : "outline"}
 							>
 								{t("projectManager.newDocumentationRepository")}
-							</Button>
+							</Button> */}
 						</div>
 
 						<div className="space-y-2">
@@ -263,7 +263,7 @@ export default function AddProjectDialog({
 							<DocumentationBranchSelector
 								branches={availableDocBranches}
 								description={t(
-									"projectManager.documentationBaseBranchDescription"
+									"projectManager.documentationBaseBranchDescription",
 								)}
 								disabled={!docRepoPath}
 								onChange={setDocBaseBranch}

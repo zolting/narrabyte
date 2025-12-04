@@ -19,7 +19,7 @@ import {
 import { SingleBranchSelector } from "@/components/SingleBranchSelector";
 import { SuccessPanel } from "@/components/SuccessPanel";
 import { TemplateSelector } from "@/components/TemplateSelector";
-import { Button } from "@/components/ui/button";
+
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -30,6 +30,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useBranchList } from "@/hooks/useBranchManager";
 import {
@@ -49,7 +50,7 @@ import {
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { t } = useTranslation();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
-		undefined
+		undefined,
 	);
 	const [modelKey, setModelKey] = useState<string | null>(null);
 	const [providerKeys, setProviderKeys] = useState<string[]>([]);
@@ -157,7 +158,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const availableModels = useMemo<ModelOption[]>(
 		() => groupedModelOptions.flatMap((group) => group.models),
-		[groupedModelOptions]
+		[groupedModelOptions],
 	);
 
 	const hasInstructionContent = useMemo(() => {
@@ -173,7 +174,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 		if (template.length > 0) {
 			sections.push(
-				`<DOCUMENTATION_TEMPLATE>${template}</DOCUMENTATION_TEMPLATE>`
+				`<DOCUMENTATION_TEMPLATE>${template}</DOCUMENTATION_TEMPLATE>`,
 			);
 		}
 		if (user.length > 0) {
@@ -215,7 +216,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		) {
 			activeDocManager.setCompletedCommit(
 				activeDocManager.sourceBranch,
-				activeDocManager.targetBranch
+				activeDocManager.targetBranch,
 			);
 		}
 	}, [
@@ -246,14 +247,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	// Branch selection requirements are checked per-tab
 	const canGenerateBase = useMemo(
 		() => Boolean(project && modelKey),
-		[modelKey, project]
+		[modelKey, project],
 	);
 
 	const handleGenerate = useCallback(
 		(
 			tabId: string,
 			manager: DocGenerationManager,
-			branchSelection: BranchSelectionState
+			branchSelection: BranchSelectionState,
 		) => {
 			if (!(project && branchSelection.sourceBranch && modelKey)) {
 				return;
@@ -267,7 +268,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			const newSessionKey = createSessionKey(
 				Number(project.ID),
 				trimmedSourceBranch,
-				tabId
+				tabId,
 			);
 			createTabSession(Number(project.ID), tabId, newSessionKey);
 
@@ -301,7 +302,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				});
 			}
 		},
-		[project, modelKey, buildInstructionPayload, mode, createTabSession]
+		[project, modelKey, buildInstructionPayload, mode, createTabSession],
 	);
 
 	const handleApprove = useCallback(
@@ -317,7 +318,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				});
 			}
 		},
-		[projectId]
+		[projectId],
 	);
 
 	const handleReset = useCallback(
@@ -325,14 +326,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			manager.reset();
 			branchSelection.resetSelection();
 		},
-		[]
+		[],
 	);
 
 	const handleStartNewTask = useCallback(
 		(manager: DocGenerationManager, branchSelection: BranchSelectionState) => {
 			handleReset(manager, branchSelection);
 		},
-		[handleReset]
+		[handleReset],
 	);
 
 	if (project === undefined) {
@@ -345,7 +346,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const renderGenerationSetup = (
 		tabDocManager: DocGenerationManager,
-		branchSelection: BranchSelectionState
+		branchSelection: BranchSelectionState,
 	) => {
 		const disableControls = tabDocManager.isBusy;
 		return (
@@ -401,24 +402,17 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					<Label className="text-muted-foreground text-xs">
 						{t("common.generationMode")}
 					</Label>
-					<div className="flex gap-2">
-						<Button
-							onClick={() => setMode("diff")}
-							size="sm"
-							type="button"
-							variant={mode === "diff" ? "default" : "outline"}
-						>
-							{t("common.diffMode")}
-						</Button>
-						<Button
-							onClick={() => setMode("single")}
-							size="sm"
-							type="button"
-							variant={mode === "single" ? "default" : "outline"}
-						>
-							{t("common.singleBranchMode")}
-						</Button>
-					</div>
+					<Tabs
+						value={mode}
+						onValueChange={(v) => setMode(v as "diff" | "single")}
+					>
+						<TabsList>
+							<TabsTrigger value="diff">{t("common.diffMode")}</TabsTrigger>
+							<TabsTrigger value="single">
+								{t("common.singleBranchMode")}
+							</TabsTrigger>
+						</TabsList>
+					</Tabs>
 				</div>
 				{mode === "diff" ? (
 					<BranchSelector
@@ -468,7 +462,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const renderGenerationBody = (
 		tabDocManager: DocGenerationManager,
-		branchSelection: BranchSelectionState
+		branchSelection: BranchSelectionState,
 	) => {
 		const comparisonSourceBranch =
 			tabDocManager.sourceBranch ??
