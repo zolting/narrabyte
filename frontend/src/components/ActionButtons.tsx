@@ -118,17 +118,12 @@ export const ActionButtons = ({
 									<AlertDialogContent>
 										<AlertDialogHeader>
 											<AlertDialogTitle>
-												{t(
-													"common.confirmMergeTitle",
-													"Merge documentation into source branch?"
-												)}
+												{t("common.confirmMergeTitle")}
 											</AlertDialogTitle>
 											<AlertDialogDescription>
-												{t(
-													"common.confirmMergeDescription",
-													"This will fast-forward your source branch ({branch}) to include the documentation commit. The changes will be immediately available on {branch}.",
-													{ branch: docResult.branch }
-												)}
+												{t("common.confirmMergeDescription", {
+													branch: docResult.branch,
+												})}
 											</AlertDialogDescription>
 										</AlertDialogHeader>
 										<AlertDialogFooter>

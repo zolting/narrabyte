@@ -1,6 +1,7 @@
 {
   "common": {
     "appName": "Narrabyte",
+    "merge": "Merge",
     "settings": "Settings",
     "templates": "Templates",
     "greet": "Greet",
@@ -111,7 +112,9 @@
     "newDocsBranchLabel": "Use a different docs branch name",
     "newDocsBranchPlaceholder": "e.g., docs/feature-x-2",
     "newDocsBranchAria": "New documentation branch name",
-    "deleteCurrentDocsBranch": "Delete current docs branch"
+    "deleteCurrentDocsBranch": "Delete current docs branch",
+    "confirmMergeTitle": "Merge documentation into source branch?",
+    "confirmMergeDescription": "This will fast-forward your source branch ({{branch}}) to include the documentation commit. The changes will be immediately available on {{branch}}."
   },
   "fileStatus": {
     "added": "New File",
@@ -141,7 +144,6 @@
     "codeWithinDocs": "Codebase path cannot be inside the documentation directory."
   },
   "home": {
-    "greeting": "Please enter your name below 👇",
     "namePlaceholder": "Enter your name",
     "docDirectory": "Documentation Directory",
     "codebaseDirectory": "Codebase Directory",
