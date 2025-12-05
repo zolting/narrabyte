@@ -67,9 +67,7 @@ func main() {
 			dbService.StartDbServices(ctx)
 			fumadocsService.Startup(ctx)
 			gitService.Startup(ctx)
-			keyringService.Startup()
 
-			//will have to check for this lowkey
 			err := clientService.Startup(ctx)
 			if err != nil {
 				fmt.Println("Error starting client service:", err)
