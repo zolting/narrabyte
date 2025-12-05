@@ -124,6 +124,9 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		(s) =>
 			(sessionKey ? s.docStates[sessionKey]?.mergeInProgress : false) ?? false
 	);
+	const docsBranch = useDocGenerationStore(
+		(s) => (sessionKey ? s.docStates[sessionKey]?.docsBranch : null) ?? null
+	);
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
 	const startSingleBranchGeneration = useDocGenerationStore(
 		(s) => s.startFromBranch
@@ -177,11 +180,14 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		prevStatusRef.current = status;
 	}, [status, setActiveTab]);
 
-	const reset = useCallback(() => {
-		if (sessionKey) {
-			resetDocGeneration(sessionKey);
-		}
-	}, [sessionKey, resetDocGeneration]);
+	const reset = useCallback(
+		(options?: { deleteDocsBranch?: boolean }) => {
+			if (sessionKey) {
+				resetDocGeneration(sessionKey, options);
+			}
+		},
+		[sessionKey, resetDocGeneration]
+	);
 
 	const setCompletedCommit = useCallback(
 		(newSourceBranch: string, newTargetBranch: string) => {
@@ -243,6 +249,7 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		setCompletedCommit,
 		approveCommit,
 		docsInCodeRepo,
+		docsBranch,
 		mergeDocs,
 	};
 };

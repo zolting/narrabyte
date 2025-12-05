@@ -27,6 +27,7 @@ interface ActionButtonsProps {
 	canGenerate: boolean;
 	canMerge: boolean;
 	isMerging: boolean;
+	showReset: boolean;
 	docGenerationError: string | null;
 	mergeDisabledReason: string | null;
 	onCancel: () => void;
@@ -43,6 +44,7 @@ export const ActionButtons = ({
 	canGenerate,
 	canMerge,
 	isMerging,
+	showReset,
 	docGenerationError,
 	mergeDisabledReason,
 	onCancel,
@@ -70,9 +72,11 @@ export const ActionButtons = ({
 						{t("common.cancel")}
 					</Button>
 				)}
-				<Button disabled={isBusy} onClick={onReset} variant="outline">
-					{t("common.reset")}
-				</Button>
+				{showReset && (
+					<Button disabled={isBusy} onClick={onReset} variant="destructive">
+						{t("common.delete")}
+					</Button>
+				)}
 				{docResult ? (
 					<>
 						{docResult.docsInCodeRepo && (

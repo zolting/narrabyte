@@ -10,6 +10,7 @@ import {
 	StopStream,
 } from "@go/services/ClientService";
 import { DeleteBranchByPath } from "@go/services/GitService";
+import { Delete as DeleteGenerationSession } from "@go/services/generationSessionService";
 import { Get as GetRepoLink } from "@go/services/repoLinkService";
 import i18n from "i18next";
 import { parseDiff } from "react-diff-view";
@@ -122,7 +123,10 @@ type State = {
 	// Generation actions (now accept optional tabId)
 	start: (args: StartArgs & { tabId?: TabId }) => Promise<void>;
 	startFromBranch?: (args: StartArgs & { tabId?: TabId }) => Promise<void>;
-	reset: (sessionKey: SessionKey) => void;
+	reset: (
+		sessionKey: SessionKey,
+		options?: { deleteDocsBranch?: boolean }
+	) => Promise<void>;
 	commit: (args: CommitArgs & { sessionKey: SessionKey }) => Promise<void>;
 	cancel: (sessionKey: SessionKey) => Promise<void>;
 	setActiveTab: (
@@ -1150,7 +1154,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			sessionKey: SessionKey;
 		}): Promise<void> => {
 			const docState = get().docStates[sessionKey];
-			if (!docState || !docState.docsInCodeRepo || docState.mergeInProgress) {
+			if (!(docState && docState.docsInCodeRepo) || docState.mergeInProgress) {
 				return;
 			}
 
@@ -1211,10 +1215,64 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}
 		},
 
-		reset: (sessionKey: SessionKey) => {
+		reset: async (
+			sessionKey: SessionKey,
+			options?: { deleteDocsBranch?: boolean }
+		) => {
 			const current = get().docStates[sessionKey];
 			if (!current) {
 				return;
+			}
+
+			try {
+				// Delete the docs branch if it exists (always true when called from UI)
+				if (options?.deleteDocsBranch && current.docsBranch) {
+					const project = await GetRepoLink(current.projectId);
+					const repoRoot = current.docsInCodeRepo
+						? (project?.CodebaseRepo ?? "")
+						: (project?.DocumentationRepo ?? "");
+
+					if (repoRoot && current.docsBranch) {
+						try {
+							await DeleteBranchByPath(repoRoot, current.docsBranch);
+							setDocState(sessionKey, (prev) => ({
+								...prev,
+								events: [
+									...prev.events,
+									createLocalEvent(
+										"info",
+										`Deleted docs branch '${current.docsBranch}'`
+									),
+								],
+							}));
+						} catch (error) {
+							console.error("Failed to delete docs branch", error);
+							setDocState(sessionKey, (prev) => ({
+								...prev,
+								events: [
+									...prev.events,
+									createLocalEvent(
+										"warn",
+										`Failed to delete docs branch: ${messageFromError(error)}`
+									),
+								],
+							}));
+						}
+					}
+				}
+
+				// Clean up backend session: deletes temp directories, wipes session state, and removes metadata
+				const sourceBranch = current.sourceBranch ?? "";
+				const targetBranch = current.targetBranch ?? "";
+				if (sourceBranch && targetBranch) {
+					await DeleteGenerationSession(
+						current.projectId,
+						sourceBranch,
+						targetBranch
+					);
+				}
+			} catch (error) {
+				console.error("Failed to clean up backend session", error);
 			}
 
 			clearSubscriptions(sessionKey);

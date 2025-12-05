@@ -114,7 +114,9 @@
     "newDocsBranchAria": "New documentation branch name",
     "deleteCurrentDocsBranch": "Delete current docs branch",
     "confirmMergeTitle": "Merge documentation into source branch?",
-    "confirmMergeDescription": "This will fast-forward your source branch ({{branch}}) to include the documentation commit. The changes will be immediately available on {{branch}}."
+    "confirmMergeDescription": "This will fast-forward your source branch ({{branch}}) to include the documentation commit. The changes will be immediately available on {{branch}}.",
+    "deleteSessionConfirmTitle": "Delete this documentation session?",
+    "deleteSessionConfirmDescription": "This will permanently delete:\n• The documentation branch '{{branch}}'\n• All generated documentation\n• The session history\n\nThis action cannot be undone."
   },
   "fileStatus": {
     "added": "New File",

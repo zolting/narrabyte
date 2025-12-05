@@ -112,7 +112,9 @@
     "newDocsBranchAria": "Nouveau nom de branche de documentation",
     "deleteCurrentDocsBranch": "Supprimer la branche de docs actuelle",
     "confirmMergeTitle": "Fusionner la documentation dans la branche source ?",
-    "confirmMergeDescription": "Cela effectuera une avance rapide (fast-forward) de votre branche source ({{branch}}) pour inclure le commit de documentation. Les changements seront immédiatement disponibles sur {{branch}}."
+    "confirmMergeDescription": "Cela effectuera une avance rapide (fast-forward) de votre branche source ({{branch}}) pour inclure le commit de documentation. Les changements seront immédiatement disponibles sur {{branch}}.",
+    "deleteSessionConfirmTitle": "Supprimer cette session de documentation ?",
+    "deleteSessionConfirmDescription": "Cela supprimera définitivement :\n• La branche de documentation '{{branch}}'\n• Toute la documentation générée\n• L'historique de la session\n\nCette action est irréversible."
   },
   "fileStatus": {
     "added": "Nouveau fichier",

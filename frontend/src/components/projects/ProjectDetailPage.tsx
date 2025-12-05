@@ -19,7 +19,16 @@ import {
 import { SingleBranchSelector } from "@/components/SingleBranchSelector";
 import { SuccessPanel } from "@/components/SuccessPanel";
 import { TemplateSelector } from "@/components/TemplateSelector";
-
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -66,6 +75,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
 	const [templateInstructions, setTemplateInstructions] = useState<string>("");
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+	const [pendingDeletion, setPendingDeletion] = useState<{
+		manager: DocGenerationManager;
+		branchSelection: BranchSelectionState;
+		branchName: string;
+	} | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
 	const { branches, fetchBranches } = useBranchList(repoPath);
@@ -325,11 +340,27 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const handleReset = useCallback(
 		(manager: DocGenerationManager, branchSelection: BranchSelectionState) => {
-			manager.reset();
-			branchSelection.resetSelection();
+			// Show confirmation dialog
+			const branchName =
+				manager.docsBranch || manager.sourceBranch || "unknown";
+			setPendingDeletion({ manager, branchSelection, branchName });
+			setShowDeleteConfirm(true);
 		},
 		[]
 	);
+
+	const confirmDeletion = useCallback(async () => {
+		if (!pendingDeletion) {
+			return;
+		}
+
+		// Always delete the docs branch if it exists
+		await pendingDeletion.manager.reset({ deleteDocsBranch: true });
+		pendingDeletion.branchSelection.resetSelection();
+
+		setShowDeleteConfirm(false);
+		setPendingDeletion(null);
+	}, [pendingDeletion]);
 
 	const handleStartNewTask = useCallback(
 		(manager: DocGenerationManager, branchSelection: BranchSelectionState) => {
@@ -609,6 +640,34 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					/>
 				);
 			})()}
+
+			<AlertDialog onOpenChange={setShowDeleteConfirm} open={showDeleteConfirm}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{t("common.deleteSessionConfirmTitle")}
+						</AlertDialogTitle>
+						<AlertDialogDescription className="whitespace-pre-line">
+							{pendingDeletion?.branchName
+								? t("common.deleteSessionConfirmDescription", {
+										branch: pendingDeletion.branchName,
+									})
+								: t("common.deleteSessionConfirmTitle")}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel onClick={() => setPendingDeletion(null)}>
+							{t("common.cancel")}
+						</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={confirmDeletion}
+						>
+							{t("common.delete")}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }
