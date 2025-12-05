@@ -12,7 +12,7 @@ import (
 type GenerationSessionRepository interface {
 	ListByProject(projectID uint) ([]models.GenerationSession, error)
 	GetByProjectAndBranches(projectID uint, sourceBranch, targetBranch string) (*models.GenerationSession, error)
-	Upsert(projectID uint, sourceBranch, targetBranch, modelKey, provider, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error)
+	Upsert(projectID uint, sourceBranch, targetBranch, modelKey, provider, docsBranch, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error)
 	DeleteByProject(projectID uint) error
 	DeleteByProjectAndBranches(projectID uint, sourceBranch, targetBranch string) error
 }
@@ -46,7 +46,7 @@ func (r *generationSessionRepository) GetByProjectAndBranches(projectID uint, so
 	return &sess, nil
 }
 
-func (r *generationSessionRepository) Upsert(projectID uint, sourceBranch, targetBranch, modelKey, provider, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error) {
+func (r *generationSessionRepository) Upsert(projectID uint, sourceBranch, targetBranch, modelKey, provider, docsBranch, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error) {
 	if projectID == 0 {
 		return nil, fmt.Errorf("projectID is required")
 	}
@@ -62,13 +62,14 @@ func (r *generationSessionRepository) Upsert(projectID uint, sourceBranch, targe
 		TargetBranch:     targetBranch,
 		Provider:         provider,
 		ModelKey:         modelKey,
+		DocsBranch:       docsBranch,
 		MessagesJSON:     messagesJSON,
 		ChatMessagesJSON: chatMessagesJSON,
 	}
 	// Upsert on composite unique index
 	if err := r.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "project_id"}, {Name: "source_branch"}, {Name: "target_branch"}},
-		DoUpdates: clause.AssignmentColumns([]string{"provider", "model_key", "messages_json", "chat_messages_json", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"provider", "model_key", "docs_branch", "messages_json", "chat_messages_json", "updated_at"}),
 	}).Create(&sess).Error; err != nil {
 		return nil, err
 	}

@@ -7,10 +7,12 @@ import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
 import { useNavigate } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
+import { DeleteSessionDialog } from "@/components/DeleteSessionDialog";
 import { DocBranchConflictDialog } from "@/components/DocBranchConflictDialog";
 import {
 	type BranchSelectionState,
@@ -19,7 +21,16 @@ import {
 import { SingleBranchSelector } from "@/components/SingleBranchSelector";
 import { SuccessPanel } from "@/components/SuccessPanel";
 import { TemplateSelector } from "@/components/TemplateSelector";
-
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -66,6 +77,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const [hasUncommitted, setHasUncommitted] = useState<boolean>(false);
 	const [userInstructions, setUserInstructions] = useState<string>("");
 	const [templateInstructions, setTemplateInstructions] = useState<string>("");
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+	const [pendingDeletion, setPendingDeletion] = useState<{
+		manager: DocGenerationManager;
+		branchSelection: BranchSelectionState;
+		branchName: string;
+	} | null>(null);
 
 	const repoPath = project?.CodebaseRepo;
 	const { branches, fetchBranches } = useBranchList(repoPath);
@@ -325,17 +342,37 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const handleReset = useCallback(
 		(manager: DocGenerationManager, branchSelection: BranchSelectionState) => {
-			manager.reset();
-			branchSelection.resetSelection();
+			// Show confirmation dialog
+			const branchName =
+				manager.docsBranch || manager.sourceBranch || "unknown";
+			setPendingDeletion({ manager, branchSelection, branchName });
+			setShowDeleteConfirm(true);
 		},
 		[]
 	);
 
+	const confirmDeletion = useCallback(async () => {
+		if (!pendingDeletion) {
+			return;
+		}
+
+		// Always delete the docs branch if it exists
+		await pendingDeletion.manager.reset({ deleteDocsBranch: true });
+		pendingDeletion.branchSelection.resetSelection();
+
+		setShowDeleteConfirm(false);
+		setPendingDeletion(null);
+	}, [pendingDeletion]);
+
 	const handleStartNewTask = useCallback(
-		(manager: DocGenerationManager, branchSelection: BranchSelectionState) => {
-			handleReset(manager, branchSelection);
+		async (
+			manager: DocGenerationManager,
+			branchSelection: BranchSelectionState
+		) => {
+			await manager.reset({ deleteDocsBranch: false });
+			branchSelection.resetSelection();
 		},
-		[handleReset]
+		[]
 	);
 
 	if (project === undefined) {
@@ -609,6 +646,13 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 					/>
 				);
 			})()}
+
+			<DeleteSessionDialog
+				branchName={pendingDeletion?.branchName}
+				onConfirm={confirmDeletion}
+				onOpenChange={setShowDeleteConfirm}
+				open={showDeleteConfirm}
+			/>
 		</div>
 	);
 }

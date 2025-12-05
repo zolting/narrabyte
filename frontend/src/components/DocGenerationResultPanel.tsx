@@ -272,11 +272,7 @@ export function DocGenerationResultPanel({
 
 					{chatOpen && (
 						<div className="h-full min-h-0 overflow-hidden">
-							<DocRefinementChat
-								branch={result.branch}
-								projectId={projectId}
-								sessionKey={sessionKey}
-							/>
+							<DocRefinementChat sessionKey={sessionKey} />
 						</div>
 					)}
 				</div>

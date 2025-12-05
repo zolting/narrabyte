@@ -347,6 +347,12 @@ function TabContentRenderer({
 					}
 					onMerge={docManager.mergeDocs}
 					onReset={() => onReset(docManager, branchSelection)}
+					showReset={
+						docManager.status === "success" ||
+						docManager.status === "error" ||
+						docManager.status === "canceled" ||
+						(docManager.status === "idle" && docManager.hasGenerationAttempt)
+					}
 				/>
 			)}
 		</>

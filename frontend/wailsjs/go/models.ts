@@ -153,6 +153,7 @@ export namespace models {
 	    TargetBranch: string;
 	    Provider: string;
 	    ModelKey: string;
+	    DocsBranch: string;
 	    MessagesJSON: string;
 	    ChatMessagesJSON: string;
 	    // Go type: time
@@ -172,6 +173,7 @@ export namespace models {
 	        this.TargetBranch = source["TargetBranch"];
 	        this.Provider = source["Provider"];
 	        this.ModelKey = source["ModelKey"];
+	        this.DocsBranch = source["DocsBranch"];
 	        this.MessagesJSON = source["MessagesJSON"];
 	        this.ChatMessagesJSON = source["ChatMessagesJSON"];
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);

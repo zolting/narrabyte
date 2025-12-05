@@ -7,7 +7,7 @@ import (
 type GenerationSessionRepositoryMock struct {
 	ListByProjectFunc              func(projectID uint) ([]models.GenerationSession, error)
 	GetByProjectAndBranchesFunc    func(projectID uint, sourceBranch, targetBranch string) (*models.GenerationSession, error)
-	UpsertFunc                     func(projectID uint, sourceBranch, targetBranch, modelKey, provider, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error)
+	UpsertFunc                     func(projectID uint, sourceBranch, targetBranch, modelKey, provider, docsBranch, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error)
 	DeleteByProjectFunc            func(projectID uint) error
 	DeleteByProjectAndBranchesFunc func(projectID uint, sourceBranch, targetBranch string) error
 }
@@ -26,9 +26,9 @@ func (m *GenerationSessionRepositoryMock) GetByProjectAndBranches(projectID uint
 	return nil, nil
 }
 
-func (m *GenerationSessionRepositoryMock) Upsert(projectID uint, sourceBranch, targetBranch, modelKey, provider, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error) {
+func (m *GenerationSessionRepositoryMock) Upsert(projectID uint, sourceBranch, targetBranch, modelKey, provider, docsBranch, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error) {
 	if m.UpsertFunc != nil {
-		return m.UpsertFunc(projectID, sourceBranch, targetBranch, modelKey, provider, messagesJSON, chatMessagesJSON)
+		return m.UpsertFunc(projectID, sourceBranch, targetBranch, modelKey, provider, docsBranch, messagesJSON, chatMessagesJSON)
 	}
 	return nil, nil
 }

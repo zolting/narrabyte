@@ -7,36 +7,30 @@ import { cn } from "@/lib/utils";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 
 export function DocRefinementChat({
-	projectId,
-	branch,
 	sessionKey,
 	hideHeader = false,
 	className,
 	style,
 }: {
-	projectId: number;
-	branch: string;
 	sessionKey: string | null;
 	hideHeader?: boolean;
 	className?: string;
 	style?: React.CSSProperties;
 }) {
 	const { t } = useTranslation();
-	const projectKey = useMemo(() => String(projectId), [projectId]);
-	const stateKey = sessionKey ?? projectKey;
 	const messages = useDocGenerationStore(
-		(s) => s.docStates[stateKey]?.messages ?? []
+		(s) => (sessionKey ? s.docStates[sessionKey]?.messages : null) ?? []
 	);
 	const chatOpen = useDocGenerationStore(
-		(s) => s.docStates[stateKey]?.chatOpen ?? false
+		(s) => (sessionKey ? s.docStates[sessionKey]?.chatOpen : false) ?? false
 	);
 	const refineDocs = useDocGenerationStore((s) => s.refine);
 	const status = useDocGenerationStore(
-		(s) => s.docStates[stateKey]?.status ?? "idle"
+		(s) => (sessionKey ? s.docStates[sessionKey]?.status : "idle") ?? "idle"
 	);
 
 	const [input, setInput] = useState("");
-	const disabled = status === "running" || !branch || !projectId;
+	const disabled = status === "running" || !sessionKey;
 
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -57,15 +51,13 @@ export function DocRefinementChat({
 
 	const handleSend = async () => {
 		const text = input.trim();
-		if (!text) {
+		if (!(text && sessionKey)) {
 			return;
 		}
 		setInput("");
 		await refineDocs({
-			branch,
+			sessionKey,
 			instruction: text,
-			projectId,
-			sessionKey: sessionKey ?? undefined,
 		});
 	};
 

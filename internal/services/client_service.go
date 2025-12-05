@@ -633,7 +633,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 				provider = providerID
 			}
 			if strings.TrimSpace(provider) != "" {
-				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, runtime.modelKey, provider, jsonStr, "[]")
+				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, runtime.modelKey, provider, docsBranch, jsonStr, "[]")
 			}
 		}
 	}
@@ -819,7 +819,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 				}
 			}
 			if modelKeyForSession != "" && providerForSession != "" {
-				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, modelKeyForSession, providerForSession, jsonStr, chatMessagesJSON)
+				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, modelKeyForSession, providerForSession, docsBranch, jsonStr, chatMessagesJSON)
 				runtime.modelKey = modelKeyForSession
 				runtime.providerID = providerForSession
 			}
@@ -1290,7 +1290,11 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 		return nil, fmt.Errorf("failed to open documentation repository: %w", err)
 	}
 
-	docsBranch := documentationBranchName(sourceBranch)
+	// Use stored docs branch from session if available, fallback to computed name for backward compatibility
+	docsBranch := strings.TrimSpace(session.DocsBranch)
+	if docsBranch == "" {
+		docsBranch = documentationBranchName(sourceBranch)
+	}
 	refName := plumbing.NewBranchReferenceName(docsBranch)
 	if _, err := docRepo.Reference(refName, true); err != nil {
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
@@ -1452,7 +1456,11 @@ func (s *ClientService) GetAvailableTabSessions(projectID uint) ([]SessionInfo, 
 			isRunning = runtime.client.IsRunning()
 		}
 
-		docsBranch := documentationBranchName(strings.TrimSpace(session.SourceBranch))
+		// Use stored docs branch if available, fallback to computed name for backward compatibility
+		docsBranch := strings.TrimSpace(session.DocsBranch)
+		if docsBranch == "" {
+			docsBranch = documentationBranchName(strings.TrimSpace(session.SourceBranch))
+		}
 
 		availableSessions = append(availableSessions, SessionInfo{
 			ProjectID:    projectID,
@@ -2247,7 +2255,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 				provider = strings.TrimSpace(modelInfo.ProviderID)
 			}
 			if provider != "" {
-				_, _ = s.generationSessions.Upsert(projectID, branch, baseBranch, runtime.modelKey, provider, jsonStr, chatMessagesJSON)
+				_, _ = s.generationSessions.Upsert(projectID, branch, baseBranch, runtime.modelKey, provider, docsBranch, jsonStr, chatMessagesJSON)
 				runtime.providerID = provider
 			}
 		}

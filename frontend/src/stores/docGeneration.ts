@@ -10,6 +10,7 @@ import {
 	StopStream,
 } from "@go/services/ClientService";
 import { DeleteBranchByPath } from "@go/services/GitService";
+import { Delete as DeleteGenerationSession } from "@go/services/generationSessionService";
 import { Get as GetRepoLink } from "@go/services/repoLinkService";
 import i18n from "i18next";
 import { parseDiff } from "react-diff-view";
@@ -40,8 +41,6 @@ type StartArgs = {
 };
 
 type CommitArgs = {
-	projectId: number;
-	branch: string;
 	files: string[];
 };
 
@@ -124,12 +123,12 @@ type State = {
 	// Generation actions (now accept optional tabId)
 	start: (args: StartArgs & { tabId?: TabId }) => Promise<void>;
 	startFromBranch?: (args: StartArgs & { tabId?: TabId }) => Promise<void>;
-	reset: (projectId: number | string, sessionKey?: SessionKey) => void;
-	commit: (args: CommitArgs & { sessionKey?: SessionKey }) => Promise<void>;
-	cancel: (
-		projectId: number | string,
-		sessionKey?: SessionKey
+	reset: (
+		sessionKey: SessionKey,
+		options?: { deleteDocsBranch?: boolean }
 	) => Promise<void>;
+	commit: (args: CommitArgs & { sessionKey: SessionKey }) => Promise<void>;
+	cancel: (sessionKey: SessionKey) => Promise<void>;
 	setActiveTab: (
 		sessionKey: SessionKey,
 		tab: "activity" | "review" | "summary"
@@ -141,16 +140,10 @@ type State = {
 	) => void;
 	toggleChat: (sessionKey: SessionKey, open?: boolean) => void;
 	refine: (args: {
-		projectId: number;
-		branch: string;
+		sessionKey: SessionKey;
 		instruction: string;
-		sessionKey?: SessionKey;
 	}) => Promise<void>;
-	mergeDocs: (args: {
-		projectId: number;
-		branch: string;
-		sessionKey?: SessionKey;
-	}) => Promise<void>;
+	mergeDocs: (args: { sessionKey: SessionKey }) => Promise<void>;
 	restoreSession: (
 		projectId: number,
 		sourceBranch: string,
@@ -1010,27 +1003,9 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			});
 		},
 
-		cancel: async (
-			projectId: number | string,
-			sessionKeyParam?: SessionKey
-		) => {
-			// Support both old (projectId) and new (sessionKey) approaches
-			let sessionKey: SessionKey | null = null;
-			let docState: DocGenerationData | null = null;
-
-			if (sessionKeyParam) {
-				sessionKey = sessionKeyParam;
-				docState = get().docStates[sessionKey] ?? null;
-			} else {
-				const projectKey = toKey(projectId);
-				const activeSessionKey = get().activeSession[projectKey];
-				if (activeSessionKey) {
-					sessionKey = activeSessionKey;
-					docState = get().docStates[sessionKey] ?? null;
-				}
-			}
-
-			if (!(sessionKey && docState)) {
+		cancel: async (sessionKey: SessionKey) => {
+			const docState = get().docStates[sessionKey];
+			if (!docState) {
 				return;
 			}
 
@@ -1044,7 +1019,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 			setDocState(sessionKey, { cancellationRequested: true });
 			try {
-				await StopStream(Number(projectId), branch, sessionKey);
+				await StopStream(docState.projectId, branch, sessionKey);
 				updateSessionMeta(sessionKey, { status: "canceled" });
 				setDocState(sessionKey, (prev) => ({
 					...prev,
@@ -1081,27 +1056,16 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		},
 
 		commit: async ({
-			projectId,
-			branch,
 			files,
-			sessionKey: sessionKeyParam,
-		}: CommitArgs & { sessionKey?: SessionKey }) => {
-			// Support both old (projectId) and new (sessionKey) approaches
-			let sessionKey: SessionKey | null = null;
-
-			if (sessionKeyParam) {
-				sessionKey = sessionKeyParam;
-			} else {
-				const projectKey = toKey(projectId);
-				sessionKey = get().activeSession[projectKey] ?? null;
-			}
-
-			if (!sessionKey) {
+			sessionKey,
+		}: CommitArgs & { sessionKey: SessionKey }) => {
+			const docState = get().docStates[sessionKey];
+			if (!docState || docState.status === "committing") {
 				return;
 			}
 
-			const docState = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
-			if (docState.status === "committing") {
+			const branch = docState.sourceBranch ?? "";
+			if (!branch) {
 				return;
 			}
 
@@ -1133,7 +1097,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}));
 
 			try {
-				await CommitDocs(projectId, branch, files);
+				await CommitDocs(docState.projectId, branch, files);
 				setDocState(sessionKey, (prev) => ({
 					...prev,
 					error: null,
@@ -1185,30 +1149,17 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		},
 
 		mergeDocs: async ({
-			projectId,
-			branch,
-			sessionKey: sessionKeyParam,
+			sessionKey,
 		}: {
-			projectId: number;
-			branch: string;
-			sessionKey?: SessionKey;
+			sessionKey: SessionKey;
 		}): Promise<void> => {
-			// Support both old (projectId) and new (sessionKey) approaches
-			let sessionKey: SessionKey | null = null;
-
-			if (sessionKeyParam) {
-				sessionKey = sessionKeyParam;
-			} else {
-				const projectKey = toKey(projectId);
-				sessionKey = get().activeSession[projectKey] ?? null;
-			}
-
-			if (!sessionKey) {
+			const docState = get().docStates[sessionKey];
+			if (!(docState && docState.docsInCodeRepo) || docState.mergeInProgress) {
 				return;
 			}
 
-			const docState = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
-			if (!docState.docsInCodeRepo || docState.mergeInProgress) {
+			const branch = docState.sourceBranch ?? "";
+			if (!branch) {
 				return;
 			}
 
@@ -1226,7 +1177,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}));
 
 			try {
-				await MergeDocsIntoSource(projectId, branch);
+				await MergeDocsIntoSource(docState.projectId, branch);
 				setDocState(sessionKey, (prev) => ({
 					...prev,
 					mergeInProgress: false,
@@ -1264,25 +1215,67 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}
 		},
 
-		reset: (projectId: number | string, sessionKeyParam?: SessionKey) => {
-			// Support both old (projectId) and new (sessionKey) approaches
-			let sessionKey: SessionKey | null = null;
-
-			if (sessionKeyParam) {
-				// New approach: sessionKey provided
-				sessionKey = sessionKeyParam;
-			} else {
-				// Old approach: find session from activeSession
-				const projectKey = toKey(projectId);
-				sessionKey = get().activeSession[projectKey] ?? null;
-			}
-
-			if (!sessionKey) {
+		reset: async (
+			sessionKey: SessionKey,
+			options?: { deleteDocsBranch?: boolean }
+		) => {
+			const current = get().docStates[sessionKey];
+			if (!current) {
 				return;
 			}
 
+			try {
+				// Delete the docs branch if it exists (always true when called from UI)
+				if (options?.deleteDocsBranch && current.docsBranch) {
+					const project = await GetRepoLink(current.projectId);
+					const repoRoot = current.docsInCodeRepo
+						? (project?.CodebaseRepo ?? "")
+						: (project?.DocumentationRepo ?? "");
+
+					if (repoRoot && current.docsBranch) {
+						try {
+							await DeleteBranchByPath(repoRoot, current.docsBranch);
+							setDocState(sessionKey, (prev) => ({
+								...prev,
+								events: [
+									...prev.events,
+									createLocalEvent(
+										"info",
+										`Deleted docs branch '${current.docsBranch}'`
+									),
+								],
+							}));
+						} catch (error) {
+							console.error("Failed to delete docs branch", error);
+							setDocState(sessionKey, (prev) => ({
+								...prev,
+								events: [
+									...prev.events,
+									createLocalEvent(
+										"warn",
+										`Failed to delete docs branch: ${messageFromError(error)}`
+									),
+								],
+							}));
+						}
+					}
+				}
+
+				// Clean up backend session: deletes temp directories, wipes session state, and removes metadata
+				const sourceBranch = current.sourceBranch ?? "";
+				const targetBranch = current.targetBranch ?? "";
+				if (sourceBranch && targetBranch) {
+					await DeleteGenerationSession(
+						current.projectId,
+						sourceBranch,
+						targetBranch
+					);
+				}
+			} catch (error) {
+				console.error("Failed to clean up backend session", error);
+			}
+
 			clearSubscriptions(sessionKey);
-			const current = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
 			removeSessionMeta(sessionKey);
 
 			setDocState(sessionKey, {
@@ -1327,39 +1320,23 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}));
 		},
 
-		refine: async ({
-			projectId,
-			branch,
-			instruction,
-			sessionKey: sessionKeyParam,
-		}) => {
+		refine: async ({ sessionKey, instruction }) => {
 			const trimmed = instruction.trim();
 			if (!trimmed) {
 				return;
 			}
 
-			// Support both old (projectId) and new (sessionKey) approaches
-			let sessionKey: SessionKey | null = null;
-
-			if (sessionKeyParam) {
-				sessionKey = sessionKeyParam;
-			} else {
-				const projectKey = toKey(projectId);
-				sessionKey = get().activeSession[projectKey] ?? null;
-				// Fallback: try to find by branch
-				if (!sessionKey) {
-					sessionKey = createSessionKey(projectId, branch);
-				}
-			}
-
-			if (!sessionKey) {
+			const docState = get().docStates[sessionKey];
+			if (!docState || docState.status === "running") {
 				return;
 			}
 
-			const docState = get().docStates[sessionKey] ?? EMPTY_DOC_STATE;
-			if (docState.status === "running") {
+			const projectId = docState.projectId;
+			const branch = docState.sourceBranch ?? "";
+			if (!branch) {
 				return;
 			}
+
 			const baseSessionKey = createSessionKey(projectId, branch);
 
 			const messageId =
