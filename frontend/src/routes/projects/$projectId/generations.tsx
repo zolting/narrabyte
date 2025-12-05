@@ -3,17 +3,7 @@ import { Delete, List } from "@go/services/generationSessionService";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { DeleteSessionDialog } from "@/components/DeleteSessionDialog";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -182,36 +172,10 @@ function RouteComponent() {
 										</div>
 									</CardContent>
 									<div className="flex gap-2 px-6 pb-4">
-										<AlertDialog>
-											<AlertDialogTrigger asChild>
-												<Button
-													disabled={deletingId === Number(s.ID)}
-													size="sm"
-													type="button"
-													variant="destructive"
-												>
-													{t("generations.deleteSession")}
-												</Button>
-											</AlertDialogTrigger>
-											<AlertDialogContent>
-												<AlertDialogHeader>
-													<AlertDialogTitle>
-														{t("generations.deleteSession")}
-													</AlertDialogTitle>
-													<AlertDialogDescription>
-														{t("generations.deleteConfirm")}
-													</AlertDialogDescription>
-												</AlertDialogHeader>
-												<AlertDialogFooter>
-													<AlertDialogCancel>
-														{t("common.cancel")}
-													</AlertDialogCancel>
-													<AlertDialogAction onClick={() => handleDelete(s)}>
-														{t("common.delete")}
-													</AlertDialogAction>
-												</AlertDialogFooter>
-											</AlertDialogContent>
-										</AlertDialog>
+										<DeleteSessionDialog
+											isDeleting={deletingId === Number(s.ID)}
+											onConfirm={() => handleDelete(s)}
+										/>
 									</div>
 								</Card>
 							))}

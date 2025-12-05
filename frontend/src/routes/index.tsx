@@ -1,10 +1,14 @@
 import type { models } from "@go/models";
-import { List as listSessions } from "@go/services/generationSessionService";
+import {
+	Delete as DeleteSession,
+	List as listSessions,
+} from "@go/services/generationSessionService";
 import { List as listProjects } from "@go/services/repoLinkService";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Clock, Loader2, PlayCircle, PlusCircle } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { DeleteSessionDialog } from "@/components/DeleteSessionDialog";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -57,11 +61,13 @@ function Home() {
 		PendingSessionSummary[]
 	>([]);
 	const [restoringKey, setRestoringKey] = useState<string | null>(null);
+	const [deletingId, setDeletingId] = useState<string | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 	const sessionMeta = useDocGenerationStore((state) => state.sessionMeta);
 	const activeSessions = useDocGenerationStore((state) => state.activeSession);
 	const restoreSession = useDocGenerationStore((state) => state.restoreSession);
+	const clearSessionMeta = useDocGenerationStore((s) => s.clearSessionMeta);
 	const setActiveSession = useDocGenerationStore(
 		(state) => state.setActiveSession
 	);
@@ -234,6 +240,24 @@ function Home() {
 			params: { projectId: selectedProjectId },
 		});
 	};
+
+	const handleDeletePending = useCallback(
+		async (summary: PendingSessionSummary) => {
+			setDeletingId(summary.id);
+			try {
+				await DeleteSession(
+					summary.projectId,
+					summary.sourceBranch,
+					summary.targetBranch
+				);
+				clearSessionMeta(summary.projectId, summary.sourceBranch);
+				loadPendingSessions();
+			} finally {
+				setDeletingId(null);
+			}
+		},
+		[clearSessionMeta, loadPendingSessions]
+	);
 
 	const runningVisible = runningSessions.length > 0;
 	const pendingVisible = sessionsLoading || pendingSessions.length > 0;
@@ -427,6 +451,10 @@ function Home() {
 														)}
 														{t("home.resumeSession")}
 													</Button>
+													<DeleteSessionDialog
+														isDeleting={deletingId === summary.id}
+														onConfirm={() => handleDeletePending(summary)}
+													/>
 												</div>
 											</li>
 										);

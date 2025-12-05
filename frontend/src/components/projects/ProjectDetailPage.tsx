@@ -7,10 +7,12 @@ import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
 import { useNavigate } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BranchSelector } from "@/components/BranchSelector";
 import { ComparisonDisplay } from "@/components/ComparisonDisplay";
+import { DeleteSessionDialog } from "@/components/DeleteSessionDialog";
 import { DocBranchConflictDialog } from "@/components/DocBranchConflictDialog";
 import {
 	type BranchSelectionState,
@@ -363,10 +365,14 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}, [pendingDeletion]);
 
 	const handleStartNewTask = useCallback(
-		(manager: DocGenerationManager, branchSelection: BranchSelectionState) => {
-			handleReset(manager, branchSelection);
+		async (
+			manager: DocGenerationManager,
+			branchSelection: BranchSelectionState
+		) => {
+			await manager.reset({ deleteDocsBranch: false });
+			branchSelection.resetSelection();
 		},
-		[handleReset]
+		[]
 	);
 
 	if (project === undefined) {
@@ -641,33 +647,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				);
 			})()}
 
-			<AlertDialog onOpenChange={setShowDeleteConfirm} open={showDeleteConfirm}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>
-							{t("common.deleteSessionConfirmTitle")}
-						</AlertDialogTitle>
-						<AlertDialogDescription className="whitespace-pre-line">
-							{pendingDeletion?.branchName
-								? t("common.deleteSessionConfirmDescription", {
-										branch: pendingDeletion.branchName,
-									})
-								: t("common.deleteSessionConfirmTitle")}
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel onClick={() => setPendingDeletion(null)}>
-							{t("common.cancel")}
-						</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							onClick={confirmDeletion}
-						>
-							{t("common.delete")}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			<DeleteSessionDialog
+				branchName={pendingDeletion?.branchName}
+				onConfirm={confirmDeletion}
+				onOpenChange={setShowDeleteConfirm}
+				open={showDeleteConfirm}
+			/>
 		</div>
 	);
 }
