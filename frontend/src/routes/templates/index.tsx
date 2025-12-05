@@ -189,7 +189,7 @@ function TemplatesPage() {
 	};
 
 	return (
-		<div className="flex flex-1 flex-col gap-6 bg-background p-4">
+		<div className="flex h-full flex-1 flex-col gap-6 overflow-y-auto bg-background p-4 lg:overflow-hidden">
 			<div className="space-y-2">
 				<h1 className="font-semibold text-2xl text-foreground">
 					{t("home.templateManagerTitle")}
@@ -214,8 +214,8 @@ function TemplatesPage() {
 				</div>
 			)}
 
-			<div className="grid flex-1 gap-6 lg:grid-cols-[280px_1fr]">
-				<Card className="flex h-full flex-col">
+			<div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[280px_1fr] lg:grid-rows-[minmax(0,1fr)]">
+				<Card className="flex h-full min-h-0 flex-col">
 					<CardHeader className="border-border/60 border-b">
 						<CardTitle className="text-base">
 							{t("templates.listTitle")}
@@ -259,7 +259,7 @@ function TemplatesPage() {
 					</CardContent>
 				</Card>
 
-				<Card className="flex h-full flex-col">
+				<Card className="flex h-full min-h-0 flex-col">
 					<CardHeader className="border-border/60 border-b">
 						<CardTitle className="text-base">
 							{selectedTemplate
@@ -272,7 +272,7 @@ function TemplatesPage() {
 								: t("templates.selectPrompt")}
 						</CardDescription>
 					</CardHeader>
-					<CardContent className="flex flex-1 flex-col gap-4 pt-4">
+					<CardContent className="flex flex-1 flex-col gap-4 overflow-y-auto pt-4">
 						{selectedTemplate ? (
 							isEditing ? (
 								<>

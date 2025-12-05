@@ -688,7 +688,7 @@ function ProjectSettings() {
 	}
 
 	return (
-		<div className="flex flex-col items-center justify-start bg-background p-8 font-mono">
+		<div className="flex h-full w-full flex-col items-center justify-start overflow-y-auto bg-background p-8 font-mono">
 			<Card className="w-full max-w-2xl">
 				<CardHeader className="space-y-1">
 					<div className="flex items-baseline gap-3">
