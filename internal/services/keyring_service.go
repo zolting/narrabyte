@@ -26,7 +26,6 @@ func NewKeyringService() *KeyringService {
 func (s *KeyringService) Startup() {
 	r, err := OpenKeyring()
 	if err != nil {
-		//Panic ou erreur?
 		panic("failed to open keyring: " + err.Error())
 	}
 	s.ring = r
@@ -35,13 +34,6 @@ func (s *KeyringService) Startup() {
 func OpenKeyring() (keyring.Keyring, error) {
 	return keyring.Open(keyring.Config{
 		ServiceName: "narrabyte",
-		AllowedBackends: []keyring.BackendType{
-			keyring.WinCredBackend,       //For Windows
-			keyring.KeychainBackend,      //For macOS
-			keyring.SecretServiceBackend, //For Linux
-			//We can allow other backends if these fail, such as an encrypted file.
-			//Unemplemented for now.
-		},
 	})
 }
 
@@ -58,13 +50,10 @@ func (s *KeyringService) StoreApiKey(provider string, apiKey []byte) error {
 
 	key, err := s.GetApiKey(provider)
 	if err == nil && key != "" {
-		//Une clé existe déjà, on la supprime pour l'updater
 		s.DeleteApiKey(provider)
 	}
 
 	item := keyring.Item{
-		//Important : Attribute "Key" is used to retrieve the item later.
-		//If the prefex or suffix is changed, be sure to update it in the GetApiKey and DeleteApiKey functions.
 		Key:         prefix + provider + suffix,
 		Data:        apiKey,
 		Label:       provider + "API key",
@@ -80,7 +69,7 @@ func (s *KeyringService) GetApiKey(provider string) (string, error) {
 	if provider == "" {
 		return "", errors.New("provider is required")
 	}
-	//Be sure to match the key format used in StoreApiKey
+	// Be sure to match the key format used in StoreApiKey
 	item, err := s.ring.Get(prefix + provider + suffix)
 	if err != nil {
 		return "", err
