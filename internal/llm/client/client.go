@@ -408,6 +408,13 @@ func (o *LLMClient) initDocSession(ctx context.Context, docPath string, codePath
 	o.targetCommit = strings.TrimSpace(targetCommit)
 	o.SetListDirectoryBaseRoot(docRoot)
 
+	// Set repository roots for session-scoped tool access
+	workspaceID := strings.TrimSpace(o.workspaceID)
+	if workspaceID != "" {
+		tools.SetDocsRootForSession(workspaceID, docRoot)
+		tools.SetCodeRootForSession(workspaceID, codeRoot)
+	}
+
 	if err := o.prepareSnapshots(ctx); err != nil {
 		return "", "", err
 	}
@@ -415,11 +422,11 @@ func (o *LLMClient) initDocSession(ctx context.Context, docPath string, codePath
 }
 
 func (o *LLMClient) prepareDocResources(ctx context.Context, docRoot string, codeRoot string) (*docSessionResources, error) {
-	docListing, err := o.captureListing(ctx, docRoot)
+	docListing, err := o.captureListing(ctx, tools.RepositoryDocs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list documentation root: %w", err)
 	}
-	codeListing, err := o.captureListing(ctx, codeRoot)
+	codeListing, err := o.captureListing(ctx, tools.RepositoryCode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list codebase root: %w", err)
 	}
@@ -830,104 +837,6 @@ func (o *LLMClient) recordOpenedFile(p string) {
 	o.fileOpenHistory = append(o.fileOpenHistory, norm)
 }
 
-// resolveAbsWithinBase resolves an input path to an absolute path under the configured base root.
-// Returns the absolute candidate even when it escapes base so callers can include it in messages.
-func (o *LLMClient) resolveAbsWithinBase(p string) (abs string, err error) {
-	base := strings.TrimSpace(o.baseRoot)
-	if base == "" {
-		return "", fmt.Errorf("project root not set")
-	}
-	in := strings.TrimSpace(p)
-	if in == "" {
-		return "", fmt.Errorf("file_path is required")
-	}
-	// Build candidate absolute path
-	if filepath.IsAbs(in) {
-		abs = in
-	} else {
-		abs = filepath.Join(base, in)
-	}
-	absBase, err := filepath.Abs(base)
-	if err != nil {
-		return abs, err
-	}
-	absCandidate, err := filepath.Abs(abs)
-	if err != nil {
-		return absCandidate, err
-	}
-	relToBase, err := filepath.Rel(absBase, absCandidate)
-	if err != nil {
-		return absCandidate, err
-	}
-	if strings.HasPrefix(relToBase, "..") {
-		return absCandidate, fmt.Errorf("path escapes the configured project root")
-	}
-	return absCandidate, nil
-}
-
-func normalizeAbsolutePath(p string) string {
-	clean := strings.TrimSpace(p)
-	if clean == "" {
-		return ""
-	}
-	if abs, err := filepath.Abs(clean); err == nil {
-		clean = abs
-	}
-	if eval, err := filepath.EvalSymlinks(clean); err == nil {
-		return eval
-	}
-	return clean
-}
-
-func pathWithinBase(base, candidate string) bool {
-	absBase := normalizeAbsolutePath(base)
-	absCandidate := normalizeAbsolutePath(candidate)
-	if absBase == "" || absCandidate == "" {
-		return false
-	}
-	rel, err := filepath.Rel(absBase, absCandidate)
-	if err != nil {
-		return false
-	}
-	if rel == "." {
-		return true
-	}
-	return !strings.HasPrefix(rel, "..")
-}
-
-func (o *LLMClient) ensureDocsWriteScope(absPath string) error {
-	target := normalizeAbsolutePath(absPath)
-	if target == "" {
-		return fmt.Errorf("file_path is required")
-	}
-
-	docRoot := normalizeAbsolutePath(o.docRoot)
-	if docRoot == "" {
-		return fmt.Errorf("documentation root not set")
-	}
-
-	codeRoot := normalizeAbsolutePath(o.codeRoot)
-	if codeRoot != "" && pathWithinBase(codeRoot, target) {
-		// Allow when docs live inside the codebase tree (e.g., /repo/docs) but block
-		// when the codebase is at or inside the docs root.
-		if pathWithinBase(docRoot, target) {
-			// Docs nested under codebase: permit only if docs are a strict subtree.
-			if pathWithinBase(codeRoot, docRoot) && !pathsEqual(codeRoot, docRoot) {
-				return nil
-			}
-			// Docs root equals or contains codebase: treat as codebase and block edits.
-			return fmt.Errorf("editing or deleting codebase files is not allowed")
-		}
-		return fmt.Errorf("editing or deleting codebase files is not allowed")
-	}
-
-	if pathWithinBase(docRoot, target) {
-		return nil
-	}
-
-	return fmt.Errorf("path escapes the documentation workspace")
-}
-
 // hasRead checks if the absolute path has been read in this session.
 func (o *LLMClient) hasRead(absPath string) bool {
 	norm := filepath.ToSlash(strings.TrimSpace(absPath))
@@ -1061,29 +970,13 @@ func (o *LLMClient) emitReasoningUpdate(ctx context.Context, content string) {
 	events.Emit(ctx, events.LLMEventTool, evt)
 }
 
-func (o *LLMClient) captureListing(ctx context.Context, root string) (string, error) {
-	var listing string
-	snapshot := o.snapshotForRoot(root)
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("CaptureListing: . [%s]", snapshotInfo(snapshot))))
-	err := o.withBaseRoot(root, snapshot, func() error {
-		out, err := tools.ListDirectory(ctx, &tools.ListLSInput{Path: "."})
-		if err != nil {
-			return err
-		}
-		listing = out.Output
-		return nil
-	})
+func (o *LLMClient) captureListing(ctx context.Context, repo tools.Repository) (string, error) {
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("CaptureListing: %s:/", repo)))
+	out, err := tools.ListDirectory(ctx, &tools.ListLSInput{Repository: repo, Path: "."})
 	if err != nil {
 		return "", err
 	}
-	return listing, nil
-}
-
-func (o *LLMClient) snapshotForRoot(root string) *tools.GitSnapshot {
-	if pathsEqual(root, o.codeRoot) {
-		return o.codeSnapshot
-	}
-	return nil
+	return out.Output, nil
 }
 
 func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.BaseTool, error) {
@@ -1097,39 +990,20 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		listDesc = "lists the contents of a directory"
 	}
 	listWithPolicy := func(ctx context.Context, in *tools.ListLSInput) (string, error) {
-		requested := "."
-		var ignore []string
-		if in != nil {
-			if strings.TrimSpace(in.Path) != "" {
-				requested = strings.TrimSpace(in.Path)
-			}
-			ignore = in.Ignore
+		if in == nil {
+			in = &tools.ListLSInput{Repository: tools.RepositoryDocs}
 		}
-		root, rel, abs, err := o.resolveToolPath(requested, true)
+		res, err := tools.ListDirectory(ctx, in)
+		displayPath := ""
+		if res != nil {
+			displayPath = res.Title
+		}
 		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory(policy): %v", err)))
+			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventError, "List directory", "list", displayPath))
 			return "", err
 		}
-		var output string
-		snapshot := o.snapshotForRoot(root)
-		err = o.withBaseRoot(root, snapshot, func() error {
-			res, innerErr := tools.ListDirectory(ctx, &tools.ListLSInput{Path: abs, Ignore: ignore})
-			if innerErr != nil {
-				events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ListDirectory(policy): %v", innerErr)))
-				return innerErr
-			}
-			output = res.Output
-			return nil
-		})
-
-		displayPath := o.cleanDisplayPath(root, rel)
-		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventError, "List directory", "list", filepath.ToSlash(displayPath)))
-		} else {
-			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "List directory", "list", filepath.ToSlash(displayPath)))
-		}
-
-		return output, err
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "List directory", "list", displayPath))
+		return res.Output, nil
 	}
 	listTool, err := einoUtils.InferTool("list_directory_tool", listDesc, listWithPolicy)
 	if err != nil {
@@ -1148,40 +1022,26 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
-		root, rel, abs, err := o.resolveToolPath(in.FilePath, true)
-		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(policy): %v", err)))
-			return &tools.ReadFileOutput{
-				Title:    "",
-				Output:   fmt.Sprintf("Policy error: %v", err),
-				Metadata: map[string]string{"error": "policy_violation"},
-			}, nil
-		}
-		var out *tools.ReadFileOutput
-		snapshot := o.snapshotForRoot(root)
 
-		err = o.withBaseRoot(root, snapshot, func() error {
-			res, innerErr := tools.ReadFile(ctx, &tools.ReadFileInput{
-				FilePath: abs,
-				Offset:   in.Offset,
-				Limit:    in.Limit,
-			})
-			if innerErr != nil {
-				return innerErr
-			}
-			out = res
-			return nil
-		})
+		// Resolve path for read tracking (needed for read-before-write policy)
+		absPath, resolveErr := tools.ResolveRepositoryPath(ctx, in.Repository, in.FilePath)
+
+		out, err := tools.ReadFile(ctx, in)
+		displayPath := ""
+		if out != nil {
+			displayPath = out.Title
+		}
 		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("ReadFile(policy): %v path= %s", err, filepath.ToSlash(rel))))
+			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventError, "Read file", "read", displayPath))
 			return out, err
 		}
-		if out != nil && (out.Metadata == nil || out.Metadata["error"] == "") {
-			o.recordOpenedFile(abs)
+
+		// Record successful read for read-before-write policy
+		if resolveErr == nil && out != nil && (out.Metadata == nil || out.Metadata["error"] == "") {
+			o.recordOpenedFile(absPath)
 		}
 
-		displayPath := o.cleanDisplayPath(root, rel)
-		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Read file", "read", filepath.ToSlash(displayPath)))
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Read file", "read", displayPath))
 		return out, nil
 	}
 	readTool, err := einoUtils.InferTool("read_file_tool", readDesc, readWithPolicy)
@@ -1194,7 +1054,6 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		writeDesc = "write or create a file within the documentation repository"
 	}
 	writeWithPolicy := func(ctx context.Context, in *tools.WriteFileInput) (*tools.WriteFileOutput, error) {
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("WriteFile(policy): starting"))
 		if in == nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): input is required"))
 			return &tools.WriteFileOutput{
@@ -1202,65 +1061,33 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
-		p := strings.TrimSpace(in.FilePath)
-		if p == "" {
-			events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): file_path is required"))
-			return &tools.WriteFileOutput{
-				Output:   "Format error: file_path is required",
-				Metadata: map[string]string{"error": "format_error"},
-			}, nil
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): resolving '%s'", p)))
-		absCandidate, rerr := o.resolveAbsWithinBase(p)
-		if rerr != nil {
-			if rerr.Error() == "project root not set" {
-				events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile(policy): documentation root not set"))
-				return &tools.WriteFileOutput{
-					Output:   "Format error: project root not set",
-					Metadata: map[string]string{"error": "format_error"},
-				}, nil
+
+		// Check read-before-write policy for existing files
+		absPath, resolveErr := tools.ResolveRepositoryPath(ctx, in.Repository, in.FilePath)
+		if resolveErr == nil {
+			if st, err := os.Stat(absPath); err == nil && !st.IsDir() {
+				if !o.hasRead(absPath) {
+					displayPath := tools.FormatDisplayPath(in.Repository, in.FilePath)
+					events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): policy violation - must read before write"))
+					return &tools.WriteFileOutput{
+						Title:    displayPath,
+						Output:   "Policy error: must read the file before writing",
+						Metadata: map[string]string{"error": "policy_violation"},
+					}, nil
+				}
 			}
-			if strings.Contains(rerr.Error(), "escapes") {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): path escapes the documentation root"))
-				return &tools.WriteFileOutput{
-					Title:    filepath.ToSlash(absCandidate),
-					Output:   "Format error: path escapes the documentation root",
-					Metadata: map[string]string{"error": "format_error"},
-				}, nil
-			}
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): resolve error: %v", rerr)))
-			return nil, rerr
-		}
-		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
-			if !o.hasRead(absCandidate) {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile(policy): policy violation - must read before write"))
-				return &tools.WriteFileOutput{
-					Title:    filepath.ToSlash(absCandidate),
-					Output:   "Policy error: must read the file before writing",
-					Metadata: map[string]string{"error": "policy_violation"},
-				}, nil
-			}
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile(policy): invoking underlying WriteFile for '%s'", filepath.ToSlash(absCandidate))))
-		payload := *in
-		payload.FilePath = absCandidate
-		var out *tools.WriteFileOutput
-		err := o.withBaseRoot(o.docRoot, nil, func() error {
-			res, innerErr := tools.WriteFile(ctx, &payload)
-			out = res
-			return innerErr
-		})
-		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile(policy): underlying error: %v", err)))
-			return out, err
-		}
-		title := ""
-		if out != nil && strings.TrimSpace(out.Title) != "" {
-			title = filepath.ToSlash(out.Title)
 		}
 
-		displayPath := o.cleanDisplayPathFromAbs(title)
-		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Write file", "write", filepath.ToSlash(displayPath)))
+		out, err := tools.WriteFile(ctx, in)
+		displayPath := ""
+		if out != nil {
+			displayPath = out.Title
+		}
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventError, "Write file", "write", displayPath))
+			return out, err
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Write file", "write", displayPath))
 		return out, nil
 	}
 	writeTool, err := einoUtils.InferTool("write_file_tool", writeDesc, writeWithPolicy)
@@ -1273,7 +1100,6 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		editDesc = "edit a file using context-aware string replacement"
 	}
 	editWithPolicy := func(ctx context.Context, in *tools.EditInput) (*tools.EditOutput, error) {
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("EditFile(policy): starting"))
 		if in == nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): input is required"))
 			return &tools.EditOutput{
@@ -1281,73 +1107,33 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
-		p := strings.TrimSpace(in.FilePath)
-		if p == "" {
-			events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): file_path is required"))
-			return &tools.EditOutput{
-				Output:   "Format error: file_path is required",
-				Metadata: map[string]string{"error": "format_error"},
-			}, nil
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("EditFile(policy): resolving '%s'", p)))
-		absCandidate, rerr := o.resolveAbsWithinBase(p)
-		if rerr != nil {
-			if rerr.Error() == "project root not set" {
-				events.Emit(ctx, events.LLMEventTool, events.NewError("EditFile(policy): documentation root not set"))
-				return &tools.EditOutput{
-					Output:   "Format error: project root not set",
-					Metadata: map[string]string{"error": "format_error"},
-				}, nil
+
+		// Check read-before-write policy for existing files
+		absPath, resolveErr := tools.ResolveRepositoryPath(ctx, in.Repository, in.FilePath)
+		if resolveErr == nil {
+			if st, err := os.Stat(absPath); err == nil && !st.IsDir() {
+				if !o.hasRead(absPath) {
+					displayPath := tools.FormatDisplayPath(in.Repository, in.FilePath)
+					events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): policy violation - must read before edit"))
+					return &tools.EditOutput{
+						Title:    displayPath,
+						Output:   "Policy error: must read the file before editing",
+						Metadata: map[string]string{"error": "policy_violation"},
+					}, nil
+				}
 			}
-			if strings.Contains(rerr.Error(), "escapes") {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): path escapes the documentation root"))
-				return &tools.EditOutput{
-					Title:    filepath.ToSlash(absCandidate),
-					Output:   "Format error: path escapes the documentation root",
-					Metadata: map[string]string{"error": "format_error"},
-				}, nil
-			}
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): resolve error: %v", rerr)))
-			return nil, rerr
-		}
-		if scopeErr := o.ensureDocsWriteScope(absCandidate); scopeErr != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("EditFile(policy): %v", scopeErr)))
-			return &tools.EditOutput{
-				Title:    filepath.ToSlash(absCandidate),
-				Output:   fmt.Sprintf("Policy error: %s", scopeErr.Error()),
-				Metadata: map[string]string{"error": "policy_violation"},
-			}, nil
-		}
-		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
-			if !o.hasRead(absCandidate) {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn("EditFile(policy): policy violation - must read before edit"))
-				return &tools.EditOutput{
-					Title:    filepath.ToSlash(absCandidate),
-					Output:   "Policy error: must read the file before editing",
-					Metadata: map[string]string{"error": "policy_violation"},
-				}, nil
-			}
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("EditFile(policy): invoking underlying Edit for '%s'", filepath.ToSlash(absCandidate))))
-		payload := *in
-		payload.FilePath = absCandidate
-		var out *tools.EditOutput
-		err := o.withBaseRoot(o.docRoot, nil, func() error {
-			res, innerErr := tools.Edit(ctx, &payload)
-			out = res
-			return innerErr
-		})
-		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("EditFile(policy): underlying error: %v", err)))
-			return out, err
-		}
-		title := ""
-		if out != nil && strings.TrimSpace(out.Title) != "" {
-			title = filepath.ToSlash(out.Title)
 		}
 
-		displayPath := o.cleanDisplayPathFromAbs(title)
-		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Edit file", "edit", filepath.ToSlash(displayPath)))
+		out, err := tools.Edit(ctx, in)
+		displayPath := ""
+		if out != nil {
+			displayPath = out.Title
+		}
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventError, "Edit file", "edit", displayPath))
+			return out, err
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Edit file", "edit", displayPath))
 		return out, nil
 	}
 	editTool, err := einoUtils.InferTool("edit_tool", editDesc, editWithPolicy)
@@ -1443,7 +1229,6 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		deleteDesc = "delete a file from the documentation repository"
 	}
 	deleteWithPolicy := func(ctx context.Context, in *tools.DeleteFileInput) (*tools.DeleteFileOutput, error) {
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo("DeleteFile(policy): starting"))
 		if in == nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError("DeleteFile(policy): input is required"))
 			return &tools.DeleteFileOutput{
@@ -1451,76 +1236,33 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 				Metadata: map[string]string{"error": "format_error"},
 			}, nil
 		}
-		p := strings.TrimSpace(in.FilePath)
-		if p == "" {
-			events.Emit(ctx, events.LLMEventTool, events.NewError("DeleteFile(policy): file_path is required"))
-			return &tools.DeleteFileOutput{
-				Output:   "Format error: file_path is required",
-				Metadata: map[string]string{"error": "format_error"},
-			}, nil
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("DeleteFile(policy): resolving '%s'", p)))
-		absCandidate, rerr := o.resolveAbsWithinBase(p)
-		if rerr != nil {
-			if rerr.Error() == "project root not set" {
-				events.Emit(ctx, events.LLMEventTool, events.NewError("DeleteFile(policy): documentation root not set"))
-				return &tools.DeleteFileOutput{
-					Output:   "Format error: project root not set",
-					Metadata: map[string]string{"error": "format_error"},
-				}, nil
-			}
-			if strings.Contains(rerr.Error(), "escapes") {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn("DeleteFile(policy): path escapes the documentation root"))
-				return &tools.DeleteFileOutput{
-					Title:    filepath.ToSlash(absCandidate),
-					Output:   "Format error: path escapes the documentation root",
-					Metadata: map[string]string{"error": "format_error"},
-				}, nil
-			}
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("DeleteFile(policy): resolve error: %v", rerr)))
-			return nil, rerr
-		}
 
-		if scopeErr := o.ensureDocsWriteScope(absCandidate); scopeErr != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("DeleteFile(policy): %v", scopeErr)))
-			return &tools.DeleteFileOutput{
-				Title:    filepath.ToSlash(absCandidate),
-				Output:   fmt.Sprintf("Policy error: %s", scopeErr.Error()),
-				Metadata: map[string]string{"error": "policy_violation"},
-			}, nil
-		}
-
-		if st, err := os.Stat(absCandidate); err == nil && !st.IsDir() {
-			if !o.hasRead(absCandidate) {
-				events.Emit(ctx, events.LLMEventTool, events.NewWarn("DeleteFile(policy): policy violation - must read before delete"))
-				return &tools.DeleteFileOutput{
-					Title:    filepath.ToSlash(absCandidate),
-					Output:   "Policy error: must read the file before deleting",
-					Metadata: map[string]string{"error": "policy_violation"},
-				}, nil
+		// Check read-before-delete policy for existing files
+		absPath, resolveErr := tools.ResolveRepositoryPath(ctx, in.Repository, in.FilePath)
+		if resolveErr == nil {
+			if st, err := os.Stat(absPath); err == nil && !st.IsDir() {
+				if !o.hasRead(absPath) {
+					displayPath := tools.FormatDisplayPath(in.Repository, in.FilePath)
+					events.Emit(ctx, events.LLMEventTool, events.NewWarn("DeleteFile(policy): policy violation - must read before delete"))
+					return &tools.DeleteFileOutput{
+						Title:    displayPath,
+						Output:   "Policy error: must read the file before deleting",
+						Metadata: map[string]string{"error": "policy_violation"},
+					}, nil
+				}
 			}
 		}
 
-		events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("DeleteFile(policy): invoking underlying DeleteFile for '%s'", filepath.ToSlash(absCandidate))))
-		payload := *in
-		payload.FilePath = absCandidate
-		var out *tools.DeleteFileOutput
-		err := o.withBaseRoot(o.docRoot, nil, func() error {
-			res, innerErr := tools.DeleteFile(ctx, &payload)
-			out = res
-			return innerErr
-		})
+		out, err := tools.DeleteFile(ctx, in)
+		displayPath := ""
+		if out != nil {
+			displayPath = out.Title
+		}
 		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("DeleteFile(policy): underlying error: %v", err)))
+			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventError, "Delete file", "delete", displayPath))
 			return out, err
 		}
-		title := ""
-		if out != nil && strings.TrimSpace(out.Title) != "" {
-			title = filepath.ToSlash(out.Title)
-		}
-
-		displayPath := o.cleanDisplayPathFromAbs(title)
-		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Delete file", "delete", filepath.ToSlash(displayPath)))
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Delete file", "delete", displayPath))
 		return out, nil
 	}
 	deleteTool, err := einoUtils.InferTool("delete_file_tool", deleteDesc, deleteWithPolicy)
@@ -1529,211 +1271,6 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 	}
 
 	return []tool.BaseTool{listTool, readTool, writeTool, editTool, todoWriteTool, todoReadTool, deleteTool}, nil
-}
-
-func (o *LLMClient) withBaseRoot(root string, snapshot *tools.GitSnapshot, fn func() error) error {
-	root = strings.TrimSpace(root)
-	if root == "" {
-		return fmt.Errorf("base root not set")
-	}
-	workspaceID := strings.TrimSpace(o.workspaceID)
-	if workspaceID == "" {
-		return fmt.Errorf("session not initialized")
-	}
-	prevSessionRoot := tools.ListDirectoryBaseRootForSession(workspaceID)
-	prevSnapshot := tools.GitSnapshotForSession(workspaceID)
-	prevIgnores := tools.GetScopedIgnorePatternsForSession(workspaceID)
-	prevBase := o.baseRoot
-	tools.SetListDirectoryBaseRootForSession(workspaceID, root)
-	tools.SetGitSnapshotForSession(workspaceID, snapshot)
-	tools.SetScopedIgnorePatternsForSession(workspaceID, o.scopedIgnoresForRoot(root))
-	o.baseRoot = root
-	defer func() {
-		tools.SetListDirectoryBaseRootForSession(workspaceID, prevSessionRoot)
-		tools.SetGitSnapshotForSession(workspaceID, prevSnapshot)
-		tools.SetScopedIgnorePatternsForSession(workspaceID, prevIgnores)
-		o.baseRoot = prevBase
-	}()
-	return fn()
-}
-
-func (o *LLMClient) scopedIgnoresForRoot(root string) []string {
-	if strings.TrimSpace(o.docRelative) == "" || o.docRelative == "." {
-		return nil
-	}
-	if o.codeRoot == "" {
-		return nil
-	}
-	if pathsEqual(root, o.codeRoot) {
-		rel := filepath.ToSlash(filepath.Clean(o.docRelative))
-		rel = strings.TrimPrefix(rel, "./")
-		if rel == "" || rel == "." {
-			return nil
-		}
-		return []string{rel, rel + "/**"}
-	}
-	return nil
-}
-
-func (o *LLMClient) resolveToolPath(input string, allowCode bool) (root string, rel string, abs string, err error) {
-	in := strings.TrimSpace(input)
-	if in == "" || in == "." {
-		return o.docRoot, ".", o.docRoot, nil
-	}
-	if filepath.IsAbs(in) {
-		absInput, err := filepath.Abs(in)
-		if err != nil {
-			return "", "", "", err
-		}
-		if rel, full, ok := pathWithin(o.docRoot, absInput); ok {
-			return o.docRoot, relOrDot(rel), full, nil
-		}
-		if allowCode {
-			if rel, full, ok := pathWithin(o.codeRoot, absInput); ok {
-				return o.codeRoot, relOrDot(rel), full, nil
-			}
-		}
-		return "", "", "", fmt.Errorf("path '%s' is not within the allowed repositories", input)
-	}
-	candidate := filepath.Join(o.docRoot, in)
-	if rel, full, ok := pathWithin(o.docRoot, candidate); ok {
-		return o.docRoot, relOrDot(rel), full, nil
-	}
-	return "", "", "", fmt.Errorf("path '%s' escapes the documentation repository", input)
-}
-
-func pathWithin(base, candidate string) (rel string, abs string, ok bool) {
-	if strings.TrimSpace(base) == "" {
-		return "", "", false
-	}
-	absBase, err := filepath.Abs(base)
-	if err != nil {
-		return "", "", false
-	}
-	absCandidate, err := filepath.Abs(candidate)
-	if err != nil {
-		return "", "", false
-	}
-	relative, err := filepath.Rel(absBase, absCandidate)
-	if err != nil {
-		return "", "", false
-	}
-	if strings.HasPrefix(relative, "..") {
-		return "", "", false
-	}
-	return relative, absCandidate, true
-}
-
-func relOrDot(rel string) string {
-	rel = strings.TrimSpace(rel)
-	if rel == "" {
-		return "."
-	}
-	return rel
-}
-
-// cleanDisplayPath returns a user-friendly path for display in events.
-// Always prefixes with "docs:" or "code:" to make it unambiguous which repository.
-func (o *LLMClient) cleanDisplayPath(root, rel string) string {
-	// If it's a code repository path, prefix with "code:"
-	if root == o.codeRoot && o.codeRoot != "" {
-		if rel == "." || rel == "" {
-			return "code:/"
-		}
-		return filepath.Join("code:", rel)
-	}
-
-	// For documentation files, prefix with "docs:"
-	if root == o.docRoot && o.docRoot != "" {
-		if rel == "." || rel == "" {
-			return "docs:/"
-		}
-		return filepath.Join("docs:", rel)
-	}
-
-	// Fallback - show relative path without prefix
-	if rel == "." || rel == "" {
-		return "/"
-	}
-	return rel
-}
-
-// cleanDisplayPathFromAbs converts an absolute path to a clean display path
-// by stripping the baseRoot (temp workspace) prefix and adding "docs:" or "code:" prefix.
-func (o *LLMClient) cleanDisplayPathFromAbs(absPath string) string {
-	if absPath == "" {
-		return ""
-	}
-
-	// Try to get relative path from docRoot
-	if o.docRoot != "" {
-		if rel, err := filepath.Rel(o.docRoot, absPath); err == nil && !strings.HasPrefix(rel, "..") {
-			if rel == "." || rel == "" {
-				return "docs:/"
-			}
-			return filepath.Join("docs:", rel)
-		}
-	}
-
-	// Try to get relative path from codeRoot
-	if o.codeRoot != "" {
-		if rel, err := filepath.Rel(o.codeRoot, absPath); err == nil && !strings.HasPrefix(rel, "..") {
-			if rel == "." || rel == "" {
-				return "code:/"
-			}
-			return filepath.Join("code:", rel)
-		}
-	}
-
-	// Fallback to showing filename only with "unknown:" prefix
-	return "unknown:" + filepath.Base(absPath)
-}
-
-func snapshotInfo(snapshot *tools.GitSnapshot) string {
-	if snapshot == nil {
-		return "no-snapshot"
-	}
-	branch := snapshot.Branch()
-	commit := snapshot.CommitHash().String()
-	if len(commit) > 8 {
-		commit = commit[:8]
-	}
-	if branch != "" {
-		return fmt.Sprintf("%s@%s", branch, commit)
-	}
-	return commit
-}
-
-func pathsEqual(a, b string) bool {
-	if strings.TrimSpace(a) == "" || strings.TrimSpace(b) == "" {
-		return false
-	}
-	absA, errA := filepath.Abs(a)
-	if errA != nil {
-		absA = filepath.Clean(a)
-	}
-	absB, errB := filepath.Abs(b)
-	if errB != nil {
-		absB = filepath.Clean(b)
-	}
-	return absA == absB
-}
-
-func imageTypeByExt(p string) string {
-	switch strings.ToLower(filepath.Ext(p)) {
-	case ".jpg", ".jpeg":
-		return "JPEG"
-	case ".png":
-		return "PNG"
-	case ".gif":
-		return "GIF"
-	case ".bmp":
-		return "BMP"
-	case ".webp":
-		return "WebP"
-	default:
-		return ""
-	}
 }
 
 // loadRepoLLMInstructions scans the documentation repository's .narrabyte directory

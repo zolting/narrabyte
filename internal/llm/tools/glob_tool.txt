@@ -1,5 +1,14 @@
-- Fast file pattern matching tool that works with any codebase size
-- Supports glob patterns like "**/*.js" or "src/**/*.ts"
+Fast file pattern matching tool that works with any codebase size.
+
+Usage:
+- `repository`: Required - must be "docs" or "code" to specify which repository to search
+- `pattern`: Required - glob pattern to match files (e.g., "**/*.js", "src/**/*.ts")
+- NEVER use absolute paths in patterns - always use relative paths within the repository
 - Returns matching file paths sorted by modification time
 - Use this tool when you need to find files by name patterns
 - You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.
+
+Examples:
+- Find Go files in code: repository="code", pattern="**/*.go"
+- Find markdown in docs: repository="docs", pattern="**/*.md"
+- Find specific path: repository="code", pattern="internal/services/*.go"

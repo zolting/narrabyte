@@ -1,9 +1,16 @@
-Search file contents using a regex pattern within a directory. Pure Go implementation that scans files recursively. Supports optionally scoping the search and including only certain file patterns.
+Search file contents using a regex pattern within either the documentation or codebase repository.
 
 Usage:
-- `pattern`: required regex to search for in contents
-- `path`: optional directory to search; omit to use the configured project root (must remain within project)
-- `include`: optional file glob to constrain search (e.g. "*.js", "*.{ts,tsx}")
+- `repository`: Required - must be "docs" or "code" to specify which repository to search
+- `pattern`: Required - regex pattern to search for in file contents
+- `path`: Optional - relative path within the repository to scope the search (e.g., "internal/services"). If omitted, searches the entire repository.
+- NEVER use absolute paths - always use relative paths within the repository
+- `include`: Optional - file glob to constrain search (e.g., "*.js", "*.{ts,tsx}")
 - Returns up to 100 matches, grouped by file, sorted by most recently modified files first
 - If no matches are found, the output indicates that explicitly
 - Results include line numbers and the matching line text
+
+Examples:
+- Search code for function: repository="code", pattern="func.*Service", path="internal"
+- Search docs for keyword: repository="docs", pattern="API endpoint"
+- Search with file filter: repository="code", pattern="TODO", include="*.go"

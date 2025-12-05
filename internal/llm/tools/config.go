@@ -11,6 +11,8 @@ import (
 
 type baseContext struct {
 	root     string
+	docsRoot string
+	codeRoot string
 	snapshot *GitSnapshot
 	ignores  []string
 }
@@ -192,6 +194,109 @@ func ClearSession(sessionID string) {
 	contextMu.Lock()
 	delete(sessionContexts, sessionID)
 	contextMu.Unlock()
+}
+
+// SetDocsRootForSession sets the documentation repository root for a specific session.
+func SetDocsRootForSession(sessionID, root string) {
+	ctx := ensureSessionContext(sessionID)
+	ctx.docsRoot = normalizeRoot(root)
+}
+
+// SetCodeRootForSession sets the codebase repository root for a specific session.
+func SetCodeRootForSession(sessionID, root string) {
+	ctx := ensureSessionContext(sessionID)
+	ctx.codeRoot = normalizeRoot(root)
+}
+
+// DocsRootForSession returns the documentation repository root for a session.
+func DocsRootForSession(sessionID string) string {
+	if ctx := lookupSessionContext(sessionID); ctx != nil {
+		return ctx.docsRoot
+	}
+	return ""
+}
+
+// CodeRootForSession returns the codebase repository root for a session.
+func CodeRootForSession(sessionID string) string {
+	if ctx := lookupSessionContext(sessionID); ctx != nil {
+		return ctx.codeRoot
+	}
+	return ""
+}
+
+// getDocsRoot resolves the documentation root for ctx.
+func getDocsRoot(ctx context.Context) string {
+	return DocsRootForSession(SessionIDFromContext(ctx))
+}
+
+// getCodeRoot resolves the codebase root for ctx.
+func getCodeRoot(ctx context.Context) string {
+	return CodeRootForSession(SessionIDFromContext(ctx))
+}
+
+// ResolveRepositoryPath resolves a relative path against a repository root.
+// Returns absolute path or error if repository is invalid, path is absolute, or path escapes the repository.
+func ResolveRepositoryPath(ctx context.Context, repo Repository, relPath string) (string, error) {
+	rel := strings.TrimSpace(relPath)
+	if rel == "" {
+		rel = "."
+	}
+
+	// Reject absolute paths
+	if filepath.IsAbs(rel) {
+		return "", fmt.Errorf("absolute paths are not allowed; use a relative path within the repository (got: %s)", rel)
+	}
+
+	var root string
+	switch repo {
+	case RepositoryDocs:
+		root = getDocsRoot(ctx)
+	case RepositoryCode:
+		root = getCodeRoot(ctx)
+	default:
+		return "", fmt.Errorf("invalid repository '%s'; must be 'docs' or 'code'", repo)
+	}
+
+	if root == "" {
+		return "", fmt.Errorf("repository '%s' is not configured for this session", repo)
+	}
+
+	// Safe join with escape check
+	abs, ok := safeJoinUnderBase(root, rel)
+	if !ok {
+		return "", fmt.Errorf("path '%s' escapes the %s repository", rel, repo)
+	}
+
+	return abs, nil
+}
+
+// GetRepositoryRoot returns the root path for a repository in the given context.
+func GetRepositoryRoot(ctx context.Context, repo Repository) (string, error) {
+	switch repo {
+	case RepositoryDocs:
+		root := getDocsRoot(ctx)
+		if root == "" {
+			return "", fmt.Errorf("docs repository is not configured")
+		}
+		return root, nil
+	case RepositoryCode:
+		root := getCodeRoot(ctx)
+		if root == "" {
+			return "", fmt.Errorf("code repository is not configured")
+		}
+		return root, nil
+	default:
+		return "", fmt.Errorf("invalid repository '%s'", repo)
+	}
+}
+
+// FormatDisplayPath creates a display path with repository prefix (e.g., "docs:path/to/file").
+func FormatDisplayPath(repo Repository, relPath string) string {
+	rel := strings.TrimSpace(relPath)
+	if rel == "" || rel == "." {
+		return string(repo) + ":/"
+	}
+	return string(repo) + ":" + filepath.ToSlash(rel)
 }
 
 // safeJoinUnderBase resolves a path under base, returning an absolute path that
