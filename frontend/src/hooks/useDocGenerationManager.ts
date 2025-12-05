@@ -179,9 +179,9 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 
 	const reset = useCallback(() => {
 		if (sessionKey) {
-			resetDocGeneration(projectIdNum, sessionKey);
+			resetDocGeneration(sessionKey);
 		}
-	}, [projectIdNum, sessionKey, resetDocGeneration]);
+	}, [sessionKey, resetDocGeneration]);
 
 	const setCompletedCommit = useCallback(
 		(newSourceBranch: string, newTargetBranch: string) => {
@@ -203,26 +203,18 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 
 	const cancelDocGeneration = useCallback(() => {
 		if (sessionKey) {
-			cancelDocGenerationStore(projectIdNum, sessionKey);
+			cancelDocGenerationStore(sessionKey);
 		}
-	}, [cancelDocGenerationStore, projectIdNum, sessionKey]);
+	}, [cancelDocGenerationStore, sessionKey]);
 
 	const mergeDocs = useCallback(() => {
-		if (!(docsInCodeRepo && docResult?.branch && sessionKey)) {
+		if (!(docsInCodeRepo && sessionKey)) {
 			return;
 		}
 		mergeDocsStore({
-			projectId: projectIdNum,
-			branch: docResult.branch,
 			sessionKey,
 		});
-	}, [
-		docsInCodeRepo,
-		docResult?.branch,
-		mergeDocsStore,
-		projectIdNum,
-		sessionKey,
-	]);
+	}, [docsInCodeRepo, mergeDocsStore, sessionKey]);
 
 	return {
 		sessionKey,
