@@ -9,6 +9,7 @@ type GenerationSession struct {
 	TargetBranch     string `gorm:"size:255;not null;index:idx_session_project_source_target,unique"`
 	Provider         string `gorm:"size:50;not null"`
 	ModelKey         string `gorm:"size:255"`
+	DocsBranch       string `gorm:"size:255"`
 	MessagesJSON     string `gorm:"type:text"`
 	ChatMessagesJSON string `gorm:"type:text"`
 	CreatedAt        time.Time

@@ -13,4 +13,4 @@ export function List(arg1:number):Promise<Array<models.GenerationSession>>;
 
 export function Startup(arg1:context.Context):Promise<void>;
 
-export function Upsert(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<models.GenerationSession>;
+export function Upsert(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:string):Promise<models.GenerationSession>;

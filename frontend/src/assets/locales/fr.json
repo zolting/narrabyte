@@ -110,7 +110,7 @@
     "newDocsBranchLabel": "Utiliser un autre nom de branche de documentation",
     "newDocsBranchPlaceholder": "ex.: docs/feature-x-2",
     "newDocsBranchAria": "Nouveau nom de branche de documentation",
-    "deleteCurrentDocsBranch": "Supprimer la branche de docs actuelle",
+    "deleteCurrentDocsBranch": "Supprimer la branche de documentation actuelle",
     "confirmMergeTitle": "Fusionner la documentation dans la branche source ?",
     "confirmMergeDescription": "Cela effectuera une avance rapide (fast-forward) de votre branche source ({{branch}}) pour inclure le commit de documentation. Les changements seront immédiatement disponibles sur {{branch}}.",
     "deleteSessionConfirmTitle": "Supprimer cette session de documentation ?",

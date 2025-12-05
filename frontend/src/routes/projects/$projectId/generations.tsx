@@ -172,6 +172,10 @@ function RouteComponent() {
 												{s.SourceBranch} → {s.TargetBranch}
 											</div>
 											<div className="text-muted-foreground text-xs">
+												{t("common.branch")}:{" "}
+												{s.DocsBranch || `docs/${s.SourceBranch}`}
+											</div>
+											<div className="text-muted-foreground text-xs">
 												{t("generations.lastUpdated")}:{" "}
 												{formatUpdated(s.UpdatedAt)}
 											</div>
