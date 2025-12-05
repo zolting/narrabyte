@@ -1,7 +1,13 @@
-Writes a file to the local filesystem.
+Writes a file to the documentation repository.
 
 Usage:
+- `repository`: Required - must be "docs" (writing to code repository is not allowed)
+- `file_path`: Required - relative path within the docs repository (e.g., "api/endpoints.md")
+- NEVER use absolute paths - always use relative paths within the repository
 - This tool will overwrite the existing file if there is one at the provided path.
 - If this is an existing file, you MUST use the Read tool first to read the file's contents. This tool will fail if you did not read the file first.
-- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless required.
+- ALWAYS prefer editing existing files. NEVER write new files unless required.
 - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
+
+Examples:
+- Write docs file: repository="docs", file_path="api/readme.md", content="..."

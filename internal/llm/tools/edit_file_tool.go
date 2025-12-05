@@ -16,10 +16,16 @@ import (
 )
 
 type EditInput struct {
-	FilePath   string `json:"file_path" jsonschema:"description=Path to the file to edit (absolute or relative to the configured project root)"`
-	OldString  string `json:"old_string" jsonschema:"description=The exact text to replace. Leave empty to overwrite the entire file with new_string."`
-	NewString  string `json:"new_string" jsonschema:"description=The replacement text"`
-	ReplaceAll bool   `json:"replace_all,omitempty" jsonschema:"description=Replace all occurrences of old_string instead of a single instance"`
+	// Repository must be "docs" - editing the code repository is not allowed.
+	Repository Repository `json:"repository" jsonschema:"enum=docs,description=Must be 'docs' - editing the code repository is not allowed"`
+	// FilePath is the relative path to the file within the docs repository.
+	FilePath string `json:"file_path" jsonschema:"description=The path to the file relative to the docs repository root (e.g. 'api/endpoints.md'). NEVER use absolute paths."`
+	// OldString is the exact text to replace. Leave empty to overwrite the entire file.
+	OldString string `json:"old_string" jsonschema:"description=The exact text to replace. Leave empty to overwrite the entire file with new_string."`
+	// NewString is the replacement text.
+	NewString string `json:"new_string" jsonschema:"description=The replacement text"`
+	// ReplaceAll replaces all occurrences of old_string instead of just the first.
+	ReplaceAll bool `json:"replace_all,omitempty" jsonschema:"description=Replace all occurrences of old_string instead of a single instance"`
 }
 
 type EditOutput struct {
@@ -70,8 +76,22 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		}, nil
 	}
 
-	p := strings.TrimSpace(in.FilePath)
-	if p == "" {
+	// Enforce docs-only repository
+	if in.Repository != RepositoryDocs {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Edit: repository must be 'docs', got '%s'", in.Repository)))
+		return &EditOutput{
+			Title:  "",
+			Output: fmt.Sprintf("Format error: editing is only allowed in the 'docs' repository, got '%s'", in.Repository),
+			Metadata: map[string]string{
+				"error":       "format_error",
+				"replaced":    "false",
+				"occurrences": "0",
+			},
+		}, nil
+	}
+
+	pathArg := strings.TrimSpace(in.FilePath)
+	if pathArg == "" {
 		events.Emit(ctx, events.LLMEventTool, events.NewError("Edit: file_path is required"))
 		return &EditOutput{
 			Title:  "",
@@ -97,12 +117,14 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		}, nil
 	}
 
-	base, err := getListDirectoryBaseRoot(ctx)
+	// Resolve path using the repository-scoped resolver
+	abs, err := ResolveRepositoryPath(ctx, in.Repository, pathArg)
 	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError("Edit: project root not set"))
+		displayPath := FormatDisplayPath(in.Repository, pathArg)
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("Edit: %v", err)))
 		return &EditOutput{
-			Title:  "",
-			Output: "Format error: project root not set",
+			Title:  displayPath,
+			Output: fmt.Sprintf("Format error: %v", err),
 			Metadata: map[string]string{
 				"error":       "format_error",
 				"replaced":    "false",
@@ -111,62 +133,14 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		}, nil
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: resolving '%s'", p)))
-	var abs string
-	if filepath.IsAbs(p) {
-		absBase, e1 := filepath.Abs(base)
-		absReq, e2 := filepath.Abs(p)
-		if e1 != nil || e2 != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError("Edit: resolve error"))
-			return nil, fmt.Errorf("resolve error")
-		}
-		evalBase, evalBaseErr := filepath.EvalSymlinks(absBase)
-		if evalBaseErr != nil {
-			evalBase = absBase
-		}
-		evalReq, evalReqErr := filepath.EvalSymlinks(absReq)
-		if evalReqErr != nil {
-			evalReq = absReq
-		}
-
-		relToBase, e3 := filepath.Rel(evalBase, evalReq)
-		if e3 != nil || strings.HasPrefix(relToBase, "..") {
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn("Edit: path escapes the configured project root"))
-			return &EditOutput{
-				Title:  filepath.ToSlash(absReq),
-				Output: "Format error: path escapes the configured project root",
-				Metadata: map[string]string{
-					"error":       "format_error",
-					"replaced":    "false",
-					"occurrences": "0",
-				},
-			}, nil
-		}
-		abs = absReq
-	} else {
-		a, ok := safeJoinUnderBase(base, p)
-		if !ok {
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn("Edit: path escapes the configured project root"))
-			return &EditOutput{
-				Title:  filepath.ToSlash(p),
-				Output: "Format error: path escapes the configured project root",
-				Metadata: map[string]string{
-					"error":       "format_error",
-					"replaced":    "false",
-					"occurrences": "0",
-				},
-			}, nil
-		}
-		abs = a
-	}
-	title := filepath.ToSlash(abs)
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: target '%s'", title)))
+	displayPath := FormatDisplayPath(in.Repository, pathArg)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: target '%s'", displayPath)))
 
 	dir := filepath.Dir(abs)
 	if st, derr := os.Stat(dir); derr != nil || !st.IsDir() {
 		events.Emit(ctx, events.LLMEventTool, events.NewError("Edit: directory does not exist"))
 		return &EditOutput{
-			Title:  title,
+			Title:  displayPath,
 			Output: "Format error: directory does not exist",
 			Metadata: map[string]string{
 				"error":       "format_error",
@@ -179,7 +153,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 	if st, err := os.Stat(abs); err == nil && st.IsDir() {
 		events.Emit(ctx, events.LLMEventTool, events.NewError("Edit: cannot edit directory"))
 		return &EditOutput{
-			Title:  title,
+			Title:  displayPath,
 			Output: "Format error: cannot edit directory",
 			Metadata: map[string]string{
 				"error":       "format_error",
@@ -193,7 +167,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		if bin, berr := isBinaryFile(abs); berr == nil && bin {
 			events.Emit(ctx, events.LLMEventTool, events.NewError("Edit: cannot edit binary file"))
 			return &EditOutput{
-				Title:  title,
+				Title:  displayPath,
 				Output: "Format error: cannot edit binary file",
 				Metadata: map[string]string{
 					"error":       "format_error",
@@ -218,7 +192,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		if rerr != nil {
 			events.Emit(ctx, events.LLMEventTool, events.NewError("Edit: file does not exist"))
 			return &EditOutput{
-				Title:  title,
+				Title:  displayPath,
 				Output: "Format error: file does not exist",
 				Metadata: map[string]string{
 					"error":       "format_error",
@@ -236,7 +210,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 			case errors.Is(repErr, errOldStringNotFound):
 				events.Emit(ctx, events.LLMEventTool, events.NewInfo("Edit: old_string not found"))
 				return &EditOutput{
-					Title:  title,
+					Title:  displayPath,
 					Output: "Edit error: old_string not found in content",
 					Metadata: map[string]string{
 						"error":       "search_not_found",
@@ -247,7 +221,7 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 			case errors.Is(repErr, errMultipleMatches):
 				events.Emit(ctx, events.LLMEventTool, events.NewWarn("Edit: ambiguous match without replace_all"))
 				return &EditOutput{
-					Title:  title,
+					Title:  displayPath,
 					Output: "Edit error: old_string found multiple times and requires more code context to uniquely identify the intended match",
 					Metadata: map[string]string{
 						"error":       "ambiguous_match",
@@ -268,14 +242,14 @@ func Edit(ctx context.Context, in *EditInput) (*EditOutput, error) {
 		return nil, err
 	}
 
-	diff := computeDiff(title, contentOld, contentNew)
+	diff := computeDiff(displayPath, contentOld, contentNew)
 	additions, deletions := diffLineCounts(contentOld, contentNew)
 
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("Edit: replaced %d occurrence(s)", replacedCount)))
-	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("Edit: done for '%s'", title), "edit", title))
+	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("Edit: done for '%s'", displayPath), "edit", displayPath))
 
 	return &EditOutput{
-		Title:  title,
+		Title:  displayPath,
 		Output: "Edit success",
 		Metadata: map[string]string{
 			"error":       "",

@@ -1,1 +1,14 @@
-Lists files and directories in a given path. The path parameter must be an absolute path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the Glob and Grep tools, if you know which directories to search.
+Lists files and directories in a given path within either the documentation or codebase repository.
+
+Usage:
+- `repository`: Required - must be "docs" or "code" to specify which repository
+- `path`: Optional - relative path within the repository (e.g., "src" or "api"). If omitted, lists the repository root.
+- NEVER use absolute paths - always use relative paths within the repository
+- `ignore`: Optional - array of glob patterns to ignore
+- You should generally prefer the Glob and Grep tools if you know which directories to search.
+
+Examples:
+- List code root: repository="code", path=""
+- List code subdirectory: repository="code", path="internal/services"
+- List docs root: repository="docs", path=""
+- List docs subdirectory: repository="docs", path="api"

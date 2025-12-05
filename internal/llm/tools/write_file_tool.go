@@ -10,8 +10,12 @@ import (
 )
 
 type WriteFileInput struct {
-	FilePath string `json:"file_path" jsonschema:"description=The absolute path to the file to write"`
-	Content  string `json:"content" jsonschema:"description=The content to write to the file"`
+	// Repository must be "docs" - writing to the code repository is not allowed.
+	Repository Repository `json:"repository" jsonschema:"enum=docs,description=Must be 'docs' - writing to the code repository is not allowed"`
+	// FilePath is the relative path to the file within the docs repository.
+	FilePath string `json:"file_path" jsonschema:"description=The path to the file relative to the docs repository root (e.g. 'api/endpoints.md'). NEVER use absolute paths."`
+	// Content is the content to write to the file.
+	Content string `json:"content" jsonschema:"description=The content to write to the file"`
 }
 
 type WriteFileOutput struct {
@@ -34,20 +38,20 @@ func WriteFile(ctx context.Context, in *WriteFileInput) (*WriteFileOutput, error
 		}, nil
 	}
 
-	base, err := getListDirectoryBaseRoot(ctx)
-	if err != nil {
-		events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile: project root not set"))
+	// Enforce docs-only repository
+	if in.Repository != RepositoryDocs {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: repository must be 'docs', got '%s'", in.Repository)))
 		return &WriteFileOutput{
 			Title:  "",
-			Output: "Format error: project root not set",
+			Output: fmt.Sprintf("Format error: writing is only allowed to the 'docs' repository, got '%s'", in.Repository),
 			Metadata: map[string]string{
 				"error": "format_error",
 			},
 		}, nil
 	}
 
-	p := strings.TrimSpace(in.FilePath)
-	if p == "" {
+	pathArg := strings.TrimSpace(in.FilePath)
+	if pathArg == "" {
 		events.Emit(ctx, events.LLMEventTool, events.NewError("WriteFile: file_path is required"))
 		return &WriteFileOutput{
 			Title:  "",
@@ -58,72 +62,31 @@ func WriteFile(ctx context.Context, in *WriteFileInput) (*WriteFileOutput, error
 		}, nil
 	}
 
-	var absPath string
-	if filepath.IsAbs(p) {
-		absBase, err := filepath.Abs(base)
-		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: base resolve error: %v", err)))
-			return nil, err
-		}
-		// Resolve symlinks for consistent comparison
-		evalBase, err := filepath.EvalSymlinks(absBase)
-		if err != nil {
-			evalBase = absBase
-		}
-
-		absCandidate, err := filepath.Abs(p)
-		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: abs path error: %v", err)))
-			return nil, err
-		}
-		// Resolve symlinks for the candidate path
-		evalCandidate, err := filepath.EvalSymlinks(absCandidate)
-		if err != nil {
-			// If file doesn't exist yet, fall back to absolute path
-			evalCandidate = absCandidate
-		}
-
-		relToBase, err := filepath.Rel(evalBase, evalCandidate)
-		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: rel error: %v", err)))
-			return nil, err
-		}
-		if strings.HasPrefix(relToBase, "..") {
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile: path escapes the configured project root"))
-			return &WriteFileOutput{
-				Title:  filepath.ToSlash(absCandidate),
-				Output: "Format error: file is not in the configured project root",
-				Metadata: map[string]string{
-					"error": "format_error",
-				},
-			}, nil
-		}
-		absPath = absCandidate
-	} else {
-		abs, ok := safeJoinUnderBase(base, p)
-		if !ok {
-			events.Emit(ctx, events.LLMEventTool, events.NewWarn("WriteFile: path escapes the configured project root"))
-			return &WriteFileOutput{
-				Title:  filepath.ToSlash(filepath.Join(base, p)),
-				Output: "Format error: path escapes the configured project root",
-				Metadata: map[string]string{
-					"error": "format_error",
-				},
-			}, nil
-		}
-		absPath = abs
+	// Resolve path using the repository-scoped resolver
+	absPath, err := ResolveRepositoryPath(ctx, in.Repository, pathArg)
+	if err != nil {
+		displayPath := FormatDisplayPath(in.Repository, pathArg)
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: %v", err)))
+		return &WriteFileOutput{
+			Title:  displayPath,
+			Output: fmt.Sprintf("Format error: %v", err),
+			Metadata: map[string]string{
+				"error": "format_error",
+			},
+		}, nil
 	}
 
-	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile: writing '%s'", filepath.ToSlash(absPath))))
+	displayPath := FormatDisplayPath(in.Repository, pathArg)
+	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile: writing '%s'", displayPath)))
 
 	dir := filepath.Dir(absPath)
 	info, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: directory does not exist: %s", filepath.ToSlash(dir))))
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: directory does not exist: %s", displayPath)))
 			return &WriteFileOutput{
-				Title:  filepath.ToSlash(absPath),
-				Output: fmt.Sprintf("Format error: directory does not exist: %s", dir),
+				Title:  displayPath,
+				Output: fmt.Sprintf("Format error: directory does not exist for path: %s", displayPath),
 				Metadata: map[string]string{
 					"error": "format_error",
 				},
@@ -133,10 +96,10 @@ func WriteFile(ctx context.Context, in *WriteFileInput) (*WriteFileOutput, error
 		return nil, err
 	}
 	if !info.IsDir() {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: not a directory: %s", filepath.ToSlash(dir))))
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: parent is not a directory: %s", displayPath)))
 		return &WriteFileOutput{
-			Title:  filepath.ToSlash(absPath),
-			Output: fmt.Sprintf("Format error: not a directory: %s", dir),
+			Title:  displayPath,
+			Output: fmt.Sprintf("Format error: parent path is not a directory: %s", displayPath),
 			Metadata: map[string]string{
 				"error": "format_error",
 			},
@@ -155,18 +118,18 @@ func WriteFile(ctx context.Context, in *WriteFileInput) (*WriteFileOutput, error
 
 	outputMsg := ""
 	if existed {
-		outputMsg = fmt.Sprintf("Overwrote file: %s", filepath.ToSlash(absPath))
+		outputMsg = fmt.Sprintf("Overwrote file: %s", displayPath)
 	} else {
-		outputMsg = fmt.Sprintf("Created file: %s", filepath.ToSlash(absPath))
+		outputMsg = fmt.Sprintf("Created file: %s", displayPath)
 	}
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(outputMsg))
-	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("WriteFile: done for '%s'", filepath.ToSlash(absPath)), "write", filepath.ToSlash(absPath)))
+	events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventInfo, fmt.Sprintf("WriteFile: done for '%s'", displayPath), "write", displayPath))
 
 	return &WriteFileOutput{
-		Title:  filepath.ToSlash(absPath),
+		Title:  displayPath,
 		Output: outputMsg,
 		Metadata: map[string]string{
-			"filepath": filepath.ToSlash(absPath),
+			"filepath": displayPath,
 			"exists":   fmt.Sprintf("%v", existed),
 		},
 	}, nil
