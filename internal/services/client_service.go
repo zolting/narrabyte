@@ -164,7 +164,16 @@ func (s *ClientService) CheckDocsBranchAvailability(projectID uint, sourceBranch
 	// Determine docs branch name
 	docsBranch := strings.TrimSpace(docsBranchOverride)
 	if docsBranch == "" {
-		docsBranch = fmt.Sprintf("docs/%s", sourceBranch)
+		docsBranch = documentationBranchName(sourceBranch)
+	}
+
+	// Check if a session with this docsBranch already exists before hitting the repo
+	existingSession, err := s.generationSessions.GetByDocsBranch(projectID, docsBranch)
+	if err != nil {
+		return fmt.Errorf("failed to check for existing session: %w", err)
+	}
+	if existingSession != nil {
+		return fmt.Errorf("ERR_SESSION_EXISTS:a session with docsBranch '%s' already exists (ID: %d)", docsBranch, existingSession.ID)
 	}
 
 	return s.ensureDocsBranchAvailable(docRepo, docsBranch)

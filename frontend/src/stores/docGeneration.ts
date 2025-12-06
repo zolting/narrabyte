@@ -4,6 +4,7 @@ import {
 	CommitDocs,
 	GenerateDocs,
 	GenerateDocsFromBranch,
+	GetAvailableTabSessions,
 	LoadGenerationSession,
 	MergeDocsIntoSource,
 	RefineDocs,
@@ -233,6 +234,18 @@ export const createTempSessionKey = (
 	return normalizedTab ? `${baseKey}:${normalizedTab}` : baseKey;
 };
 
+const WHITESPACE_REGEX = /\s+/g;
+
+const documentationBranchName = (
+	sourceBranch: string | null | undefined
+): string => {
+	const trimmed = (sourceBranch ?? "").trim();
+	if (!trimmed) {
+		return "docs";
+	}
+	return `docs/${trimmed.replace(WHITESPACE_REGEX, "-")}`;
+};
+
 const backendSessionBindings = new Map<SessionKey, Set<SessionKey>>();
 
 const bindBackendSession = (
@@ -307,6 +320,10 @@ const mapErrorCodeToMessage = (errorMessage: string): string => {
 		trimmed.startsWith("ERR_DOCS_BRANCH_EXISTS:") ||
 		trimmed.startsWith("ERR_DOCS_GENERATION_IN_PROGRESS:")
 	) {
+		return i18n.t("common.docsBranchExists");
+	}
+
+	if (trimmed.startsWith("ERR_SESSION_EXISTS:")) {
 		return i18n.t("common.docsBranchExists");
 	}
 
@@ -697,6 +714,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		runRequest,
 	}: RunGenerationArgs) => {
 		const projectKey = toKey(projectId);
+		const docsBranch = documentationBranchName(sourceBranch);
 		// Use temp session key until we get the real session ID from the backend
 		const tempSessionKey = createTempSessionKey(projectId, sourceBranch, tabId);
 		const currentState = get().docStates[tempSessionKey];
@@ -737,7 +755,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					initialDiffSignatures: null,
 					changedSinceInitial: [],
 					docsInCodeRepo: false,
-					docsBranch: null,
+					docsBranch: suggestion.existing || docsBranch,
 					mergeInProgress: false,
 					conflict: {
 						existingDocsBranch: suggestion.existing,
@@ -760,7 +778,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 			if (checkMessage.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
 				const existing =
-					extractExistingDocsBranch(checkMessage) ?? `docs/${sourceBranch}`;
+					extractExistingDocsBranch(checkMessage) ?? docsBranch;
 				setDocState(tempSessionKey, {
 					sessionId: null,
 					projectId,
@@ -782,7 +800,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					initialDiffSignatures: null,
 					changedSinceInitial: [],
 					docsInCodeRepo: false,
-					docsBranch: null,
+					docsBranch: existing,
 					mergeInProgress: false,
 					conflict: {
 						existingDocsBranch: existing,
@@ -798,6 +816,43 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					sourceBranch,
 					targetBranch: targetBranch ?? "",
 					status: "idle",
+				});
+				return;
+			}
+
+			if (checkMessage.startsWith("ERR_SESSION_EXISTS:")) {
+				setDocState(tempSessionKey, {
+					sessionId: null,
+					projectId,
+					projectName,
+					sessionKey: tempSessionKey,
+					events: [],
+					todos: [],
+					error: mapErrorCodeToMessage(checkMessage),
+					result: null,
+					status: "error",
+					cancellationRequested: false,
+					activeTab: "activity",
+					commitCompleted: false,
+					completedCommitInfo: null,
+					sourceBranch,
+					targetBranch: targetBranch ?? null,
+					chatOpen: false,
+					messages: [],
+					initialDiffSignatures: null,
+					changedSinceInitial: [],
+					docsInCodeRepo: false,
+					docsBranch,
+					mergeInProgress: false,
+				});
+				setActiveSessionKey(projectKey, tempSessionKey);
+				updateSessionMeta(tempSessionKey, {
+					sessionId: null,
+					projectId,
+					projectName,
+					sourceBranch,
+					targetBranch: targetBranch ?? "",
+					status: "error",
 				});
 				return;
 			}
@@ -828,7 +883,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			initialDiffSignatures: null,
 			changedSinceInitial: [],
 			docsInCodeRepo: false,
-			docsBranch: null,
+			docsBranch,
 			mergeInProgress: false,
 		});
 		setActiveSessionKey(projectKey, tempSessionKey);
@@ -940,6 +995,50 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		}
 	};
 
+	const deriveDocsBranch = (state: DocGenerationData): string => {
+		const conflictBranch = state.conflict?.existingDocsBranch?.trim();
+		if (conflictBranch) {
+			return conflictBranch;
+		}
+		const existing = state.docsBranch?.trim();
+		if (existing) {
+			return existing;
+		}
+		return documentationBranchName(state.sourceBranch);
+	};
+
+	const resolveSessionIdForKey = async (
+		sessionKey: SessionKey,
+		state: DocGenerationData
+	): Promise<number | null> => {
+		if (state.sessionId) {
+			return state.sessionId;
+		}
+		const expectedDocsBranch = deriveDocsBranch(state);
+		try {
+			const sessions = await GetAvailableTabSessions(state.projectId);
+			const match = sessions.find((session) => {
+				const docsBranch = (session.docsBranch ?? "").trim();
+				const source = (session.sourceBranch ?? "").trim();
+				return (
+					docsBranch === expectedDocsBranch &&
+					source === (state.sourceBranch ?? "").trim()
+				);
+			});
+			if (match?.id) {
+				setDocState(sessionKey, {
+					sessionId: match.id,
+					docsBranch: expectedDocsBranch,
+				});
+				updateSessionMeta(sessionKey, { sessionId: match.id });
+				return match.id;
+			}
+		} catch {
+			return null;
+		}
+		return null;
+	};
+
 	return {
 		docStates: {},
 		tabSessions: {},
@@ -1029,19 +1128,24 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				return;
 			}
 
-			const sessionId = docState.sessionId;
 			const allowCancel =
 				docState.status === "running" ||
 				Boolean(docState.conflict?.isInProgress);
 			if (!allowCancel) {
 				return;
 			}
+			const sessionId =
+				docState.sessionId ?? (await resolveSessionIdForKey(sessionKey, docState));
+			if (!sessionId) {
+				setDocState(sessionKey, { cancellationRequested: false });
+				return;
+			}
 
 			setDocState(sessionKey, { cancellationRequested: true });
 			try {
 				// StopStream now takes (sessionID, sessionKeyOverride)
-				// Use sessionId if available, otherwise fall back to 0 and let sessionKey handle it
-				await StopStream(sessionId ?? 0, sessionKey);
+				// Resolve the session ID before issuing the stop request
+				await StopStream(sessionId, sessionKey);
 				updateSessionMeta(sessionKey, { status: "canceled" });
 				setDocState(sessionKey, (prev) => ({
 					...prev,
@@ -1787,7 +1891,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					error: null,
 					cancellationRequested: false,
 					docsInCodeRepo: false,
-					docsBranch: null,
+					docsBranch: targetName,
 					mergeInProgress: false,
 					initialDiffSignatures: null,
 					changedSinceInitial: [],
