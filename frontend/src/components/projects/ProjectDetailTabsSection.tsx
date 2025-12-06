@@ -52,8 +52,8 @@ function TabLabel({ projectId, tabId }: { projectId: string; tabId: string }) {
 				const source = state.docStates[sessionKey]?.sourceBranch?.trim();
 				return source && source.length > 0 ? source : null;
 			},
-			[projectId, tabId],
-		),
+			[projectId, tabId]
+		)
 	);
 	return branchName && branchName.length > 0
 		? branchName
@@ -74,7 +74,7 @@ type TabContentRendererProps = {
 		availableModels: ModelOption[],
 		groupedModelOptions: GroupedModelOption[],
 		modelsLoading: boolean,
-		providerKeys: string[],
+		providerKeys: string[]
 	) => ReactNode;
 	canGenerateBase: boolean;
 	currentBranch: string | null;
@@ -86,11 +86,11 @@ type TabContentRendererProps = {
 		docManager: DocGenerationManager,
 		branchSelection: BranchSelectionState,
 		mode: "diff" | "single",
-		modelKey: string | null,
+		modelKey: string | null
 	) => void;
 	onReset: (
 		docManager: DocGenerationManager,
-		branchSelection: BranchSelectionState,
+		branchSelection: BranchSelectionState
 	) => void;
 	onRefreshBranches: () => void;
 	onLoadSession: (tabId: string) => void;
@@ -143,7 +143,7 @@ function TabContentRenderer({
 			return Boolean(
 				branchSelection.sourceBranch &&
 					branchSelection.targetBranch &&
-					branchSelection.sourceBranch !== branchSelection.targetBranch,
+					branchSelection.sourceBranch !== branchSelection.targetBranch
 			);
 		}
 		// single mode
@@ -292,7 +292,7 @@ function TabContentRenderer({
 					availableModels,
 					groupedModelOptions,
 					modelsLoading,
-					providerKeys,
+					providerKeys
 				)}
 				{docManager.hasGenerationAttempt && (
 					<GenerationTabs
@@ -350,7 +350,7 @@ export type ProjectDetailTabsSectionProps = {
 		availableModels: ModelOption[],
 		groupedModelOptions: GroupedModelOption[],
 		modelsLoading: boolean,
-		providerKeys: string[],
+		providerKeys: string[]
 	) => ReactNode;
 	canGenerateBase: boolean;
 	hasInstructionContent: boolean;
@@ -362,11 +362,11 @@ export type ProjectDetailTabsSectionProps = {
 		docManager: DocGenerationManager,
 		branchSelection: BranchSelectionState,
 		mode: "diff" | "single",
-		modelKey: string | null,
+		modelKey: string | null
 	) => void;
 	onReset: (
 		docManager: DocGenerationManager,
-		branchSelection: BranchSelectionState,
+		branchSelection: BranchSelectionState
 	) => void;
 	onRefreshBranches: () => void;
 	defaultModelKey: string | null;
@@ -434,7 +434,7 @@ export function ProjectDetailTabsSection({
 				return filtered;
 			});
 		},
-		[activeUiTab],
+		[activeUiTab]
 	);
 
 	useEffect(() => {
@@ -469,7 +469,7 @@ export function ProjectDetailTabsSection({
 		return () => {
 			window.removeEventListener(
 				"ui:new-generation-tab",
-				handler as EventListener,
+				handler as EventListener
 			);
 		};
 	}, [addUiTab, projectId]);
@@ -502,7 +502,7 @@ export function ProjectDetailTabsSection({
 				setSessionSelectorTabId(null);
 			}
 		},
-		[restoreSession, sessionSelectorTabId],
+		[restoreSession, sessionSelectorTabId]
 	);
 
 	return (
