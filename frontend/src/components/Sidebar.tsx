@@ -529,7 +529,10 @@ function AppSidebarContent() {
 											return (
 												<SortableProjectItem
 													isActive={
-														location.pathname === `/projects/${projectId}`
+														location.pathname === `/projects/${projectId}` ||
+														location.pathname.startsWith(
+															`/projects/${projectId}/`
+														)
 													}
 													key={projectId}
 													onDelete={() => openDeleteDialog(p)}

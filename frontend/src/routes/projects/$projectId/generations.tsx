@@ -1,6 +1,7 @@
 import type { models } from "@go/models";
 import { Delete, List } from "@go/services/generationSessionService";
 import { createFileRoute } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DeleteSessionDialog } from "@/components/DeleteSessionDialog";
@@ -104,9 +105,19 @@ function RouteComponent() {
 	);
 
 	return (
-		<div className="flex h-full flex-col gap-6 overflow-hidden p-8">
+		<div className="flex h-full flex-col gap-6 overflow-hidden p-4 pt-0">
 			<section className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4">
-				<header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 bg-card pb-2">
+				<header className="sticky top-0 z-10 flex shrink-0 flex-col items-start gap-4 bg-card pb-2">
+					<Button
+						className="-ml-2 pl-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+						onClick={handleBack}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						<ArrowLeft className="mr-2 h-4 w-4" />
+						{t("common.backToProject")}
+					</Button>
 					<div className="space-y-2">
 						<h2 className="font-semibold text-foreground text-lg">
 							{t("generations.title")}
@@ -115,14 +126,6 @@ function RouteComponent() {
 							{t("generations.description")}
 						</p>
 					</div>
-					<Button
-						onClick={handleBack}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						{t("common.backToProject")}
-					</Button>
 				</header>
 
 				<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden pr-2">

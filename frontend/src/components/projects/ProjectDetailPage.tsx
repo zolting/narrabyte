@@ -6,7 +6,7 @@ import {
 import { Delete } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
-import { useNavigate } from "@tanstack/react-router";
+
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -88,7 +88,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { branches, fetchBranches } = useBranchList(repoPath);
 	// Default docManager for auxiliary handlers (uses active session, no specific tab)
 	const activeDocManager = useDocGenerationManager(projectId);
-	const navigate = useNavigate();
 	const docsBranchConflict = useDocGenerationStore((s) => {
 		// Get conflict from active session (backward compat)
 		const activeSessionKey = s.activeSession[String(projectId)];
@@ -585,7 +584,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	}
 
 	return (
-		<div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-4">
+		<div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-4 pt-0">
 			<ProjectDetailTabsSection
 				availableModels={availableModels}
 				canGenerateBase={canGenerateBase}
@@ -598,18 +597,6 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				onApprove={handleApprove}
 				onGenerate={handleGenerate}
 				onModelChange={setLastSelectedModelKey}
-				onNavigateToGenerations={() =>
-					navigate({
-						to: "/projects/$projectId/generations",
-						params: { projectId },
-					})
-				}
-				onNavigateToSettings={() =>
-					navigate({
-						to: "/projects/$projectId/settings",
-						params: { projectId },
-					})
-				}
 				onRefreshBranches={fetchBranches}
 				onReset={handleReset}
 				project={project}

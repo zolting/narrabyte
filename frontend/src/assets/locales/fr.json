@@ -22,7 +22,7 @@
     "selectModel": "Sélectionner un modèle",
     "noProvidersConfigured": "Aucune clé d'API configurée. Ajoutez-en dans les paramètres.",
     "noModelsAvailable": "Aucun modèle activé n'est disponible pour vos fournisseurs configurés.",
-    "generateDocsDescriptionSingle": "Rafiner la documentation d'une branche. Ajoutez des instructions ou explications pour clarifier ce qu'il faut rafiner.",
+    "generateDocsDescriptionSingle": "Modifier la documentation d'une branche. Ajoutez des instructions ou explications pour clarifier ce qu'il faut modifier.",
     "generateDocsDescriptionDiff": "Générer la documentation d'une branche source vers la branche ciblée pour le projet choisi.",
     "sourceBranch": "Branche source",
     "targetBranch": "Branche ciblée",
@@ -238,8 +238,8 @@
     "deleteSuccess": "Projet supprimé avec succès",
     "deleteError": "Échec de la suppression du projet",
     "reorderError": "Échec de la réorganisation de l'ordre des projets",
-    "ongoingGenerations": "Générations non terminées",
-    "newGeneration": "Nouvelle génération"
+    "ongoingGenerations": "Sessions non terminées",
+    "newGeneration": "Nouvelle session"
   },
   "apiDialog": {
     "keySaved": "Clé API sauvegardée avec succès!",
@@ -300,7 +300,7 @@
     "providerDisabledHint": "Tous les modèles de ce fournisseur sont actuellement désactivés."
   },
   "generations": {
-    "title": "Générations non terminées",
+    "title": "Sessions non terminées",
     "description": "Reprendre les sessions de génération de documentation qui n'ont pas encore été validées",
     "noSessions": "Aucune session active",
     "noSessionsDescription": "Il n'y a aucune session de génération de documentation en attente pour ce projet.",

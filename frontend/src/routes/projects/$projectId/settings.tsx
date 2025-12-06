@@ -688,23 +688,34 @@ function ProjectSettings() {
 	}
 
 	return (
-		<div className="flex h-full w-full flex-col items-center justify-start overflow-y-auto bg-background p-8 font-mono">
-			<Card className="w-full max-w-2xl">
-				<CardHeader className="space-y-1">
-					<div className="flex items-baseline gap-3">
-						<CardTitle className="text-2xl">
-							{t("projectSettings.title")}
-						</CardTitle>
-						<span className="text-base text-muted-foreground">•</span>
-						<span className="font-semibold text-foreground text-xl">
-							{project.ProjectName}
-						</span>
+		<div className="flex h-full w-full flex-col overflow-y-auto bg-background p-4 pt-0 font-mono">
+			<Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+				<CardHeader className="space-y-4">
+					<Button
+						className="-ml-2 w-fit pl-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+						onClick={() => navigate({ to: `/projects/${projectId}` })}
+						size="sm"
+						variant="ghost"
+					>
+						<ArrowLeft className="mr-2 h-4 w-4" />
+						{t("common.backToProject")}
+					</Button>
+					<div className="space-y-1">
+						<div className="flex items-baseline gap-3">
+							<CardTitle className="text-2xl">
+								{t("projectSettings.title")}
+							</CardTitle>
+							<span className="text-base text-muted-foreground">•</span>
+							<span className="font-semibold text-foreground text-xl">
+								{project.ProjectName}
+							</span>
+						</div>
+						<p className="text-muted-foreground text-sm">
+							{t("projectSettings.subtitle")}
+						</p>
 					</div>
-					<p className="text-muted-foreground text-sm">
-						{t("projectSettings.subtitle")}
-					</p>
 				</CardHeader>
-				<CardContent className="space-y-6">
+				<CardContent className="space-y-6 overflow-y-auto">
 					<RepositoryPathsSection
 						codebaseDirectory={codebaseDirectory}
 						codebaseValidationError={codebaseValidationError}
@@ -734,14 +745,6 @@ function ProjectSettings() {
 					/>
 
 					<div className="flex gap-3">
-						<Button
-							className="flex-1"
-							onClick={() => navigate({ to: `/projects/${projectId}` })}
-							variant="outline"
-						>
-							<ArrowLeft size={16} />
-							{t("common.goBack")}
-						</Button>
 						<Button
 							className="flex-1"
 							onClick={() => setIsDeleteDialogOpen(true)}
