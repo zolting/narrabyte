@@ -1,54 +1,29 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"runtime"
-	"strings"
 
-	"github.com/99designs/keyring"
+	"github.com/zalando/go-keyring"
 )
 
-const prefix = "narrabyte:"
-const suffix = ":apikey"
+const serviceName = "narrabyte"
 
 func GetOS() string {
 	return runtime.GOOS
 }
 
 type KeyringService struct {
-	ring keyring.Keyring
 }
 
 func NewKeyringService() *KeyringService {
 	return &KeyringService{}
 }
 
-func (s *KeyringService) Startup() {
-	r, err := OpenKeyring()
-	if err != nil {
-		//Panic ou erreur?
-		panic("failed to open keyring: " + err.Error())
-	}
-	s.ring = r
-}
-
-func OpenKeyring() (keyring.Keyring, error) {
-	return keyring.Open(keyring.Config{
-		ServiceName: "narrabyte",
-		AllowedBackends: []keyring.BackendType{
-			keyring.WinCredBackend,       //For Windows
-			keyring.KeychainBackend,      //For macOS
-			keyring.SecretServiceBackend, //For Linux
-			//We can allow other backends if these fail, such as an encrypted file.
-			//Unemplemented for now.
-		},
-	})
-}
-
 func (s *KeyringService) StoreApiKey(provider string, apiKey []byte) error {
-	if s.ring == nil {
-		return errors.New("keyring is not initialized")
-	}
 	if len(apiKey) == 0 {
 		return errors.New("API key is empty")
 	}
@@ -56,76 +31,131 @@ func (s *KeyringService) StoreApiKey(provider string, apiKey []byte) error {
 		return errors.New("provider is required")
 	}
 
-	key, err := s.GetApiKey(provider)
-	if err == nil && key != "" {
-		//Une clé existe déjà, on la supprime pour l'updater
-		s.DeleteApiKey(provider)
+	err := keyring.Set(serviceName, provider, string(apiKey))
+	if err != nil {
+		return err
 	}
 
-	item := keyring.Item{
-		//Important : Attribute "Key" is used to retrieve the item later.
-		//If the prefex or suffix is changed, be sure to update it in the GetApiKey and DeleteApiKey functions.
-		Key:         prefix + provider + suffix,
-		Data:        apiKey,
-		Label:       provider + "API key",
-		Description: "API key for " + provider + " used by Narrabyte",
-	}
-	return s.ring.Set(item)
+	return s.addProvider(provider)
 }
 
 func (s *KeyringService) GetApiKey(provider string) (string, error) {
-	if s.ring == nil {
-		return "", errors.New("keyring is not initialized")
-	}
 	if provider == "" {
 		return "", errors.New("provider is required")
 	}
-	//Be sure to match the key format used in StoreApiKey
-	item, err := s.ring.Get(prefix + provider + suffix)
-	if err != nil {
-		return "", err
-	}
-	return string(item.Data), nil
+	return keyring.Get(serviceName, provider)
 }
 
 func (s *KeyringService) DeleteApiKey(provider string) error {
-	if s.ring == nil {
-		return errors.New("keyring is not initialized")
-	}
 	if provider == "" {
 		return errors.New("provider is required")
 	}
 
-	return s.ring.Remove(prefix + provider + suffix)
+	err := keyring.Delete(serviceName, provider)
+	if err != nil {
+		return err
+	}
+
+	return s.removeProvider(provider)
 }
 
 func (s *KeyringService) ListApiKeys() ([]map[string]string, error) {
-	if s.ring == nil {
-		return nil, errors.New("keyring is not initialized")
-	}
-
-	items, err := s.ring.Keys()
+	providers, err := s.loadProviders()
 	if err != nil {
 		return nil, err
 	}
 
 	var results []map[string]string
-	for _, key := range items {
-		// Only include narrabyte keys
-		if !strings.HasPrefix(key, "narrabyte:") {
+	for _, provider := range providers {
+		_, err := keyring.Get(serviceName, provider)
+		if err != nil {
 			continue
 		}
 
-		item, err := s.ring.Get(key)
-		if err != nil {
-			continue // skip if retrieval fails
-		}
-
 		results = append(results, map[string]string{
-			"provider":    strings.TrimPrefix(strings.TrimSuffix(key, ":apikey"), "narrabyte:"),
-			"label":       item.Label,
-			"description": item.Description,
+			"provider":    provider,
+			"label":       provider + " API key",
+			"description": "API key for " + provider + " used by Narrabyte",
 		})
 	}
 	return results, nil
+}
+
+func (s *KeyringService) getProvidersConfigPath() (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	appDir := filepath.Join(configDir, "narrabyte")
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		return "", err
+	}
+	return filepath.Join(appDir, "providers.json"), nil
+}
+
+func (s *KeyringService) loadProviders() ([]string, error) {
+	path, err := s.getProvidersConfigPath()
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var providers []string
+	if err := json.Unmarshal(data, &providers); err != nil {
+		return nil, err
+	}
+	return providers, nil
+}
+
+func (s *KeyringService) saveProviders(providers []string) error {
+	path, err := s.getProvidersConfigPath()
+	if err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(providers, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, data, 0644)
+}
+
+func (s *KeyringService) addProvider(provider string) error {
+	providers, err := s.loadProviders()
+	if err != nil {
+		return err
+	}
+
+	for _, p := range providers {
+		if p == provider {
+			return nil
+		}
+	}
+
+	providers = append(providers, provider)
+	return s.saveProviders(providers)
+}
+
+func (s *KeyringService) removeProvider(provider string) error {
+	providers, err := s.loadProviders()
+	if err != nil {
+		return err
+	}
+
+	var newProviders []string
+	for _, p := range providers {
+		if p != provider {
+			newProviders = append(newProviders, p)
+		}
+	}
+
+	return s.saveProviders(newProviders)
 }

@@ -7,6 +7,4 @@ export function GetApiKey(arg1:string):Promise<string>;
 
 export function ListApiKeys():Promise<Array<Record<string, string>>>;
 
-export function Startup():Promise<void>;
-
 export function StoreApiKey(arg1:string,arg2:Array<number>):Promise<void>;
