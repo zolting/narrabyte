@@ -311,7 +311,8 @@ const mapErrorCodeToMessage = (errorMessage: string): string => {
 	// Map conflict errors to user-friendly messages
 	if (
 		trimmed.startsWith("ERR_DOCS_BRANCH_EXISTS_SUGGEST:") ||
-		trimmed.startsWith("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:")
+		trimmed.startsWith("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:") ||
+		trimmed.startsWith("ERR_SESSION_EXISTS_SUGGEST:")
 	) {
 		return i18n.t("common.docsBranchConflict");
 	}
@@ -349,11 +350,13 @@ const extractExistingDocsBranch = (errorMessage: string): string | null => {
 // Handles formats like:
 // - ERR_DOCS_BRANCH_EXISTS_SUGGEST:docs/feature:docs/feature-2
 // - ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:docs/feature:docs/feature-2
+// - ERR_SESSION_EXISTS_SUGGEST:docs/feature:docs/feature-2
 const extractBranchConflictSuggestion = (
 	errorMessage: string,
 ): { existing: string; proposed: string; isInProgress: boolean } | null => {
 	const inProgressPrefix = "ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:";
 	const existsPrefix = "ERR_DOCS_BRANCH_EXISTS_SUGGEST:";
+	const sessionExistsPrefix = "ERR_SESSION_EXISTS_SUGGEST:";
 
 	let isInProgress = false;
 	let remainder = "";
@@ -364,6 +367,9 @@ const extractBranchConflictSuggestion = (
 	} else if (errorMessage.startsWith(existsPrefix)) {
 		isInProgress = false;
 		remainder = errorMessage.slice(existsPrefix.length);
+	} else if (errorMessage.startsWith(sessionExistsPrefix)) {
+		isInProgress = false;
+		remainder = errorMessage.slice(sessionExistsPrefix.length);
 	} else {
 		return null;
 	}
