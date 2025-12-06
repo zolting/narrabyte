@@ -303,7 +303,7 @@
     "providerDisabledHint": "All models for this provider are currently disabled."
   },
   "generations": {
-    "title": "Unfinished Generations",
+    "title": "Unfinished Sessions",
     "description": "Resume documentation generation sessions that haven't been committed yet",
     "noSessions": "No Active Sessions",
     "noSessionsDescription": "There are no pending documentation generation sessions for this project.",

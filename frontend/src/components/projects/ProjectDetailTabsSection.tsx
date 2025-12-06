@@ -1,5 +1,5 @@
 import type { models, services } from "@go/models";
-import { Plus, RefreshCw, Settings, X } from "lucide-react";
+import { Plus, RefreshCw, X } from "lucide-react";
 import {
 	type ReactNode,
 	useCallback,
@@ -92,8 +92,6 @@ type TabContentRendererProps = {
 		docManager: DocGenerationManager,
 		branchSelection: BranchSelectionState
 	) => void;
-	onNavigateToGenerations: () => void;
-	onNavigateToSettings: () => void;
 	onRefreshBranches: () => void;
 	onLoadSession: (tabId: string) => void;
 	onStartNew: (tabId: string) => void;
@@ -118,8 +116,6 @@ function TabContentRenderer({
 	onApprove,
 	onGenerate,
 	onReset,
-	onNavigateToGenerations,
-	onNavigateToSettings,
 	onRefreshBranches,
 	onLoadSession,
 	onStartNew,
@@ -265,25 +261,6 @@ function TabContentRenderer({
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
 					{!(docManager.isRunning || docManager.docResult) && (
-						<Button
-							onClick={onNavigateToGenerations}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							{t("sidebar.ongoingGenerations")}
-						</Button>
-					)}
-					<Button
-						onClick={onNavigateToSettings}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						<Settings size={16} />
-						{t("common.settings")}
-					</Button>
-					{!(docManager.isRunning || docManager.docResult) && (
 						<TooltipProvider>
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -390,8 +367,6 @@ export type ProjectDetailTabsSectionProps = {
 		docManager: DocGenerationManager,
 		branchSelection: BranchSelectionState
 	) => void;
-	onNavigateToGenerations: () => void;
-	onNavigateToSettings: () => void;
 	onRefreshBranches: () => void;
 	defaultModelKey: string | null;
 	availableModels: ModelOption[];
@@ -412,8 +387,6 @@ export function ProjectDetailTabsSection({
 	onApprove,
 	onGenerate,
 	onReset,
-	onNavigateToGenerations,
-	onNavigateToSettings,
 	onRefreshBranches,
 	defaultModelKey,
 	availableModels,
@@ -545,7 +518,7 @@ export function ProjectDetailTabsSection({
 	return (
 		<>
 			<section
-				className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-4"
+				className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden rounded-lg border border-border bg-card p-2 pr-4 pl-4"
 				ref={containerRef}
 			>
 				<Tabs
@@ -619,8 +592,6 @@ export function ProjectDetailTabsSection({
 								onGenerate={onGenerate}
 								onLoadSession={handleLoadSession}
 								onModelChange={onModelChange}
-								onNavigateToGenerations={onNavigateToGenerations}
-								onNavigateToSettings={onNavigateToSettings}
 								onRefreshBranches={onRefreshBranches}
 								onReset={onReset}
 								onStartNew={handleStartNew}

@@ -6,6 +6,7 @@ import {
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { useEffect } from "react";
 import { CurrentGenerationsIndicator } from "@/components/CurrentGenerationsIndicator";
+import { ProjectTitleHeader } from "@/components/ProjectTitleHeader";
 import {
 	ProjectCacheHost,
 	ProjectCacheProvider,
@@ -62,8 +63,11 @@ function RootLayout() {
 				<ThemeSync />
 				<AppSidebar />
 				<SidebarInset className="flex h-full w-full flex-col overflow-hidden">
-					<div className="flex w-full justify-end px-4 py-2">
-						<CurrentGenerationsIndicator />
+					<div className="flex w-full items-center px-4 py-2">
+						<ProjectTitleHeader />
+						<div className="ml-auto">
+							<CurrentGenerationsIndicator />
+						</div>
 					</div>
 					<main className="flex min-h-0 flex-1 flex-col overflow-hidden">
 						<ProjectCacheHost />
