@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useDocGenerationStore } from "@/stores/docGeneration";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 export function DocRefinementChat({
 	sessionKey,
@@ -103,7 +104,7 @@ export function DocRefinementChat({
 												m.role === "user" ? "bg-accent/30" : "bg-muted/50"
 											)}
 										>
-											<div className="whitespace-pre-wrap">{m.content}</div>
+											<MarkdownRenderer content={m.content} />
 											{m.status === "pending" && (
 												<div className="text-[10px] text-muted-foreground">
 													sending…
