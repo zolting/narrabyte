@@ -1,5 +1,5 @@
-import type { models } from "@go/models";
-import { Delete, List } from "@go/services/generationSessionService";
+import type { models, services } from "@go/models";
+import { DeleteByID, List } from "@go/services/generationSessionService";
 import { createFileRoute } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -59,7 +59,22 @@ function RouteComponent() {
 		async (s: models.GenerationSession) => {
 			setRestoringId(Number(s.ID));
 			try {
-				await restoreSession(Number(projectId), s.SourceBranch, s.TargetBranch);
+				// Construct SessionInfo for restoreSession
+				const sessionInfo: services.SessionInfo = {
+					id: s.ID,
+					sessionKey: `session:${s.ID}`,
+					projectId: Number(projectId),
+					sourceBranch: s.SourceBranch,
+					targetBranch: s.TargetBranch,
+					modelKey: s.ModelKey ?? "",
+					provider: s.Provider ?? "",
+					docsBranch: s.DocsBranch ?? "",
+					inTab: false,
+					isRunning: false,
+					createdAt: "",
+					updatedAt: "",
+				};
+				await restoreSession(sessionInfo);
 				navigate({ to: "/projects/$projectId", params: { projectId } });
 			} finally {
 				setRestoringId(null);
@@ -94,7 +109,7 @@ function RouteComponent() {
 		async (s: models.GenerationSession) => {
 			setDeletingId(Number(s.ID));
 			try {
-				await Delete(Number(projectId), s.SourceBranch, s.TargetBranch);
+				await DeleteByID(Number(s.ID));
 				clearSessionMeta(Number(projectId), s.SourceBranch);
 				await refreshSessions();
 			} finally {

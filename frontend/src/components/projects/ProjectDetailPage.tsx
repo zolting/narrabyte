@@ -3,7 +3,7 @@ import {
 	GetCurrentBranch,
 	HasUncommittedChanges,
 } from "@go/services/GitService";
-import { Delete } from "@go/services/generationSessionService";
+import { DeleteByID } from "@go/services/generationSessionService";
 import { ListApiKeys } from "@go/services/KeyringService";
 import { Get } from "@go/services/repoLinkService";
 
@@ -50,7 +50,7 @@ import {
 } from "@/hooks/useDocGenerationManager";
 import { useAppSettingsStore } from "@/stores/appSettings";
 import {
-	createSessionKey,
+	createTempSessionKey,
 	useDocGenerationStore,
 } from "@/stores/docGeneration";
 import {
@@ -283,7 +283,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				return;
 			}
 
-			const newSessionKey = createSessionKey(
+			const newSessionKey = createTempSessionKey(
 				Number(project.ID),
 				trimmedSourceBranch,
 				tabId
@@ -323,21 +323,16 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		[project, buildInstructionPayload, createTabSession]
 	);
 
-	const handleApprove = useCallback(
-		(manager: DocGenerationManager) => {
-			manager.approveCommit();
-			const source =
-				manager.sourceBranch || manager.completedCommitInfo?.sourceBranch || "";
-			const target =
-				manager.targetBranch || manager.completedCommitInfo?.targetBranch || "";
-			if (source && target) {
-				Promise.resolve(Delete(Number(projectId), source, target)).catch(() => {
-					return;
-				});
-			}
-		},
-		[projectId]
-	);
+	const handleApprove = useCallback((manager: DocGenerationManager) => {
+		manager.approveCommit();
+		// Delete the session from the backend using its ID
+		const sessionId = manager.sessionId;
+		if (sessionId) {
+			Promise.resolve(DeleteByID(sessionId)).catch(() => {
+				return;
+			});
+		}
+	}, []);
 
 	const handleReset = useCallback(
 		(manager: DocGenerationManager, branchSelection: BranchSelectionState) => {

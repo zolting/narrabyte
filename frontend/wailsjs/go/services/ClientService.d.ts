@@ -4,11 +4,11 @@ import {models} from '../models';
 import {services} from '../models';
 import {context} from '../models';
 
-export function BindSessionToTab(arg1:number,arg2:string):Promise<void>;
+export function BindSessionToTab(arg1:number):Promise<void>;
 
 export function CheckDocsBranchAvailability(arg1:number,arg2:string,arg3:string):Promise<void>;
 
-export function CommitDocs(arg1:number,arg2:string,arg3:Array<string>):Promise<void>;
+export function CommitDocs(arg1:number,arg2:number,arg3:Array<string>):Promise<void>;
 
 export function GenerateDocs(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<models.DocGenerationResult>;
 
@@ -16,18 +16,18 @@ export function GenerateDocsFromBranch(arg1:number,arg2:string,arg3:string,arg4:
 
 export function GetAvailableTabSessions(arg1:number):Promise<Array<services.SessionInfo>>;
 
-export function IsSessionInTab(arg1:number,arg2:string):Promise<boolean>;
+export function IsSessionInTab(arg1:number):Promise<boolean>;
 
-export function LoadGenerationSession(arg1:number,arg2:string,arg3:string):Promise<models.DocGenerationResult>;
+export function LoadGenerationSession(arg1:number):Promise<models.DocGenerationResult>;
 
-export function MergeDocsIntoSource(arg1:number,arg2:string):Promise<void>;
+export function MergeDocsIntoSource(arg1:number):Promise<void>;
 
-export function RefineDocs(arg1:number,arg2:string,arg3:string,arg4:string):Promise<models.DocGenerationResult>;
+export function RefineDocs(arg1:number,arg2:string,arg3:string):Promise<models.DocGenerationResult>;
 
 export function Startup(arg1:context.Context):Promise<void>;
 
-export function StopStream(arg1:number,arg2:string,arg3:string):Promise<void>;
+export function StopStream(arg1:number,arg2:string):Promise<void>;
 
-export function UnbindSessionFromTab(arg1:number,arg2:string):Promise<void>;
+export function UnbindSessionFromTab(arg1:number):Promise<void>;
 
-export function ValidateBranchPair(arg1:number,arg2:string,arg3:string):Promise<void>;
+export function ValidateDocsBranch(arg1:number,arg2:string):Promise<void>;

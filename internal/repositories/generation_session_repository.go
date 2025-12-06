@@ -4,17 +4,19 @@ import (
 	"errors"
 	"fmt"
 	"narrabyte/internal/models"
+	"time"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type GenerationSessionRepository interface {
 	ListByProject(projectID uint) ([]models.GenerationSession, error)
-	GetByProjectAndBranches(projectID uint, sourceBranch, targetBranch string) (*models.GenerationSession, error)
-	Upsert(projectID uint, sourceBranch, targetBranch, modelKey, provider, docsBranch, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error)
+	GetByID(id uint) (*models.GenerationSession, error)
+	GetByDocsBranch(projectID uint, docsBranch string) (*models.GenerationSession, error)
+	Create(session *models.GenerationSession) error
+	UpdateByID(id uint, updates map[string]interface{}) error
+	DeleteByID(id uint) error
 	DeleteByProject(projectID uint) error
-	DeleteByProjectAndBranches(projectID uint, sourceBranch, targetBranch string) error
 }
 
 type generationSessionRepository struct {
@@ -34,9 +36,9 @@ func (r *generationSessionRepository) ListByProject(projectID uint) ([]models.Ge
 	return sessions, nil
 }
 
-func (r *generationSessionRepository) GetByProjectAndBranches(projectID uint, sourceBranch, targetBranch string) (*models.GenerationSession, error) {
+func (r *generationSessionRepository) GetByID(id uint) (*models.GenerationSession, error) {
 	var sess models.GenerationSession
-	res := r.db.Where("project_id = ? AND source_branch = ? AND target_branch = ?", projectID, sourceBranch, targetBranch).Take(&sess)
+	res := r.db.First(&sess, id)
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -46,40 +48,46 @@ func (r *generationSessionRepository) GetByProjectAndBranches(projectID uint, so
 	return &sess, nil
 }
 
-func (r *generationSessionRepository) Upsert(projectID uint, sourceBranch, targetBranch, modelKey, provider, docsBranch, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error) {
-	if projectID == 0 {
-		return nil, fmt.Errorf("projectID is required")
-	}
-	if sourceBranch == "" || targetBranch == "" {
-		return nil, fmt.Errorf("source and target branches are required")
-	}
-	if provider == "" {
-		return nil, fmt.Errorf("provider is required")
-	}
-	sess := models.GenerationSession{
-		ProjectID:        projectID,
-		SourceBranch:     sourceBranch,
-		TargetBranch:     targetBranch,
-		Provider:         provider,
-		ModelKey:         modelKey,
-		DocsBranch:       docsBranch,
-		MessagesJSON:     messagesJSON,
-		ChatMessagesJSON: chatMessagesJSON,
-	}
-	// Upsert on composite unique index
-	if err := r.db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "project_id"}, {Name: "source_branch"}, {Name: "target_branch"}},
-		DoUpdates: clause.AssignmentColumns([]string{"provider", "model_key", "docs_branch", "messages_json", "chat_messages_json", "updated_at"}),
-	}).Create(&sess).Error; err != nil {
-		return nil, err
+func (r *generationSessionRepository) GetByDocsBranch(projectID uint, docsBranch string) (*models.GenerationSession, error) {
+	var sess models.GenerationSession
+	res := r.db.Where("project_id = ? AND docs_branch = ?", projectID, docsBranch).Take(&sess)
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, res.Error
 	}
 	return &sess, nil
 }
 
-func (r *generationSessionRepository) DeleteByProject(projectID uint) error {
-	return r.db.Where("project_id = ?", projectID).Delete(&models.GenerationSession{}).Error
+func (r *generationSessionRepository) Create(session *models.GenerationSession) error {
+	if session.ProjectID == 0 {
+		return fmt.Errorf("projectID is required")
+	}
+	if session.SourceBranch == "" || session.TargetBranch == "" {
+		return fmt.Errorf("source and target branches are required")
+	}
+	if session.Provider == "" {
+		return fmt.Errorf("provider is required")
+	}
+	if session.DocsBranch == "" {
+		return fmt.Errorf("docsBranch is required")
+	}
+	return r.db.Create(session).Error
 }
 
-func (r *generationSessionRepository) DeleteByProjectAndBranches(projectID uint, sourceBranch, targetBranch string) error {
-	return r.db.Where("project_id = ? AND source_branch = ? AND target_branch = ?", projectID, sourceBranch, targetBranch).Delete(&models.GenerationSession{}).Error
+func (r *generationSessionRepository) UpdateByID(id uint, updates map[string]interface{}) error {
+	if id == 0 {
+		return fmt.Errorf("session ID is required")
+	}
+	updates["updated_at"] = time.Now()
+	return r.db.Model(&models.GenerationSession{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *generationSessionRepository) DeleteByID(id uint) error {
+	return r.db.Delete(&models.GenerationSession{}, id).Error
+}
+
+func (r *generationSessionRepository) DeleteByProject(projectID uint) error {
+	return r.db.Where("project_id = ?", projectID).Delete(&models.GenerationSession{}).Error
 }

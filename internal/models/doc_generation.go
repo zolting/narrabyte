@@ -8,6 +8,8 @@ type DocChangedFile struct {
 
 // DocGenerationResult captures the outcome of a documentation generation run.
 type DocGenerationResult struct {
+	SessionID      uint             `json:"sessionId"`
+	SessionKey     string           `json:"sessionKey"`
 	Branch         string           `json:"branch"`
 	TargetBranch   string           `json:"targetBranch"`
 	DocsBranch     string           `json:"docsBranch"`

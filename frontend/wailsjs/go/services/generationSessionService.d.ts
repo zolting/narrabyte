@@ -3,14 +3,18 @@
 import {models} from '../models';
 import {context} from '../models';
 
-export function Delete(arg1:number,arg2:string,arg3:string):Promise<void>;
+export function Create(arg1:models.GenerationSession):Promise<models.GenerationSession>;
 
 export function DeleteAll(arg1:number):Promise<void>;
 
-export function Get(arg1:number,arg2:string,arg3:string):Promise<models.GenerationSession>;
+export function DeleteByID(arg1:number):Promise<void>;
+
+export function GetByDocsBranch(arg1:number,arg2:string):Promise<models.GenerationSession>;
+
+export function GetByID(arg1:number):Promise<models.GenerationSession>;
 
 export function List(arg1:number):Promise<Array<models.GenerationSession>>;
 
 export function Startup(arg1:context.Context):Promise<void>;
 
-export function Upsert(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:string):Promise<models.GenerationSession>;
+export function UpdateByID(arg1:number,arg2:Record<string, any>):Promise<void>;

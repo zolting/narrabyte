@@ -11,9 +11,11 @@ import (
 type GenerationSessionService interface {
 	Startup(ctx context.Context)
 	List(projectID uint) ([]models.GenerationSession, error)
-	Get(projectID uint, sourceBranch, targetBranch string) (*models.GenerationSession, error)
-	Upsert(projectID uint, sourceBranch, targetBranch, modelKey, provider, docsBranch, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error)
-	Delete(projectID uint, sourceBranch, targetBranch string) error
+	GetByID(id uint) (*models.GenerationSession, error)
+	GetByDocsBranch(projectID uint, docsBranch string) (*models.GenerationSession, error)
+	Create(session *models.GenerationSession) (*models.GenerationSession, error)
+	UpdateByID(id uint, updates map[string]interface{}) error
+	DeleteByID(id uint) error
 	DeleteAll(projectID uint) error
 }
 
@@ -34,39 +36,49 @@ func (s *generationSessionService) List(projectID uint) ([]models.GenerationSess
 	return s.repo.ListByProject(projectID)
 }
 
-func (s *generationSessionService) Get(projectID uint, sourceBranch, targetBranch string) (*models.GenerationSession, error) {
-	sourceBranch = strings.TrimSpace(sourceBranch)
-	targetBranch = strings.TrimSpace(targetBranch)
-	if sourceBranch == "" || targetBranch == "" {
-		return nil, fmt.Errorf("source and target branches are required")
+func (s *generationSessionService) GetByID(id uint) (*models.GenerationSession, error) {
+	if id == 0 {
+		return nil, fmt.Errorf("session ID is required")
 	}
-
-	return s.repo.GetByProjectAndBranches(projectID, sourceBranch, targetBranch)
+	return s.repo.GetByID(id)
 }
 
-func (s *generationSessionService) Upsert(projectID uint, sourceBranch, targetBranch, modelKey, provider, docsBranch, messagesJSON, chatMessagesJSON string) (*models.GenerationSession, error) {
-	sourceBranch = strings.TrimSpace(sourceBranch)
-	targetBranch = strings.TrimSpace(targetBranch)
-	provider = strings.TrimSpace(provider)
-	modelKey = strings.TrimSpace(modelKey)
+func (s *generationSessionService) GetByDocsBranch(projectID uint, docsBranch string) (*models.GenerationSession, error) {
 	docsBranch = strings.TrimSpace(docsBranch)
-	if sourceBranch == "" || targetBranch == "" {
-		return nil, fmt.Errorf("source and target branches are required")
+	if docsBranch == "" {
+		return nil, fmt.Errorf("docsBranch is required")
 	}
-	if provider == "" {
-		return nil, fmt.Errorf("provider is required")
-	}
-	return s.repo.Upsert(projectID, sourceBranch, targetBranch, modelKey, provider, docsBranch, messagesJSON, strings.TrimSpace(chatMessagesJSON))
+	return s.repo.GetByDocsBranch(projectID, docsBranch)
 }
 
-func (s *generationSessionService) Delete(projectID uint, sourceBranch, targetBranch string) error {
-	sourceBranch = strings.TrimSpace(sourceBranch)
-	targetBranch = strings.TrimSpace(targetBranch)
-	if sourceBranch == "" || targetBranch == "" {
-		return fmt.Errorf("source and target branches are required")
+func (s *generationSessionService) Create(session *models.GenerationSession) (*models.GenerationSession, error) {
+	if session == nil {
+		return nil, fmt.Errorf("session is required")
 	}
+	session.SourceBranch = strings.TrimSpace(session.SourceBranch)
+	session.TargetBranch = strings.TrimSpace(session.TargetBranch)
+	session.Provider = strings.TrimSpace(session.Provider)
+	session.ModelKey = strings.TrimSpace(session.ModelKey)
+	session.DocsBranch = strings.TrimSpace(session.DocsBranch)
 
-	return s.repo.DeleteByProjectAndBranches(projectID, sourceBranch, targetBranch)
+	if err := s.repo.Create(session); err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func (s *generationSessionService) UpdateByID(id uint, updates map[string]interface{}) error {
+	if id == 0 {
+		return fmt.Errorf("session ID is required")
+	}
+	return s.repo.UpdateByID(id, updates)
+}
+
+func (s *generationSessionService) DeleteByID(id uint) error {
+	if id == 0 {
+		return fmt.Errorf("session ID is required")
+	}
+	return s.repo.DeleteByID(id)
 }
 
 func (s *generationSessionService) DeleteAll(projectID uint) error {

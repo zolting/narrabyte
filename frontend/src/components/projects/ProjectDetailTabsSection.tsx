@@ -489,30 +489,19 @@ export function ProjectDetailTabsSection({
 				return;
 			}
 
-			const sourceBranch = session.sourceBranch?.trim();
-			const targetBranch = session.targetBranch?.trim();
-
-			if (!(sourceBranch && targetBranch)) {
-				console.error(
-					"Cannot restore session without branch information",
-					session
-				);
+			if (!session.id) {
+				console.error("Cannot restore session without session ID", session);
 				return;
 			}
 
-			const success = await restoreSession(
-				Number(projectId),
-				sourceBranch,
-				targetBranch,
-				sessionSelectorTabId
-			);
+			const success = await restoreSession(session, sessionSelectorTabId);
 
 			if (success) {
 				setSessionSelectorOpen(false);
 				setSessionSelectorTabId(null);
 			}
 		},
-		[projectId, restoreSession, sessionSelectorTabId]
+		[restoreSession, sessionSelectorTabId]
 	);
 
 	return (
