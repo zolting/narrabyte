@@ -5,7 +5,7 @@ import { DocGenerationResultPanel } from "@/components/DocGenerationResultPanel"
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import type { DocGenerationStatus } from "@/stores/docGeneration";
+import type { ChatMessage, DocGenerationStatus } from "@/stores/docGeneration";
 import type { TodoItem, ToolEvent } from "@/types/events";
 
 interface GenerationTabsProps {
@@ -13,6 +13,7 @@ interface GenerationTabsProps {
 	setActiveTab: (tab: "activity" | "review" | "summary") => void;
 	events: ToolEvent[];
 	todos: TodoItem[];
+	messages: ChatMessage[];
 	status: DocGenerationStatus;
 	docResult: models.DocGenerationResult | null;
 	projectId: number;
@@ -24,6 +25,7 @@ export const GenerationTabs = ({
 	setActiveTab,
 	events,
 	todos,
+	messages,
 	status,
 	docResult,
 	projectId,
@@ -65,7 +67,12 @@ export const GenerationTabs = ({
 				forceMount
 				value="activity"
 			>
-				<ActivityFeed events={events} status={status} todos={todos} />
+				<ActivityFeed
+					events={events}
+					messages={messages}
+					status={status}
+					todos={todos}
+				/>
 			</TabsContent>
 			{docResult && (
 				<TabsContent

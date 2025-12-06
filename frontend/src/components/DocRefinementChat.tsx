@@ -20,14 +20,14 @@ export function DocRefinementChat({
 }) {
 	const { t } = useTranslation();
 	const messages = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.messages : null) ?? []
+		(s) => (sessionKey ? s.docStates[sessionKey]?.messages : null) ?? [],
 	);
 	const chatOpen = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.chatOpen : false) ?? false
+		(s) => (sessionKey ? s.docStates[sessionKey]?.chatOpen : false) ?? false,
 	);
 	const refineDocs = useDocGenerationStore((s) => s.refine);
 	const status = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.status : "idle") ?? "idle"
+		(s) => (sessionKey ? s.docStates[sessionKey]?.status : "idle") ?? "idle",
 	);
 
 	const [input, setInput] = useState("");
@@ -47,7 +47,7 @@ export function DocRefinementChat({
 
 	const pending = useMemo(
 		() => messages.some((m) => m.status === "pending"),
-		[messages]
+		[messages],
 	);
 
 	const handleSend = async () => {
@@ -66,7 +66,7 @@ export function DocRefinementChat({
 		<section
 			className={cn(
 				"flex h-full flex-col rounded-lg border border-border",
-				className
+				className,
 			)}
 			style={style}
 		>
@@ -87,31 +87,31 @@ export function DocRefinementChat({
 								{t("docRefinementChat.emptyState")}
 							</div>
 						) : (
-							<ul className="space-y-1.5">
+							<ul className="space-y-4">
 								{messages.map((m) => (
 									<li
 										className={cn(
-											"text-xs",
-											m.role === "user"
-												? "text-foreground"
-												: "text-foreground/90"
+											"flex w-full flex-col gap-1.5",
+											m.role === "user" ? "items-end" : "items-start",
 										)}
 										key={m.id}
 									>
 										<div
 											className={cn(
-												"rounded-md px-2 py-1",
-												m.role === "user" ? "bg-accent/30" : "bg-muted/50"
+												"max-w-[90%] rounded-2xl px-3 py-2 text-xs",
+												m.role === "user"
+													? "rounded-br-sm bg-primary text-primary-foreground"
+													: "rounded-bl-sm bg-muted text-foreground",
 											)}
 										>
 											<MarkdownRenderer content={m.content} />
 											{m.status === "pending" && (
-												<div className="text-[10px] text-muted-foreground">
+												<div className="mt-1 text-[10px] opacity-70">
 													sending…
 												</div>
 											)}
 											{m.status === "error" && (
-												<div className="text-[10px] text-destructive">
+												<div className="mt-1 font-bold text-[10px] text-destructive">
 													failed
 												</div>
 											)}

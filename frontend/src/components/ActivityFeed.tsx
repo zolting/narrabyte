@@ -1,9 +1,11 @@
 import {
+	Bot,
 	CheckCircle2,
 	ChevronDown,
 	ChevronUp,
 	Circle,
 	Loader2,
+	User,
 	XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -16,7 +18,7 @@ import {
 	type ToolType,
 } from "@/lib/toolIcons";
 import { cn } from "@/lib/utils";
-import type { DocGenerationStatus } from "@/stores/docGeneration";
+import type { ChatMessage, DocGenerationStatus } from "@/stores/docGeneration";
 import type { TodoItem, ToolEvent } from "@/types/events";
 
 const REASONING_STREAM = "reasoning";
@@ -28,10 +30,12 @@ const STREAM_STATE_UPDATE = "update";
 export function ActivityFeed({
 	events,
 	todos,
+	messages,
 	status,
 }: {
 	events: ToolEvent[];
 	todos: TodoItem[];
+	messages: ChatMessage[];
 	status: DocGenerationStatus;
 }) {
 	const { t } = useTranslation();
@@ -40,7 +44,7 @@ export function ActivityFeed({
 	const [visibleEvents, setVisibleEvents] = useState<string[]>([]);
 	const [showAllTodos, setShowAllTodos] = useState(false);
 	const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(
-		new Set()
+		new Set(),
 	);
 
 	const displayEvents = useMemo(() => {
@@ -84,6 +88,60 @@ export function ActivityFeed({
 		return result;
 	}, [events]);
 
+	// Create a unified display list that merges events and chat messages
+	type DisplayItem =
+		| { type: "event"; item: ToolEvent }
+		| { type: "message"; item: ChatMessage };
+
+	const displayItems = useMemo<DisplayItem[]>(() => {
+		const items: DisplayItem[] = [];
+
+		// Add events
+		for (const event of displayEvents) {
+			items.push({ type: "event", item: event });
+		}
+
+		// Add chat messages
+		for (const msg of messages) {
+			items.push({ type: "message", item: msg });
+		}
+
+		// Find the earliest event timestamp to ensure first user message appears before it
+		let earliestEventTime = Number.MAX_SAFE_INTEGER;
+		for (const item of items) {
+			if (item.type === "event") {
+				earliestEventTime = Math.min(
+					earliestEventTime,
+					item.item.timestamp.getTime(),
+				);
+			}
+		}
+
+		// Find the first user message
+		const firstUserMsgIndex = messages.findIndex((m) => m.role === "user");
+		const firstUserMsgId =
+			firstUserMsgIndex >= 0 ? messages[firstUserMsgIndex]?.id : null;
+
+		// Sort by timestamp, but ensure first user message appears first
+		items.sort((a, b) => {
+			// Get the effective timestamp for sorting
+			const getEffectiveTime = (item: DisplayItem): number => {
+				if (item.type === "event") {
+					return item.item.timestamp.getTime();
+				}
+				// First user message should appear before all events
+				if (item.item.id === firstUserMsgId) {
+					return earliestEventTime - 1;
+				}
+				return item.item.createdAt.getTime();
+			};
+
+			return getEffectiveTime(a) - getEffectiveTime(b);
+		});
+
+		return items;
+	}, [displayEvents, messages]);
+
 	// Animate new events appearing
 	useEffect(() => {
 		if (previousEventCountRef.current > displayEvents.length) {
@@ -104,7 +162,7 @@ export function ActivityFeed({
 					}
 					return [...prev, event.id];
 				});
-			}, index * 100)
+			}, index * 100),
 		);
 
 		return () => {
@@ -114,10 +172,13 @@ export function ActivityFeed({
 		};
 	}, [displayEvents]);
 
-	// Reset visible events when list changes
+	// Reset visible items when list changes (include both events and messages)
 	useEffect(() => {
-		setVisibleEvents(displayEvents.map((e) => e.id));
-	}, [displayEvents]);
+		const allIds = displayItems.map((item) =>
+			item.type === "event" ? item.item.id : item.item.id,
+		);
+		setVisibleEvents(allIds);
+	}, [displayItems]);
 
 	// Auto-scroll to bottom when new events arrive
 	useEffect(() => {
@@ -146,7 +207,7 @@ export function ActivityFeed({
 	// Calculate todo counts
 	const pendingCount = todos.filter((todo) => todo.status === "pending").length;
 	const completedCount = todos.filter(
-		(todo) => todo.status === "completed"
+		(todo) => todo.status === "completed",
 	).length;
 
 	// Check if all todos are completed
@@ -246,7 +307,7 @@ export function ActivityFeed({
 		const timeouts: number[] = [];
 		for (const reasoningId of expandedReasoning) {
 			const element = document.querySelector(
-				`[data-reasoning-id="${reasoningId}"]`
+				`[data-reasoning-id="${reasoningId}"]`,
 			);
 			if (element) {
 				// Scroll to bottom after content is rendered
@@ -284,7 +345,7 @@ export function ActivityFeed({
 								"hover:bg-emerald-500/20":
 									!(showAllTodos || activeTodo) && allCompleted,
 								"hover:bg-muted/50": showAllTodos,
-							}
+							},
 						)}
 						onClick={() => setShowAllTodos(!showAllTodos)}
 						type="button"
@@ -356,7 +417,7 @@ export function ActivityFeed({
 													"bg-blue-500/10": todo.status === "in_progress",
 													"bg-muted/50": todo.status === "pending",
 													"bg-muted/30 opacity-60": todo.status === "cancelled",
-												}
+												},
 											)}
 											key={`${todo.content}-${todo.status}-${index}`}
 										>
@@ -392,12 +453,12 @@ export function ActivityFeed({
 									if (isRunning) {
 										return t(
 											"common.generatingDocs",
-											"Generating documentation…"
+											"Generating documentation…",
 										);
 									}
 									return t(
 										"common.committingDocs",
-										"Committing documentation…"
+										"Committing documentation…",
 									);
 								}
 								return t("activity.toolActivity");
@@ -416,13 +477,101 @@ export function ActivityFeed({
 					className="min-h-0 w-full flex-1 overflow-auto overflow-x-hidden px-3 pt-3 pb-6 text-sm"
 					ref={containerRef}
 				>
-					{displayEvents.length === 0 ? (
+					{displayItems.length === 0 ? (
 						<div className="text-muted-foreground">{t("common.noEvents")}</div>
 					) : (
 						<ul className="space-y-2">
-							{displayEvents.map((event, index) => {
+							{displayItems.map((displayItem, index) => {
+								// Handle chat messages
+								if (displayItem.type === "message") {
+									const msg = displayItem.item;
+									const isVisible = visibleEvents.includes(msg.id);
+									const isUser = msg.role === "user";
+									const isPending = msg.status === "pending";
+									const isError = msg.status === "error";
+									// Check if this is the first user message (no accurate timestamp)
+									const firstUserMsg = messages.find((m) => m.role === "user");
+									const isFirstUserMsg = isUser && firstUserMsg?.id === msg.id;
+
+									return (
+										<li
+											className={cn("transition-all duration-300", {
+												"translate-y-0 opacity-100": isVisible,
+												"translate-y-2 opacity-0": !isVisible,
+											})}
+											key={msg.id}
+										>
+											<div
+												className={cn(
+													"inline-flex items-start gap-2.5 rounded-lg px-3 py-2 max-w-[85%]",
+													{
+														"bg-blue-500/10 border border-blue-500/20":
+															isUser && !isError,
+														"bg-purple-500/10 border border-purple-500/20":
+															!isUser && !isError,
+														"bg-red-500/10 border border-red-500/20": isError,
+													},
+												)}
+											>
+												<div className="mt-0.5 shrink-0">
+													{isUser ? (
+														<User
+															className={cn(
+																"h-4 w-4",
+																isError ? "text-red-500" : "text-blue-500",
+															)}
+														/>
+													) : (
+														<Bot
+															className={cn(
+																"h-4 w-4",
+																isError ? "text-red-500" : "text-purple-500",
+															)}
+														/>
+													)}
+												</div>
+												<div className="min-w-0 flex-1">
+													<div className="flex items-center gap-1.5 mb-0.5">
+														<span
+															className={cn("font-medium text-xs", {
+																"text-blue-600": isUser && !isError,
+																"text-purple-600": !isUser && !isError,
+																"text-red-600": isError,
+															})}
+														>
+															{isUser
+																? t("activity.you", "You")
+																: t("activity.assistant", "Assistant")}
+														</span>
+														{isPending && (
+															<Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+														)}
+														{!isFirstUserMsg && (
+															<span className="text-muted-foreground text-xs">
+																{msg.createdAt.toLocaleTimeString()}
+															</span>
+														)}
+													</div>
+													<div
+														className={cn(
+															"break-words text-foreground/90 text-sm",
+															{
+																"opacity-60": isPending,
+															},
+														)}
+													>
+														<MarkdownRenderer content={msg.content} />
+													</div>
+												</div>
+											</div>
+										</li>
+									);
+								}
+
+								// Handle events (existing logic)
+								const event = displayItem.item;
 								const isReasoning = event.metadata?.isReasoning === "true";
-								const isLastEvent = index === displayEvents.length - 1;
+								const isLastEvent = index === displayItems.length - 1;
 
 								if (isReasoning) {
 									const isVisible = visibleEvents.includes(event.id);
@@ -472,7 +621,7 @@ export function ActivityFeed({
 															<p className="font-mono text-muted-foreground text-xs italic">
 																{t(
 																	"activity.reasoningPlaceholder",
-																	"Waiting for reasoning…"
+																	"Waiting for reasoning…",
 																)}
 															</p>
 														)}
@@ -512,7 +661,7 @@ export function ActivityFeed({
 												{
 													"translate-y-0 opacity-100": isVisible,
 													"translate-y-2 opacity-0": !isVisible,
-												}
+												},
 											)}
 											key={event.id}
 										>
@@ -526,21 +675,21 @@ export function ActivityFeed({
 														{(() => {
 															try {
 																const snapshotTodos = JSON.parse(
-																	event.metadata.todos
+																	event.metadata.todos,
 																) as TodoItem[];
 																const activeItem = snapshotTodos.find(
-																	(t) => t.status === "in_progress"
+																	(t) => t.status === "in_progress",
 																);
 																const allDone =
 																	snapshotTodos.length > 0 &&
 																	snapshotTodos.every(
-																		(t) => t.status === "completed"
+																		(t) => t.status === "completed",
 																	);
 
 																if (activeItem) {
 																	// Use current status from live todos if available to show progress/completion
 																	const currentItem = todos.find(
-																		(t) => t.content === activeItem.content
+																		(t) => t.content === activeItem.content,
 																	);
 																	const displayStatus = currentItem
 																		? currentItem.status
@@ -559,7 +708,7 @@ export function ActivityFeed({
 																							displayStatus !== "cancelled",
 																						"text-muted-foreground line-through":
 																							displayStatus === "cancelled",
-																					}
+																					},
 																				)}
 																			>
 																				{activeItem.activeForm}
@@ -581,7 +730,7 @@ export function ActivityFeed({
 																}
 																// Fallback: show count of pending
 																const pending = snapshotTodos.filter(
-																	(t) => t.status === "pending"
+																	(t) => t.status === "pending",
 																).length;
 																return (
 																	<>
@@ -636,7 +785,7 @@ export function ActivityFeed({
 											{
 												"translate-y-0 opacity-100": isVisible,
 												"translate-y-2 opacity-0": !isVisible,
-											}
+											},
 										)}
 										key={event.id}
 									>
@@ -648,7 +797,7 @@ export function ActivityFeed({
 													warn: "bg-yellow-500/15 text-yellow-700",
 													info: "bg-blue-500/15 text-blue-700",
 													success: "bg-emerald-500/15 text-emerald-700",
-												}[event.type] || "bg-emerald-500/15 text-emerald-700"
+												}[event.type] || "bg-emerald-500/15 text-emerald-700",
 											)}
 										>
 											{event.type}

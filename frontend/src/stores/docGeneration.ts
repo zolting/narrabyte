@@ -11,7 +11,7 @@ import {
 	StopStream,
 } from "@go/services/ClientService";
 import { DeleteBranchByPath } from "@go/services/GitService";
-import { DeleteByID as DeleteGenerationSession } from "@go/services/generationSessionService";
+import { DeleteByID as DeleteGenerationSession, GetByDocsBranch } from "@go/services/generationSessionService";
 import { Get as GetRepoLink } from "@go/services/repoLinkService";
 import i18n from "i18next";
 import { parseDiff } from "react-diff-view";
@@ -64,7 +64,7 @@ type CompletedCommitInfo = {
 	wasMerge?: boolean;
 };
 
-type ChatMessage = {
+export type ChatMessage = {
 	id: string;
 	role: "user" | "assistant";
 	content: string;
@@ -118,7 +118,7 @@ type State = {
 	createTabSession: (
 		projectId: number,
 		tabId: TabId,
-		sessionKey: SessionKey | null
+		sessionKey: SessionKey | null,
 	) => void;
 	removeTabSession: (projectId: number, tabId: TabId) => void;
 	getSessionForTab: (projectId: number, tabId: TabId) => SessionKey | null;
@@ -128,18 +128,18 @@ type State = {
 	startFromBranch?: (args: StartArgs & { tabId?: TabId }) => Promise<void>;
 	reset: (
 		sessionKey: SessionKey,
-		options?: { deleteDocsBranch?: boolean }
+		options?: { deleteDocsBranch?: boolean },
 	) => Promise<void>;
 	commit: (args: CommitArgs & { sessionKey: SessionKey }) => Promise<void>;
 	cancel: (sessionKey: SessionKey) => Promise<void>;
 	setActiveTab: (
 		sessionKey: SessionKey,
-		tab: "activity" | "review" | "summary"
+		tab: "activity" | "review" | "summary",
 	) => void;
 	setCommitCompleted: (sessionKey: SessionKey, completed: boolean) => void;
 	setCompletedCommitInfo: (
 		sessionKey: SessionKey,
-		info: CompletedCommitInfo | null
+		info: CompletedCommitInfo | null,
 	) => void;
 	toggleChat: (sessionKey: SessionKey, open?: boolean) => void;
 	refine: (args: {
@@ -149,11 +149,11 @@ type State = {
 	mergeDocs: (args: { sessionKey: SessionKey }) => Promise<void>;
 	restoreSession: (
 		sessionInfo: services.SessionInfo,
-		tabId?: TabId
+		tabId?: TabId,
 	) => Promise<boolean>;
 	setActiveSession: (
 		projectId: number | string,
-		sessionKey: SessionKey | null
+		sessionKey: SessionKey | null,
 	) => void;
 	clearSessionMeta: (projectId: number, sourceBranch: string) => void;
 	resolveDocsBranchConflictByDelete: (args: {
@@ -215,7 +215,7 @@ const normalizeTabId = (tabId?: TabId | null): string | null => {
 // Create a session key from a session ID (used after backend creates session)
 export const createSessionKey = (
 	sessionId: number,
-	tabId?: TabId | null
+	tabId?: TabId | null,
 ): SessionKey => {
 	const baseKey = `session:${sessionId}`;
 	const normalizedTab = normalizeTabId(tabId);
@@ -226,7 +226,7 @@ export const createSessionKey = (
 export const createTempSessionKey = (
 	projectId: number,
 	sourceBranch: string | null | undefined,
-	tabId?: TabId | null
+	tabId?: TabId | null,
 ): SessionKey => {
 	const normalizedBranch = (sourceBranch ?? "").trim();
 	const baseKey = `temp:${projectId}:${normalizedBranch}`;
@@ -237,7 +237,7 @@ export const createTempSessionKey = (
 const WHITESPACE_REGEX = /\s+/g;
 
 const documentationBranchName = (
-	sourceBranch: string | null | undefined
+	sourceBranch: string | null | undefined,
 ): string => {
 	const trimmed = (sourceBranch ?? "").trim();
 	if (!trimmed) {
@@ -250,7 +250,7 @@ const backendSessionBindings = new Map<SessionKey, Set<SessionKey>>();
 
 const bindBackendSession = (
 	baseSessionKey: SessionKey,
-	sessionKey: SessionKey
+	sessionKey: SessionKey,
 ) => {
 	const existing = backendSessionBindings.get(baseSessionKey) ?? new Set();
 	existing.add(sessionKey);
@@ -259,7 +259,7 @@ const bindBackendSession = (
 
 const unbindBackendSession = (
 	baseSessionKey: SessionKey,
-	sessionKey?: SessionKey
+	sessionKey?: SessionKey,
 ) => {
 	if (!sessionKey) {
 		backendSessionBindings.delete(baseSessionKey);
@@ -277,7 +277,7 @@ const unbindBackendSession = (
 const isEventForSession = (
 	incomingKey: string | undefined,
 	sessionKey: SessionKey,
-	baseSessionKey: SessionKey
+	baseSessionKey: SessionKey,
 ) => {
 	if (!incomingKey) {
 		return true;
@@ -350,7 +350,7 @@ const extractExistingDocsBranch = (errorMessage: string): string | null => {
 // - ERR_DOCS_BRANCH_EXISTS_SUGGEST:docs/feature:docs/feature-2
 // - ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:docs/feature:docs/feature-2
 const extractBranchConflictSuggestion = (
-	errorMessage: string
+	errorMessage: string,
 ): { existing: string; proposed: string; isInProgress: boolean } | null => {
 	const inProgressPrefix = "ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:";
 	const existsPrefix = "ERR_DOCS_BRANCH_EXISTS_SUGGEST:";
@@ -386,7 +386,7 @@ const extractBranchConflictSuggestion = (
 
 const createLocalEvent = (
 	type: ToolEvent["type"],
-	message: string
+	message: string,
 ): ToolEvent => ({
 	id:
 		typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -420,7 +420,7 @@ const computeDiffSignatures = (diffText: string | null | undefined) => {
 			const key = normalizeDiffPath(
 				file.newPath && file.newPath !== "/dev/null"
 					? file.newPath
-					: file.oldPath
+					: file.oldPath,
 			);
 			signatures[key] = JSON.stringify(
 				(file.hunks ?? []).map((hunk) => ({
@@ -429,7 +429,7 @@ const computeDiffSignatures = (diffText: string | null | undefined) => {
 						type: change.type,
 						content: change.content,
 					})),
-				}))
+				})),
 			);
 		}
 		return signatures;
@@ -503,7 +503,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		sessionKey: SessionKey,
 		partial:
 			| Partial<DocGenerationData>
-			| ((prev: DocGenerationData) => DocGenerationData)
+			| ((prev: DocGenerationData) => DocGenerationData),
 	) => {
 		set((state) => {
 			const previous = state.docStates[sessionKey] ?? EMPTY_DOC_STATE;
@@ -522,7 +522,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 	const setActiveSessionKey = (
 		projectKey: ProjectKey,
-		sessionKey: SessionKey | null
+		sessionKey: SessionKey | null,
 	) => {
 		set((state) => ({
 			activeSession: {
@@ -536,7 +536,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		sessionKey: SessionKey,
 		updater:
 			| Partial<SessionMeta>
-			| ((prev: SessionMeta | undefined) => SessionMeta)
+			| ((prev: SessionMeta | undefined) => SessionMeta),
 	) => {
 		set((state) => {
 			const previous = state.sessionMeta[sessionKey];
@@ -574,7 +574,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 	const setTabSession = (
 		projectId: number,
 		tabId: TabId,
-		sessionKey: SessionKey | null
+		sessionKey: SessionKey | null,
 	) => {
 		const projectKey = toKey(projectId);
 		set((state) => ({
@@ -590,7 +590,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 	const getTabSession = (
 		projectId: number,
-		tabId: TabId
+		tabId: TabId,
 	): SessionKey | null => {
 		const projectKey = toKey(projectId);
 		const state = get();
@@ -616,7 +616,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 	const findTabIdForSession = (
 		projectId: number,
-		sessionKey: SessionKey
+		sessionKey: SessionKey,
 	): TabId | null => {
 		const projectKey = toKey(projectId);
 		const projectTabs = get().tabSessions[projectKey];
@@ -633,7 +633,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 	const subscribeToGenerationEvents = (
 		sessionKey: SessionKey,
-		baseSessionKey: SessionKey
+		baseSessionKey: SessionKey,
 	) => {
 		clearSubscriptions(sessionKey);
 
@@ -777,8 +777,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}
 
 			if (checkMessage.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
-				const existing =
-					extractExistingDocsBranch(checkMessage) ?? docsBranch;
+				const existing = extractExistingDocsBranch(checkMessage) ?? docsBranch;
 				setDocState(tempSessionKey, {
 					sessionId: null,
 					projectId,
@@ -821,6 +820,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			}
 
 			if (checkMessage.startsWith("ERR_SESSION_EXISTS:")) {
+				// Handle session conflict like a branch conflict - show dialog
+				// so user can delete the session/branch or use an alternative name
 				setDocState(tempSessionKey, {
 					sessionId: null,
 					projectId,
@@ -828,9 +829,9 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					sessionKey: tempSessionKey,
 					events: [],
 					todos: [],
-					error: mapErrorCodeToMessage(checkMessage),
+					error: null,
 					result: null,
-					status: "error",
+					status: "idle",
 					cancellationRequested: false,
 					activeTab: "activity",
 					commitCompleted: false,
@@ -844,6 +845,11 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					docsInCodeRepo: false,
 					docsBranch,
 					mergeInProgress: false,
+					conflict: {
+						existingDocsBranch: docsBranch,
+						proposedDocsBranch: docsBranch,
+						mode: conflictMode,
+					},
 				});
 				setActiveSessionKey(projectKey, tempSessionKey);
 				updateSessionMeta(tempSessionKey, {
@@ -852,7 +858,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					projectName,
 					sourceBranch,
 					targetBranch: targetBranch ?? "",
-					status: "error",
+					status: "idle",
 				});
 				return;
 			}
@@ -973,7 +979,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						...prev.events,
 						createLocalEvent(
 							"warn",
-							"Documentation generation canceled by user."
+							"Documentation generation canceled by user.",
 						),
 					],
 				}));
@@ -1009,7 +1015,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 	const resolveSessionIdForKey = async (
 		sessionKey: SessionKey,
-		state: DocGenerationData
+		state: DocGenerationData,
 	): Promise<number | null> => {
 		if (state.sessionId) {
 			return state.sessionId;
@@ -1049,7 +1055,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 		createTabSession: (
 			projectId: number,
 			tabId: TabId,
-			sessionKey: SessionKey | null
+			sessionKey: SessionKey | null,
 		) => {
 			setTabSession(projectId, tabId, sessionKey);
 		},
@@ -1088,7 +1094,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						modelKey,
 						userInstructions,
 						"",
-						sessionKey
+						sessionKey,
 					),
 			});
 		},
@@ -1117,7 +1123,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						modelKey,
 						userInstructions,
 						"",
-						sessionKey
+						sessionKey,
 					),
 			});
 		},
@@ -1135,7 +1141,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				return;
 			}
 			const sessionId =
-				docState.sessionId ?? (await resolveSessionIdForKey(sessionKey, docState));
+				docState.sessionId ??
+				(await resolveSessionIdForKey(sessionKey, docState));
 			if (!sessionId) {
 				setDocState(sessionKey, { cancellationRequested: false });
 				return;
@@ -1156,7 +1163,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						...prev.events,
 						createLocalEvent(
 							"warn",
-							"Documentation generation canceled by user."
+							"Documentation generation canceled by user.",
 						),
 					],
 				}));
@@ -1173,7 +1180,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						...prev.events,
 						createLocalEvent(
 							"error",
-							`Failed to cancel documentation generation: ${message}`
+							`Failed to cancel documentation generation: ${message}`,
 						),
 					],
 				}));
@@ -1210,7 +1217,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					...prev.events,
 					createLocalEvent(
 						"info",
-						`Committing documentation updates to ${label}`
+						`Committing documentation updates to ${label}`,
 					),
 				],
 				activeTab: "activity",
@@ -1236,7 +1243,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						...prev.events,
 						createLocalEvent(
 							"info",
-							`Committed documentation changes for ${label}`
+							`Committed documentation changes for ${label}`,
 						),
 					],
 					commitCompleted: true,
@@ -1252,7 +1259,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						...prev.events,
 						createLocalEvent(
 							"error",
-							`Failed to commit documentation changes: ${message}`
+							`Failed to commit documentation changes: ${message}`,
 						),
 					],
 					commitCompleted: false,
@@ -1306,7 +1313,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					...prev.events,
 					createLocalEvent(
 						"info",
-						`Merging documentation branch into ${branch || "source"}`
+						`Merging documentation branch into ${branch || "source"}`,
 					),
 				],
 			}));
@@ -1322,7 +1329,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						...prev.events,
 						createLocalEvent(
 							"info",
-							`Merged documentation updates into ${branch}`
+							`Merged documentation updates into ${branch}`,
 						),
 					],
 					commitCompleted: true,
@@ -1343,7 +1350,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						...prev.events,
 						createLocalEvent(
 							"error",
-							`Failed to merge documentation branch: ${message}`
+							`Failed to merge documentation branch: ${message}`,
 						),
 					],
 					commitCompleted: false,
@@ -1353,7 +1360,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 		reset: async (
 			sessionKey: SessionKey,
-			options?: { deleteDocsBranch?: boolean }
+			options?: { deleteDocsBranch?: boolean },
 		) => {
 			const current = get().docStates[sessionKey];
 			if (!current) {
@@ -1377,7 +1384,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 									...prev.events,
 									createLocalEvent(
 										"info",
-										`Deleted docs branch '${current.docsBranch}'`
+										`Deleted docs branch '${current.docsBranch}'`,
 									),
 								],
 							}));
@@ -1389,7 +1396,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 									...prev.events,
 									createLocalEvent(
 										"warn",
-										`Failed to delete docs branch: ${messageFromError(error)}`
+										`Failed to delete docs branch: ${messageFromError(error)}`,
 									),
 								],
 							}));
@@ -1508,7 +1515,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					const updatedMessages = prev.messages.map<ChatMessage>((message) =>
 						message.id === messageId
 							? { ...message, status: "sent" as const }
-							: message
+							: message,
 					);
 					const summary = (result?.summary ?? "").trim();
 					const assistantMessages: ChatMessage[] = summary
@@ -1526,7 +1533,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 							]
 						: [];
 					const persistedChat = normalizeChatMessages(
-						(result as any)?.chatMessages
+						(result as any)?.chatMessages,
 					);
 					const chatMessages =
 						persistedChat.length > 0
@@ -1548,14 +1555,14 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 							...prev.events,
 							createLocalEvent(
 								"info",
-								"Applied user instruction to documentation."
+								"Applied user instruction to documentation.",
 							),
 						],
 						initialDiffSignatures: baseline,
 						changedSinceInitial: changed,
 						cancellationRequested: false,
 						docsInCodeRepo: Boolean(
-							result?.docsInCodeRepo ?? prev.docsInCodeRepo
+							result?.docsInCodeRepo ?? prev.docsInCodeRepo,
 						),
 						docsBranch: result?.docsBranch ?? prev.docsBranch,
 						mergeInProgress: false,
@@ -1565,7 +1572,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				const message = messageFromError(error);
 				setDocState(sessionKey, (prev) => {
 					const updatedMessages = prev.messages.map<ChatMessage>((msg) =>
-						msg.id === messageId ? { ...msg, status: "error" as const } : msg
+						msg.id === messageId ? { ...msg, status: "error" as const } : msg,
 					);
 					const assistantMessages: ChatMessage[] = [
 						{
@@ -1587,7 +1594,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 							...prev.events,
 							createLocalEvent(
 								"error",
-								`Failed to refine documentation: ${message}`
+								`Failed to refine documentation: ${message}`,
 							),
 						],
 					};
@@ -1601,7 +1608,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 
 		restoreSession: async (
 			sessionInfo: services.SessionInfo,
-			tabId?: TabId
+			tabId?: TabId,
 		): Promise<boolean> => {
 			const {
 				id: sessionId,
@@ -1658,7 +1665,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					events: [
 						createLocalEvent(
 							"info",
-							`Restoring documentation session for branches: ${sourceBranch} → ${targetBranch}`
+							`Restoring documentation session for branches: ${sourceBranch} → ${targetBranch}`,
 						),
 					],
 					error: null,
@@ -1681,7 +1688,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				// LoadGenerationSession now takes only sessionID
 				const result = await LoadGenerationSession(sessionId);
 				const restoredChat = normalizeChatMessages(
-					(result as any)?.chatMessages
+					(result as any)?.chatMessages,
 				);
 
 				setDocState(sessionKey, {
@@ -1700,7 +1707,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					events: [
 						createLocalEvent(
 							"info",
-							`Session restored successfully - ${result.files?.length ?? 0} file(s) modified`
+							`Session restored successfully - ${result.files?.length ?? 0} file(s) modified`,
 						),
 					],
 					activeTab: "review",
@@ -1792,7 +1799,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						...prev.events,
 						createLocalEvent(
 							"info",
-							`Deleting existing docs branch '${existing}'`
+							`Deleting existing docs branch '${existing}'`,
 						),
 					],
 				}));
@@ -1800,9 +1807,21 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				const repoRoot = (project?.DocumentationRepo ?? "").trim();
 				if (!repoRoot) {
 					return Promise.reject(
-						new Error("Documentation repository path is not configured")
+						new Error("Documentation repository path is not configured"),
 					);
 				}
+
+				// Delete any existing session with this docs branch first
+				try {
+					const existingSession = await GetByDocsBranch(projectId, existing);
+					if (existingSession?.ID) {
+						await DeleteGenerationSession(existingSession.ID);
+					}
+				} catch {
+					// Ignore errors when looking up/deleting the session
+					// The branch deletion and restart will still proceed
+				}
+
 				await DeleteBranchByPath(repoRoot, existing);
 
 				// Clear the conflict before restarting
@@ -1901,7 +1920,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						...prev.events,
 						createLocalEvent(
 							"info",
-							`Using new docs branch name '${targetName}'`
+							`Using new docs branch name '${targetName}'`,
 						),
 					],
 				}));
@@ -1914,7 +1933,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				if (mode === "diff") {
 					if (!targetBranch) {
 						return Promise.reject(
-							new Error("Target branch is required for diff mode")
+							new Error("Target branch is required for diff mode"),
 						);
 					}
 					result = await GenerateDocs(
@@ -1924,7 +1943,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						modelKey,
 						userInstructions,
 						targetName,
-						sessionKey
+						sessionKey,
 					);
 				} else {
 					result = await GenerateDocsFromBranch(
@@ -1933,7 +1952,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						modelKey,
 						userInstructions,
 						targetName,
-						sessionKey
+						sessionKey,
 					);
 				}
 
@@ -1950,7 +1969,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					initialDiffSignatures: computeDiffSignatures(result?.diff ?? null),
 					changedSinceInitial: [],
 					docsInCodeRepo: Boolean(
-						result?.docsInCodeRepo ?? prev.docsInCodeRepo
+						result?.docsInCodeRepo ?? prev.docsInCodeRepo,
 					),
 					docsBranch: result?.docsBranch ?? targetName,
 					mergeInProgress: false,
@@ -1985,7 +2004,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 							...prev.events,
 							createLocalEvent(
 								"warn",
-								"Documentation generation canceled by user."
+								"Documentation generation canceled by user.",
 							),
 						],
 					}));
@@ -2003,7 +2022,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 							...prev.events,
 							createLocalEvent(
 								"error",
-								`Failed to create docs branch '${targetName}': ${message}`
+								`Failed to create docs branch '${targetName}': ${message}`,
 							),
 						],
 					}));
