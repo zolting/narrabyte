@@ -241,7 +241,7 @@
     "deleteSuccess": "Project deleted successfully",
     "deleteError": "Failed to delete project",
     "reorderError": "Failed to update project order",
-    "ongoingGenerations": "Unfinished generations",
+    "ongoingGenerations": "Unfinished sessions",
     "newGeneration": "New generation"
   },
   "apiDialog": {

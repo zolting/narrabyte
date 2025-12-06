@@ -69,7 +69,6 @@ function Home() {
 	const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 	const sessionMeta = useDocGenerationStore((state) => state.sessionMeta);
 	const activeSessions = useDocGenerationStore((state) => state.activeSession);
-	const restoreSession = useDocGenerationStore((state) => state.restoreSession);
 	const clearSessionMeta = useDocGenerationStore((s) => s.clearSessionMeta);
 	const setActiveSession = useDocGenerationStore(
 		(state) => state.setActiveSession
@@ -182,7 +181,7 @@ function Home() {
 			const key = `pending:${summary.id}`;
 			setRestoringKey(key);
 			try {
-				// Construct SessionInfo for restoreSession
+				// Construct SessionInfo for the restore event
 				const sessionInfo: services.SessionInfo = {
 					id: summary.id,
 					sessionKey: `session:${summary.id}`,
@@ -197,16 +196,22 @@ function Home() {
 					createdAt: "",
 					updatedAt: summary.updatedAt ?? "",
 				};
-				await restoreSession(sessionInfo);
 				navigate({
 					to: "/projects/$projectId",
 					params: { projectId: String(summary.projectId) },
 				});
+				window.setTimeout(() => {
+					window.dispatchEvent(
+						new CustomEvent("ui:restore-session-tab", {
+							detail: { projectId: summary.projectId, sessionInfo },
+						})
+					);
+				}, 100);
 			} finally {
 				setRestoringKey(null);
 			}
 		},
-		[navigate, restoreSession]
+		[navigate]
 	);
 
 	const handleResumeRunning = useCallback(
@@ -231,7 +236,7 @@ function Home() {
 			setRestoringKey(key);
 			setActiveSession(meta.projectId, sessionKey);
 			try {
-				// Construct SessionInfo for restoreSession
+				// Construct SessionInfo for the restore event
 				const sessionInfo: services.SessionInfo = {
 					id: meta.sessionId,
 					sessionKey,
@@ -246,16 +251,24 @@ function Home() {
 					createdAt: "",
 					updatedAt: "",
 				};
-				await restoreSession(sessionInfo);
+				// Navigate first, then dispatch event after a short delay
+				// so the project page is mounted and listening
 				navigate({
 					to: "/projects/$projectId",
 					params: { projectId: String(meta.projectId) },
 				});
+				window.setTimeout(() => {
+					window.dispatchEvent(
+						new CustomEvent("ui:restore-session-tab", {
+							detail: { projectId: meta.projectId, sessionInfo },
+						})
+					);
+				}, 100);
 			} finally {
 				setRestoringKey(null);
 			}
 		},
-		[navigate, restoreSession, setActiveSession]
+		[navigate, setActiveSession]
 	);
 
 	const projectSelectId = useId();
