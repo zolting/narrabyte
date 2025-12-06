@@ -46,8 +46,8 @@ type ClientService struct {
 	generationSessions     GenerationSessionService
 	modelConfigs           ModelConfigService
 	sessionMu              sync.RWMutex
-	sessionRuntimes        map[string]*sessionRuntime
-	tabBoundSessions       map[string]bool // sessionKey -> is bound to a tab
+	sessionRuntimes        map[string]*sessionRuntime // sessionKey -> runtime
+	tabBoundSessions       map[uint]bool              // sessionID -> is bound to a tab
 	docsBranchesMu         sync.Mutex
 	inProgressDocsBranches map[string]bool
 }
@@ -80,7 +80,7 @@ func NewClientService(repoLinks RepoLinkService, gitService *GitService, keyring
 		generationSessions:     genSessions,
 		modelConfigs:           modelConfigs,
 		sessionRuntimes:        make(map[string]*sessionRuntime),
-		tabBoundSessions:       make(map[string]bool),
+		tabBoundSessions:       make(map[uint]bool),
 		inProgressDocsBranches: make(map[string]bool),
 	}
 }
@@ -97,16 +97,16 @@ type tempDocWorkspace struct {
 	docsPath string
 }
 
-func makeSessionKey(projectID uint, sourceBranch string) string {
-	return fmt.Sprintf("%d:%s", projectID, strings.TrimSpace(sourceBranch))
+func makeSessionKey(sessionID uint) string {
+	return fmt.Sprintf("session:%d", sessionID)
 }
 
-func resolveSessionKey(sessionKeyOverride string, projectID uint, sourceBranch string) string {
+func resolveSessionKey(sessionKeyOverride string, sessionID uint) string {
 	override := strings.TrimSpace(sessionKeyOverride)
 	if override != "" {
 		return override
 	}
-	return makeSessionKey(projectID, sourceBranch)
+	return makeSessionKey(sessionID)
 }
 
 func (s *ClientService) ensureDocsBranchAvailable(docRepo *git.Repository, docsBranch string) error {
@@ -435,6 +435,47 @@ func (s *ClientService) ensureRuntimeFromSessions(ctx context.Context, projectID
 	return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first or restore a session")
 }
 
+// ensureRuntimeFromSession creates or retrieves a session runtime from a specific session
+func (s *ClientService) ensureRuntimeFromSession(ctx context.Context, session *models.GenerationSession, sessionKey string) (*sessionRuntime, error) {
+	if runtime, ok := s.getSessionRuntime(sessionKey); ok && runtime != nil {
+		return runtime, nil
+	}
+
+	modelKey := strings.TrimSpace(session.ModelKey)
+	providerID := strings.TrimSpace(session.Provider)
+	if modelKey == "" && providerID != "" {
+		if fallback, fbErr := s.findDefaultModelForProvider(providerID); fbErr == nil && fallback != nil {
+			modelKey = fallback.Key
+		}
+	}
+	if modelKey == "" {
+		return nil, fmt.Errorf("session has no model key configured")
+	}
+
+	runtime, modelInfo, err := s.newSessionRuntime(modelKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize LLM client from session: %w", err)
+	}
+	runtime.targetBranch = strings.TrimSpace(session.TargetBranch)
+	if runtime.targetBranch == "" {
+		runtime.targetBranch = strings.TrimSpace(session.SourceBranch)
+	}
+	s.setSessionRuntime(sessionKey, runtime)
+
+	if modelInfo != nil {
+		emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Initialized %s via %s from session", modelInfo.DisplayName, runtime.providerLabel))
+	}
+
+	if session.MessagesJSON != "" {
+		if loadErr := runtime.client.LoadConversationHistoryJSON(session.MessagesJSON); loadErr != nil {
+			emitSessionWarn(ctx, sessionKey, fmt.Sprintf("Failed to restore conversation history: %v", loadErr))
+		} else {
+			emitSessionInfo(ctx, sessionKey, "Restored LLM conversation history")
+		}
+	}
+	return runtime, nil
+}
+
 func emitSessionInfo(ctx context.Context, sessionKey string, message string) {
 	evt := events.NewInfo(message)
 	evt.SessionKey = sessionKey
@@ -481,16 +522,45 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		return nil, fmt.Errorf("model is required")
 	}
 
-	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, sourceBranch)
+	// Determine docs branch name early
+	docsBranch := documentationBranchName(sourceBranch)
+	if docsBranchOverride != "" {
+		docsBranch = docsBranchOverride
+	}
+
+	// Check if a session with this docsBranch already exists
+	existingSession, err := s.generationSessions.GetByDocsBranch(projectID, docsBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for existing session: %w", err)
+	}
+	if existingSession != nil {
+		return nil, fmt.Errorf("ERR_SESSION_EXISTS:a session with docsBranch '%s' already exists (ID: %d)", docsBranch, existingSession.ID)
+	}
 
 	runtime, modelInfo, err := s.newSessionRuntime(modelKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
 	}
 	runtime.targetBranch = targetBranch
-	s.setSessionRuntime(sessionKey, runtime)
 
 	providerID := strings.TrimSpace(modelInfo.ProviderID)
+
+	// Create session record to get ID
+	session := &models.GenerationSession{
+		ProjectID:    projectID,
+		SourceBranch: sourceBranch,
+		TargetBranch: targetBranch,
+		Provider:     providerID,
+		ModelKey:     runtime.modelKey,
+		DocsBranch:   docsBranch,
+	}
+	session, err = s.generationSessions.Create(session)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	sessionKey := resolveSessionKey(sessionKeyOverride, session.ID)
+	s.setSessionRuntime(sessionKey, runtime)
 
 	project, codeRoot, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
@@ -563,14 +633,10 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		}
 	}
 
-	// Choose docs branch: override if provided, else default docs/<source>
-	docsBranch := documentationBranchName(sourceBranch)
-	if docsBranchOverride != "" {
-		docsBranch = docsBranchOverride
-	}
-
 	// PRE-CHECK: prevent silently overwriting an existing docs/<source> branch
 	if err := s.ensureDocsBranchAvailable(docRepo, docsBranch); err != nil {
+		// Clean up the session we created since we're failing
+		_ = s.generationSessions.DeleteByID(session.ID)
 		return nil, err
 	}
 
@@ -626,15 +692,13 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Initialized docs branch '%s' from '%s' for diff", docsBranch, baseBranch))
 	}
 
+	// Save conversation history to session
 	if runtime.client != nil {
 		if jsonStr, err := runtime.client.ConversationHistoryJSON(); err == nil {
-			provider := runtime.providerID
-			if provider == "" {
-				provider = providerID
-			}
-			if strings.TrimSpace(provider) != "" {
-				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, targetBranch, runtime.modelKey, provider, docsBranch, jsonStr, "[]")
-			}
+			_ = s.generationSessions.UpdateByID(session.ID, map[string]interface{}{
+				"messages_json":      jsonStr,
+				"chat_messages_json": "[]",
+			})
 		}
 	}
 
@@ -651,6 +715,8 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 		summary = llmResult.Summary
 	}
 	return &models.DocGenerationResult{
+		SessionID:      session.ID,
+		SessionKey:     sessionKey,
 		Branch:         sourceBranch,
 		TargetBranch:   targetBranch,
 		DocsBranch:     docsBranch,
@@ -662,27 +728,33 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 }
 
 // RefineDocs applies a user-provided instruction to the documentation branch
-// created for a given source branch ("docs/<sourceBranch>"). It reuses the
-// same toolset as GenerateDocs but focuses on targeted edits directed by the
-// user's request.
-func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruction string, sessionKeyOverride string) (*models.DocGenerationResult, error) {
+// for a given session. It reuses the same toolset as GenerateDocs but focuses
+// on targeted edits directed by the user's request.
+func (s *ClientService) RefineDocs(sessionID uint, instruction string, sessionKeyOverride string) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
 	}
-	sourceBranch = strings.TrimSpace(sourceBranch)
-	if projectID == 0 {
-		return nil, fmt.Errorf("project id is required")
-	}
-	if sourceBranch == "" {
-		return nil, fmt.Errorf("source branch is required")
+	if sessionID == 0 {
+		return nil, fmt.Errorf("session id is required")
 	}
 	if strings.TrimSpace(instruction) == "" {
 		return nil, fmt.Errorf("instruction is required")
 	}
 
-	docsBranch := documentationBranchName(sourceBranch)
-	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, sourceBranch)
+	// Load session from database
+	session, err := s.generationSessions.GetByID(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load session: %w", err)
+	}
+	if session == nil {
+		return nil, fmt.Errorf("session not found: %d", sessionID)
+	}
+
+	projectID := session.ProjectID
+	sourceBranch := strings.TrimSpace(session.SourceBranch)
+	docsBranch := strings.TrimSpace(session.DocsBranch)
+	sessionKey := resolveSessionKey(sessionKeyOverride, sessionID)
 
 	// Check if this docs branch is already being refined/generated
 	if s.isDocsBranchInProgress(docsBranch) {
@@ -695,7 +767,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 	}
 	defer s.unmarkDocsBranchInProgress(docsBranch)
 
-	runtime, err := s.ensureRuntimeFromSessions(ctx, projectID, sourceBranch, "", sessionKey)
+	runtime, err := s.ensureRuntimeFromSession(ctx, session, sessionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -736,7 +808,7 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		runtime.targetBranch = strings.TrimSpace(baseBranch)
 	}
 
-	existingChat := s.loadStoredChatMessages(projectID, sourceBranch, baseBranch)
+	existingChat := s.loadStoredChatMessagesFromSession(session)
 
 	refName := plumbing.NewBranchReferenceName(docsBranch)
 	// Ensure the docs branch exists in the main repo; if not, create it off base
@@ -799,30 +871,13 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		return nil, fmt.Errorf("failed to generate documentation diff: %w", err)
 	}
 
+	// Save conversation history and chat messages to session
 	if runtime.client != nil {
 		if jsonStr, err := runtime.client.ConversationHistoryJSON(); err == nil {
-			modelKeyForSession := strings.TrimSpace(runtime.modelKey)
-			providerForSession := strings.TrimSpace(runtime.providerID)
-			if modelKeyForSession != "" && providerForSession == "" {
-				if modelInfo, getErr := s.modelConfigs.GetModel(modelKeyForSession); getErr == nil && modelInfo != nil {
-					providerForSession = strings.TrimSpace(modelInfo.ProviderID)
-					if runtime.modelDisplay == "" {
-						runtime.modelDisplay = modelInfo.DisplayName
-					}
-					label := strings.TrimSpace(modelInfo.ProviderName)
-					if label == "" {
-						label = providerForSession
-					}
-					if runtime.providerLabel == "" {
-						runtime.providerLabel = label
-					}
-				}
-			}
-			if modelKeyForSession != "" && providerForSession != "" {
-				_, _ = s.generationSessions.Upsert(projectID, sourceBranch, baseBranch, modelKeyForSession, providerForSession, docsBranch, jsonStr, chatMessagesJSON)
-				runtime.modelKey = modelKeyForSession
-				runtime.providerID = providerForSession
-			}
+			_ = s.generationSessions.UpdateByID(sessionID, map[string]interface{}{
+				"messages_json":      jsonStr,
+				"chat_messages_json": chatMessagesJSON,
+			})
 		}
 	}
 
@@ -833,6 +888,8 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 		summary = llmResult.Summary
 	}
 	return &models.DocGenerationResult{
+		SessionID:      sessionID,
+		SessionKey:     sessionKey,
 		Branch:         sourceBranch,
 		TargetBranch:   baseBranch,
 		DocsBranch:     docsBranch,
@@ -847,18 +904,26 @@ func (s *ClientService) RefineDocs(projectID uint, sourceBranch string, instruct
 // MergeDocsIntoSource fast-forwards the source code branch to include the latest
 // documentation commit generated on docs/<sourceBranch>. Only supported when
 // documentation lives within the code repository.
-func (s *ClientService) MergeDocsIntoSource(projectID uint, sourceBranch string) error {
+func (s *ClientService) MergeDocsIntoSource(sessionID uint) error {
 	ctx := s.context
 	if ctx == nil {
 		return fmt.Errorf("client service not initialized")
 	}
-	sourceBranch = strings.TrimSpace(sourceBranch)
-	if projectID == 0 {
-		return fmt.Errorf("project id is required")
+	if sessionID == 0 {
+		return fmt.Errorf("session ID is required")
 	}
-	if sourceBranch == "" {
-		return fmt.Errorf("source branch is required")
+
+	session, err := s.generationSessions.GetByID(sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to get session: %w", err)
 	}
+	if session == nil {
+		return fmt.Errorf("session not found")
+	}
+
+	projectID := session.ProjectID
+	sourceBranch := strings.TrimSpace(session.SourceBranch)
+	sessionKey := makeSessionKey(sessionID)
 
 	_, _, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
@@ -943,7 +1008,7 @@ func (s *ClientService) MergeDocsIntoSource(projectID uint, sourceBranch string)
 		}
 	}
 
-	emitSessionInfo(ctx, makeSessionKey(projectID, sourceBranch), fmt.Sprintf(
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
 		"MergeDocs: fast-forwarded '%s' to include documentation commit %s",
 		sourceBranch,
 		docRef.Hash().String()[:8],
@@ -1081,7 +1146,7 @@ func (s *ClientService) findDefaultModelForProvider(provider string) (*models.LL
 	return nil, nil
 }
 
-func (s *ClientService) CommitDocs(projectID uint, branch string, files []string) error {
+func (s *ClientService) CommitDocs(projectID uint, sessionID uint, files []string) error {
 	ctx := s.context
 	if ctx == nil {
 		return fmt.Errorf("client service not initialized")
@@ -1089,11 +1154,20 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 	if projectID == 0 {
 		return fmt.Errorf("project id is required")
 	}
-	sourceBranch := strings.TrimSpace(branch)
-	if sourceBranch == "" {
-		return fmt.Errorf("branch is required")
+	if sessionID == 0 {
+		return fmt.Errorf("session id is required")
 	}
-	docsBranch := documentationBranchName(sourceBranch)
+
+	session, err := s.generationSessions.GetByID(sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to load session: %w", err)
+	}
+	if session == nil {
+		return fmt.Errorf("session not found: %d", sessionID)
+	}
+
+	sessionKey := makeSessionKey(sessionID)
+	docsBranch := strings.TrimSpace(session.DocsBranch)
 	if len(files) == 0 {
 		return fmt.Errorf("no documentation files to commit")
 	}
@@ -1183,7 +1257,7 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 		return fmt.Errorf("no documentation changes found to commit")
 	}
 
-	emitSessionInfo(ctx, makeSessionKey(projectID, sourceBranch), fmt.Sprintf(
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
 		"CommitDocs: staging %d documentation file(s) for branch '%s'",
 		len(normalized), docsBranch,
 	))
@@ -1197,7 +1271,7 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 		return fmt.Errorf("failed to commit documentation changes: %w", err)
 	}
 
-	emitSessionInfo(ctx, makeSessionKey(projectID, sourceBranch), fmt.Sprintf(
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
 		"CommitDocs: committed documentation updates to '%s'",
 		docsBranch,
 	))
@@ -1205,29 +1279,31 @@ func (s *ClientService) CommitDocs(projectID uint, branch string, files []string
 	return nil
 }
 
-func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targetBranch string) (*models.DocGenerationResult, error) {
+func (s *ClientService) LoadGenerationSession(sessionID uint) (*models.DocGenerationResult, error) {
 	ctx := s.context
 	if ctx == nil {
 		return nil, fmt.Errorf("client service not initialized")
 	}
 
-	sourceBranch = strings.TrimSpace(sourceBranch)
-	targetBranch = strings.TrimSpace(targetBranch)
-	if sourceBranch == "" || targetBranch == "" {
-		return nil, fmt.Errorf("source and target branches are required")
+	if sessionID == 0 {
+		return nil, fmt.Errorf("session id is required")
 	}
 
-	sessionKey := makeSessionKey(projectID, sourceBranch)
-
-	session, err := s.generationSessions.Get(projectID, sourceBranch, targetBranch)
+	session, err := s.generationSessions.GetByID(sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get generation session: %w", err)
 	}
 	if session == nil {
-		return nil, fmt.Errorf("no active generation session found for project %d (%s -> %s)", projectID, sourceBranch, targetBranch)
+		return nil, fmt.Errorf("session not found: %d", sessionID)
 	}
 
-	runtime, err := s.ensureRuntimeFromSessions(ctx, projectID, sourceBranch, targetBranch, sessionKey)
+	projectID := session.ProjectID
+	sourceBranch := strings.TrimSpace(session.SourceBranch)
+	targetBranch := strings.TrimSpace(session.TargetBranch)
+	docsBranch := strings.TrimSpace(session.DocsBranch)
+	sessionKey := makeSessionKey(sessionID)
+
+	runtime, err := s.ensureRuntimeFromSession(ctx, session, sessionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -1237,13 +1313,6 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 	}
 	if provider := strings.TrimSpace(session.Provider); provider != "" && strings.TrimSpace(runtime.providerID) == "" {
 		runtime.providerID = provider
-	}
-	if session.MessagesJSON != "" && runtime.client != nil && !runtime.client.HasConversationHistory() {
-		if loadErr := runtime.client.LoadConversationHistoryJSON(session.MessagesJSON); loadErr != nil {
-			emitSessionWarn(ctx, sessionKey, fmt.Sprintf("Failed to restore conversation history: %v", loadErr))
-		} else {
-			emitSessionInfo(ctx, sessionKey, "Restored LLM conversation history")
-		}
 	}
 
 	project, err := s.repoLinks.Get(projectID)
@@ -1290,11 +1359,6 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 		return nil, fmt.Errorf("failed to open documentation repository: %w", err)
 	}
 
-	// Use stored docs branch from session if available, fallback to computed name for backward compatibility
-	docsBranch := strings.TrimSpace(session.DocsBranch)
-	if docsBranch == "" {
-		docsBranch = documentationBranchName(sourceBranch)
-	}
 	refName := plumbing.NewBranchReferenceName(docsBranch)
 	if _, err := docRepo.Reference(refName, true); err != nil {
 		if errors.Is(err, plumbing.ErrReferenceNotFound) {
@@ -1342,6 +1406,8 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 	emitSessionInfo(ctx, sessionKey, "LoadSession: session restored successfully")
 
 	return &models.DocGenerationResult{
+		SessionID:      sessionID,
+		SessionKey:     sessionKey,
 		Branch:         sourceBranch,
 		TargetBranch:   targetBranch,
 		DocsBranch:     docsBranch,
@@ -1353,15 +1419,11 @@ func (s *ClientService) LoadGenerationSession(projectID uint, sourceBranch, targ
 	}, nil
 }
 
-func (s *ClientService) StopStream(projectID uint, sourceBranch string, sessionKeyOverride string) {
-	if s == nil {
+func (s *ClientService) StopStream(sessionID uint, sessionKeyOverride string) {
+	if s == nil || sessionID == 0 {
 		return
 	}
-	sourceBranch = strings.TrimSpace(sourceBranch)
-	if projectID == 0 || sourceBranch == "" {
-		return
-	}
-	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, sourceBranch)
+	sessionKey := resolveSessionKey(sessionKeyOverride, sessionID)
 	runtime, ok := s.getSessionRuntime(sessionKey)
 	if !ok || runtime == nil || runtime.client == nil {
 		return
@@ -1374,49 +1436,41 @@ func (s *ClientService) StopStream(projectID uint, sourceBranch string, sessionK
 }
 
 // BindSessionToTab marks a session as bound to a UI tab
-func (s *ClientService) BindSessionToTab(projectID uint, sourceBranch string) error {
-	if projectID == 0 {
-		return fmt.Errorf("project id is required")
+func (s *ClientService) BindSessionToTab(sessionID uint) error {
+	if sessionID == 0 {
+		return fmt.Errorf("session id is required")
 	}
-	sourceBranch = strings.TrimSpace(sourceBranch)
-	if sourceBranch == "" {
-		return fmt.Errorf("source branch is required")
-	}
-
-	sessionKey := makeSessionKey(projectID, sourceBranch)
 	s.sessionMu.Lock()
 	defer s.sessionMu.Unlock()
-	s.tabBoundSessions[sessionKey] = true
+	s.tabBoundSessions[sessionID] = true
 	return nil
 }
 
 // UnbindSessionFromTab marks a session as no longer bound to a UI tab (moved to background)
-func (s *ClientService) UnbindSessionFromTab(projectID uint, sourceBranch string) error {
-	if projectID == 0 {
-		return fmt.Errorf("project id is required")
+func (s *ClientService) UnbindSessionFromTab(sessionID uint) error {
+	if sessionID == 0 {
+		return fmt.Errorf("session id is required")
 	}
-	sourceBranch = strings.TrimSpace(sourceBranch)
-	if sourceBranch == "" {
-		return fmt.Errorf("source branch is required")
-	}
-
-	sessionKey := makeSessionKey(projectID, sourceBranch)
 	s.sessionMu.Lock()
 	defer s.sessionMu.Unlock()
-	delete(s.tabBoundSessions, sessionKey)
+	delete(s.tabBoundSessions, sessionID)
 	return nil
 }
 
 // IsSessionInTab checks if a session is currently bound to a UI tab
-func (s *ClientService) IsSessionInTab(projectID uint, sourceBranch string) bool {
-	sessionKey := makeSessionKey(projectID, sourceBranch)
+func (s *ClientService) IsSessionInTab(sessionID uint) bool {
+	if sessionID == 0 {
+		return false
+	}
 	s.sessionMu.RLock()
 	defer s.sessionMu.RUnlock()
-	return s.tabBoundSessions[sessionKey]
+	return s.tabBoundSessions[sessionID]
 }
 
 // SessionInfo represents information about a generation session
 type SessionInfo struct {
+	ID           uint   `json:"id"`
+	SessionKey   string `json:"sessionKey"`
 	ProjectID    uint   `json:"projectId"`
 	SourceBranch string `json:"sourceBranch"`
 	TargetBranch string `json:"targetBranch"`
@@ -1429,7 +1483,7 @@ type SessionInfo struct {
 	UpdatedAt    string `json:"updatedAt"`
 }
 
-// GetAvailableTabSessions returns sessions for a project that are not currently bound to tabs
+// GetAvailableTabSessions returns sessions for a project
 func (s *ClientService) GetAvailableTabSessions(projectID uint) ([]SessionInfo, error) {
 	if projectID == 0 {
 		return nil, fmt.Errorf("project id is required")
@@ -1445,10 +1499,10 @@ func (s *ClientService) GetAvailableTabSessions(projectID uint) ([]SessionInfo, 
 
 	availableSessions := make([]SessionInfo, 0)
 	for _, session := range sessions {
-		sessionKey := makeSessionKey(projectID, strings.TrimSpace(session.SourceBranch))
+		sessionKey := makeSessionKey(session.ID)
 
 		// Check if session is bound to a tab
-		inTab := s.tabBoundSessions[sessionKey]
+		inTab := s.tabBoundSessions[session.ID]
 
 		// Check if session has a running client
 		isRunning := false
@@ -1456,13 +1510,11 @@ func (s *ClientService) GetAvailableTabSessions(projectID uint) ([]SessionInfo, 
 			isRunning = runtime.client.IsRunning()
 		}
 
-		// Use stored docs branch if available, fallback to computed name for backward compatibility
 		docsBranch := strings.TrimSpace(session.DocsBranch)
-		if docsBranch == "" {
-			docsBranch = documentationBranchName(strings.TrimSpace(session.SourceBranch))
-		}
 
 		availableSessions = append(availableSessions, SessionInfo{
+			ID:           session.ID,
+			SessionKey:   sessionKey,
 			ProjectID:    projectID,
 			SourceBranch: strings.TrimSpace(session.SourceBranch),
 			TargetBranch: strings.TrimSpace(session.TargetBranch),
@@ -1479,45 +1531,37 @@ func (s *ClientService) GetAvailableTabSessions(projectID uint) ([]SessionInfo, 
 	return availableSessions, nil
 }
 
-// ValidateBranchPair checks if a source/target branch combination is valid for creating a new session
-// Returns an error if the branch pair already exists in the database for this project
-func (s *ClientService) ValidateBranchPair(projectID uint, sourceBranch, targetBranch string) error {
+// ValidateDocsBranch checks if a docsBranch is available for creating a new session
+// Returns an error if a session with this docsBranch already exists for this project
+func (s *ClientService) ValidateDocsBranch(projectID uint, docsBranch string) error {
 	if projectID == 0 {
 		return fmt.Errorf("project id is required")
 	}
-	sourceBranch = strings.TrimSpace(sourceBranch)
-	targetBranch = strings.TrimSpace(targetBranch)
-	if sourceBranch == "" {
-		return fmt.Errorf("source branch is required")
-	}
-	if targetBranch == "" {
-		return fmt.Errorf("target branch is required")
-	}
-	if sourceBranch == targetBranch {
-		return fmt.Errorf("source and target branches must differ")
+	docsBranch = strings.TrimSpace(docsBranch)
+	if docsBranch == "" {
+		return fmt.Errorf("docs branch is required")
 	}
 
-	// Check if a session with this branch pair already exists
-	existingSession, err := s.generationSessions.Get(projectID, sourceBranch, targetBranch)
+	// Check if a session with this docsBranch already exists
+	existingSession, err := s.generationSessions.GetByDocsBranch(projectID, docsBranch)
 	if err != nil {
 		return fmt.Errorf("failed to check for existing session: %w", err)
 	}
 
 	if existingSession != nil {
 		// Session exists - check if it's in a tab or background
-		sessionKey := makeSessionKey(projectID, sourceBranch)
 		s.sessionMu.RLock()
-		inTab := s.tabBoundSessions[sessionKey]
+		inTab := s.tabBoundSessions[existingSession.ID]
 		s.sessionMu.RUnlock()
 
 		if inTab {
-			return fmt.Errorf("ERR_SESSION_ALREADY_IN_TAB:%s:%s", sourceBranch, targetBranch)
+			return fmt.Errorf("ERR_SESSION_ALREADY_IN_TAB:%d:%s", existingSession.ID, docsBranch)
 		}
-		// Session exists but not in tab (in background or completed) - this is OK, can be loaded
-		return nil
+		// Session exists but not in tab - return the existing session ID so frontend can offer to load it
+		return fmt.Errorf("ERR_SESSION_EXISTS:%d:%s", existingSession.ID, docsBranch)
 	}
 
-	// No existing session - branch pair is valid
+	// No existing session - docsBranch is available
 	return nil
 }
 
@@ -1713,12 +1757,9 @@ func appendChatMessages(existing []models.ChatMessage, userText, assistantText s
 	return updated
 }
 
-func (s *ClientService) loadStoredChatMessages(projectID uint, sourceBranch, targetBranch string) []models.ChatMessage {
-	if s.generationSessions == nil || projectID == 0 {
-		return nil
-	}
-	session, err := s.generationSessions.Get(projectID, sourceBranch, targetBranch)
-	if err != nil || session == nil {
+// loadStoredChatMessagesFromSession extracts chat messages from a session
+func (s *ClientService) loadStoredChatMessagesFromSession(session *models.GenerationSession) []models.ChatMessage {
+	if session == nil {
 		return nil
 	}
 	return parseChatMessagesJSON(session.ChatMessagesJSON)
@@ -2134,29 +2175,29 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		return nil, fmt.Errorf("model is required")
 	}
 
-	sessionKey := resolveSessionKey(sessionKeyOverride, projectID, branch)
+	// Determine docs branch name early
+	docsBranch := documentationBranchName(branch)
+	if docsBranchOverride != "" {
+		docsBranch = docsBranchOverride
+	}
+
+	// Check if a session with this docsBranch already exists
+	existingSession, err := s.generationSessions.GetByDocsBranch(projectID, docsBranch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for existing session: %w", err)
+	}
+	if existingSession != nil {
+		return nil, fmt.Errorf("ERR_SESSION_EXISTS:a session with docsBranch '%s' already exists (ID: %d)", docsBranch, existingSession.ID)
+	}
 
 	runtime, modelInfo, err := s.newSessionRuntime(modelKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize LLM client: %w", err)
 	}
-	s.setSessionRuntime(sessionKey, runtime)
 
 	project, codeRoot, docCfg, err := s.prepareProjectRepos(projectID)
 	if err != nil {
 		return nil, err
-	}
-
-	if docsBranchOverride != "" {
-		emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
-			"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s into %s",
-			project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel, docsBranchOverride,
-		))
-	} else {
-		emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
-			"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s",
-			project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel,
-		))
 	}
 
 	// Open documentation repo
@@ -2182,13 +2223,31 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		}
 	}
 
-	// Determine destination docs branch name
-	docsBranch := documentationBranchName(branch)
-	if docsBranchOverride != "" {
-		docsBranch = docsBranchOverride
+	providerID := strings.TrimSpace(runtime.providerID)
+	if providerID == "" && modelInfo != nil {
+		providerID = strings.TrimSpace(modelInfo.ProviderID)
 	}
 
+	// Create session record to get ID
+	session := &models.GenerationSession{
+		ProjectID:    projectID,
+		SourceBranch: branch,
+		TargetBranch: baseBranch,
+		Provider:     providerID,
+		ModelKey:     runtime.modelKey,
+		DocsBranch:   docsBranch,
+	}
+	session, err = s.generationSessions.Create(session)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	sessionKey := resolveSessionKey(sessionKeyOverride, session.ID)
+	s.setSessionRuntime(sessionKey, runtime)
+	runtime.targetBranch = baseBranch
+
 	if err := s.ensureDocsBranchAvailable(docRepo, docsBranch); err != nil {
+		_ = s.generationSessions.DeleteByID(session.ID)
 		return nil, err
 	}
 
@@ -2198,7 +2257,10 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 	}
 	defer s.unmarkDocsBranchInProgress(docsBranch)
 
-	runtime.targetBranch = baseBranch
+	emitSessionInfo(ctx, sessionKey, fmt.Sprintf(
+		"GenerateDocsFromBranch: starting for project %s on branch %s using %s via %s into %s",
+		project.ProjectName, branch, runtime.modelDisplay, runtime.providerLabel, docsBranch,
+	))
 
 	refName := plumbing.NewBranchReferenceName(docsBranch)
 	if _, err := docRepo.Reference(refName, true); err != nil {
@@ -2224,7 +2286,8 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		docsBranch,
 	))
 
-	existingChat := s.loadStoredChatMessages(projectID, branch, baseBranch)
+	// New session, no existing chat
+	var existingChat []models.ChatMessage
 
 	streamCtx := runtime.client.StartStream(ctx, sessionKey)
 	defer runtime.client.StopStream()
@@ -2248,16 +2311,13 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 	chatMessages := appendChatMessages(existingChat, userInstructions, assistantSummary)
 	chatMessagesJSON := marshalChatMessages(chatMessages)
 
+	// Save conversation history to session
 	if runtime.client != nil {
 		if jsonStr, err := runtime.client.ConversationHistoryJSON(); err == nil {
-			provider := strings.TrimSpace(runtime.providerID)
-			if provider == "" && modelInfo != nil {
-				provider = strings.TrimSpace(modelInfo.ProviderID)
-			}
-			if provider != "" {
-				_, _ = s.generationSessions.Upsert(projectID, branch, baseBranch, runtime.modelKey, provider, docsBranch, jsonStr, chatMessagesJSON)
-				runtime.providerID = provider
-			}
+			_ = s.generationSessions.UpdateByID(session.ID, map[string]interface{}{
+				"messages_json":      jsonStr,
+				"chat_messages_json": chatMessagesJSON,
+			})
 		}
 	}
 
@@ -2279,6 +2339,8 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 		summary = llmResult.Summary
 	}
 	return &models.DocGenerationResult{
+		SessionID:      session.ID,
+		SessionKey:     sessionKey,
 		Branch:         branch,
 		TargetBranch:   baseBranch,
 		DocsBranch:     docsBranch,

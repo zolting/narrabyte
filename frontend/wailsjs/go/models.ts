@@ -103,6 +103,8 @@ export namespace models {
 	    }
 	}
 	export class DocGenerationResult {
+	    sessionId: number;
+	    sessionKey: string;
 	    branch: string;
 	    targetBranch: string;
 	    docsBranch: string;
@@ -118,6 +120,8 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sessionId = source["sessionId"];
+	        this.sessionKey = source["sessionKey"];
 	        this.branch = source["branch"];
 	        this.targetBranch = source["targetBranch"];
 	        this.docsBranch = source["docsBranch"];
@@ -330,6 +334,8 @@ export namespace services {
 	    }
 	}
 	export class SessionInfo {
+	    id: number;
+	    sessionKey: string;
 	    projectId: number;
 	    sourceBranch: string;
 	    targetBranch: string;
@@ -347,6 +353,8 @@ export namespace services {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.sessionKey = source["sessionKey"];
 	        this.projectId = source["projectId"];
 	        this.sourceBranch = source["sourceBranch"];
 	        this.targetBranch = source["targetBranch"];

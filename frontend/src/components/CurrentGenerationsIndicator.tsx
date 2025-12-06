@@ -1,3 +1,4 @@
+import type { services } from "@go/models";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, PlayCircle } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -36,6 +37,7 @@ export function CurrentGenerationsIndicator() {
 	const handleSelect = async (
 		sessionKey: string,
 		meta: {
+			sessionId: number | null;
 			projectId: number;
 			projectName: string;
 			sourceBranch: string;
@@ -44,12 +46,33 @@ export function CurrentGenerationsIndicator() {
 	) => {
 		setOpen(false);
 		setActiveSession(meta.projectId, sessionKey);
+
+		if (!meta.sessionId) {
+			console.error("Cannot restore session without session ID");
+			navigate({
+				to: "/projects/$projectId",
+				params: { projectId: String(meta.projectId) },
+			});
+			return;
+		}
+
 		try {
-			await restoreSession(
-				meta.projectId,
-				meta.sourceBranch,
-				meta.targetBranch
-			);
+			// Construct a minimal SessionInfo for restoreSession
+			const sessionInfo: services.SessionInfo = {
+				id: meta.sessionId,
+				sessionKey,
+				projectId: meta.projectId,
+				sourceBranch: meta.sourceBranch,
+				targetBranch: meta.targetBranch,
+				modelKey: "",
+				provider: "",
+				docsBranch: "",
+				inTab: false,
+				isRunning: true,
+				createdAt: "",
+				updatedAt: "",
+			};
+			await restoreSession(sessionInfo);
 		} catch (error) {
 			console.error("Failed to restore session", error);
 		}

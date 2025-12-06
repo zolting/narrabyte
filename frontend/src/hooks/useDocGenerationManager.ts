@@ -127,6 +127,9 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 	const docsBranch = useDocGenerationStore(
 		(s) => (sessionKey ? s.docStates[sessionKey]?.docsBranch : null) ?? null
 	);
+	const sessionId = useDocGenerationStore(
+		(s) => (sessionKey ? s.docStates[sessionKey]?.sessionId : null) ?? null
+	);
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
 	const startSingleBranchGeneration = useDocGenerationStore(
 		(s) => s.startFromBranch
@@ -224,6 +227,7 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 
 	return {
 		sessionKey,
+		sessionId,
 		tabId,
 		docResult,
 		status,

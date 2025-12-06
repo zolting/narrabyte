@@ -1,6 +1,6 @@
-import type { models } from "@go/models";
+import type { models, services } from "@go/models";
 import {
-	Delete as DeleteSession,
+	DeleteByID as DeleteSession,
 	List as listSessions,
 } from "@go/services/generationSessionService";
 import { List as listProjects } from "@go/services/repoLinkService";
@@ -39,11 +39,14 @@ const PROJECT_FETCH_LIMIT = 100;
 const PROJECT_FETCH_OFFSET = 0;
 
 type PendingSessionSummary = {
-	id: string;
+	id: number; // Session ID from database
 	projectId: number;
 	projectName: string;
 	sourceBranch: string;
 	targetBranch: string;
+	docsBranch: string;
+	modelKey: string;
+	provider: string;
 	updatedAt: string | null;
 };
 
@@ -61,7 +64,7 @@ function Home() {
 		PendingSessionSummary[]
 	>([]);
 	const [restoringKey, setRestoringKey] = useState<string | null>(null);
-	const [deletingId, setDeletingId] = useState<string | null>(null);
+	const [deletingId, setDeletingId] = useState<number | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 	const sessionMeta = useDocGenerationStore((state) => state.sessionMeta);
@@ -120,13 +123,15 @@ function Home() {
 				const summaries: PendingSessionSummary[] = [];
 				for (const result of results) {
 					for (const session of result.sessions) {
-						const key = `${result.project.ID}:${session.SourceBranch}:${session.TargetBranch}`;
 						summaries.push({
-							id: key,
+							id: session.ID,
 							projectId: Number(result.project.ID),
 							projectName: result.project.ProjectName,
 							sourceBranch: session.SourceBranch,
 							targetBranch: session.TargetBranch,
+							docsBranch: session.DocsBranch ?? "",
+							modelKey: session.ModelKey ?? "",
+							provider: session.Provider ?? "",
 							updatedAt: session.UpdatedAt ? String(session.UpdatedAt) : null,
 						});
 					}
@@ -177,11 +182,22 @@ function Home() {
 			const key = `pending:${summary.id}`;
 			setRestoringKey(key);
 			try {
-				await restoreSession(
-					summary.projectId,
-					summary.sourceBranch,
-					summary.targetBranch
-				);
+				// Construct SessionInfo for restoreSession
+				const sessionInfo: services.SessionInfo = {
+					id: summary.id,
+					sessionKey: `session:${summary.id}`,
+					projectId: summary.projectId,
+					sourceBranch: summary.sourceBranch,
+					targetBranch: summary.targetBranch,
+					modelKey: summary.modelKey,
+					provider: summary.provider,
+					docsBranch: summary.docsBranch,
+					inTab: false,
+					isRunning: false,
+					createdAt: "",
+					updatedAt: summary.updatedAt ?? "",
+				};
+				await restoreSession(sessionInfo);
 				navigate({
 					to: "/projects/$projectId",
 					params: { projectId: String(summary.projectId) },
@@ -196,17 +212,41 @@ function Home() {
 	const handleResumeRunning = useCallback(
 		async (
 			sessionKey: string,
-			meta: { projectId: number; sourceBranch: string; targetBranch: string }
+			meta: {
+				sessionId: number | null;
+				projectId: number;
+				sourceBranch: string;
+				targetBranch: string;
+			}
 		) => {
+			if (!meta.sessionId) {
+				console.error("Cannot resume running session without session ID");
+				navigate({
+					to: "/projects/$projectId",
+					params: { projectId: String(meta.projectId) },
+				});
+				return;
+			}
 			const key = `running:${sessionKey}`;
 			setRestoringKey(key);
 			setActiveSession(meta.projectId, sessionKey);
 			try {
-				await restoreSession(
-					meta.projectId,
-					meta.sourceBranch,
-					meta.targetBranch
-				);
+				// Construct SessionInfo for restoreSession
+				const sessionInfo: services.SessionInfo = {
+					id: meta.sessionId,
+					sessionKey,
+					projectId: meta.projectId,
+					sourceBranch: meta.sourceBranch,
+					targetBranch: meta.targetBranch,
+					modelKey: "",
+					provider: "",
+					docsBranch: "",
+					inTab: false,
+					isRunning: true,
+					createdAt: "",
+					updatedAt: "",
+				};
+				await restoreSession(sessionInfo);
 				navigate({
 					to: "/projects/$projectId",
 					params: { projectId: String(meta.projectId) },
@@ -245,11 +285,8 @@ function Home() {
 		async (summary: PendingSessionSummary) => {
 			setDeletingId(summary.id);
 			try {
-				await DeleteSession(
-					summary.projectId,
-					summary.sourceBranch,
-					summary.targetBranch
-				);
+				// DeleteSession now takes sessionId directly
+				await DeleteSession(summary.id);
 				clearSessionMeta(summary.projectId, summary.sourceBranch);
 				loadPendingSessions();
 			} finally {
@@ -356,6 +393,7 @@ function Home() {
 														disabled={isRestoring}
 														onClick={() =>
 															handleResumeRunning(sessionKey, {
+																sessionId: meta.sessionId,
 																projectId: meta.projectId,
 																sourceBranch: meta.sourceBranch,
 																targetBranch: meta.targetBranch,
