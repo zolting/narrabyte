@@ -1,11 +1,9 @@
 import {
-	Bot,
 	CheckCircle2,
 	ChevronDown,
 	ChevronUp,
 	Circle,
 	Loader2,
-	User,
 	XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -44,7 +42,7 @@ export function ActivityFeed({
 	const [visibleEvents, setVisibleEvents] = useState<string[]>([]);
 	const [showAllTodos, setShowAllTodos] = useState(false);
 	const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(
-		new Set()
+		new Set(),
 	);
 
 	const displayEvents = useMemo(() => {
@@ -112,7 +110,7 @@ export function ActivityFeed({
 			if (item.type === "event") {
 				earliestEventTime = Math.min(
 					earliestEventTime,
-					item.item.timestamp.getTime()
+					item.item.timestamp.getTime(),
 				);
 			}
 		}
@@ -162,7 +160,7 @@ export function ActivityFeed({
 					}
 					return [...prev, event.id];
 				});
-			}, index * 100)
+			}, index * 100),
 		);
 
 		return () => {
@@ -175,7 +173,7 @@ export function ActivityFeed({
 	// Reset visible items when list changes (include both events and messages)
 	useEffect(() => {
 		const allIds = displayItems.map((item) =>
-			item.type === "event" ? item.item.id : item.item.id
+			item.type === "event" ? item.item.id : item.item.id,
 		);
 		setVisibleEvents(allIds);
 	}, [displayItems]);
@@ -207,7 +205,7 @@ export function ActivityFeed({
 	// Calculate todo counts
 	const pendingCount = todos.filter((todo) => todo.status === "pending").length;
 	const completedCount = todos.filter(
-		(todo) => todo.status === "completed"
+		(todo) => todo.status === "completed",
 	).length;
 
 	// Check if all todos are completed
@@ -307,7 +305,7 @@ export function ActivityFeed({
 		const timeouts: number[] = [];
 		for (const reasoningId of expandedReasoning) {
 			const element = document.querySelector(
-				`[data-reasoning-id="${reasoningId}"]`
+				`[data-reasoning-id="${reasoningId}"]`,
 			);
 			if (element) {
 				// Scroll to bottom after content is rendered
@@ -345,7 +343,7 @@ export function ActivityFeed({
 								"hover:bg-emerald-500/20":
 									!(showAllTodos || activeTodo) && allCompleted,
 								"hover:bg-muted/50": showAllTodos,
-							}
+							},
 						)}
 						onClick={() => setShowAllTodos(!showAllTodos)}
 						type="button"
@@ -417,7 +415,7 @@ export function ActivityFeed({
 													"bg-blue-500/10": todo.status === "in_progress",
 													"bg-muted/50": todo.status === "pending",
 													"bg-muted/30 opacity-60": todo.status === "cancelled",
-												}
+												},
 											)}
 											key={`${todo.content}-${todo.status}-${index}`}
 										>
@@ -453,12 +451,12 @@ export function ActivityFeed({
 									if (isRunning) {
 										return t(
 											"common.generatingDocs",
-											"Generating documentation…"
+											"Generating documentation…",
 										);
 									}
 									return t(
 										"common.committingDocs",
-										"Committing documentation…"
+										"Committing documentation…",
 									);
 								}
 								return t("activity.toolActivity");
@@ -503,7 +501,7 @@ export function ActivityFeed({
 										>
 											<div
 												className={cn(
-													"inline-flex max-w-[85%] items-start gap-2.5 rounded-lg px-3 py-2",
+													"flex w-full items-start gap-2.5 rounded-lg px-3 py-2",
 													{
 														"border border-blue-500/20 bg-blue-500/10":
 															isUser && !isError,
@@ -511,26 +509,9 @@ export function ActivityFeed({
 															isUser || isError
 														),
 														"border border-red-500/20 bg-red-500/10": isError,
-													}
+													},
 												)}
 											>
-												<div className="mt-0.5 shrink-0">
-													{isUser ? (
-														<User
-															className={cn(
-																"h-4 w-4",
-																isError ? "text-red-500" : "text-blue-500"
-															)}
-														/>
-													) : (
-														<Bot
-															className={cn(
-																"h-4 w-4",
-																isError ? "text-red-500" : "text-purple-500"
-															)}
-														/>
-													)}
-												</div>
 												<div className="min-w-0 flex-1">
 													<div className="mb-0.5 flex items-center gap-1.5">
 														<span
@@ -558,7 +539,7 @@ export function ActivityFeed({
 															"break-words text-foreground/90 text-sm",
 															{
 																"opacity-60": isPending,
-															}
+															},
 														)}
 													>
 														<MarkdownRenderer content={msg.content} />
@@ -622,7 +603,7 @@ export function ActivityFeed({
 															<p className="font-mono text-muted-foreground text-xs italic">
 																{t(
 																	"activity.reasoningPlaceholder",
-																	"Waiting for reasoning…"
+																	"Waiting for reasoning…",
 																)}
 															</p>
 														)}
@@ -662,7 +643,7 @@ export function ActivityFeed({
 												{
 													"translate-y-0 opacity-100": isVisible,
 													"translate-y-2 opacity-0": !isVisible,
-												}
+												},
 											)}
 											key={event.id}
 										>
@@ -676,21 +657,21 @@ export function ActivityFeed({
 														{(() => {
 															try {
 																const snapshotTodos = JSON.parse(
-																	event.metadata.todos
+																	event.metadata.todos,
 																) as TodoItem[];
 																const activeItem = snapshotTodos.find(
-																	(t) => t.status === "in_progress"
+																	(t) => t.status === "in_progress",
 																);
 																const allDone =
 																	snapshotTodos.length > 0 &&
 																	snapshotTodos.every(
-																		(t) => t.status === "completed"
+																		(t) => t.status === "completed",
 																	);
 
 																if (activeItem) {
 																	// Use current status from live todos if available to show progress/completion
 																	const currentItem = todos.find(
-																		(t) => t.content === activeItem.content
+																		(t) => t.content === activeItem.content,
 																	);
 																	const displayStatus = currentItem
 																		? currentItem.status
@@ -709,7 +690,7 @@ export function ActivityFeed({
 																							displayStatus !== "cancelled",
 																						"text-muted-foreground line-through":
 																							displayStatus === "cancelled",
-																					}
+																					},
 																				)}
 																			>
 																				{activeItem.activeForm}
@@ -731,7 +712,7 @@ export function ActivityFeed({
 																}
 																// Fallback: show count of pending
 																const pending = snapshotTodos.filter(
-																	(t) => t.status === "pending"
+																	(t) => t.status === "pending",
 																).length;
 																return (
 																	<>
@@ -786,7 +767,7 @@ export function ActivityFeed({
 											{
 												"translate-y-0 opacity-100": isVisible,
 												"translate-y-2 opacity-0": !isVisible,
-											}
+											},
 										)}
 										key={event.id}
 									>
@@ -798,7 +779,7 @@ export function ActivityFeed({
 													warn: "bg-yellow-500/15 text-yellow-700",
 													info: "bg-blue-500/15 text-blue-700",
 													success: "bg-emerald-500/15 text-emerald-700",
-												}[event.type] || "bg-emerald-500/15 text-emerald-700"
+												}[event.type] || "bg-emerald-500/15 text-emerald-700",
 											)}
 										>
 											{event.type}
