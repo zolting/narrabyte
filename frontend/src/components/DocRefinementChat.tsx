@@ -105,10 +105,13 @@ export function DocRefinementChat({
 									>
 										<div
 											className={cn(
-												"max-w-[90%] rounded-2xl px-3 py-1 text-xs",
-												m.role === "user"
-													? "rounded-br-sm bg-primary text-primary-foreground"
-													: "rounded-bl-sm bg-secondary text-secondary-foreground"
+												"max-w-[90%] rounded-2xl border px-3 py-2 text-foreground text-xs",
+												m.status === "error"
+													? "border-destructive/20 bg-destructive/10"
+													: m.role === "user"
+														? "border-primary/20 bg-primary/10"
+														: "border-border bg-background",
+												m.role === "user" ? "rounded-br-sm" : "rounded-bl-sm"
 											)}
 										>
 											<MarkdownRenderer
