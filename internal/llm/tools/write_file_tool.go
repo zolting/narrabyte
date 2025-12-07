@@ -80,28 +80,13 @@ func WriteFile(ctx context.Context, in *WriteFileInput) (*WriteFileOutput, error
 	events.Emit(ctx, events.LLMEventTool, events.NewInfo(fmt.Sprintf("WriteFile: writing '%s'", displayPath)))
 
 	dir := filepath.Dir(absPath)
-	info, err := os.Stat(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: directory does not exist: %s", displayPath)))
-			return &WriteFileOutput{
-				Title:  displayPath,
-				Output: fmt.Sprintf("Format error: directory does not exist for path: %s", displayPath),
-				Metadata: map[string]string{
-					"error": "format_error",
-				},
-			}, nil
-		}
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: stat error: %v", err)))
-		return nil, err
-	}
-	if !info.IsDir() {
-		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: parent is not a directory: %s", displayPath)))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: failed to create directories: %v", err)))
 		return &WriteFileOutput{
 			Title:  displayPath,
-			Output: fmt.Sprintf("Format error: parent path is not a directory: %s", displayPath),
+			Output: fmt.Sprintf("Error: failed to create directories for path: %s - %v", displayPath, err),
 			Metadata: map[string]string{
-				"error": "format_error",
+				"error": "directory_error",
 			},
 		}, nil
 	}
@@ -113,7 +98,13 @@ func WriteFile(ctx context.Context, in *WriteFileInput) (*WriteFileOutput, error
 
 	if err := os.WriteFile(absPath, []byte(in.Content), 0o644); err != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("WriteFile: write error: %v", err)))
-		return nil, err
+		return &WriteFileOutput{
+			Title:  displayPath,
+			Output: fmt.Sprintf("Error: failed to write file: %s - %v", displayPath, err),
+			Metadata: map[string]string{
+				"error": "write_error",
+			},
+		}, nil
 	}
 
 	outputMsg := ""
