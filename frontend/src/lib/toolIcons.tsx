@@ -20,6 +20,7 @@ import {
 export type ToolType =
 	| "read"
 	| "write"
+	| "multiedit"
 	| "edit"
 	| "list"
 	| "glob"
@@ -36,6 +37,7 @@ export const toolIconMap: Record<ToolType, LucideIcon> = {
 	read: FileText,
 	write: FilePlus,
 	edit: FileEdit,
+	multiedit: FileEdit,
 	list: FolderOpen,
 	glob: Search,
 	grep: SearchCode,

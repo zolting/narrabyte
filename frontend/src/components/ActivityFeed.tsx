@@ -282,6 +282,8 @@ export function ActivityFeed({
 			write: "write",
 			edit_file_tool: "edit",
 			edit: "edit",
+			multiedit: "multiedit",
+			multiedit_tool: "multiedit",
 			list_directory_tool: "list",
 			list: "list",
 			glob_tool: "glob",

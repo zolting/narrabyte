@@ -335,15 +335,6 @@ func (s *ClientService) setSessionRuntime(sessionKey string, runtime *sessionRun
 	s.sessionRuntimes[sessionKey] = runtime
 }
 
-func (s *ClientService) deleteSessionRuntime(sessionKey string) {
-	s.sessionMu.Lock()
-	defer s.sessionMu.Unlock()
-	if existing, ok := s.sessionRuntimes[sessionKey]; ok && existing != nil && existing.client != nil {
-		existing.client.StopStream()
-	}
-	delete(s.sessionRuntimes, sessionKey)
-}
-
 // markDocsBranchInProgress attempts to mark a documentation branch as in-progress.
 // Returns an error if the branch is already being generated.
 func (s *ClientService) markDocsBranchInProgress(docsBranch string) error {
@@ -405,60 +396,6 @@ func (s *ClientService) suggestAlternativeDocsBranch(repo *git.Repository, baseN
 	}
 
 	return "", fmt.Errorf("could not find available branch name after 100 attempts")
-}
-
-func (s *ClientService) ensureRuntimeFromSessions(ctx context.Context, projectID uint, sourceBranch, targetBranch, sessionKey string) (*sessionRuntime, error) {
-	if runtime, ok := s.getSessionRuntime(sessionKey); ok && runtime != nil {
-		return runtime, nil
-	}
-
-	sessions, err := s.generationSessions.List(projectID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load generation sessions: %w", err)
-	}
-
-	for _, sess := range sessions {
-		if strings.TrimSpace(sess.SourceBranch) != sourceBranch {
-			continue
-		}
-		if targetBranch != "" && strings.TrimSpace(sess.TargetBranch) != targetBranch {
-			continue
-		}
-		modelKey := strings.TrimSpace(sess.ModelKey)
-		providerID := strings.TrimSpace(sess.Provider)
-		if modelKey == "" && providerID != "" {
-			if fallback, fbErr := s.findDefaultModelForProvider(providerID); fbErr == nil && fallback != nil {
-				modelKey = fallback.Key
-			}
-		}
-		if modelKey == "" {
-			continue
-		}
-		runtime, modelInfo, err := s.newSessionRuntime(modelKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize LLM client from session: %w", err)
-		}
-		runtime.targetBranch = strings.TrimSpace(sess.TargetBranch)
-		if runtime.targetBranch == "" {
-			runtime.targetBranch = strings.TrimSpace(sess.SourceBranch)
-		}
-		s.setSessionRuntime(sessionKey, runtime)
-
-		if modelInfo != nil {
-			emitSessionInfo(ctx, sessionKey, fmt.Sprintf("Initialized %s via %s from session", modelInfo.DisplayName, runtime.providerLabel))
-		}
-
-		if sess.MessagesJSON != "" {
-			if loadErr := runtime.client.LoadConversationHistoryJSON(sess.MessagesJSON); loadErr != nil {
-				emitSessionWarn(ctx, sessionKey, fmt.Sprintf("Failed to restore conversation history: %v", loadErr))
-			} else {
-				emitSessionInfo(ctx, sessionKey, "Restored LLM conversation history")
-			}
-		}
-		return runtime, nil
-	}
-
-	return nil, fmt.Errorf("LLM client not initialized - please run GenerateDocs first or restore a session")
 }
 
 // ensureRuntimeFromSession creates or retrieves a session runtime from a specific session

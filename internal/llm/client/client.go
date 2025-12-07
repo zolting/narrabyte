@@ -1141,6 +1141,53 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		return nil, err
 	}
 
+	// MultiEdit tool - apply multiple edits to a single file in one operation
+	multiEditDesc := tools.ToolDescription("multiedit_tool")
+	if strings.TrimSpace(multiEditDesc) == "" {
+		multiEditDesc = "apply multiple edits to a single file in one operation"
+	}
+	multiEditWithPolicy := func(ctx context.Context, in *tools.MultiEditInput) (*tools.MultiEditOutput, error) {
+		if in == nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("MultiEdit(policy): input is required"))
+			return &tools.MultiEditOutput{
+				Output:   "Format error: input is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+
+		// Check read-before-write policy for existing files
+		absPath, resolveErr := tools.ResolveRepositoryPath(ctx, in.Repository, in.FilePath)
+		if resolveErr == nil {
+			if st, err := os.Stat(absPath); err == nil && !st.IsDir() {
+				if !o.hasRead(absPath) {
+					displayPath := tools.FormatDisplayPath(in.Repository, in.FilePath)
+					events.Emit(ctx, events.LLMEventTool, events.NewWarn("MultiEdit(policy): policy violation - must read before edit"))
+					return &tools.MultiEditOutput{
+						Title:    displayPath,
+						Output:   "Policy error: must read the file before editing",
+						Metadata: map[string]string{"error": "policy_violation"},
+					}, nil
+				}
+			}
+		}
+
+		out, err := tools.MultiEdit(ctx, in)
+		displayPath := ""
+		if out != nil {
+			displayPath = out.Title
+		}
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventError, "MultiEdit file", "multiedit", displayPath))
+			return out, err
+		}
+		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "MultiEdit file", "multiedit", displayPath))
+		return out, nil
+	}
+	multiEditTool, err := einoUtils.InferTool("multiedit_tool", multiEditDesc, multiEditWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
 	// TodoWrite tool - manage task list for documentation generation
 	todoWriteDesc := tools.ToolDescription("todo_write_tool")
 	if strings.TrimSpace(todoWriteDesc) == "" {
@@ -1270,7 +1317,7 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		return nil, err
 	}
 
-	return []tool.BaseTool{listTool, readTool, writeTool, editTool, todoWriteTool, todoReadTool, deleteTool}, nil
+	return []tool.BaseTool{listTool, readTool, writeTool, editTool, multiEditTool, todoWriteTool, todoReadTool, deleteTool}, nil
 }
 
 // loadRepoLLMInstructions scans the documentation repository's .narrabyte directory

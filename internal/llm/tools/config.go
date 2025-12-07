@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -98,17 +97,6 @@ func ListDirectoryBaseRootForSession(sessionID string) string {
 		return ctx.root
 	}
 	return ""
-}
-
-// getListDirectoryBaseRoot resolves the effective base directory for ctx.
-func getListDirectoryBaseRoot(ctx context.Context) (string, error) {
-	if sessionRoot := ListDirectoryBaseRootForSession(SessionIDFromContext(ctx)); sessionRoot != "" {
-		return sessionRoot, nil
-	}
-	if defaultContext.root != "" {
-		return defaultContext.root, nil
-	}
-	return "", errors.New("list directory base root not set")
 }
 
 // SetScopedIgnorePatterns configures default ignore patterns for list-style tools.

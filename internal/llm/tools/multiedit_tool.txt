@@ -1,0 +1,45 @@
+Performs multiple exact string replacements on a single file within the documentation repository in one operation. Built on top of the Edit tool, allowing multiple find-and-replace operations efficiently. Prefer this tool over the Edit tool when you need to make multiple edits to the same file.
+
+Usage:
+- `repository`: Required - must be "docs" (editing code repository is not allowed)
+- `file_path`: Required - relative path within the docs repository (e.g., "api/endpoints.md")
+- NEVER use absolute paths - always use relative paths within the repository
+- `edits`: Array of edit operations to perform, where each edit contains:
+   - `old_string`: The text to replace (must match exactly, including whitespace and indentation)
+   - `new_string`: The replacement text
+   - `replace_all`: Replace all occurrences of old_string (optional, defaults to false)
+
+Before using this tool:
+1. Use the Read tool to understand the file's contents and context
+2. Verify the directory path is correct
+3. You must use your `Read` tool at least once in the conversation before editing
+
+IMPORTANT:
+- All edits are applied in sequence, in the order they are provided
+- Each edit operates on the result of the previous edit
+- If any edit fails, the operation stops at that point
+- This tool is ideal when you need to make several changes to different parts of the same file
+
+CRITICAL REQUIREMENTS:
+1. All edits follow the same requirements as the single Edit tool
+2. Plan your edits carefully to avoid conflicts between sequential operations
+3. When editing text from Read tool output, preserve exact indentation (tabs/spaces)
+
+WARNING:
+- The tool will fail if old_string doesn't match the file contents exactly (including whitespace)
+- The tool will fail if old_string and new_string are the same
+- Since edits are applied in sequence, ensure earlier edits don't affect text that later edits target
+
+When making edits:
+- Ensure all edits result in idiomatic, correct content
+- Do not leave the file in a broken state
+- Only use emojis if the user explicitly requests it
+- Use replace_all for replacing/renaming strings across the file
+
+Examples:
+- Multiple edits: repository="docs", file_path="api/readme.md", edits=[{old_string="...", new_string="..."}, {old_string="...", new_string="..."}]
+
+If you want to create a new file, use:
+- A new file path, including dir name if needed
+- First edit: empty old_string and the new file's contents as new_string
+- Subsequent edits: normal edit operations on the created content
