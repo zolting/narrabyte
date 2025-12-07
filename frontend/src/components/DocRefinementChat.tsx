@@ -94,7 +94,7 @@ export function DocRefinementChat({
 								{t("docRefinementChat.emptyState")}
 							</div>
 						) : (
-							<ul className="space-y-4">
+							<ul className="space-y-2">
 								{messages.map((m) => (
 									<li
 										className={cn(
@@ -105,7 +105,7 @@ export function DocRefinementChat({
 									>
 										<div
 											className={cn(
-												"max-w-[90%] rounded-2xl px-3 py-2 text-xs",
+												"max-w-[90%] rounded-2xl px-3 py-1 text-xs",
 												m.role === "user"
 													? "rounded-br-sm bg-primary text-primary-foreground"
 													: "rounded-bl-sm bg-secondary text-secondary-foreground"
