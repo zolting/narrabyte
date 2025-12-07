@@ -7,6 +7,13 @@ import { cn } from "@/lib/utils";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
+// Helper to strip internal instruction tags from message content for display
+function cleanMessageContent(content: string): string {
+	return content
+		.replace(/<USER_INSTRUCTIONS>([\s\S]*?)<\/USER_INSTRUCTIONS>/g, "$1")
+		.trim();
+}
+
 export function DocRefinementChat({
 	sessionKey,
 	hideHeader = false,
@@ -101,10 +108,12 @@ export function DocRefinementChat({
 												"max-w-[90%] rounded-2xl px-3 py-2 text-xs",
 												m.role === "user"
 													? "rounded-br-sm bg-primary text-primary-foreground"
-													: "rounded-bl-sm bg-muted text-foreground"
+													: "rounded-bl-sm bg-secondary text-secondary-foreground"
 											)}
 										>
-											<MarkdownRenderer content={m.content} />
+											<MarkdownRenderer
+												content={cleanMessageContent(m.content)}
+											/>
 											{m.status === "pending" && (
 												<div className="mt-1 text-[10px] opacity-70">
 													sending…

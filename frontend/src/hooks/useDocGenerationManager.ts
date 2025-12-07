@@ -172,7 +172,7 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		messages.length > 0;
 
 	const setActiveTab = useCallback(
-		(tab: "activity" | "review" | "summary") => {
+		(tab: "activity" | "review") => {
 			if (sessionKey) {
 				setActiveTabStore(sessionKey, tab);
 			}

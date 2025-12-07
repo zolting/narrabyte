@@ -93,7 +93,7 @@ type DocGenerationData = {
 	result: models.DocGenerationResult | null;
 	error: string | null;
 	cancellationRequested: boolean;
-	activeTab: "activity" | "review" | "summary";
+	activeTab: "activity" | "review";
 	commitCompleted: boolean;
 	completedCommitInfo: CompletedCommitInfo | null;
 	sourceBranch: string | null;
@@ -135,10 +135,7 @@ type State = {
 	) => Promise<void>;
 	commit: (args: CommitArgs & { sessionKey: SessionKey }) => Promise<void>;
 	cancel: (sessionKey: SessionKey) => Promise<void>;
-	setActiveTab: (
-		sessionKey: SessionKey,
-		tab: "activity" | "review" | "summary"
-	) => void;
+	setActiveTab: (sessionKey: SessionKey, tab: "activity" | "review") => void;
 	setCommitCompleted: (sessionKey: SessionKey, completed: boolean) => void;
 	setCompletedCommitInfo: (
 		sessionKey: SessionKey,
@@ -1542,13 +1539,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						messages: chatMessages,
 						result: nextResult,
 						status: "success",
-						events: [
-							...prev.events,
-							createLocalEvent(
-								"info",
-								"Applied user instruction to documentation."
-							),
-						],
+						events: prev.events,
 						initialDiffSignatures: baseline,
 						changedSinceInitial: changed,
 						cancellationRequested: false,

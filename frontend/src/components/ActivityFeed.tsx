@@ -25,16 +25,25 @@ const STREAM_STATE_KEY = "state";
 const STREAM_STATE_RESET = "reset";
 const STREAM_STATE_UPDATE = "update";
 
+// Helper to strip internal instruction tags from message content for display
+function cleanMessageContent(content: string): string {
+	return content
+		.replace(/<USER_INSTRUCTIONS>([\s\S]*?)<\/USER_INSTRUCTIONS>/g, "$1")
+		.trim();
+}
+
 export function ActivityFeed({
 	events,
 	todos,
 	messages,
 	status,
+	summary,
 }: {
 	events: ToolEvent[];
 	todos: TodoItem[];
 	messages: ChatMessage[];
 	status: DocGenerationStatus;
+	summary: string | null;
 }) {
 	const { t } = useTranslation();
 	const containerRef = useRef<HTMLDivElement | null>(null);
@@ -42,7 +51,7 @@ export function ActivityFeed({
 	const [visibleEvents, setVisibleEvents] = useState<string[]>([]);
 	const [showAllTodos, setShowAllTodos] = useState(false);
 	const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(
-		new Set(),
+		new Set()
 	);
 
 	const displayEvents = useMemo(() => {
@@ -104,32 +113,45 @@ export function ActivityFeed({
 			items.push({ type: "message", item: msg });
 		}
 
-		// Find the earliest event timestamp to ensure first user message appears before it
-		let earliestEventTime = Number.MAX_SAFE_INTEGER;
-		for (const item of items) {
-			if (item.type === "event") {
-				earliestEventTime = Math.min(
-					earliestEventTime,
-					item.item.timestamp.getTime(),
+		// Add a synthetic assistant message from summary if available and generation completed
+		const trimmedSummary = (summary ?? "").trim();
+		if (trimmedSummary && status === "success") {
+			// Check if we already have an assistant message with this content to avoid duplicates
+			const hasSummaryMessage = messages.some(
+				(m) => m.role === "assistant" && m.content.trim() === trimmedSummary
+			);
+			if (!hasSummaryMessage) {
+				// Find the latest event timestamp to place the summary after all events
+				const latestEventTime = displayEvents.reduce(
+					(max, e) => Math.max(max, e.timestamp.getTime()),
+					0
 				);
+				const summaryMessage: ChatMessage = {
+					id: "summary-assistant-message",
+					role: "assistant",
+					content: trimmedSummary,
+					status: "sent",
+					createdAt: new Date(latestEventTime + 1), // Just after the last event
+				};
+				items.push({ type: "message", item: summaryMessage });
 			}
 		}
 
-		// Find the first user message
+		// Find the first user message (the initial instruction)
 		const firstUserMsgIndex = messages.findIndex((m) => m.role === "user");
 		const firstUserMsgId =
 			firstUserMsgIndex >= 0 ? messages[firstUserMsgIndex]?.id : null;
 
-		// Sort by timestamp, but ensure first user message appears first
+		// Sort by timestamp, but ensure first user message always appears first
 		items.sort((a, b) => {
 			// Get the effective timestamp for sorting
 			const getEffectiveTime = (item: DisplayItem): number => {
 				if (item.type === "event") {
 					return item.item.timestamp.getTime();
 				}
-				// First user message should appear before all events
+				// First user message should always appear first (use 0 to ensure it's earliest)
 				if (item.item.id === firstUserMsgId) {
-					return earliestEventTime - 1;
+					return 0;
 				}
 				return item.item.createdAt.getTime();
 			};
@@ -138,7 +160,7 @@ export function ActivityFeed({
 		});
 
 		return items;
-	}, [displayEvents, messages]);
+	}, [displayEvents, messages, summary, status]);
 
 	// Animate new events appearing
 	useEffect(() => {
@@ -160,7 +182,7 @@ export function ActivityFeed({
 					}
 					return [...prev, event.id];
 				});
-			}, index * 100),
+			}, index * 100)
 		);
 
 		return () => {
@@ -173,7 +195,7 @@ export function ActivityFeed({
 	// Reset visible items when list changes (include both events and messages)
 	useEffect(() => {
 		const allIds = displayItems.map((item) =>
-			item.type === "event" ? item.item.id : item.item.id,
+			item.type === "event" ? item.item.id : item.item.id
 		);
 		setVisibleEvents(allIds);
 	}, [displayItems]);
@@ -205,7 +227,7 @@ export function ActivityFeed({
 	// Calculate todo counts
 	const pendingCount = todos.filter((todo) => todo.status === "pending").length;
 	const completedCount = todos.filter(
-		(todo) => todo.status === "completed",
+		(todo) => todo.status === "completed"
 	).length;
 
 	// Check if all todos are completed
@@ -305,7 +327,7 @@ export function ActivityFeed({
 		const timeouts: number[] = [];
 		for (const reasoningId of expandedReasoning) {
 			const element = document.querySelector(
-				`[data-reasoning-id="${reasoningId}"]`,
+				`[data-reasoning-id="${reasoningId}"]`
 			);
 			if (element) {
 				// Scroll to bottom after content is rendered
@@ -343,7 +365,7 @@ export function ActivityFeed({
 								"hover:bg-emerald-500/20":
 									!(showAllTodos || activeTodo) && allCompleted,
 								"hover:bg-muted/50": showAllTodos,
-							},
+							}
 						)}
 						onClick={() => setShowAllTodos(!showAllTodos)}
 						type="button"
@@ -415,7 +437,7 @@ export function ActivityFeed({
 													"bg-blue-500/10": todo.status === "in_progress",
 													"bg-muted/50": todo.status === "pending",
 													"bg-muted/30 opacity-60": todo.status === "cancelled",
-												},
+												}
 											)}
 											key={`${todo.content}-${todo.status}-${index}`}
 										>
@@ -451,12 +473,12 @@ export function ActivityFeed({
 									if (isRunning) {
 										return t(
 											"common.generatingDocs",
-											"Generating documentation…",
+											"Generating documentation…"
 										);
 									}
 									return t(
 										"common.committingDocs",
-										"Committing documentation…",
+										"Committing documentation…"
 									);
 								}
 								return t("activity.toolActivity");
@@ -503,22 +525,23 @@ export function ActivityFeed({
 												className={cn(
 													"flex w-full items-start gap-2.5 rounded-lg px-3 py-2",
 													{
-														"border border-blue-500/20 bg-blue-500/10":
+														"border border-primary/20 bg-primary/10":
 															isUser && !isError,
-														"border border-purple-500/20 bg-purple-500/10": !(
+														"border border-border bg-background": !(
 															isUser || isError
 														),
-														"border border-red-500/20 bg-red-500/10": isError,
-													},
+														"border border-destructive/20 bg-destructive/10":
+															isError,
+													}
 												)}
 											>
 												<div className="min-w-0 flex-1">
 													<div className="mb-0.5 flex items-center gap-1.5">
 														<span
 															className={cn("font-medium text-xs", {
-																"text-blue-600": isUser && !isError,
-																"text-purple-600": !(isUser || isError),
-																"text-red-600": isError,
+																"text-primary": isUser && !isError,
+																"text-foreground": !(isUser || isError),
+																"text-destructive": isError,
 															})}
 														>
 															{isUser
@@ -539,10 +562,12 @@ export function ActivityFeed({
 															"break-words text-foreground/90 text-sm",
 															{
 																"opacity-60": isPending,
-															},
+															}
 														)}
 													>
-														<MarkdownRenderer content={msg.content} />
+														<MarkdownRenderer
+															content={cleanMessageContent(msg.content)}
+														/>
 													</div>
 												</div>
 											</div>
@@ -603,7 +628,7 @@ export function ActivityFeed({
 															<p className="font-mono text-muted-foreground text-xs italic">
 																{t(
 																	"activity.reasoningPlaceholder",
-																	"Waiting for reasoning…",
+																	"Waiting for reasoning…"
 																)}
 															</p>
 														)}
@@ -643,7 +668,7 @@ export function ActivityFeed({
 												{
 													"translate-y-0 opacity-100": isVisible,
 													"translate-y-2 opacity-0": !isVisible,
-												},
+												}
 											)}
 											key={event.id}
 										>
@@ -657,21 +682,21 @@ export function ActivityFeed({
 														{(() => {
 															try {
 																const snapshotTodos = JSON.parse(
-																	event.metadata.todos,
+																	event.metadata.todos
 																) as TodoItem[];
 																const activeItem = snapshotTodos.find(
-																	(t) => t.status === "in_progress",
+																	(t) => t.status === "in_progress"
 																);
 																const allDone =
 																	snapshotTodos.length > 0 &&
 																	snapshotTodos.every(
-																		(t) => t.status === "completed",
+																		(t) => t.status === "completed"
 																	);
 
 																if (activeItem) {
 																	// Use current status from live todos if available to show progress/completion
 																	const currentItem = todos.find(
-																		(t) => t.content === activeItem.content,
+																		(t) => t.content === activeItem.content
 																	);
 																	const displayStatus = currentItem
 																		? currentItem.status
@@ -690,7 +715,7 @@ export function ActivityFeed({
 																							displayStatus !== "cancelled",
 																						"text-muted-foreground line-through":
 																							displayStatus === "cancelled",
-																					},
+																					}
 																				)}
 																			>
 																				{activeItem.activeForm}
@@ -712,7 +737,7 @@ export function ActivityFeed({
 																}
 																// Fallback: show count of pending
 																const pending = snapshotTodos.filter(
-																	(t) => t.status === "pending",
+																	(t) => t.status === "pending"
 																).length;
 																return (
 																	<>
@@ -767,7 +792,7 @@ export function ActivityFeed({
 											{
 												"translate-y-0 opacity-100": isVisible,
 												"translate-y-2 opacity-0": !isVisible,
-											},
+											}
 										)}
 										key={event.id}
 									>
@@ -779,7 +804,7 @@ export function ActivityFeed({
 													warn: "bg-yellow-500/15 text-yellow-700",
 													info: "bg-blue-500/15 text-blue-700",
 													success: "bg-emerald-500/15 text-emerald-700",
-												}[event.type] || "bg-emerald-500/15 text-emerald-700",
+												}[event.type] || "bg-emerald-500/15 text-emerald-700"
 											)}
 										>
 											{event.type}
