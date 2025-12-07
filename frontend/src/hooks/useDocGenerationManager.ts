@@ -19,18 +19,18 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 
 	// Session mapping helpers
 	const tabSessions = useDocGenerationStore(
-		(s) => s.tabSessions[projectKey] ?? null
+		(s) => s.tabSessions[projectKey] ?? null,
 	);
 	const createTabSession = useDocGenerationStore((s) => s.createTabSession);
 
 	// Active session for backward compatibility / default tab
 	const activeSession = useDocGenerationStore(
-		(s) => s.activeSession[projectKey] ?? null
+		(s) => s.activeSession[projectKey] ?? null,
 	);
 
 	const hasAnyTabSessions = useMemo(
 		() => (tabSessions ? Object.keys(tabSessions).length > 0 : false),
-		[tabSessions]
+		[tabSessions],
 	);
 
 	// Get the sessionKey for this tab (or fallback to active session for the first tab only)
@@ -88,74 +88,76 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 
 	// All state is now keyed by sessionKey instead of projectKey
 	const docResult = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.result : null) ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.result : null) ?? null,
 	);
 	const status = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.status : "idle") ?? "idle"
+		(s) => (sessionKey ? s.docStates[sessionKey]?.status : "idle") ?? "idle",
 	);
 	const events = useDocGenerationStore(
 		(s) =>
 			(sessionKey ? s.docStates[sessionKey]?.events : EMPTY_EVENTS) ??
-			EMPTY_EVENTS
+			EMPTY_EVENTS,
 	);
 	const todos = useDocGenerationStore(
 		(s) =>
-			(sessionKey ? s.docStates[sessionKey]?.todos : EMPTY_TODOS) ?? EMPTY_TODOS
+			(sessionKey ? s.docStates[sessionKey]?.todos : EMPTY_TODOS) ??
+			EMPTY_TODOS,
 	);
 	const messages = useDocGenerationStore(
 		(s) =>
 			(sessionKey ? s.docStates[sessionKey]?.messages : EMPTY_MESSAGES) ??
-			EMPTY_MESSAGES
+			EMPTY_MESSAGES,
 	);
 	const docGenerationError = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.error : null) ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.error : null) ?? null,
 	);
 	const activeTab = useDocGenerationStore(
 		(s) =>
 			(sessionKey ? s.docStates[sessionKey]?.activeTab : "activity") ??
-			"activity"
+			"activity",
 	);
 	const commitCompleted = useDocGenerationStore(
 		(s) =>
-			(sessionKey ? s.docStates[sessionKey]?.commitCompleted : false) ?? false
+			(sessionKey ? s.docStates[sessionKey]?.commitCompleted : false) ?? false,
 	);
 	const completedCommitInfo = useDocGenerationStore(
 		(s) =>
-			(sessionKey ? s.docStates[sessionKey]?.completedCommitInfo : null) ?? null
+			(sessionKey ? s.docStates[sessionKey]?.completedCommitInfo : null) ??
+			null,
 	);
 	const sourceBranch = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.sourceBranch : null) ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.sourceBranch : null) ?? null,
 	);
 	const targetBranch = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.targetBranch : null) ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.targetBranch : null) ?? null,
 	);
 	const docsInCodeRepo = useDocGenerationStore(
 		(s) =>
-			(sessionKey ? s.docStates[sessionKey]?.docsInCodeRepo : false) ?? false
+			(sessionKey ? s.docStates[sessionKey]?.docsInCodeRepo : false) ?? false,
 	);
 	const mergeInProgress = useDocGenerationStore(
 		(s) =>
-			(sessionKey ? s.docStates[sessionKey]?.mergeInProgress : false) ?? false
+			(sessionKey ? s.docStates[sessionKey]?.mergeInProgress : false) ?? false,
 	);
 	const docsBranch = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.docsBranch : null) ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.docsBranch : null) ?? null,
 	);
 	const sessionId = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.sessionId : null) ?? null
+		(s) => (sessionKey ? s.docStates[sessionKey]?.sessionId : null) ?? null,
 	);
 	const startDocGeneration = useDocGenerationStore((s) => s.start);
 	const startSingleBranchGeneration = useDocGenerationStore(
-		(s) => s.startFromBranch
+		(s) => s.startFromBranch,
 	);
 	const resetDocGeneration = useDocGenerationStore((s) => s.reset);
 	const commitDocGeneration = useDocGenerationStore((s) => s.commit);
 	const cancelDocGenerationStore = useDocGenerationStore((s) => s.cancel);
 	const setActiveTabStore = useDocGenerationStore((s) => s.setActiveTab);
 	const setCompletedCommitInfoStore = useDocGenerationStore(
-		(s) => s.setCompletedCommitInfo
+		(s) => s.setCompletedCommitInfo,
 	);
 	const setCommitCompletedStore = useDocGenerationStore(
-		(s) => s.setCommitCompleted
+		(s) => s.setCommitCompleted,
 	);
 	const mergeDocsStore = useDocGenerationStore((s) => s.mergeDocs);
 	const prevDocResultRef = useRef(docResult);
@@ -166,7 +168,10 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 	const isMerging = mergeInProgress;
 	const isBusy = isRunning || isCommitting || isMerging;
 	const hasGenerationAttempt =
-		status !== "idle" || Boolean(docResult) || events.length > 0;
+		status !== "idle" ||
+		Boolean(docResult) ||
+		events.length > 0 ||
+		messages.length > 0;
 
 	const setActiveTab = useCallback(
 		(tab: "activity" | "review" | "summary") => {
@@ -174,7 +179,7 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 				setActiveTabStore(sessionKey, tab);
 			}
 		},
-		[sessionKey, setActiveTabStore]
+		[sessionKey, setActiveTabStore],
 	);
 
 	// Switch to review tab when LLM completes
@@ -202,7 +207,7 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 				resetDocGeneration(sessionKey, options);
 			}
 		},
-		[sessionKey, resetDocGeneration]
+		[sessionKey, resetDocGeneration],
 	);
 
 	const setCompletedCommit = useCallback(
@@ -214,7 +219,7 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 				});
 			}
 		},
-		[sessionKey, setCompletedCommitInfoStore]
+		[sessionKey, setCompletedCommitInfoStore],
 	);
 
 	const approveCommit = useCallback(() => {
