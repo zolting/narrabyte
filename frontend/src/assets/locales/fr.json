@@ -285,7 +285,7 @@
     },
     "defaultModelTitle": "Modèle par défaut",
     "defaultModelDescription": "Sélectionnez le modèle par défaut utilisé pour générer la documentation.",
-    "defaultModelButton": "Définir comme défaut",
+    "defaultModelButton": "Définir par défaut",
     "defaultModelSelectPlaceholder": "Sélectionner un modèle",
     "noEnabledModels": "Activez au moins un modèle pour choisir un modèle par défaut.",
     "confirmDisableDefaultTitle": "Désactiver {{model}} ?",

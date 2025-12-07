@@ -95,41 +95,53 @@ export function DocRefinementChat({
 							</div>
 						) : (
 							<ul className="space-y-2">
-								{messages.map((m) => (
-									<li
-										className={cn(
-											"flex w-full flex-col gap-1.5",
-											m.role === "user" ? "items-end" : "items-start"
-										)}
-										key={m.id}
-									>
-										<div
+								{messages
+									.filter((m, index) => {
+										// Find the first user message
+										const firstUserMsgIndex = messages.findIndex(
+											(msg) => msg.role === "user"
+										);
+										// If this is the first user message and it has empty content, filter it out
+										if (
+											index === firstUserMsgIndex &&
+											m.role === "user" &&
+											cleanMessageContent(m.content) === ""
+										) {
+											return false;
+										}
+										return true;
+									})
+									.map((m) => (
+										<li
 											className={cn(
-												"max-w-[90%] rounded-2xl border px-3 py-2 text-foreground text-xs",
-												m.status === "error"
-													? "border-destructive/20 bg-destructive/10"
-													: m.role === "user"
-														? "border-primary/20 bg-primary/10"
-														: "border-border bg-background",
-												m.role === "user" ? "rounded-br-sm" : "rounded-bl-sm"
+												"flex w-full flex-col gap-1.5",
+												m.role === "user" ? "items-end" : "items-start"
 											)}
+											key={m.id}
 										>
-											<MarkdownRenderer
-												content={cleanMessageContent(m.content)}
-											/>
-											{m.status === "pending" && (
-												<div className="mt-1 text-[10px] opacity-70">
-													sending…
-												</div>
-											)}
-											{m.status === "error" && (
-												<div className="mt-1 font-bold text-[10px] text-destructive">
-													failed
-												</div>
-											)}
-										</div>
-									</li>
-								))}
+											<div
+												className={cn(
+													"max-w-[90%] rounded-2xl border px-3 py-2 text-foreground text-xs",
+													m.status === "error"
+														? "border-destructive/20 bg-destructive/10"
+														: m.role === "user"
+															? "border-primary/20 bg-primary/10"
+															: "border-border bg-background",
+													m.role === "user" ? "rounded-br-sm" : "rounded-bl-sm"
+												)}
+											>
+												<MarkdownRenderer
+													content={cleanMessageContent(m.content)}
+												/>
+
+												{m.status === "error" && (
+													<div className="mt-1 font-bold text-[10px] text-destructive">
+														failed
+													</div>
+												)}
+											</div>
+										</li>
+									))}
 							</ul>
 						)}
 					</div>
