@@ -473,6 +473,47 @@ export function ProjectDetailTabsSection({
 		};
 	}, [addUiTab, projectId]);
 
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const handler = async (event: Event) => {
+			const customEvent = event as CustomEvent<{
+				projectId: string | number;
+				sessionInfo: services.SessionInfo;
+			}>;
+			const targetProjectId = customEvent.detail?.projectId;
+			const sessionInfo = customEvent.detail?.sessionInfo;
+			if (targetProjectId === undefined || targetProjectId === null) {
+				return;
+			}
+			if (String(targetProjectId) !== String(projectId)) {
+				return;
+			}
+			if (!sessionInfo?.id) {
+				console.error("Cannot restore session: no session ID in event");
+				return;
+			}
+
+			tabCounterRef.current += 1;
+			const newTabId = `tab-${tabCounterRef.current}`;
+			setUiTabs((prevTabs) => [...prevTabs, newTabId]);
+			setActiveUiTab(newTabId);
+
+			await restoreSession(sessionInfo, newTabId);
+		};
+		window.addEventListener(
+			"ui:restore-session-tab",
+			handler as EventListener
+		);
+		return () => {
+			window.removeEventListener(
+				"ui:restore-session-tab",
+				handler as EventListener
+			);
+		};
+	}, [projectId, restoreSession]);
+
 	const handleLoadSession = useCallback((tabId: string) => {
 		setSessionSelectorTabId(tabId);
 		setSessionSelectorOpen(true);

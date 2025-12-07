@@ -17,7 +17,6 @@ export function CurrentGenerationsIndicator() {
 	const [open, setOpen] = useState(false);
 	const sessionMeta = useDocGenerationStore((state) => state.sessionMeta);
 	const activeSessions = useDocGenerationStore((state) => state.activeSession);
-	const restoreSession = useDocGenerationStore((state) => state.restoreSession);
 	const setActiveSession = useDocGenerationStore(
 		(state) => state.setActiveSession
 	);
@@ -56,30 +55,32 @@ export function CurrentGenerationsIndicator() {
 			return;
 		}
 
-		try {
-			// Construct a minimal SessionInfo for restoreSession
-			const sessionInfo: services.SessionInfo = {
-				id: meta.sessionId,
-				sessionKey,
-				projectId: meta.projectId,
-				sourceBranch: meta.sourceBranch,
-				targetBranch: meta.targetBranch,
-				modelKey: "",
-				provider: "",
-				docsBranch: "",
-				inTab: false,
-				isRunning: true,
-				createdAt: "",
-				updatedAt: "",
-			};
-			await restoreSession(sessionInfo);
-		} catch (error) {
-			console.error("Failed to restore session", error);
-		}
+		// Construct SessionInfo for the restore event
+		const sessionInfo: services.SessionInfo = {
+			id: meta.sessionId,
+			sessionKey,
+			projectId: meta.projectId,
+			sourceBranch: meta.sourceBranch,
+			targetBranch: meta.targetBranch,
+			modelKey: "",
+			provider: "",
+			docsBranch: "",
+			inTab: false,
+			isRunning: true,
+			createdAt: "",
+			updatedAt: "",
+		};
 		navigate({
 			to: "/projects/$projectId",
 			params: { projectId: String(meta.projectId) },
 		});
+		window.setTimeout(() => {
+			window.dispatchEvent(
+				new CustomEvent("ui:restore-session-tab", {
+					detail: { projectId: meta.projectId, sessionInfo },
+				})
+			);
+		}, 100);
 	};
 
 	return (

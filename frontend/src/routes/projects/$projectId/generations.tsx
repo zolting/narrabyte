@@ -29,7 +29,6 @@ function RouteComponent() {
 	const [loading, setLoading] = useState<boolean>(true);
 	const [restoringId, setRestoringId] = useState<number | null>(null);
 	const [deletingId, setDeletingId] = useState<number | null>(null);
-	const restoreSession = useDocGenerationStore((s) => s.restoreSession);
 	const clearSessionMeta = useDocGenerationStore((s) => s.clearSessionMeta);
 	const navigate = Route.useNavigate();
 
@@ -59,7 +58,7 @@ function RouteComponent() {
 		async (s: models.GenerationSession) => {
 			setRestoringId(Number(s.ID));
 			try {
-				// Construct SessionInfo for restoreSession
+				// Construct SessionInfo for the restore event
 				const sessionInfo: services.SessionInfo = {
 					id: s.ID,
 					sessionKey: `session:${s.ID}`,
@@ -74,13 +73,19 @@ function RouteComponent() {
 					createdAt: "",
 					updatedAt: "",
 				};
-				await restoreSession(sessionInfo);
 				navigate({ to: "/projects/$projectId", params: { projectId } });
+				window.setTimeout(() => {
+					window.dispatchEvent(
+						new CustomEvent("ui:restore-session-tab", {
+							detail: { projectId: Number(projectId), sessionInfo },
+						})
+					);
+				}, 100);
 			} finally {
 				setRestoringId(null);
 			}
 		},
-		[navigate, projectId, restoreSession]
+		[navigate, projectId]
 	);
 
 	const formatUpdated = useCallback((raw: unknown) => {
