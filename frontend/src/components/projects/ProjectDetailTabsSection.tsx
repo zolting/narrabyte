@@ -503,10 +503,7 @@ export function ProjectDetailTabsSection({
 
 			await restoreSession(sessionInfo, newTabId);
 		};
-		window.addEventListener(
-			"ui:restore-session-tab",
-			handler as EventListener
-		);
+		window.addEventListener("ui:restore-session-tab", handler as EventListener);
 		return () => {
 			window.removeEventListener(
 				"ui:restore-session-tab",

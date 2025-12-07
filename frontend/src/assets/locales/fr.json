@@ -396,6 +396,7 @@
   "tools": {
     "read": "Lu <0>{{path}}</0>",
     "write": "Créé <0>{{path}}</0>",
+    "multiedit": "Modifié <0>{{path}}</0>",
     "edit": "Modifié <0>{{path}}</0>",
     "list": "Listé les fichiers dans <0>{{path}}</0>",
     "glob": "Fichiers trouvés correspondant à <0>{{pattern}}</0>",

@@ -399,6 +399,7 @@
   "tools": {
     "read": "Read <0>{{path}}</0>",
     "write": "Created <0>{{path}}</0>",
+    "multiedit": "Edited <0>{{path}}</0>",
     "edit": "Edited <0>{{path}}</0>",
     "list": "Listed files in <0>{{path}}</0>",
     "glob": "Found files matching <0>{{pattern}}</0>",
