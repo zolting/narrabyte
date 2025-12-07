@@ -109,9 +109,9 @@ func resolveSessionKey(sessionKeyOverride string, sessionID uint) string {
 	return makeSessionKey(sessionID)
 }
 
-func (s *ClientService) ensureDocsBranchAvailable(docRepo *git.Repository, docsBranch string) error {
+func (s *ClientService) ensureDocsBranchAvailable(docRepo *git.Repository, docsBranch string, projectID uint) error {
 	if s.isDocsBranchInProgress(docsBranch) {
-		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
+		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch, projectID)
 		if suggestErr != nil {
 			return fmt.Errorf("ERR_DOCS_GENERATION_IN_PROGRESS:%s", docsBranch)
 		}
@@ -123,7 +123,7 @@ func (s *ClientService) ensureDocsBranchAvailable(docRepo *git.Repository, docsB
 		return fmt.Errorf("failed to check documentation branch existence: %w", err)
 	}
 	if exists {
-		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch)
+		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch, projectID)
 		if suggestErr != nil {
 			return fmt.Errorf("ERR_DOCS_BRANCH_EXISTS:%s", docsBranch)
 		}
@@ -173,10 +173,15 @@ func (s *ClientService) CheckDocsBranchAvailability(projectID uint, sourceBranch
 		return fmt.Errorf("failed to check for existing session: %w", err)
 	}
 	if existingSession != nil {
-		return fmt.Errorf("ERR_SESSION_EXISTS:a session with docsBranch '%s' already exists (ID: %d)", docsBranch, existingSession.ID)
+		// Generate a suggested alternative branch name
+		suggested, suggestErr := s.suggestAlternativeDocsBranch(docRepo, docsBranch, projectID)
+		if suggestErr != nil {
+			return fmt.Errorf("ERR_SESSION_EXISTS:%s", docsBranch)
+		}
+		return fmt.Errorf("ERR_SESSION_EXISTS_SUGGEST:%s:%s", docsBranch, suggested)
 	}
 
-	return s.ensureDocsBranchAvailable(docRepo, docsBranch)
+	return s.ensureDocsBranchAvailable(docRepo, docsBranch, projectID)
 }
 
 func (s *ClientService) prepareProjectRepos(projectID uint) (*models.RepoLink, string, *docRepoConfig, error) {
@@ -366,8 +371,8 @@ func (s *ClientService) isDocsBranchInProgress(docsBranch string) bool {
 }
 
 // suggestAlternativeDocsBranch generates an alternative branch name by appending a numeric suffix.
-// It checks both existing branches and in-progress generations to find an available name.
-func (s *ClientService) suggestAlternativeDocsBranch(repo *git.Repository, baseName string) (string, error) {
+// It checks existing branches, in-progress generations, and existing sessions to find an available name.
+func (s *ClientService) suggestAlternativeDocsBranch(repo *git.Repository, baseName string, projectID uint) (string, error) {
 	// Try numeric suffixes starting from 2
 	for i := 2; i <= 100; i++ {
 		candidate := fmt.Sprintf("%s-%d", baseName, i)
@@ -382,9 +387,21 @@ func (s *ClientService) suggestAlternativeDocsBranch(repo *git.Repository, baseN
 		if err != nil {
 			return "", fmt.Errorf("failed to check branch existence: %w", err)
 		}
-		if !exists {
-			return candidate, nil
+		if exists {
+			continue
 		}
+
+		// Check if a session with this docs branch already exists
+		existingSession, err := s.generationSessions.GetByDocsBranch(projectID, candidate)
+		if err != nil {
+			// If there's an error checking, continue to next candidate
+			continue
+		}
+		if existingSession != nil {
+			continue
+		}
+
+		return candidate, nil
 	}
 
 	return "", fmt.Errorf("could not find available branch name after 100 attempts")
@@ -643,7 +660,7 @@ func (s *ClientService) GenerateDocs(projectID uint, sourceBranch string, target
 	}
 
 	// PRE-CHECK: prevent silently overwriting an existing docs/<source> branch
-	if err := s.ensureDocsBranchAvailable(docRepo, docsBranch); err != nil {
+	if err := s.ensureDocsBranchAvailable(docRepo, docsBranch, projectID); err != nil {
 		// Clean up the session we created since we're failing
 		_ = s.generationSessions.DeleteByID(session.ID)
 		return nil, err
@@ -2255,7 +2272,7 @@ func (s *ClientService) GenerateDocsFromBranch(projectID uint, branch string, mo
 	s.setSessionRuntime(sessionKey, runtime)
 	runtime.targetBranch = baseBranch
 
-	if err := s.ensureDocsBranchAvailable(docRepo, docsBranch); err != nil {
+	if err := s.ensureDocsBranchAvailable(docRepo, docsBranch, projectID); err != nil {
 		_ = s.generationSessions.DeleteByID(session.ID)
 		return nil, err
 	}

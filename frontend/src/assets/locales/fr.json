@@ -106,7 +106,7 @@
     "docsBranchConflictTitle": "La branche de documentation existe déjà",
     "docsBranchConflictDescription": "Une branche de documentation existe déjà pour cette branche source. Choisissez une option ci-dessous pour continuer.",
     "docsBranchConflictInProgressDescription": "La documentation est actuellement en cours de génération pour cette branche. Vous ne pouvez pas supprimer une branche pendant sa génération. Veuillez utiliser le nom de branche alternatif suggéré ci-dessous ou attendre la fin de la génération en cours.",
-    "existingDocsBranch": "Branche de docs existante",
+    "existingDocsBranch": "Branche de documentation existante",
     "newDocsBranchLabel": "Utiliser un autre nom de branche de documentation",
     "newDocsBranchPlaceholder": "ex.: docs/feature-x-2",
     "newDocsBranchAria": "Nouveau nom de branche de documentation",
@@ -385,10 +385,13 @@
     "title": "Fil d'activité",
     "empty": "Aucune activité pour le moment.",
     "allTasks": "Toutes les tâches",
-    "toolActivity": "Activité des outils",
+    "toolActivity": "Activité",
     "reasoning": "Raisonnement",
     "reasoningPlaceholder": "En attente du raisonnement…",
-    "thoughtProcess": "Processus de pensée"
+    "thoughtProcess": "Processus de pensée",
+    "todoSnapshot": "Snapshot de la liste de tâches",
+    "you": "Vous",
+    "assistant": "Assistant"
   },
   "tools": {
     "read": "Lu <0>{{path}}</0>",

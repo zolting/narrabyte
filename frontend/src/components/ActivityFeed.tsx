@@ -16,7 +16,7 @@ import {
 	type ToolType,
 } from "@/lib/toolIcons";
 import { cn } from "@/lib/utils";
-import type { DocGenerationStatus } from "@/stores/docGeneration";
+import type { ChatMessage, DocGenerationStatus } from "@/stores/docGeneration";
 import type { TodoItem, ToolEvent } from "@/types/events";
 
 const REASONING_STREAM = "reasoning";
@@ -25,14 +25,25 @@ const STREAM_STATE_KEY = "state";
 const STREAM_STATE_RESET = "reset";
 const STREAM_STATE_UPDATE = "update";
 
+// Helper to strip internal instruction tags from message content for display
+function cleanMessageContent(content: string): string {
+	return content
+		.replace(/<USER_INSTRUCTIONS>([\s\S]*?)<\/USER_INSTRUCTIONS>/g, "$1")
+		.trim();
+}
+
 export function ActivityFeed({
 	events,
 	todos,
+	messages,
 	status,
+	summary,
 }: {
 	events: ToolEvent[];
 	todos: TodoItem[];
+	messages: ChatMessage[];
 	status: DocGenerationStatus;
+	summary: string | null;
 }) {
 	const { t } = useTranslation();
 	const containerRef = useRef<HTMLDivElement | null>(null);
@@ -84,6 +95,73 @@ export function ActivityFeed({
 		return result;
 	}, [events]);
 
+	// Create a unified display list that merges events and chat messages
+	type DisplayItem =
+		| { type: "event"; item: ToolEvent }
+		| { type: "message"; item: ChatMessage };
+
+	const displayItems = useMemo<DisplayItem[]>(() => {
+		const items: DisplayItem[] = [];
+
+		// Add events
+		for (const event of displayEvents) {
+			items.push({ type: "event", item: event });
+		}
+
+		// Add chat messages
+		for (const msg of messages) {
+			items.push({ type: "message", item: msg });
+		}
+
+		// Add a synthetic assistant message from summary if available and generation completed
+		const trimmedSummary = (summary ?? "").trim();
+		if (trimmedSummary && status === "success") {
+			// Check if we already have an assistant message with this content to avoid duplicates
+			const hasSummaryMessage = messages.some(
+				(m) => m.role === "assistant" && m.content.trim() === trimmedSummary
+			);
+			if (!hasSummaryMessage) {
+				// Find the latest event timestamp to place the summary after all events
+				const latestEventTime = displayEvents.reduce(
+					(max, e) => Math.max(max, e.timestamp.getTime()),
+					0
+				);
+				const summaryMessage: ChatMessage = {
+					id: "summary-assistant-message",
+					role: "assistant",
+					content: trimmedSummary,
+					status: "sent",
+					createdAt: new Date(latestEventTime + 1), // Just after the last event
+				};
+				items.push({ type: "message", item: summaryMessage });
+			}
+		}
+
+		// Find the first user message (the initial instruction)
+		const firstUserMsgIndex = messages.findIndex((m) => m.role === "user");
+		const firstUserMsgId =
+			firstUserMsgIndex >= 0 ? messages[firstUserMsgIndex]?.id : null;
+
+		// Sort by timestamp, but ensure first user message always appears first
+		items.sort((a, b) => {
+			// Get the effective timestamp for sorting
+			const getEffectiveTime = (item: DisplayItem): number => {
+				if (item.type === "event") {
+					return item.item.timestamp.getTime();
+				}
+				// First user message should always appear first (use 0 to ensure it's earliest)
+				if (item.item.id === firstUserMsgId) {
+					return 0;
+				}
+				return item.item.createdAt.getTime();
+			};
+
+			return getEffectiveTime(a) - getEffectiveTime(b);
+		});
+
+		return items;
+	}, [displayEvents, messages, summary, status]);
+
 	// Animate new events appearing
 	useEffect(() => {
 		if (previousEventCountRef.current > displayEvents.length) {
@@ -114,10 +192,13 @@ export function ActivityFeed({
 		};
 	}, [displayEvents]);
 
-	// Reset visible events when list changes
+	// Reset visible items when list changes (include both events and messages)
 	useEffect(() => {
-		setVisibleEvents(displayEvents.map((e) => e.id));
-	}, [displayEvents]);
+		const allIds = displayItems.map((item) =>
+			item.type === "event" ? item.item.id : item.item.id
+		);
+		setVisibleEvents(allIds);
+	}, [displayItems]);
 
 	// Auto-scroll to bottom when new events arrive
 	useEffect(() => {
@@ -416,13 +497,88 @@ export function ActivityFeed({
 					className="min-h-0 w-full flex-1 overflow-auto overflow-x-hidden px-3 pt-3 pb-6 text-sm"
 					ref={containerRef}
 				>
-					{displayEvents.length === 0 ? (
+					{displayItems.length === 0 ? (
 						<div className="text-muted-foreground">{t("common.noEvents")}</div>
 					) : (
 						<ul className="space-y-2">
-							{displayEvents.map((event, index) => {
+							{displayItems.map((displayItem, index) => {
+								// Handle chat messages
+								if (displayItem.type === "message") {
+									const msg = displayItem.item;
+									const isVisible = visibleEvents.includes(msg.id);
+									const isUser = msg.role === "user";
+									const isPending = msg.status === "pending";
+									const isError = msg.status === "error";
+									// Check if this is the first user message (no accurate timestamp)
+									const firstUserMsg = messages.find((m) => m.role === "user");
+									const isFirstUserMsg = isUser && firstUserMsg?.id === msg.id;
+
+									return (
+										<li
+											className={cn("transition-all duration-300", {
+												"translate-y-0 opacity-100": isVisible,
+												"translate-y-2 opacity-0": !isVisible,
+											})}
+											key={msg.id}
+										>
+											<div
+												className={cn(
+													"flex w-full items-start gap-2.5 rounded-lg px-3 py-2",
+													{
+														"border border-primary/20 bg-primary/10":
+															isUser && !isError,
+														"border border-border bg-background": !(
+															isUser || isError
+														),
+														"border border-destructive/20 bg-destructive/10":
+															isError,
+													}
+												)}
+											>
+												<div className="min-w-0 flex-1">
+													<div className="mb-0.5 flex items-center gap-1.5">
+														<span
+															className={cn("font-medium text-xs", {
+																"text-primary": isUser && !isError,
+																"text-foreground": !(isUser || isError),
+																"text-destructive": isError,
+															})}
+														>
+															{isUser
+																? t("activity.you", "You")
+																: t("activity.assistant", "Assistant")}
+														</span>
+														{isPending && (
+															<Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+														)}
+														{!isFirstUserMsg && (
+															<span className="text-muted-foreground text-xs">
+																{msg.createdAt.toLocaleTimeString()}
+															</span>
+														)}
+													</div>
+													<div
+														className={cn(
+															"break-words text-foreground/90 text-sm",
+															{
+																"opacity-60": isPending,
+															}
+														)}
+													>
+														<MarkdownRenderer
+															content={cleanMessageContent(msg.content)}
+														/>
+													</div>
+												</div>
+											</div>
+										</li>
+									);
+								}
+
+								// Handle events (existing logic)
+								const event = displayItem.item;
 								const isReasoning = event.metadata?.isReasoning === "true";
-								const isLastEvent = index === displayEvents.length - 1;
+								const isLastEvent = index === displayItems.length - 1;
 
 								if (isReasoning) {
 									const isVisible = visibleEvents.includes(event.id);

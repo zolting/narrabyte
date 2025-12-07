@@ -11,7 +11,10 @@ import {
 	StopStream,
 } from "@go/services/ClientService";
 import { DeleteBranchByPath } from "@go/services/GitService";
-import { DeleteByID as DeleteGenerationSession } from "@go/services/generationSessionService";
+import {
+	DeleteByID as DeleteGenerationSession,
+	GetByDocsBranch,
+} from "@go/services/generationSessionService";
 import { Get as GetRepoLink } from "@go/services/repoLinkService";
 import i18n from "i18next";
 import { parseDiff } from "react-diff-view";
@@ -64,7 +67,7 @@ type CompletedCommitInfo = {
 	wasMerge?: boolean;
 };
 
-type ChatMessage = {
+export type ChatMessage = {
 	id: string;
 	role: "user" | "assistant";
 	content: string;
@@ -90,7 +93,7 @@ type DocGenerationData = {
 	result: models.DocGenerationResult | null;
 	error: string | null;
 	cancellationRequested: boolean;
-	activeTab: "activity" | "review" | "summary";
+	activeTab: "activity" | "review";
 	commitCompleted: boolean;
 	completedCommitInfo: CompletedCommitInfo | null;
 	sourceBranch: string | null;
@@ -132,10 +135,7 @@ type State = {
 	) => Promise<void>;
 	commit: (args: CommitArgs & { sessionKey: SessionKey }) => Promise<void>;
 	cancel: (sessionKey: SessionKey) => Promise<void>;
-	setActiveTab: (
-		sessionKey: SessionKey,
-		tab: "activity" | "review" | "summary"
-	) => void;
+	setActiveTab: (sessionKey: SessionKey, tab: "activity" | "review") => void;
 	setCommitCompleted: (sessionKey: SessionKey, completed: boolean) => void;
 	setCompletedCommitInfo: (
 		sessionKey: SessionKey,
@@ -311,7 +311,8 @@ const mapErrorCodeToMessage = (errorMessage: string): string => {
 	// Map conflict errors to user-friendly messages
 	if (
 		trimmed.startsWith("ERR_DOCS_BRANCH_EXISTS_SUGGEST:") ||
-		trimmed.startsWith("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:")
+		trimmed.startsWith("ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:") ||
+		trimmed.startsWith("ERR_SESSION_EXISTS_SUGGEST:")
 	) {
 		return i18n.t("common.docsBranchConflict");
 	}
@@ -349,11 +350,13 @@ const extractExistingDocsBranch = (errorMessage: string): string | null => {
 // Handles formats like:
 // - ERR_DOCS_BRANCH_EXISTS_SUGGEST:docs/feature:docs/feature-2
 // - ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:docs/feature:docs/feature-2
+// - ERR_SESSION_EXISTS_SUGGEST:docs/feature:docs/feature-2
 const extractBranchConflictSuggestion = (
 	errorMessage: string
 ): { existing: string; proposed: string; isInProgress: boolean } | null => {
 	const inProgressPrefix = "ERR_DOCS_GENERATION_IN_PROGRESS_SUGGEST:";
 	const existsPrefix = "ERR_DOCS_BRANCH_EXISTS_SUGGEST:";
+	const sessionExistsPrefix = "ERR_SESSION_EXISTS_SUGGEST:";
 
 	let isInProgress = false;
 	let remainder = "";
@@ -364,6 +367,9 @@ const extractBranchConflictSuggestion = (
 	} else if (errorMessage.startsWith(existsPrefix)) {
 		isInProgress = false;
 		remainder = errorMessage.slice(existsPrefix.length);
+	} else if (errorMessage.startsWith(sessionExistsPrefix)) {
+		isInProgress = false;
+		remainder = errorMessage.slice(sessionExistsPrefix.length);
 	} else {
 		return null;
 	}
@@ -475,6 +481,56 @@ const normalizeChatMessages = (raw: unknown): ChatMessage[] => {
 		});
 	}
 	return normalized;
+};
+
+/**
+ * Merges local chat messages with backend chat messages.
+ * Preserves local message timestamps and IDs, adding any new messages from backend.
+ * This ensures user messages appear with their original timestamps (when they were sent)
+ * rather than the backend's timestamp (when the request completed).
+ */
+const mergeLocalAndBackendMessages = (
+	localMessages: ChatMessage[],
+	backendMessages: ChatMessage[]
+): ChatMessage[] => {
+	// If no local messages, just use backend messages
+	if (localMessages.length === 0) {
+		return backendMessages;
+	}
+	// If no backend messages, just use local messages
+	if (backendMessages.length === 0) {
+		return localMessages;
+	}
+
+	// Build a map of local messages by their content and role for matching
+	const localByContentAndRole = new Map<string, ChatMessage>();
+	for (const msg of localMessages) {
+		const key = `${msg.role}:${msg.content}`;
+		localByContentAndRole.set(key, msg);
+	}
+
+	// Merge: preserve local messages' timestamps/ids, add new backend messages
+	const result: ChatMessage[] = [];
+	const usedLocalIds = new Set<string>();
+
+	for (const backendMsg of backendMessages) {
+		const key = `${backendMsg.role}:${backendMsg.content}`;
+		const localMatch = localByContentAndRole.get(key);
+
+		if (localMatch && !usedLocalIds.has(localMatch.id)) {
+			// Use local message (preserves original timestamp and id)
+			result.push({
+				...localMatch,
+				status: "sent" as const, // Mark as sent since backend processed it
+			});
+			usedLocalIds.add(localMatch.id);
+		} else {
+			// New message from backend (e.g., assistant response)
+			result.push(backendMsg);
+		}
+	}
+
+	return result;
 };
 
 type SubscriptionMap = {
@@ -726,142 +782,26 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			setTabSession(projectId, tabId, tempSessionKey);
 		}
 
-		// Pre-check for docs branch conflicts BEFORE setting UI to "running"
-		try {
-			await CheckDocsBranchAvailability(projectId, sourceBranch, "");
-		} catch (checkError) {
-			const checkMessage = messageFromError(checkError);
-			const suggestion = extractBranchConflictSuggestion(checkMessage);
-			if (suggestion) {
-				// Set up session state for the conflict dialog (but NOT "running")
-				setDocState(tempSessionKey, {
-					sessionId: null,
-					projectId,
-					projectName,
-					sessionKey: tempSessionKey,
-					events: [],
-					todos: [],
-					error: null,
-					result: null,
-					status: "idle",
-					cancellationRequested: false,
-					activeTab: "activity",
-					commitCompleted: false,
-					completedCommitInfo: null,
-					sourceBranch,
-					targetBranch: targetBranch ?? null,
-					chatOpen: false,
-					messages: [],
-					initialDiffSignatures: null,
-					changedSinceInitial: [],
-					docsInCodeRepo: false,
-					docsBranch: suggestion.existing || docsBranch,
-					mergeInProgress: false,
-					conflict: {
-						existingDocsBranch: suggestion.existing,
-						proposedDocsBranch: suggestion.proposed,
-						mode: conflictMode,
-						isInProgress: suggestion.isInProgress,
-					},
-				});
-				setActiveSessionKey(projectKey, tempSessionKey);
-				updateSessionMeta(tempSessionKey, {
-					sessionId: null,
-					projectId,
-					projectName,
-					sourceBranch,
-					targetBranch: targetBranch ?? "",
-					status: "idle",
-				});
-				return;
-			}
-
-			if (checkMessage.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
-				const existing =
-					extractExistingDocsBranch(checkMessage) ?? docsBranch;
-				setDocState(tempSessionKey, {
-					sessionId: null,
-					projectId,
-					projectName,
-					sessionKey: tempSessionKey,
-					events: [],
-					todos: [],
-					error: null,
-					result: null,
-					status: "idle",
-					cancellationRequested: false,
-					activeTab: "activity",
-					commitCompleted: false,
-					completedCommitInfo: null,
-					sourceBranch,
-					targetBranch: targetBranch ?? null,
-					chatOpen: false,
-					messages: [],
-					initialDiffSignatures: null,
-					changedSinceInitial: [],
-					docsInCodeRepo: false,
-					docsBranch: existing,
-					mergeInProgress: false,
-					conflict: {
-						existingDocsBranch: existing,
-						proposedDocsBranch: existing,
-						mode: conflictMode,
-					},
-				});
-				setActiveSessionKey(projectKey, tempSessionKey);
-				updateSessionMeta(tempSessionKey, {
-					sessionId: null,
-					projectId,
-					projectName,
-					sourceBranch,
-					targetBranch: targetBranch ?? "",
-					status: "idle",
-				});
-				return;
-			}
-
-			if (checkMessage.startsWith("ERR_SESSION_EXISTS:")) {
-				setDocState(tempSessionKey, {
-					sessionId: null,
-					projectId,
-					projectName,
-					sessionKey: tempSessionKey,
-					events: [],
-					todos: [],
-					error: mapErrorCodeToMessage(checkMessage),
-					result: null,
-					status: "error",
-					cancellationRequested: false,
-					activeTab: "activity",
-					commitCompleted: false,
-					completedCommitInfo: null,
-					sourceBranch,
-					targetBranch: targetBranch ?? null,
-					chatOpen: false,
-					messages: [],
-					initialDiffSignatures: null,
-					changedSinceInitial: [],
-					docsInCodeRepo: false,
-					docsBranch,
-					mergeInProgress: false,
-				});
-				setActiveSessionKey(projectKey, tempSessionKey);
-				updateSessionMeta(tempSessionKey, {
-					sessionId: null,
-					projectId,
-					projectName,
-					sourceBranch,
-					targetBranch: targetBranch ?? "",
-					status: "error",
-				});
-				return;
-			}
-			// For other errors, let them fall through to the main generation flow
-		}
-
 		// Bind the temp key for event routing
 		bindBackendSession(tempSessionKey, tempSessionKey);
 
+		// Create an initial user message if userInstructions is provided
+		const initialMessages: ChatMessage[] = [];
+		if (userInstructions.trim()) {
+			const initialMsgId =
+				typeof crypto !== "undefined" && "randomUUID" in crypto
+					? crypto.randomUUID()
+					: Math.random().toString(36).slice(2);
+			initialMessages.push({
+				id: initialMsgId,
+				role: "user",
+				content: userInstructions.trim(),
+				status: "sent" as const,
+				createdAt: new Date(),
+			});
+		}
+
+		// Set initial running state IMMEDIATELY so the UI shows the message right away
 		setDocState(tempSessionKey, {
 			sessionId: null,
 			projectId,
@@ -879,7 +819,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			sourceBranch,
 			targetBranch: targetBranch ?? null,
 			chatOpen: false,
-			messages: [],
+			messages: initialMessages,
 			initialDiffSignatures: null,
 			changedSinceInitial: [],
 			docsInCodeRepo: false,
@@ -896,12 +836,62 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 			status: "running",
 		});
 
+		// Pre-check for docs branch conflicts
+		try {
+			await CheckDocsBranchAvailability(projectId, sourceBranch, "");
+		} catch (checkError) {
+			const checkMessage = messageFromError(checkError);
+			const suggestion = extractBranchConflictSuggestion(checkMessage);
+			if (suggestion) {
+				// Update state for the conflict dialog (change from "running" to "idle")
+				setDocState(tempSessionKey, (prev) => ({
+					...prev,
+					status: "idle",
+					docsBranch: suggestion.existing || docsBranch,
+					conflict: {
+						existingDocsBranch: suggestion.existing,
+						proposedDocsBranch: suggestion.proposed,
+						mode: conflictMode,
+						isInProgress: suggestion.isInProgress,
+					},
+				}));
+				updateSessionMeta(tempSessionKey, { status: "idle" });
+				unbindBackendSession(tempSessionKey, tempSessionKey);
+				return;
+			}
+
+			if (checkMessage.startsWith("ERR_DOCS_BRANCH_EXISTS:")) {
+				const existing = extractExistingDocsBranch(checkMessage) ?? docsBranch;
+				setDocState(tempSessionKey, (prev) => ({
+					...prev,
+					status: "idle",
+					docsBranch: existing,
+					conflict: {
+						existingDocsBranch: existing,
+						proposedDocsBranch: existing,
+						mode: conflictMode,
+					},
+				}));
+				updateSessionMeta(tempSessionKey, { status: "idle" });
+				unbindBackendSession(tempSessionKey, tempSessionKey);
+				return;
+			}
+			// For other errors, let them fall through to the main generation flow
+		}
+
 		subscribeToGenerationEvents(tempSessionKey, tempSessionKey);
 
 		try {
 			const result = await runRequest(tempSessionKey);
 			// Extract sessionId from result and update state
 			const sessionId = result?.sessionId ?? null;
+			// Merge backend chat messages with our initial messages, preserving local timestamps
+			const backendMessages = normalizeChatMessages(result?.chatMessages ?? []);
+			const currentState = get().docStates[tempSessionKey];
+			const mergedMessages = mergeLocalAndBackendMessages(
+				currentState?.messages ?? [],
+				backendMessages
+			);
 			setDocState(tempSessionKey, {
 				sessionId,
 				result,
@@ -912,7 +902,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				docsInCodeRepo: Boolean(result?.docsInCodeRepo),
 				docsBranch: result?.docsBranch ?? null,
 				mergeInProgress: false,
-				messages: normalizeChatMessages(result?.chatMessages ?? []),
+				messages: mergedMessages,
 			});
 			updateSessionMeta(tempSessionKey, { sessionId, status: "success" });
 		} catch (error) {
@@ -1135,7 +1125,8 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 				return;
 			}
 			const sessionId =
-				docState.sessionId ?? (await resolveSessionIdForKey(sessionKey, docState));
+				docState.sessionId ??
+				(await resolveSessionIdForKey(sessionKey, docState));
 			if (!sessionId) {
 				setDocState(sessionKey, { cancellationRequested: false });
 				return;
@@ -1528,9 +1519,13 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					const persistedChat = normalizeChatMessages(
 						(result as any)?.chatMessages
 					);
+					// Merge backend messages with local messages, preserving local timestamps
 					const chatMessages =
 						persistedChat.length > 0
-							? persistedChat
+							? mergeLocalAndBackendMessages(
+									[...updatedMessages, ...assistantMessages],
+									persistedChat
+								)
 							: [...updatedMessages, ...assistantMessages];
 					const nextResult = result
 						? ({
@@ -1544,13 +1539,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						messages: chatMessages,
 						result: nextResult,
 						status: "success",
-						events: [
-							...prev.events,
-							createLocalEvent(
-								"info",
-								"Applied user instruction to documentation."
-							),
-						],
+						events: prev.events,
 						initialDiffSignatures: baseline,
 						changedSinceInitial: changed,
 						cancellationRequested: false,
@@ -1697,12 +1686,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					changedSinceInitial: [],
 					docsInCodeRepo: result?.docsInCodeRepo,
 					docsBranch: result?.docsBranch ?? null,
-					events: [
-						createLocalEvent(
-							"info",
-							`Session restored successfully - ${result.files?.length ?? 0} file(s) modified`
-						),
-					],
+					events: [],
 					activeTab: "review",
 					error: null,
 					cancellationRequested: false,
@@ -1803,6 +1787,18 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 						new Error("Documentation repository path is not configured")
 					);
 				}
+
+				// Delete any existing session with this docs branch first
+				try {
+					const existingSession = await GetByDocsBranch(projectId, existing);
+					if (existingSession?.ID) {
+						await DeleteGenerationSession(existingSession.ID);
+					}
+				} catch {
+					// Ignore errors when looking up/deleting the session
+					// The branch deletion and restart will still proceed
+				}
+
 				await DeleteBranchByPath(repoRoot, existing);
 
 				// Clear the conflict before restarting
@@ -1897,13 +1893,7 @@ export const useDocGenerationStore = create<State>((set, get, _api) => {
 					changedSinceInitial: [],
 					todos: [],
 					conflict: null,
-					events: [
-						...prev.events,
-						createLocalEvent(
-							"info",
-							`Using new docs branch name '${targetName}'`
-						),
-					],
+					events: prev.events,
 				}));
 
 				bindBackendSession(baseTempKey, sessionKey);

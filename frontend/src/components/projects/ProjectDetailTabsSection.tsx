@@ -299,6 +299,7 @@ function TabContentRenderer({
 						activeTab={docManager.activeTab}
 						docResult={docManager.docResult}
 						events={docManager.events}
+						messages={docManager.messages}
 						projectId={Number(project.ID)}
 						sessionKey={docManager.sessionKey}
 						setActiveTab={docManager.setActiveTab}

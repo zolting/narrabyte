@@ -4,6 +4,14 @@ import type { TodoItem, ToolEvent } from "@/types/events";
 
 const EMPTY_EVENTS: ToolEvent[] = [];
 const EMPTY_TODOS: TodoItem[] = [];
+type ChatMessage = {
+	id: string;
+	role: "user" | "assistant";
+	content: string;
+	status?: "pending" | "sent" | "error";
+	createdAt: Date;
+};
+const EMPTY_MESSAGES: ChatMessage[] = [];
 
 export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 	const projectKey = useMemo(() => String(projectId), [projectId]);
@@ -94,6 +102,11 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		(s) =>
 			(sessionKey ? s.docStates[sessionKey]?.todos : EMPTY_TODOS) ?? EMPTY_TODOS
 	);
+	const messages = useDocGenerationStore(
+		(s) =>
+			(sessionKey ? s.docStates[sessionKey]?.messages : EMPTY_MESSAGES) ??
+			EMPTY_MESSAGES
+	);
 	const docGenerationError = useDocGenerationStore(
 		(s) => (sessionKey ? s.docStates[sessionKey]?.error : null) ?? null
 	);
@@ -153,10 +166,13 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 	const isMerging = mergeInProgress;
 	const isBusy = isRunning || isCommitting || isMerging;
 	const hasGenerationAttempt =
-		status !== "idle" || Boolean(docResult) || events.length > 0;
+		status !== "idle" ||
+		Boolean(docResult) ||
+		events.length > 0 ||
+		messages.length > 0;
 
 	const setActiveTab = useCallback(
-		(tab: "activity" | "review" | "summary") => {
+		(tab: "activity" | "review") => {
 			if (sessionKey) {
 				setActiveTabStore(sessionKey, tab);
 			}
@@ -231,6 +247,7 @@ export const useDocGenerationManager = (projectId: string, tabId?: string) => {
 		tabId,
 		docResult,
 		status,
+		messages,
 		events,
 		todos,
 		docGenerationError,

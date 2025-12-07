@@ -7,6 +7,13 @@ import { cn } from "@/lib/utils";
 import { useDocGenerationStore } from "@/stores/docGeneration";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
+// Helper to strip internal instruction tags from message content for display
+function cleanMessageContent(content: string): string {
+	return content
+		.replace(/<USER_INSTRUCTIONS>([\s\S]*?)<\/USER_INSTRUCTIONS>/g, "$1")
+		.trim();
+}
+
 export function DocRefinementChat({
 	sessionKey,
 	hideHeader = false,
@@ -87,31 +94,36 @@ export function DocRefinementChat({
 								{t("docRefinementChat.emptyState")}
 							</div>
 						) : (
-							<ul className="space-y-1.5">
+							<ul className="space-y-2">
 								{messages.map((m) => (
 									<li
 										className={cn(
-											"text-xs",
-											m.role === "user"
-												? "text-foreground"
-												: "text-foreground/90"
+											"flex w-full flex-col gap-1.5",
+											m.role === "user" ? "items-end" : "items-start"
 										)}
 										key={m.id}
 									>
 										<div
 											className={cn(
-												"rounded-md px-2 py-1",
-												m.role === "user" ? "bg-accent/30" : "bg-muted/50"
+												"max-w-[90%] rounded-2xl border px-3 py-2 text-foreground text-xs",
+												m.status === "error"
+													? "border-destructive/20 bg-destructive/10"
+													: m.role === "user"
+														? "border-primary/20 bg-primary/10"
+														: "border-border bg-background",
+												m.role === "user" ? "rounded-br-sm" : "rounded-bl-sm"
 											)}
 										>
-											<MarkdownRenderer content={m.content} />
+											<MarkdownRenderer
+												content={cleanMessageContent(m.content)}
+											/>
 											{m.status === "pending" && (
-												<div className="text-[10px] text-muted-foreground">
+												<div className="mt-1 text-[10px] opacity-70">
 													sending…
 												</div>
 											)}
 											{m.status === "error" && (
-												<div className="text-[10px] text-destructive">
+												<div className="mt-1 font-bold text-[10px] text-destructive">
 													failed
 												</div>
 											)}
