@@ -108,8 +108,22 @@ export function ActivityFeed({
 			items.push({ type: "event", item: event });
 		}
 
-		// Add chat messages
+		// Find the first user message (the initial instruction) for sorting purposes
+		const firstUserMsgIndex = messages.findIndex((m) => m.role === "user");
+		const firstUserMsg =
+			firstUserMsgIndex >= 0 ? messages[firstUserMsgIndex] : null;
+		const firstUserMsgId = firstUserMsg?.id ?? null;
+
+		// Check if the first user message has empty content (should not be displayed)
+		const firstUserMsgIsEmpty =
+			firstUserMsg && cleanMessageContent(firstUserMsg.content) === "";
+
+		// Add chat messages (skip the first user message if it's empty)
 		for (const msg of messages) {
+			// Skip the first user message if it has empty content
+			if (firstUserMsgIsEmpty && msg.id === firstUserMsgId) {
+				continue;
+			}
 			items.push({ type: "message", item: msg });
 		}
 
@@ -137,12 +151,9 @@ export function ActivityFeed({
 			}
 		}
 
-		// Find the first user message (the initial instruction)
-		const firstUserMsgIndex = messages.findIndex((m) => m.role === "user");
-		const firstUserMsgId =
-			firstUserMsgIndex >= 0 ? messages[firstUserMsgIndex]?.id : null;
-
 		// Sort by timestamp, but ensure first user message always appears first
+		// ONLY if it has content to display. If the first user message is empty,
+		// let all messages sort by their natural timestamps.
 		items.sort((a, b) => {
 			// Get the effective timestamp for sorting
 			const getEffectiveTime = (item: DisplayItem): number => {
@@ -150,7 +161,8 @@ export function ActivityFeed({
 					return item.item.timestamp.getTime();
 				}
 				// First user message should always appear first (use 0 to ensure it's earliest)
-				if (item.item.id === firstUserMsgId) {
+				// but ONLY if it has non-empty content (i.e., it will be displayed)
+				if (item.item.id === firstUserMsgId && !firstUserMsgIsEmpty) {
 					return 0;
 				}
 				return item.item.createdAt.getTime();
@@ -509,7 +521,6 @@ export function ActivityFeed({
 									const msg = displayItem.item;
 									const isVisible = visibleEvents.includes(msg.id);
 									const isUser = msg.role === "user";
-									const isPending = msg.status === "pending";
 									const isError = msg.status === "error";
 									// Check if this is the first user message (no accurate timestamp)
 									const firstUserMsg = messages.find((m) => m.role === "user");
@@ -550,23 +561,13 @@ export function ActivityFeed({
 																? t("activity.you", "You")
 																: t("activity.assistant", "Assistant")}
 														</span>
-														{isPending && (
-															<Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-														)}
 														{!isFirstUserMsg && (
 															<span className="text-muted-foreground text-xs">
 																{msg.createdAt.toLocaleTimeString()}
 															</span>
 														)}
 													</div>
-													<div
-														className={cn(
-															"break-words text-foreground/90 text-sm",
-															{
-																"opacity-60": isPending,
-															}
-														)}
-													>
+													<div className="break-words text-foreground/90 text-sm">
 														<MarkdownRenderer
 															content={cleanMessageContent(msg.content)}
 														/>
