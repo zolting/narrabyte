@@ -135,18 +135,37 @@ type TodoReadOutput struct {
 
 // WriteTodo replaces the entire todo list for the current session (full replacement operation)
 func WriteTodo(ctx context.Context, in *TodoWriteInput) (*TodoWriteOutput, error) {
+	if in == nil {
+		return nil, fmt.Errorf("todo input is required")
+	}
 	sessionID := SessionIDFromContext(ctx)
 	if sessionID == "" {
 		return nil, fmt.Errorf("no session ID found in context")
 	}
 
 	session := GetTodoSession(sessionID)
-	session.UpdateTodos(in.Todos)
+
+	normalizedTodos := make([]Todo, 0, len(in.Todos))
+	for _, todo := range in.Todos {
+		status := todo.Status
+		switch todo.Status {
+		case TodoStatusPending, TodoStatusInProgress, TodoStatusCompleted, TodoStatusCancelled:
+		default:
+			status = TodoStatusPending
+		}
+		normalizedTodos = append(normalizedTodos, Todo{
+			Content:    strings.TrimSpace(todo.Content),
+			ActiveForm: strings.TrimSpace(todo.ActiveForm),
+			Status:     status,
+		})
+	}
+
+	session.UpdateTodos(normalizedTodos)
 
 	// Calculate pending count
 	pendingCount := 0
 	inProgressCount := 0
-	for _, todo := range in.Todos {
+	for _, todo := range normalizedTodos {
 		if todo.Status == TodoStatusPending {
 			pendingCount++
 		} else if todo.Status == TodoStatusInProgress {
@@ -155,7 +174,7 @@ func WriteTodo(ctx context.Context, in *TodoWriteInput) (*TodoWriteOutput, error
 	}
 
 	// Serialize todos for output
-	todosJSON, err := json.MarshalIndent(in.Todos, "", "  ")
+	todosJSON, err := json.MarshalIndent(normalizedTodos, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize todos: %w", err)
 	}
@@ -166,11 +185,11 @@ func WriteTodo(ctx context.Context, in *TodoWriteInput) (*TodoWriteOutput, error
 		Title:  title,
 		Output: string(todosJSON),
 		Metadata: map[string]any{
-			"todos":           in.Todos,
+			"todos":           normalizedTodos,
 			"sessionID":       sessionID,
 			"pendingCount":    pendingCount,
 			"inProgressCount": inProgressCount,
-			"totalCount":      len(in.Todos),
+			"totalCount":      len(normalizedTodos),
 		},
 	}, nil
 }

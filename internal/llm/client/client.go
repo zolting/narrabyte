@@ -1193,7 +1193,41 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 	if strings.TrimSpace(todoWriteDesc) == "" {
 		todoWriteDesc = "REPLACE the entire task list for the current session (read current list first, then send complete updated list)"
 	}
+	// Guard against LLM calls that omit arguments by providing tolerant unmarshalling.
+	safeTodoReadUnmarshal := func(ctx context.Context, arguments string) (interface{}, error) {
+		trimmed := strings.TrimSpace(arguments)
+		if trimmed == "" || trimmed == "null" {
+			return &tools.TodoReadInput{}, nil
+		}
+
+		var input tools.TodoReadInput
+		if err := json.Unmarshal([]byte(trimmed), &input); err != nil {
+			return nil, fmt.Errorf("invalid todo_read_tool arguments: %w", err)
+		}
+		return &input, nil
+	}
+	safeTodoWriteUnmarshal := func(ctx context.Context, arguments string) (interface{}, error) {
+		trimmed := strings.TrimSpace(arguments)
+		if trimmed == "" || trimmed == "null" || trimmed == "{}" || trimmed == "[]" {
+			var empty *tools.TodoWriteInput
+			return empty, nil
+		}
+
+		var input tools.TodoWriteInput
+		if err := json.Unmarshal([]byte(trimmed), &input); err != nil {
+			return nil, fmt.Errorf("invalid todo_write_tool arguments: %w", err)
+		}
+		return &input, nil
+	}
 	todoWriteWithPolicy := func(ctx context.Context, in *tools.TodoWriteInput) (*tools.TodoWriteOutput, error) {
+		if in == nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("TodoWrite(policy): input is required"))
+			return &tools.TodoWriteOutput{
+				Output:   "Format error: input is required",
+				Metadata: map[string]any{"error": "format_error"},
+			}, nil
+		}
+
 		events.Emit(ctx, events.LLMEventTool, events.NewInfo("TodoWrite: updating task list"))
 
 		// Check if we're reducing the todo count (potential accidental deletion)
@@ -1240,7 +1274,12 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		events.Emit(ctx, events.LLMEventTool, evt)
 		return out, nil
 	}
-	todoWriteTool, err := einoUtils.InferTool("todo_write_tool", todoWriteDesc, todoWriteWithPolicy)
+	todoWriteTool, err := einoUtils.InferTool(
+		"todo_write_tool",
+		todoWriteDesc,
+		todoWriteWithPolicy,
+		einoUtils.WithUnmarshalArguments(safeTodoWriteUnmarshal),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1266,7 +1305,12 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		events.Emit(ctx, events.LLMEventTool, evt)
 		return out, nil
 	}
-	todoReadTool, err := einoUtils.InferTool("todo_read_tool", todoReadDesc, todoReadWithPolicy)
+	todoReadTool, err := einoUtils.InferTool(
+		"todo_read_tool",
+		todoReadDesc,
+		todoReadWithPolicy,
+		einoUtils.WithUnmarshalArguments(safeTodoReadUnmarshal),
+	)
 	if err != nil {
 		return nil, err
 	}
