@@ -1361,7 +1361,81 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		return nil, err
 	}
 
-	return []tool.BaseTool{listTool, readTool, writeTool, editTool, multiEditTool, todoWriteTool, todoReadTool, deleteTool}, nil
+	// Glob tool - find files matching a glob pattern
+	globDesc := tools.ToolDescription("glob_tool")
+	if strings.TrimSpace(globDesc) == "" {
+		globDesc = "find files matching a glob pattern within a repository"
+	}
+	globWithPolicy := func(ctx context.Context, in *tools.GlobInput) (*tools.GlobOutput, error) {
+		if in == nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("Glob(policy): input is required"))
+			return &tools.GlobOutput{
+				Output:   "Format error: input is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+
+		out, err := tools.Glob(ctx, in)
+		displayPath := ""
+		if out != nil {
+			displayPath = out.Title
+		}
+		// Create event with pattern metadata for frontend display
+		createGlobEvent := func(eventType events.EventType) events.ToolEvent {
+			evt := events.NewToolEvent(eventType, "Glob", "glob", displayPath)
+			evt.Metadata["pattern"] = strings.TrimSpace(in.Pattern)
+			return evt
+		}
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, createGlobEvent(events.EventError))
+			return out, err
+		}
+		events.Emit(ctx, events.LLMEventTool, createGlobEvent(events.EventSuccess))
+		return out, nil
+	}
+	globTool, err := einoUtils.InferTool("glob_tool", globDesc, globWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	// Grep tool - search for a regex pattern in files
+	grepDesc := tools.ToolDescription("grep_tool")
+	if strings.TrimSpace(grepDesc) == "" {
+		grepDesc = "search for a regex pattern within files in a repository"
+	}
+	grepWithPolicy := func(ctx context.Context, in *tools.GrepInput) (*tools.GrepOutput, error) {
+		if in == nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError("Grep(policy): input is required"))
+			return &tools.GrepOutput{
+				Output:   "Format error: input is required",
+				Metadata: map[string]string{"error": "format_error"},
+			}, nil
+		}
+
+		out, err := tools.Grep(ctx, in)
+		displayPath := ""
+		if out != nil {
+			displayPath = out.Title
+		}
+		// Create event with pattern metadata for frontend display
+		createGrepEvent := func(eventType events.EventType) events.ToolEvent {
+			evt := events.NewToolEvent(eventType, "Grep", "grep", displayPath)
+			evt.Metadata["pattern"] = strings.TrimSpace(in.Pattern)
+			return evt
+		}
+		if err != nil {
+			events.Emit(ctx, events.LLMEventTool, createGrepEvent(events.EventError))
+			return out, err
+		}
+		events.Emit(ctx, events.LLMEventTool, createGrepEvent(events.EventSuccess))
+		return out, nil
+	}
+	grepTool, err := einoUtils.InferTool("grep_tool", grepDesc, grepWithPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	return []tool.BaseTool{listTool, readTool, writeTool, editTool, multiEditTool, todoWriteTool, todoReadTool, deleteTool, globTool, grepTool}, nil
 }
 
 // loadRepoLLMInstructions scans the documentation repository's .narrabyte directory

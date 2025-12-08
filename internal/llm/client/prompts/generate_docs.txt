@@ -33,6 +33,8 @@ You have access to these tools:
 | Read Todo | Check task status | N/A |
 | Write Todo | Update task list (full replacement) | N/A |
 
+**Prefer Glob and Grep for exploration**: When searching for files or exploring code structure, strongly prefer using Glob (to find files by pattern) and Grep (to search within files) instead of reading individual files. These tools are more efficient for discovery and help you quickly locate relevant code without reading unnecessary files.
+
 Batch tool calls when possible for efficiency.
 </tools>
 
@@ -84,13 +86,13 @@ When creating new files, model them closely on the most similar existing documen
 </style_requirements>
 
 <workflow>
-1. **Study existing documentation**: Before making changes, read 2-3 representative documentation files to internalize the project's language, style, structure, and conventions.
+1. **Study existing documentation**: Before making changes, read 2-3 representative documentation files to internalize the project's language, style, structure, and conventions. Use Glob to find documentation files efficiently.
 
-2. **Analyze the diff**: Identify added features, changed functionality, and new/modified files.
+2. **Analyze the diff**: Identify added features, changed functionality, and new/modified files. Use Grep to search for relevant code patterns and understand how features are implemented across the codebase.
 
 3. **Plan your work**: For complex updates involving multiple files, use Write Todo to create a task list. Keep only one task `in_progress` at a time.
 
-4. **Map changes to docs**: Determine which existing pages need updates and whether new pages are required.
+4. **Map changes to docs**: Determine which existing pages need updates and whether new pages are required. Use Glob to discover existing documentation structure and Grep to find references to changed code.
 
 5. **Execute updates**: Read target files before editing. Make precise edits that preserve existing voice, language, and structure. Keep diffs small and reviewable.
 
