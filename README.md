@@ -2,10 +2,9 @@
 
 ## About
 
-This is the official Wails React-TS template.
+This is the official Narrabyte project.
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+You can install the executable application inside the Releases view and simply running the file.
 
 ## Live Development
 
@@ -17,3 +16,7 @@ to this in your browser, and you can call your Go code from devtools.
 ## Building
 
 To build a redistributable, production mode package, use `wails build`.
+
+## Updating
+
+To update the official release, create a tag for the new version and pipeline will automatically create a build for Windows, Ubuntu and MacOS, which can be installed under Releases.
