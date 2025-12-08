@@ -1380,11 +1380,17 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		if out != nil {
 			displayPath = out.Title
 		}
+		// Create event with pattern metadata for frontend display
+		createGlobEvent := func(eventType events.EventType) events.ToolEvent {
+			evt := events.NewToolEvent(eventType, "Glob", "glob", displayPath)
+			evt.Metadata["pattern"] = strings.TrimSpace(in.Pattern)
+			return evt
+		}
 		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventError, "Glob", "glob", displayPath))
+			events.Emit(ctx, events.LLMEventTool, createGlobEvent(events.EventError))
 			return out, err
 		}
-		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Glob", "glob", displayPath))
+		events.Emit(ctx, events.LLMEventTool, createGlobEvent(events.EventSuccess))
 		return out, nil
 	}
 	globTool, err := einoUtils.InferTool("glob_tool", globDesc, globWithPolicy)
@@ -1411,11 +1417,17 @@ func (o *LLMClient) initDocumentationTools(docRoot, codeRoot string) ([]tool.Bas
 		if out != nil {
 			displayPath = out.Title
 		}
+		// Create event with pattern metadata for frontend display
+		createGrepEvent := func(eventType events.EventType) events.ToolEvent {
+			evt := events.NewToolEvent(eventType, "Grep", "grep", displayPath)
+			evt.Metadata["pattern"] = strings.TrimSpace(in.Pattern)
+			return evt
+		}
 		if err != nil {
-			events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventError, "Grep", "grep", displayPath))
+			events.Emit(ctx, events.LLMEventTool, createGrepEvent(events.EventError))
 			return out, err
 		}
-		events.Emit(ctx, events.LLMEventTool, events.NewToolEvent(events.EventSuccess, "Grep", "grep", displayPath))
+		events.Emit(ctx, events.LLMEventTool, createGrepEvent(events.EventSuccess))
 		return out, nil
 	}
 	grepTool, err := einoUtils.InferTool("grep_tool", grepDesc, grepWithPolicy)
