@@ -134,10 +134,16 @@ function TabContentRenderer({
 	const [showSetupWithoutSession, setShowSetupWithoutSession] = useState(false);
 
 	// Compute canGenerate based on mode and this tab's branch selection
-	const canGenerate = useMemo(() => {
-		if (!canGenerateBase) return false;
-		if (!modelKey) return false;
-		if (docManager.isBusy) return false;
+	const tabCanGenerate = useMemo(() => {
+		if (!canGenerateBase) {
+			return false;
+		}
+		if (!modelKey) {
+			return false;
+		}
+		if (docManager.isBusy) {
+			return false;
+		}
 
 		if (mode === "diff") {
 			return Boolean(
@@ -157,8 +163,6 @@ function TabContentRenderer({
 		branchSelection.targetBranch,
 		hasInstructionContent,
 	]);
-
-	const tabCanGenerate = canGenerate;
 
 	const { canMerge, mergeDisabledReason } = useMemo(() => {
 		if (
