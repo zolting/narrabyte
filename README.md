@@ -19,4 +19,4 @@ To build a redistributable, production mode package, use `wails build`.
 
 ## Updating
 
-To update the official release, create a tag for the new version and pipeline will automatically create a build for Windows, Ubuntu and MacOS, which can be installed under Releases.
+To update the official release, create a tag and release for the new version and pipeline will automatically create a build for Windows, Ubuntu and MacOS.
