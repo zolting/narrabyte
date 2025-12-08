@@ -1018,7 +1018,7 @@ func createTempDocWorkspace(ctx context.Context, sessionKey string, cfg *docRepo
 
 	refName := plumbing.NewBranchReferenceName(branch)
 	if checkoutHead {
-		if err := wt.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
+		if err := wt.Checkout(&git.CheckoutOptions{Branch: refName, Force: true}); err != nil {
 			srcRepo, srcOpenErr := git.PlainOpen(cfg.RepoRoot)
 			if srcOpenErr != nil {
 				cleanup()
@@ -1044,7 +1044,7 @@ func createTempDocWorkspace(ctx context.Context, sessionKey string, cfg *docRepo
 				return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
 			}
 
-			if coErr := wt.Checkout(&git.CheckoutOptions{Branch: refName}); coErr != nil {
+			if coErr := wt.Checkout(&git.CheckoutOptions{Branch: refName, Force: true}); coErr != nil {
 				cleanup()
 				return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, coErr)
 			}
@@ -1056,7 +1056,7 @@ func createTempDocWorkspace(ctx context.Context, sessionKey string, cfg *docRepo
 			return tempDocWorkspace{}, nil, fmt.Errorf("failed to create branch '%s' in temp repo: %w", branch, err)
 		}
 
-		if err := wt.Checkout(&git.CheckoutOptions{Branch: refName}); err != nil {
+		if err := wt.Checkout(&git.CheckoutOptions{Branch: refName, Force: true}); err != nil {
 			cleanup()
 			return tempDocWorkspace{}, nil, fmt.Errorf("failed to checkout branch '%s' in temp repo: %w", branch, err)
 		}
