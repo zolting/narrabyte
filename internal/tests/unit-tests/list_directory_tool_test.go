@@ -26,7 +26,8 @@ func TestListDirectory_EmptyPath(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.ListLSInput{
-		Path: "",
+		Repository: tools.RepositoryDocs,
+		Path:       "",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -38,7 +39,8 @@ func TestListDirectory_ProjectRootNotSet(t *testing.T) {
 	tools.SetListDirectoryBaseRoot("")
 
 	input := &tools.ListLSInput{
-		Path: ".",
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -51,7 +53,8 @@ func TestListDirectory_PathEscapesBase(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.ListLSInput{
-		Path: "../../../etc",
+		Repository: tools.RepositoryDocs,
+		Path:       "../../../etc",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -66,7 +69,8 @@ func TestListDirectory_PathEscapesBaseAbsolute(t *testing.T) {
 	// Try to access a directory outside the temp dir
 	outsidePath := "/etc"
 	input := &tools.ListLSInput{
-		Path: outsidePath,
+		Repository: tools.RepositoryDocs,
+		Path:       outsidePath,
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -84,7 +88,8 @@ func TestListDirectory_PathIsFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path: "test.txt",
+		Repository: tools.RepositoryDocs,
+		Path:       "test.txt",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -97,7 +102,8 @@ func TestListDirectory_PathDoesNotExist(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.ListLSInput{
-		Path: "nonexistent",
+		Repository: tools.RepositoryDocs,
+		Path:       "nonexistent",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -110,7 +116,8 @@ func TestListDirectory_EmptyDirectory(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.ListLSInput{
-		Path: ".",
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -139,7 +146,8 @@ func TestListDirectory_WithFiles(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path: ".",
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -160,7 +168,8 @@ func TestListDirectory_WithSubdirectories(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path: ".",
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -185,7 +194,8 @@ func TestListDirectory_NestedStructure(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path: ".",
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -211,7 +221,8 @@ func TestListDirectory_IgnoreDefaultPatterns(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path: ".",
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -231,8 +242,9 @@ func TestListDirectory_CustomIgnorePatterns(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path:   ".",
-		Ignore: []string{"temp.log"}, // Exact filename match (no wildcards supported)
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
+		Ignore:     []string{"temp.log"}, // Exact filename match (no wildcards supported)
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -257,8 +269,9 @@ func TestListDirectory_IgnoreDirectoryWithCustomPattern(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path:   ".",
-		Ignore: []string{"custom_ignore/"},
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
+		Ignore:     []string{"custom_ignore/"},
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -279,7 +292,8 @@ func TestListDirectory_LimitReached(t *testing.T) {
 	}
 
 	input := &tools.ListLSInput{
-		Path: ".",
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -320,7 +334,8 @@ func TestListDirectory_SpecificSubdirectory(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path: "subdir",
+		Repository: tools.RepositoryDocs,
+		Path:       "subdir",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -342,7 +357,8 @@ func TestListDirectory_RelativePath(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path: "./subdir",
+		Repository: tools.RepositoryDocs,
+		Path:       "./subdir",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -382,7 +398,8 @@ func TestListDirectory_ComplexIgnorePatterns(t *testing.T) {
 	}
 
 	input := &tools.ListLSInput{
-		Path: ".",
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -408,8 +425,9 @@ func TestListDirectory_EmptyIgnorePatterns(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path:   ".",
-		Ignore: []string{""}, // Empty ignore patterns
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
+		Ignore:     []string{""}, // Empty ignore patterns
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -432,7 +450,8 @@ func TestListDirectory_ScopedIgnores(t *testing.T) {
 	utils.NilError(t, os.MkdirAll(srcDir, 0o755))
 	utils.NilError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main"), 0o644))
 
-	result, err := tools.ListDirectory(context.Background(), &tools.ListLSInput{Path: "."})
+	result, err := tools.ListDirectory(context.Background(), &tools.ListLSInput{
+		Repository: tools.RepositoryDocs, Path: "."})
 	utils.NilError(t, err)
 	if strings.Contains(result.Output, "docs") {
 		t.Fatalf("expected docs directory to be hidden by scoped ignore; output: %s", result.Output)
@@ -453,7 +472,8 @@ func TestListDirectory_UnicodeNames(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path: ".",
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)
@@ -475,7 +495,8 @@ func TestListDirectory_Symlinks(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ListLSInput{
-		Path: ".",
+		Repository: tools.RepositoryDocs,
+		Path:       ".",
 	}
 	result, err := tools.ListDirectory(context.Background(), input)
 	utils.NilError(t, err)

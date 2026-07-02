@@ -24,8 +24,9 @@ func TestWriteFile_EmptyFilePath(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.WriteFileInput{
-		FilePath: "",
-		Content:  "test content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "",
+		Content:    "test content",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -39,8 +40,9 @@ func TestWriteFile_ProjectRootNotSet(t *testing.T) {
 	tools.SetListDirectoryBaseRoot("")
 
 	input := &tools.WriteFileInput{
-		FilePath: "test.txt",
-		Content:  "test content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		Content:    "test content",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -54,8 +56,9 @@ func TestWriteFile_PathEscapesBase(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.WriteFileInput{
-		FilePath: "../../../etc/passwd",
-		Content:  "test content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "../../../etc/passwd",
+		Content:    "test content",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -71,8 +74,9 @@ func TestWriteFile_AbsolutePathEscapesBase(t *testing.T) {
 	// Create an absolute path that escapes the base
 	escapePath := filepath.Join(filepath.Dir(tempDir), "escape.txt")
 	input := &tools.WriteFileInput{
-		FilePath: escapePath,
-		Content:  "test content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   escapePath,
+		Content:    "test content",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -86,8 +90,9 @@ func TestWriteFile_DirectoryDoesNotExist(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.WriteFileInput{
-		FilePath: "nonexistent/subdir/test.txt",
-		Content:  "test content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "nonexistent/subdir/test.txt",
+		Content:    "test content",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -106,8 +111,9 @@ func TestWriteFile_PathIsNotDirectory(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.WriteFileInput{
-		FilePath: "notdir/test.txt",
-		Content:  "test content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "notdir/test.txt",
+		Content:    "test content",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -122,8 +128,9 @@ func TestWriteFile_CreateNewFile(t *testing.T) {
 
 	targetPath := "test.txt"
 	input := &tools.WriteFileInput{
-		FilePath: targetPath,
-		Content:  "Hello, World!",
+		Repository: tools.RepositoryDocs,
+		FilePath:   targetPath,
+		Content:    "Hello, World!",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -157,8 +164,9 @@ func TestWriteFile_OverwriteExistingFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.WriteFileInput{
-		FilePath: targetPath,
-		Content:  "new content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   targetPath,
+		Content:    "new content",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -180,8 +188,9 @@ func TestWriteFile_EmptyContent(t *testing.T) {
 
 	targetPath := "empty.txt"
 	input := &tools.WriteFileInput{
-		FilePath: targetPath,
-		Content:  "",
+		Repository: tools.RepositoryDocs,
+		FilePath:   targetPath,
+		Content:    "",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -204,8 +213,9 @@ func TestWriteFile_SpecialCharacters(t *testing.T) {
 
 	targetPath := "special.txt"
 	input := &tools.WriteFileInput{
-		FilePath: targetPath,
-		Content:  "Line 1\nLine 2\tTab\nUnicode: ñáéíóú",
+		Repository: tools.RepositoryDocs,
+		FilePath:   targetPath,
+		Content:    "Line 1\nLine 2\tTab\nUnicode: ñáéíóú",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -231,8 +241,9 @@ func TestWriteFile_InSubdirectory(t *testing.T) {
 
 	targetPath := "subdir/nested.txt"
 	input := &tools.WriteFileInput{
-		FilePath: targetPath,
-		Content:  "nested file content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   targetPath,
+		Content:    "nested file content",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -259,8 +270,9 @@ func TestWriteFile_AbsolutePathWithinBase(t *testing.T) {
 	// Use absolute path within base
 	absPath := filepath.Join(subDir, "absfile.txt")
 	input := &tools.WriteFileInput{
-		FilePath: absPath,
-		Content:  "absolute path content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   absPath,
+		Content:    "absolute path content",
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -283,8 +295,9 @@ func TestWriteFile_LargeContent(t *testing.T) {
 	targetPath := "large.txt"
 
 	input := &tools.WriteFileInput{
-		FilePath: targetPath,
-		Content:  largeContent,
+		Repository: tools.RepositoryDocs,
+		FilePath:   targetPath,
+		Content:    largeContent,
 	}
 	result, err := tools.WriteFile(context.Background(), input)
 	utils.NilError(t, err)

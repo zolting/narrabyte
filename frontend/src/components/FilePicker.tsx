@@ -31,7 +31,7 @@ export default function FilePicker({
 			if (accept?.extensions.length) {
 				path = await SelectFileFiltered(
 					accept.label || "Files",
-					accept.extensions
+					accept.extensions,
 				);
 			} else {
 				path = await SelectFile();

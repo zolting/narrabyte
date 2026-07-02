@@ -72,7 +72,7 @@ function RootLayout() {
 					<main className="flex min-h-0 flex-1 flex-col overflow-hidden">
 						<ProjectCacheHost />
 						<Outlet />
-						{process.env.NODE_ENV === "development" && (
+						{import.meta.env.DEV && (
 							<TanStackRouterDevtools position="bottom-right" />
 						)}
 					</main>

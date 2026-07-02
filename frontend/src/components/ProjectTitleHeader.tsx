@@ -10,7 +10,7 @@ export function ProjectTitleHeader() {
 	const { t } = useTranslation();
 	const matches = useMatches();
 	const matchWithProject = matches.find(
-		(m) => (m.params as Record<string, string>).projectId
+		(m) => (m.params as Record<string, string>).projectId,
 	);
 	const projectId = (matchWithProject?.params as Record<string, string>)
 		?.projectId;

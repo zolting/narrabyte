@@ -18,15 +18,15 @@ export function CurrentGenerationsIndicator() {
 	const sessionMeta = useDocGenerationStore((state) => state.sessionMeta);
 	const activeSessions = useDocGenerationStore((state) => state.activeSession);
 	const setActiveSession = useDocGenerationStore(
-		(state) => state.setActiveSession
+		(state) => state.setActiveSession,
 	);
 
 	const runningSessions = useMemo(
 		() =>
 			Object.entries(sessionMeta).filter(
-				([, meta]) => meta.status === "running" || meta.status === "committing"
+				([, meta]) => meta.status === "running" || meta.status === "committing",
 			),
-		[sessionMeta]
+		[sessionMeta],
 	);
 
 	if (runningSessions.length === 0) {
@@ -41,7 +41,7 @@ export function CurrentGenerationsIndicator() {
 			projectName: string;
 			sourceBranch: string;
 			targetBranch: string;
-		}
+		},
 	) => {
 		setOpen(false);
 		setActiveSession(meta.projectId, sessionKey);
@@ -78,7 +78,7 @@ export function CurrentGenerationsIndicator() {
 			window.dispatchEvent(
 				new CustomEvent("ui:restore-session-tab", {
 					detail: { projectId: meta.projectId, sessionInfo },
-				})
+				}),
 			);
 		}, 100);
 	};

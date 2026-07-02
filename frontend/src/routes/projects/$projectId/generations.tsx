@@ -24,7 +24,7 @@ function RouteComponent() {
 	const { t } = useTranslation();
 	const { projectId } = Route.useParams();
 	const [sessions, setSessions] = useState<models.GenerationSession[] | null>(
-		null
+		null,
 	);
 	const [loading, setLoading] = useState<boolean>(true);
 	const [restoringId, setRestoringId] = useState<number | null>(null);
@@ -78,14 +78,14 @@ function RouteComponent() {
 					window.dispatchEvent(
 						new CustomEvent("ui:restore-session-tab", {
 							detail: { projectId: Number(projectId), sessionInfo },
-						})
+						}),
 					);
 				}, 100);
 			} finally {
 				setRestoringId(null);
 			}
 		},
-		[navigate, projectId]
+		[navigate, projectId],
 	);
 
 	const formatUpdated = useCallback((raw: unknown) => {
@@ -121,7 +121,7 @@ function RouteComponent() {
 				setDeletingId(null);
 			}
 		},
-		[projectId, refreshSessions, clearSessionMeta]
+		[projectId, refreshSessions, clearSessionMeta],
 	);
 
 	return (

@@ -3,7 +3,7 @@ import type { models } from "@go/models";
 const PRIORITY_BRANCHES = ["main", "master", "develop"] as const;
 
 const priorityOrder = new Map<string, number>(
-	PRIORITY_BRANCHES.map((branch, index) => [branch, index])
+	PRIORITY_BRANCHES.map((branch, index) => [branch, index]),
 );
 
 const branchName = (branch: models.BranchInfo) => (branch.name ?? "").trim();
@@ -24,7 +24,7 @@ export interface SortBranchesOptions {
  */
 export function sortBranches(
 	branches: models.BranchInfo[],
-	{ prioritizeMainMaster = false }: SortBranchesOptions = {}
+	{ prioritizeMainMaster = false }: SortBranchesOptions = {},
 ): models.BranchInfo[] {
 	if (!Array.isArray(branches) || branches.length === 0) {
 		return [];

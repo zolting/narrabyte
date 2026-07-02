@@ -68,12 +68,12 @@ export const BranchSelector = ({
 
 	const availableSourceBranches = useMemo(
 		() => branches.filter((b) => b.name !== targetBranch),
-		[branches, targetBranch]
+		[branches, targetBranch],
 	);
 
 	const availableTargetBranches = useMemo(
 		() => branches.filter((b) => b.name !== sourceBranch),
-		[branches, sourceBranch]
+		[branches, sourceBranch],
 	);
 
 	return (
@@ -92,7 +92,7 @@ export const BranchSelector = ({
 							aria-expanded={sourceOpen}
 							className={cn(
 								"w-full justify-between overflow-hidden hover:text-foreground",
-								twTrigger
+								twTrigger,
 							)}
 							disabled={disableControls}
 							id={sourceBranchComboboxId}
@@ -109,7 +109,7 @@ export const BranchSelector = ({
 					<PopoverContent
 						className={cn(
 							"w-[var(--radix-popover-trigger-width)] p-0",
-							twContent
+							twContent,
 						)}
 					>
 						<Command>
@@ -129,7 +129,7 @@ export const BranchSelector = ({
 											<CheckIcon
 												className={cn(
 													"mr-2 h-4 w-4",
-													sourceBranch === b.name ? "opacity-100" : "opacity-0"
+													sourceBranch === b.name ? "opacity-100" : "opacity-0",
 												)}
 											/>
 											{b.name}
@@ -170,7 +170,7 @@ export const BranchSelector = ({
 							aria-expanded={targetOpen}
 							className={cn(
 								"w-full justify-between overflow-hidden hover:text-foreground",
-								twTrigger
+								twTrigger,
 							)}
 							disabled={disableControls}
 							id={targetBranchComboboxId}
@@ -187,7 +187,7 @@ export const BranchSelector = ({
 					<PopoverContent
 						className={cn(
 							"w-[var(--radix-popover-trigger-width)] p-0",
-							twContent
+							twContent,
 						)}
 					>
 						<Command>
@@ -207,7 +207,7 @@ export const BranchSelector = ({
 											<CheckIcon
 												className={cn(
 													"mr-2 h-4 w-4",
-													targetBranch === b.name ? "opacity-100" : "opacity-0"
+													targetBranch === b.name ? "opacity-100" : "opacity-0",
 												)}
 											/>
 											{b.name}

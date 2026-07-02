@@ -23,9 +23,10 @@ func TestEdit_EmptyFilePath(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.EditInput{
-		FilePath:  "",
-		OldString: "old",
-		NewString: "new",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "",
+		OldString:  "old",
+		NewString:  "new",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -35,9 +36,10 @@ func TestEdit_EmptyFilePath(t *testing.T) {
 
 func TestEdit_SameOldNewString(t *testing.T) {
 	input := &tools.EditInput{
-		FilePath:  "/tmp/test.txt",
-		OldString: "same",
-		NewString: "same",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "/tmp/test.txt",
+		OldString:  "same",
+		NewString:  "same",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -50,9 +52,10 @@ func TestEdit_ProjectRootNotSet(t *testing.T) {
 	tools.SetListDirectoryBaseRoot("")
 
 	input := &tools.EditInput{
-		FilePath:  "test.txt",
-		OldString: "old",
-		NewString: "new",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		OldString:  "old",
+		NewString:  "new",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -66,9 +69,10 @@ func TestEdit_PathEscapesBase(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.EditInput{
-		FilePath:  "../../../etc/passwd",
-		OldString: "old",
-		NewString: "new",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "../../../etc/passwd",
+		OldString:  "old",
+		NewString:  "new",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -81,9 +85,10 @@ func TestEdit_DirectoryDoesNotExist(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.EditInput{
-		FilePath:  "nonexistent/dir/file.txt",
-		OldString: "old",
-		NewString: "new",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "nonexistent/dir/file.txt",
+		OldString:  "old",
+		NewString:  "new",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -101,9 +106,10 @@ func TestEdit_PathIsDirectory(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
-		FilePath:  "subdir",
-		OldString: "old",
-		NewString: "new",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "subdir",
+		OldString:  "old",
+		NewString:  "new",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -121,9 +127,10 @@ func TestEdit_BinaryFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
-		FilePath:  "test.zip",
-		OldString: "old",
-		NewString: "new",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.zip",
+		OldString:  "old",
+		NewString:  "new",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -140,9 +147,10 @@ func TestEdit_OverwriteEntireFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
-		FilePath:  "test.txt",
-		OldString: "",
-		NewString: "new content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		OldString:  "",
+		NewString:  "new content",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -161,9 +169,10 @@ func TestEdit_CreateNewFile(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.EditInput{
-		FilePath:  "newfile.txt",
-		OldString: "",
-		NewString: "new file content",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "newfile.txt",
+		OldString:  "",
+		NewString:  "new file content",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -187,9 +196,10 @@ func TestEdit_SimpleReplace(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
-		FilePath:  "test.txt",
-		OldString: "world",
-		NewString: "universe",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		OldString:  "world",
+		NewString:  "universe",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -212,6 +222,7 @@ func TestEdit_ReplaceAll(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
+		Repository: tools.RepositoryDocs,
 		FilePath:   "test.txt",
 		OldString:  "foo",
 		NewString:  "qux",
@@ -238,9 +249,10 @@ func TestEdit_OldStringNotFound(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
-		FilePath:  "test.txt",
-		OldString: "nonexistent",
-		NewString: "replacement",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		OldString:  "nonexistent",
+		NewString:  "replacement",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -257,9 +269,10 @@ func TestEdit_AmbiguousMatch(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
-		FilePath:  "test.txt",
-		OldString: "foo",
-		NewString: "qux",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		OldString:  "foo",
+		NewString:  "qux",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -278,9 +291,10 @@ func TestEdit_LineTrimmedReplace(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
-		FilePath:  "test.txt",
-		OldString: "console.log('hello')",
-		NewString: "console.log('world')",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		OldString:  "console.log('hello')",
+		NewString:  "console.log('world')",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -304,9 +318,10 @@ func TestEdit_BlockAnchorReplace(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
-		FilePath:  "test.txt",
-		OldString: "function oldFunc() {\n    // some code\n    return false;\n}",
-		NewString: "function updatedFunc() {\n    // updated code\n    return true;\n}",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		OldString:  "function oldFunc() {\n    // some code\n    return false;\n}",
+		NewString:  "function updatedFunc() {\n    // updated code\n    return true;\n}",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -330,9 +345,10 @@ func TestEdit_WhitespaceNormalizedReplace(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
-		FilePath:  "test.txt",
-		OldString: "key2  =  value2",
-		NewString: "key2=updated",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		OldString:  "key2  =  value2",
+		NewString:  "key2=updated",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)
@@ -355,9 +371,10 @@ func TestEdit_IndentationFlexibleReplace(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.EditInput{
-		FilePath:  "test.txt",
-		OldString: "if (condition) {\n    doSomething();\n}",
-		NewString: "if (condition) {\n    doSomethingElse();\n}",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		OldString:  "if (condition) {\n    doSomething();\n}",
+		NewString:  "if (condition) {\n    doSomethingElse();\n}",
 	}
 	output, err := tools.Edit(context.Background(), input)
 	utils.NilError(t, err)

@@ -26,7 +26,7 @@ interface ProjectCacheContextValue {
 }
 
 const ProjectCacheContext = createContext<ProjectCacheContextValue | undefined>(
-	undefined
+	undefined,
 );
 
 export function useProjectCache() {
@@ -54,12 +54,12 @@ export function ProjectCacheProvider({ children }: { children: ReactNode }) {
 
 	const getEntries = useCallback(
 		() => Array.from(entriesRef.current.values()),
-		[]
+		[],
 	);
 
 	const value = useMemo(
 		() => ({ activeProjectId, setActiveProjectId, ensureProject, getEntries }),
-		[activeProjectId, ensureProject, getEntries]
+		[activeProjectId, ensureProject, getEntries],
 	);
 
 	return (

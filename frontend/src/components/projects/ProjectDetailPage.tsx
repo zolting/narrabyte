@@ -61,7 +61,7 @@ import {
 export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const { t } = useTranslation();
 	const [project, setProject] = useState<models.RepoLink | null | undefined>(
-		undefined
+		undefined,
 	);
 	const [lastSelectedModelKey, setLastSelectedModelKey] = useState<
 		string | null
@@ -178,7 +178,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 	const availableModels = useMemo<ModelOption[]>(
 		() => groupedModelOptions.flatMap((group) => group.models),
-		[groupedModelOptions]
+		[groupedModelOptions],
 	);
 
 	const defaultModelKey = useMemo(() => {
@@ -205,7 +205,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 
 		if (template.length > 0) {
 			sections.push(
-				`<DOCUMENTATION_TEMPLATE>${template}</DOCUMENTATION_TEMPLATE>`
+				`<DOCUMENTATION_TEMPLATE>${template}</DOCUMENTATION_TEMPLATE>`,
 			);
 		}
 		if (user.length > 0) {
@@ -232,7 +232,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		) {
 			activeDocManager.setCompletedCommit(
 				activeDocManager.sourceBranch,
-				activeDocManager.targetBranch
+				activeDocManager.targetBranch,
 			);
 		}
 	}, [
@@ -263,7 +263,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	// Branch selection requirements are checked per-tab
 	const canGenerateBase = useMemo(
 		() => Boolean(project && availableModels.length > 0),
-		[availableModels, project]
+		[availableModels, project],
 	);
 
 	const handleGenerate = useCallback(
@@ -272,7 +272,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			manager: DocGenerationManager,
 			branchSelection: BranchSelectionState,
 			mode: "diff" | "single",
-			modelKey: string | null
+			modelKey: string | null,
 		) => {
 			if (!(project && branchSelection.sourceBranch && modelKey)) {
 				return;
@@ -286,7 +286,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			const newSessionKey = createTempSessionKey(
 				Number(project.ID),
 				trimmedSourceBranch,
-				tabId
+				tabId,
 			);
 			createTabSession(Number(project.ID), tabId, newSessionKey);
 
@@ -320,7 +320,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 				});
 			}
 		},
-		[project, buildInstructionPayload, createTabSession]
+		[project, buildInstructionPayload, createTabSession],
 	);
 
 	const handleApprove = useCallback((manager: DocGenerationManager) => {
@@ -342,7 +342,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			setPendingDeletion({ manager, branchSelection, branchName });
 			setShowDeleteConfirm(true);
 		},
-		[]
+		[],
 	);
 
 	const confirmDeletion = useCallback(async () => {
@@ -361,12 +361,12 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 	const handleStartNewTask = useCallback(
 		async (
 			manager: DocGenerationManager,
-			branchSelection: BranchSelectionState
+			branchSelection: BranchSelectionState,
 		) => {
 			await manager.reset({ deleteDocsBranch: false });
 			branchSelection.resetSelection();
 		},
-		[]
+		[],
 	);
 
 	if (project === undefined) {
@@ -391,7 +391,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			models: ModelOption[];
 		}>,
 		modelsLoading: boolean,
-		providerKeys: string[]
+		providerKeys: string[],
 	) => {
 		const disableControls = tabDocManager.isBusy;
 		return (
@@ -519,7 +519,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			models: ModelOption[];
 		}>,
 		modelsLoading: boolean,
-		providerKeys: string[]
+		providerKeys: string[],
 	) => {
 		const comparisonSourceBranch =
 			tabDocManager.sourceBranch ??
@@ -566,7 +566,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			availableModels,
 			groupedModelOptions,
 			modelsLoading,
-			providerKeys
+			providerKeys,
 		);
 	};
 

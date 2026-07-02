@@ -28,7 +28,7 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 					}
 					return [...prev, key];
 				});
-			}, index * 100)
+			}, index * 100),
 		);
 
 		return () => {
@@ -46,10 +46,10 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 	// Calculate counts
 	const pendingCount = todos.filter((todo) => todo.status === "pending").length;
 	const inProgressCount = todos.filter(
-		(todo) => todo.status === "in_progress"
+		(todo) => todo.status === "in_progress",
 	).length;
 	const completedCount = todos.filter(
-		(todo) => todo.status === "completed"
+		(todo) => todo.status === "completed",
 	).length;
 
 	// Get icon for todo status
@@ -108,7 +108,7 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 						{todos.map((todo, index) => {
 							const key = `${todo.content}-${todo.status}-${index}`;
 							const isVisible = visibleTodos.includes(
-								`${todo.content}-${todo.status}`
+								`${todo.content}-${todo.status}`,
 							);
 							const displayText =
 								todo.status === "in_progress" ? todo.activeForm : todo.content;
@@ -124,7 +124,7 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
 											"bg-blue-500/10": todo.status === "in_progress",
 											"bg-muted/50": todo.status === "pending",
 											"bg-muted/30 opacity-60": todo.status === "cancelled",
-										}
+										},
 									)}
 									key={key}
 								>

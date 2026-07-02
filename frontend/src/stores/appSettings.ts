@@ -47,10 +47,10 @@ function normalizeToSupportedLocale(input: string | undefined): string {
 
 async function handleFirstRun(
 	settings: AppSettings,
-	set: (state: Partial<State>) => void
+	set: (state: Partial<State>) => void,
 ) {
 	const detected = normalizeToSupportedLocale(
-		i18n.language || navigator.language
+		i18n.language || navigator.language,
 	);
 	const updated = await Update(settings.Theme ?? "system", detected);
 	if (i18n.language !== detected) {
@@ -61,7 +61,7 @@ async function handleFirstRun(
 
 function handleExistingSettings(
 	settings: AppSettings,
-	set: (state: Partial<State>) => void
+	set: (state: Partial<State>) => void,
 ) {
 	const persisted = normalizeToSupportedLocale(settings.Locale);
 	if (i18n.language !== persisted) {

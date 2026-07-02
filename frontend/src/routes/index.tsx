@@ -71,7 +71,7 @@ function Home() {
 	const activeSessions = useDocGenerationStore((state) => state.activeSession);
 	const clearSessionMeta = useDocGenerationStore((s) => s.clearSessionMeta);
 	const setActiveSession = useDocGenerationStore(
-		(state) => state.setActiveSession
+		(state) => state.setActiveSession,
 	);
 
 	const loadProjects = useCallback(() => {
@@ -115,8 +115,8 @@ function Home() {
 						project,
 						sessions: Array.isArray(sessions) ? sessions : [],
 					}))
-					.catch(() => ({ project, sessions: [] }))
-			)
+					.catch(() => ({ project, sessions: [] })),
+			),
 		)
 			.then((results) => {
 				const summaries: PendingSessionSummary[] = [];
@@ -156,13 +156,13 @@ function Home() {
 			Object.entries(sessionMeta)
 				.filter(
 					([, meta]) =>
-						meta.status === "running" || meta.status === "committing"
+						meta.status === "running" || meta.status === "committing",
 				)
 				.map(([sessionKey, meta]) => ({
 					sessionKey,
 					meta,
 				})),
-		[sessionMeta]
+		[sessionMeta],
 	);
 
 	const formatUpdated = useCallback((raw: string | null) => {
@@ -204,14 +204,14 @@ function Home() {
 					window.dispatchEvent(
 						new CustomEvent("ui:restore-session-tab", {
 							detail: { projectId: summary.projectId, sessionInfo },
-						})
+						}),
 					);
 				}, 100);
 			} finally {
 				setRestoringKey(null);
 			}
 		},
-		[navigate]
+		[navigate],
 	);
 
 	const handleResumeRunning = useCallback(
@@ -222,7 +222,7 @@ function Home() {
 				projectId: number;
 				sourceBranch: string;
 				targetBranch: string;
-			}
+			},
 		) => {
 			if (!meta.sessionId) {
 				console.error("Cannot resume running session without session ID");
@@ -261,14 +261,14 @@ function Home() {
 					window.dispatchEvent(
 						new CustomEvent("ui:restore-session-tab", {
 							detail: { projectId: meta.projectId, sessionInfo },
-						})
+						}),
 					);
 				}, 100);
 			} finally {
 				setRestoringKey(null);
 			}
 		},
-		[navigate, setActiveSession]
+		[navigate, setActiveSession],
 	);
 
 	const projectSelectId = useId();
@@ -306,7 +306,7 @@ function Home() {
 				setDeletingId(null);
 			}
 		},
-		[clearSessionMeta, loadPendingSessions]
+		[clearSessionMeta, loadPendingSessions],
 	);
 
 	const runningVisible = runningSessions.length > 0;

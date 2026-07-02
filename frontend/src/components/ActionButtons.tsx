@@ -95,7 +95,7 @@ export const ActionButtons = ({
 														? t("common.mergingDocs", "Merging…")
 														: t(
 																"common.mergeDocsIntoSource",
-																"Merge into source branch"
+																"Merge into source branch",
 															)}
 												</Button>
 											</div>
@@ -107,7 +107,7 @@ export const ActionButtons = ({
 													<p className="max-w-xs text-xs">
 														{t(
 															"common.mergeDisabledUncommittedChanges",
-															"Cannot merge: You are currently on the source branch with uncommitted changes. Please commit or stash your changes first."
+															"Cannot merge: You are currently on the source branch with uncommitted changes. Please commit or stash your changes first.",
 														)}
 													</p>
 												) : null}
