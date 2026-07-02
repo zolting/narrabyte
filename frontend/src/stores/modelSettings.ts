@@ -8,6 +8,24 @@ import {
 import { create } from "zustand";
 
 export type ModelKey = string;
+export type ReasoningEffort = "low" | "medium" | "high";
+
+export const reasoningEfforts = ["low", "medium", "high"] as const;
+
+export const isReasoningEffort = (value: string): value is ReasoningEffort =>
+	reasoningEfforts.includes(value as ReasoningEffort);
+
+export const defaultReasoningEffort = (
+	model?: Pick<ModelOption, "reasoningEffort"> | null,
+): ReasoningEffort =>
+	model?.reasoningEffort && isReasoningEffort(model.reasoningEffort)
+		? model.reasoningEffort
+		: "medium";
+
+export const modelKeyWithReasoningEffort = (
+	modelKey: string,
+	effort: ReasoningEffort,
+) => `${modelKey}:${effort}`;
 
 export type ModelOption = {
 	key: string;

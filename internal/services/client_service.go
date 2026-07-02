@@ -267,8 +267,8 @@ func (s *ClientService) instantiateLLMClient(modelKey string) (*client.LLMClient
 	switch providerID {
 	case "anthropic":
 		llmClient, createErr = client.NewClaudeClient(s.context, apiKey, client.ClaudeModelOptions{
-			Model:    model.APIName,
-			Thinking: model.Thinking != nil && *model.Thinking,
+			Model:           model.APIName,
+			ReasoningEffort: model.ReasoningEffort,
 		})
 	case "openai":
 		llmClient, createErr = client.NewOpenAIClient(s.context, apiKey, client.OpenAIModelOptions{
@@ -277,8 +277,8 @@ func (s *ClientService) instantiateLLMClient(modelKey string) (*client.LLMClient
 		})
 	case "gemini":
 		llmClient, createErr = client.NewGeminiClient(s.context, apiKey, client.GeminiModelOptions{
-			Model:    model.APIName,
-			Thinking: model.Thinking != nil && *model.Thinking,
+			Model:           model.APIName,
+			ReasoningEffort: model.ReasoningEffort,
 		})
 	default:
 		return nil, nil, fmt.Errorf("unsupported provider: %s", providerID)

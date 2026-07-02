@@ -20,9 +20,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudwego/eino-ext/components/model/agenticopenai"
 	"github.com/cloudwego/eino-ext/components/model/claude"
 	"github.com/cloudwego/eino-ext/components/model/gemini"
-	"github.com/cloudwego/eino-ext/components/model/openai"
 	"google.golang.org/genai"
 
 	"github.com/cloudwego/eino/adk"
@@ -33,6 +33,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 const llmInstructionsNamePrefix = "llm_instructions"
@@ -101,6 +102,7 @@ func buildPromptWithInstructions(ctx context.Context, cfg promptBuilderConfig) s
 
 type LLMClient struct {
 	chatModel       model.ToolCallingChatModel
+	agenticModel    model.AgenticModel
 	Key             string
 	fileHistoryMu   sync.Mutex
 	fileOpenHistory []string
@@ -121,6 +123,7 @@ type LLMClient struct {
 	cancel                context.CancelFunc
 	conversationHistoryMu sync.Mutex
 	conversationHistory   []adk.Message // Store conversation for context in refinement
+	agenticHistory        []*schema.AgenticMessage
 }
 
 type DocGenerationRequest struct {
@@ -164,13 +167,13 @@ type OpenAIModelOptions struct {
 }
 
 type ClaudeModelOptions struct {
-	Model    string
-	Thinking bool
+	Model           string
+	ReasoningEffort string
 }
 
 type GeminiModelOptions struct {
-	Model    string
-	Thinking bool
+	Model           string
+	ReasoningEffort string
 }
 
 const (
@@ -184,21 +187,12 @@ const (
 func NewOpenAIClient(ctx context.Context, key string, opts OpenAIModelOptions) (*LLMClient, error) {
 	modelName := strings.TrimSpace(opts.Model)
 	if modelName == "" {
-		modelName = "gpt-5-mini"
+		modelName = "gpt-5.5"
 	}
-	var effort openai.ReasoningEffortLevel
-	switch strings.ToLower(strings.TrimSpace(opts.ReasoningEffort)) {
-	case "low":
-		effort = openai.ReasoningEffortLevelLow
-	case "high":
-		effort = openai.ReasoningEffortLevelHigh
-	case "medium":
-		effort = openai.ReasoningEffortLevelMedium
-	}
-	chatModel, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		APIKey:          key,
-		Model:           modelName,
-		ReasoningEffort: effort,
+	agenticModel, err := agenticopenai.NewResponsesModel(ctx, &agenticopenai.ResponsesConfig{
+		APIKey:    key,
+		Model:     modelName,
+		Reasoning: openAIResponsesReasoning(opts.ReasoningEffort),
 	})
 
 	if err != nil {
@@ -206,22 +200,20 @@ func NewOpenAIClient(ctx context.Context, key string, opts OpenAIModelOptions) (
 		return nil, err
 	}
 
-	return &LLMClient{chatModel: chatModel, Key: key}, err
+	return &LLMClient{agenticModel: agenticModel, Key: key}, err
 }
 
 func NewClaudeClient(ctx context.Context, key string, opts ClaudeModelOptions) (*LLMClient, error) {
 	modelName := strings.TrimSpace(opts.Model)
 	if modelName == "" {
-		modelName = "claude-sonnet-4-5"
+		modelName = "claude-sonnet-5"
 	}
+	thinking := claudeThinkingForEffort(opts.ReasoningEffort)
 	chatModel, err := claude.NewChatModel(ctx, &claude.Config{
 		APIKey:    key,
 		Model:     modelName,
 		MaxTokens: 12000,
-		Thinking: &claude.Thinking{
-			Enable:       opts.Thinking,
-			BudgetTokens: 4092,
-		},
+		Thinking:  thinking,
 	})
 
 	if err != nil {
@@ -244,14 +236,9 @@ func NewGeminiClient(ctx context.Context, key string, opts GeminiModelOptions) (
 
 	modelName := strings.TrimSpace(opts.Model)
 	if modelName == "" {
-		modelName = "gemini-flash-latest"
+		modelName = "gemini-3.5-flash"
 	}
-	var thinkingBudget *int32
-	includeThoughts := opts.Thinking
-	if !opts.Thinking {
-		zero := int32(0)
-		thinkingBudget = &zero
-	}
+	thinkingBudget, includeThoughts := geminiThinkingForEffort(opts.ReasoningEffort)
 	chatModel, err := gemini.NewChatModel(ctx, &gemini.Config{
 		Client: genaiClient,
 		Model:  modelName,
@@ -267,6 +254,114 @@ func NewGeminiClient(ctx context.Context, key string, opts GeminiModelOptions) (
 	}
 
 	return &LLMClient{chatModel: chatModel, Key: key}, err
+}
+
+func claudeThinkingForEffort(effort string) *claude.Thinking {
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "low":
+		return &claude.Thinking{Enable: false}
+	case "high":
+		return &claude.Thinking{Enable: true, BudgetTokens: 8192}
+	default:
+		return &claude.Thinking{Enable: true, BudgetTokens: 4092}
+	}
+}
+
+func geminiThinkingForEffort(effort string) (*int32, bool) {
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "low":
+		zero := int32(0)
+		return &zero, false
+	case "high":
+		return nil, true
+	default:
+		medium := int32(8192)
+		return &medium, true
+	}
+}
+
+func openAIResponsesReasoning(effort string) *responses.ReasoningParam {
+	var reasoningEffort responses.ReasoningEffort
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "low":
+		reasoningEffort = responses.ReasoningEffortLow
+	case "high":
+		reasoningEffort = responses.ReasoningEffortHigh
+	default:
+		reasoningEffort = responses.ReasoningEffortMedium
+	}
+	return &responses.ReasoningParam{
+		Effort:  reasoningEffort,
+		Summary: responses.ReasoningSummaryAuto,
+	}
+}
+
+func (o *LLMClient) usesAgenticModel() bool {
+	return o != nil && o.agenticModel != nil
+}
+
+func agenticTextContent(msg *schema.AgenticMessage) string {
+	if msg == nil {
+		return ""
+	}
+	var texts []string
+	for _, block := range msg.ContentBlocks {
+		if block == nil {
+			continue
+		}
+		if block.AssistantGenText != nil {
+			texts = append(texts, block.AssistantGenText.Text)
+			continue
+		}
+		if block.UserInputText != nil {
+			texts = append(texts, block.UserInputText.Text)
+		}
+	}
+	if len(texts) > 0 {
+		return strings.Join(texts, "\n")
+	}
+	return strings.TrimSpace(msg.String())
+}
+
+func messageToAgentic(msg adk.Message) *schema.AgenticMessage {
+	if msg == nil {
+		return nil
+	}
+	content := strings.TrimSpace(msg.Content)
+	switch msg.Role {
+	case schema.System:
+		return schema.SystemAgenticMessage(content)
+	case schema.User, schema.Tool:
+		return schema.UserAgenticMessage(content)
+	case schema.Assistant:
+		return &schema.AgenticMessage{
+			Role: schema.AgenticRoleTypeAssistant,
+			ContentBlocks: []*schema.ContentBlock{
+				schema.NewContentBlock(&schema.AssistantGenText{Text: content}),
+			},
+		}
+	default:
+		return schema.UserAgenticMessage(content)
+	}
+}
+
+func agenticToMessage(msg *schema.AgenticMessage) *schema.Message {
+	if msg == nil {
+		return nil
+	}
+	role := schema.Assistant
+	switch msg.Role {
+	case schema.AgenticRoleTypeSystem:
+		role = schema.System
+	case schema.AgenticRoleTypeUser:
+		role = schema.User
+	case schema.AgenticRoleTypeAssistant:
+		role = schema.Assistant
+	}
+	return &schema.Message{
+		Role:    role,
+		Content: agenticTextContent(msg),
+	}
 }
 
 // watch out pour le contexte ici
@@ -329,6 +424,7 @@ func (o *LLMClient) ClearConversationHistory() {
 	o.conversationHistoryMu.Lock()
 	defer o.conversationHistoryMu.Unlock()
 	o.conversationHistory = nil
+	o.agenticHistory = nil
 }
 
 // SetListDirectoryBaseRoot binds the list-directory tools to a specific base directory.
@@ -479,6 +575,10 @@ func (o *LLMClient) GenerateDocs(ctx context.Context, req *DocGenerationRequest)
 
 	if resources.projectInstrErr != nil {
 		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo LLM instructions: %v", resources.projectInstrErr)))
+	}
+
+	if o.usesAgenticModel() {
+		return o.generateDocsAgentic(ctx, req, docRoot, codeRoot, resources, systemInstr)
 	}
 
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
@@ -641,6 +741,10 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 		events.Emit(ctx, events.LLMEventTool, events.NewWarn(fmt.Sprintf("unable to load repo LLM instructions: %v", resources.projectInstrErr)))
 	}
 
+	if o.usesAgenticModel() {
+		return o.docRefineAgentic(ctx, req, docRoot, codeRoot, resources, systemPrompt)
+	}
+
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Model: o.chatModel,
 		ToolsConfig: adk.ToolsConfig{
@@ -775,6 +879,192 @@ func (o *LLMClient) DocRefine(ctx context.Context, req *DocRefineRequest) (*DocG
 	return &DocGenerationResponse{Summary: strings.TrimSpace(lastMessage)}, nil
 }
 
+func (o *LLMClient) generateDocsAgentic(ctx context.Context, req *DocGenerationRequest, docRoot string, codeRoot string, resources *docSessionResources, systemInstr string) (*DocGenerationResponse, error) {
+	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
+		Model: o.agenticModel,
+		ToolsConfig: adk.ToolsConfig{
+			ToolsNodeConfig: compose.ToolsNodeConfig{
+				Tools: resources.tools,
+			},
+		},
+		Name:          "Documentation Assistant",
+		Description:   "Analyzes code diffs and proposes documentation updates",
+		Instruction:   systemInstr,
+		MaxIterations: 100,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	changedList := "(none)"
+	if len(req.ChangedFiles) > 0 {
+		var changed strings.Builder
+		for _, f := range req.ChangedFiles {
+			changed.WriteString("- ")
+			changed.WriteString(filepath.ToSlash(f))
+			changed.WriteString("\n")
+		}
+		changedList = strings.TrimSpace(changed.String())
+	}
+
+	extraContext := map[string]string{
+		"Source branch": req.SourceBranch,
+		"Target branch": req.TargetBranch,
+	}
+	if commit := strings.TrimSpace(req.SourceCommit); commit != "" {
+		extraContext["Source commit"] = commit
+	}
+
+	prompt := buildPromptWithInstructions(ctx, promptBuilderConfig{
+		ProjectName:   req.ProjectName,
+		DocRoot:       docRoot,
+		CodeRoot:      codeRoot,
+		DocListing:    resources.docListing,
+		CodeListing:   resources.codeListing,
+		ProjectInstr:  resources.projectInstr,
+		SpecificInstr: req.SpecificInstr,
+		ExtraContext:  extraContext,
+	})
+
+	var promptBuilder strings.Builder
+	promptBuilder.WriteString(prompt)
+	promptBuilder.WriteString("# Changed Files\n")
+	promptBuilder.WriteString(changedList)
+	promptBuilder.WriteString("\n\n")
+	promptBuilder.WriteString("# Code Changes\n")
+	promptBuilder.WriteString("<git_diff>\n")
+	promptBuilder.WriteString(req.Diff)
+	promptBuilder.WriteString("\n</git_diff>")
+
+	userQuery := schema.UserAgenticMessage(promptBuilder.String())
+	conversationHistory := []*schema.AgenticMessage{userQuery}
+
+	runner := adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent, EnableStreaming: true})
+	iter := runner.Query(ctx, promptBuilder.String())
+
+	var lastMessage string
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if event.Err != nil {
+			if errors.Is(event.Err, context.Canceled) {
+				events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing canceled"))
+				return nil, context.Canceled
+			}
+			events.Emit(ctx, events.LLMEventDone, events.NewError("LLM processing error"))
+			return nil, event.Err
+		}
+		if event.Output == nil || event.Output.MessageOutput == nil {
+			continue
+		}
+		msg, consumeErr := o.consumeAgenticMessageVariant(ctx, event.Output.MessageOutput)
+		if consumeErr != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("GenerateDocs: message error: %v", consumeErr)))
+			continue
+		}
+		if msg == nil {
+			continue
+		}
+		conversationHistory = append(conversationHistory, msg)
+		lastMessage = agenticTextContent(msg)
+	}
+
+	o.storeAgenticConversationHistory(conversationHistory)
+
+	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
+	return &DocGenerationResponse{Summary: strings.TrimSpace(lastMessage)}, nil
+}
+
+func (o *LLMClient) docRefineAgentic(ctx context.Context, req *DocRefineRequest, docRoot string, codeRoot string, resources *docSessionResources, systemPrompt string) (*DocGenerationResponse, error) {
+	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
+		Model: o.agenticModel,
+		ToolsConfig: adk.ToolsConfig{
+			ToolsNodeConfig: compose.ToolsNodeConfig{
+				Tools: resources.tools,
+			},
+		},
+		Name:        "Documentation Refiner",
+		Description: "Applies requested edits to documentation files",
+		Instruction: systemPrompt,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	extraContext := map[string]string{}
+	if sb := strings.TrimSpace(req.SourceBranch); sb != "" {
+		extraContext["Docs branch"] = sb
+	}
+
+	prompt := buildPromptWithInstructions(ctx, promptBuilderConfig{
+		ProjectName:   req.ProjectName,
+		DocRoot:       docRoot,
+		CodeRoot:      codeRoot,
+		DocListing:    resources.docListing,
+		CodeListing:   resources.codeListing,
+		ProjectInstr:  resources.projectInstr,
+		SpecificInstr: req.SpecificInstr,
+		ExtraContext:  extraContext,
+	})
+
+	conversationHistory := o.agenticConversationHistoryForRun(prompt)
+
+	var b strings.Builder
+	b.WriteString(prompt)
+	b.WriteString("# User Refinement Request\n\n")
+	b.WriteString("The user is requesting specific changes to the documentation. ")
+	b.WriteString("Focus on applying the requested edits directly. ")
+	b.WriteString("You have access to both repositories if needed, but prioritize making the requested documentation changes efficiently.\n\n")
+	b.WriteString("<user_instruction>\n")
+	b.WriteString(strings.TrimSpace(req.Instruction))
+	b.WriteString("\n</user_instruction>")
+
+	messages := make([]*schema.AgenticMessage, 0, len(conversationHistory)+1)
+	messages = append(messages, conversationHistory...)
+	newUserMessage := schema.UserAgenticMessage(b.String())
+	messages = append(messages, newUserMessage)
+
+	runner := adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent, EnableStreaming: true})
+	iter := runner.Run(ctx, messages)
+
+	var newMessages []*schema.AgenticMessage
+	var lastMessage string
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if event.Err != nil {
+			if errors.Is(event.Err, context.Canceled) {
+				events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing canceled"))
+				return nil, context.Canceled
+			}
+			events.Emit(ctx, events.LLMEventDone, events.NewError("LLM processing error"))
+			return nil, event.Err
+		}
+		if event.Output == nil || event.Output.MessageOutput == nil {
+			continue
+		}
+		msg, consumeErr := o.consumeAgenticMessageVariant(ctx, event.Output.MessageOutput)
+		if consumeErr != nil {
+			events.Emit(ctx, events.LLMEventTool, events.NewError(fmt.Sprintf("DocRefine: message error: %v", consumeErr)))
+			continue
+		}
+		if msg == nil {
+			continue
+		}
+		newMessages = append(newMessages, msg)
+		lastMessage = agenticTextContent(msg)
+	}
+
+	o.storeAgenticConversationHistory(append(messages, newMessages...))
+
+	events.Emit(ctx, events.LLMEventDone, events.NewInfo("LLM processing complete"))
+	return &DocGenerationResponse{Summary: strings.TrimSpace(lastMessage)}, nil
+}
+
 func (o *LLMClient) prepareSnapshots(ctx context.Context) error {
 	codeRoot := strings.TrimSpace(o.codeRoot)
 	sourceCommit := strings.TrimSpace(o.sourceCommit)
@@ -889,6 +1179,25 @@ func (o *LLMClient) consumeMessageVariant(ctx context.Context, mv *adk.MessageVa
 	return msg, nil
 }
 
+func (o *LLMClient) consumeAgenticMessageVariant(ctx context.Context, mv *adk.TypedMessageVariant[*schema.AgenticMessage]) (*schema.AgenticMessage, error) {
+	if mv == nil {
+		return nil, nil
+	}
+	if mv.IsStreaming {
+		if mv.MessageStream == nil {
+			o.broadcastAgenticReasoningContent(ctx, mv.Message)
+			return mv.Message, nil
+		}
+		return o.consumeAgenticStreamingMessage(ctx, mv.MessageStream)
+	}
+	msg, err := mv.GetMessage()
+	if err != nil {
+		return nil, err
+	}
+	o.broadcastAgenticReasoningContent(ctx, msg)
+	return msg, nil
+}
+
 func (o *LLMClient) consumeStreamingMessage(ctx context.Context, stream adk.MessageStream) (*schema.Message, error) {
 	if stream == nil {
 		return nil, nil
@@ -938,6 +1247,55 @@ func (o *LLMClient) consumeStreamingMessage(ctx context.Context, stream adk.Mess
 	return msg, nil
 }
 
+func (o *LLMClient) consumeAgenticStreamingMessage(ctx context.Context, stream *schema.StreamReader[*schema.AgenticMessage]) (*schema.AgenticMessage, error) {
+	if stream == nil {
+		return nil, nil
+	}
+	stream.SetAutomaticClose()
+	defer stream.Close()
+
+	var (
+		chunks           []*schema.AgenticMessage
+		reasoningBuilder strings.Builder
+		hasReasoning     bool
+	)
+
+	for {
+		chunk, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("stream receive error: %w", err)
+		}
+		if chunk == nil {
+			continue
+		}
+		if reasoning := agenticReasoningContent(chunk); reasoning != "" {
+			if !hasReasoning {
+				o.emitReasoningReset(ctx)
+				hasReasoning = true
+			}
+			_, _ = reasoningBuilder.WriteString(reasoning)
+			o.emitReasoningUpdate(ctx, reasoningBuilder.String())
+		}
+		chunks = append(chunks, chunk)
+	}
+
+	if len(chunks) == 0 {
+		return nil, nil
+	}
+
+	msg, err := schema.ConcatAgenticMessages(chunks)
+	if err != nil {
+		return nil, err
+	}
+	if !hasReasoning {
+		o.broadcastAgenticReasoningContent(ctx, msg)
+	}
+	return msg, nil
+}
+
 func (o *LLMClient) broadcastReasoningContent(ctx context.Context, msg *schema.Message) {
 	if msg == nil {
 		return
@@ -947,6 +1305,31 @@ func (o *LLMClient) broadcastReasoningContent(ctx context.Context, msg *schema.M
 	}
 	o.emitReasoningReset(ctx)
 	o.emitReasoningUpdate(ctx, msg.ReasoningContent)
+}
+
+func (o *LLMClient) broadcastAgenticReasoningContent(ctx context.Context, msg *schema.AgenticMessage) {
+	reasoning := agenticReasoningContent(msg)
+	if reasoning == "" {
+		return
+	}
+	o.emitReasoningReset(ctx)
+	o.emitReasoningUpdate(ctx, reasoning)
+}
+
+func agenticReasoningContent(msg *schema.AgenticMessage) string {
+	if msg == nil {
+		return ""
+	}
+	var reasoningParts []string
+	for _, block := range msg.ContentBlocks {
+		if block == nil || block.Reasoning == nil {
+			continue
+		}
+		if text := strings.TrimSpace(block.Reasoning.Text); text != "" {
+			reasoningParts = append(reasoningParts, text)
+		}
+	}
+	return strings.Join(reasoningParts, "\n")
 }
 
 func (o *LLMClient) emitReasoningReset(ctx context.Context) {
@@ -1550,6 +1933,7 @@ func (o *LLMClient) LoadConversationHistoryJSON(jsonStr string) error {
 	o.conversationHistoryMu.Lock()
 	defer o.conversationHistoryMu.Unlock()
 	o.conversationHistory = nil
+	o.agenticHistory = nil
 
 	var history []adk.Message
 	for _, pm := range msgs {
@@ -1602,6 +1986,7 @@ func (o *LLMClient) LoadConversationHistoryJSON(jsonStr string) error {
 	}
 
 	o.conversationHistory = history
+	o.agenticHistory = agenticHistoryFromMessages(history)
 	return nil
 }
 
@@ -1647,6 +2032,69 @@ func (o *LLMClient) conversationHistoryForRun(fallbackFirstUser string) ([]adk.M
 	snapshot := make([]adk.Message, len(o.conversationHistory))
 	copy(snapshot, o.conversationHistory)
 	return snapshot, changed
+}
+
+func (o *LLMClient) agenticConversationHistoryForRun(fallbackFirstUser string) []*schema.AgenticMessage {
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+
+	if len(o.agenticHistory) == 0 && len(o.conversationHistory) > 0 {
+		o.agenticHistory = agenticHistoryFromMessages(o.conversationHistory)
+	}
+	if len(o.agenticHistory) == 0 {
+		return nil
+	}
+
+	firstUserIdx := -1
+	for i, msg := range o.agenticHistory {
+		if msg != nil && msg.Role == schema.AgenticRoleTypeUser {
+			firstUserIdx = i
+			break
+		}
+	}
+
+	if firstUserIdx == -1 {
+		trimmed := strings.TrimSpace(fallbackFirstUser)
+		if trimmed == "" {
+			trimmed = "Previous session restored without the original user prompt. Continue the documentation workflow from the latest assistant response."
+		}
+		o.agenticHistory = append([]*schema.AgenticMessage{schema.UserAgenticMessage(trimmed)}, o.agenticHistory...)
+	} else if firstUserIdx > 0 {
+		o.agenticHistory = o.agenticHistory[firstUserIdx:]
+	}
+
+	snapshot := make([]*schema.AgenticMessage, len(o.agenticHistory))
+	copy(snapshot, o.agenticHistory)
+	return snapshot
+}
+
+func (o *LLMClient) storeAgenticConversationHistory(history []*schema.AgenticMessage) {
+	o.conversationHistoryMu.Lock()
+	defer o.conversationHistoryMu.Unlock()
+
+	o.agenticHistory = make([]*schema.AgenticMessage, 0, len(history))
+	o.conversationHistory = make([]adk.Message, 0, len(history))
+	for _, msg := range history {
+		if msg == nil {
+			continue
+		}
+		o.agenticHistory = append(o.agenticHistory, msg)
+		if converted := agenticToMessage(msg); converted != nil {
+			o.conversationHistory = append(o.conversationHistory, converted)
+		}
+	}
+}
+
+func agenticHistoryFromMessages(history []adk.Message) []*schema.AgenticMessage {
+	agenticHistory := make([]*schema.AgenticMessage, 0, len(history))
+	for _, msg := range history {
+		converted := messageToAgentic(msg)
+		if converted == nil {
+			continue
+		}
+		agenticHistory = append(agenticHistory, converted)
+	}
+	return agenticHistory
 }
 
 func normalizeConversationHistory(history []adk.Message, fallbackFirstUser string) ([]adk.Message, bool) {
