@@ -27,14 +27,14 @@ export function DocRefinementChat({
 }) {
 	const { t } = useTranslation();
 	const messages = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.messages : null) ?? []
+		(s) => (sessionKey ? s.docStates[sessionKey]?.messages : null) ?? [],
 	);
 	const chatOpen = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.chatOpen : false) ?? false
+		(s) => (sessionKey ? s.docStates[sessionKey]?.chatOpen : false) ?? false,
 	);
 	const refineDocs = useDocGenerationStore((s) => s.refine);
 	const status = useDocGenerationStore(
-		(s) => (sessionKey ? s.docStates[sessionKey]?.status : "idle") ?? "idle"
+		(s) => (sessionKey ? s.docStates[sessionKey]?.status : "idle") ?? "idle",
 	);
 
 	const [input, setInput] = useState("");
@@ -54,7 +54,7 @@ export function DocRefinementChat({
 
 	const pending = useMemo(
 		() => messages.some((m) => m.status === "pending"),
-		[messages]
+		[messages],
 	);
 
 	const handleSend = async () => {
@@ -73,7 +73,7 @@ export function DocRefinementChat({
 		<section
 			className={cn(
 				"flex h-full flex-col rounded-lg border border-border",
-				className
+				className,
 			)}
 			style={style}
 		>
@@ -99,7 +99,7 @@ export function DocRefinementChat({
 									.filter((m, index) => {
 										// Find the first user message
 										const firstUserMsgIndex = messages.findIndex(
-											(msg) => msg.role === "user"
+											(msg) => msg.role === "user",
 										);
 										// If this is the first user message and it has empty content, filter it out
 										if (
@@ -115,7 +115,7 @@ export function DocRefinementChat({
 										<li
 											className={cn(
 												"flex w-full flex-col gap-1.5",
-												m.role === "user" ? "items-end" : "items-start"
+												m.role === "user" ? "items-end" : "items-start",
 											)}
 											key={m.id}
 										>
@@ -127,7 +127,7 @@ export function DocRefinementChat({
 														: m.role === "user"
 															? "border-primary/20 bg-primary/10"
 															: "border-border bg-background",
-													m.role === "user" ? "rounded-br-sm" : "rounded-bl-sm"
+													m.role === "user" ? "rounded-br-sm" : "rounded-bl-sm",
 												)}
 											>
 												<MarkdownRenderer

@@ -43,7 +43,7 @@ export default function DefaultModel(props: DefaultModelProps) {
 	const allModels = useMemo(() => groups.flatMap((g) => g.models), [groups]);
 	const enabledModels = useMemo(
 		() => allModels.filter((model) => model.enabled),
-		[allModels]
+		[allModels],
 	);
 
 	// Uncontrolled local selection fallback (when no defaultModelKey/onChange provided)
@@ -57,7 +57,7 @@ export default function DefaultModel(props: DefaultModelProps) {
 
 	useEffect(() => {
 		setConfirmedKey(
-			defaultModelKey && defaultModelKey.length > 0 ? defaultModelKey : null
+			defaultModelKey && defaultModelKey.length > 0 ? defaultModelKey : null,
 		);
 	}, [defaultModelKey]);
 

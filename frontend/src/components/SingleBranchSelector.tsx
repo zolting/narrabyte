@@ -62,7 +62,7 @@ export function SingleBranchSelector({
 						aria-expanded={open}
 						className={cn(
 							"w-full justify-between overflow-hidden hover:text-foreground",
-							twTrigger
+							twTrigger,
 						)}
 						disabled={disableControls}
 						id={branchComboboxId}
@@ -79,7 +79,7 @@ export function SingleBranchSelector({
 				<PopoverContent
 					className={cn(
 						"w-[var(--radix-popover-trigger-width)] p-0",
-						twContent
+						twContent,
 					)}
 				>
 					<Command>
@@ -101,7 +101,7 @@ export function SingleBranchSelector({
 										<CheckIcon
 											className={cn(
 												"mr-2 h-4 w-4",
-												branch === b.name ? "opacity-100" : "opacity-0"
+												branch === b.name ? "opacity-100" : "opacity-0",
 											)}
 										/>
 										{b.name}

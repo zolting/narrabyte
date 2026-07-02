@@ -52,10 +52,10 @@ export function DocGenerationResultPanel({
 	const stateKey = sessionKey ?? projectKey;
 	const toggleChatStore = useDocGenerationStore((s) => s.toggleChat);
 	const chatOpen = useDocGenerationStore(
-		(s) => s.docStates[stateKey]?.chatOpen ?? false
+		(s) => s.docStates[stateKey]?.chatOpen ?? false,
 	);
 	const changedSinceInitial = useDocGenerationStore(
-		(s) => s.docStates[stateKey]?.changedSinceInitial ?? []
+		(s) => s.docStates[stateKey]?.changedSinceInitial ?? [],
 	);
 	const { t } = useTranslation();
 	const [viewType, setViewType] = useState<"split" | "unified">("unified");
@@ -92,7 +92,7 @@ export function DocGenerationResultPanel({
 				const key = normalizeDiffPath(
 					file.newPath && file.newPath !== "/dev/null"
 						? file.newPath
-						: file.oldPath
+						: file.oldPath,
 				);
 				return {
 					diff: file,
@@ -100,7 +100,7 @@ export function DocGenerationResultPanel({
 					status: statusMap.get(key) ?? "changed",
 				};
 			}),
-		[parsedDiff, statusMap]
+		[parsedDiff, statusMap],
 	);
 
 	const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -116,7 +116,7 @@ export function DocGenerationResultPanel({
 
 	const activeEntry = useMemo(
 		() => entries.find((entry) => entry.path === selectedPath),
-		[entries, selectedPath]
+		[entries, selectedPath],
 	);
 
 	if (!result) {
@@ -178,7 +178,7 @@ export function DocGenerationResultPanel({
 						"flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid",
 						chatOpen
 							? "lg:grid-cols-[220px_1fr_360px]" // files | diff | chat
-							: "lg:grid-cols-[220px_1fr]" // files | diff
+							: "lg:grid-cols-[220px_1fr]", // files | diff
 					)}
 				>
 					<div className="flex max-h-48 min-h-0 flex-col gap-2 overflow-hidden lg:h-full lg:max-h-none">
@@ -196,7 +196,7 @@ export function DocGenerationResultPanel({
 														"group w-full rounded-md border border-transparent px-2 py-1.5 text-left transition-colors",
 														selectedPath === entry.path
 															? "bg-accent text-accent-foreground"
-															: "hover:bg-muted"
+															: "hover:bg-muted",
 													)}
 													onClick={() => setSelectedPath(entry.path)}
 													type="button"
@@ -218,7 +218,7 @@ export function DocGenerationResultPanel({
 																<div
 																	className={cn(
 																		"font-medium text-[11px]",
-																		statusClass
+																		statusClass,
 																	)}
 																>
 																	{t(statusKey)}
@@ -280,7 +280,7 @@ export function DocGenerationResultPanel({
 				<div className="rounded-md border border-border border-dashed p-4 text-muted-foreground text-sm">
 					{t(
 						"common.noDocumentationChanges",
-						"No documentation changes were produced for this diff."
+						"No documentation changes were produced for this diff.",
 					)}
 				</div>
 			)}

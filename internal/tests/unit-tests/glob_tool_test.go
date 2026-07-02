@@ -70,8 +70,9 @@ func TestGlob_EmptyPattern(t *testing.T) {
 
 	ctx := context.Background()
 	input := &tools.GlobInput{
-		Pattern: "",
-		Path:    tmpDir,
+		Repository: tools.RepositoryDocs,
+		Pattern:    "",
+		Path:       tmpDir,
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -89,7 +90,8 @@ func TestGlob_NoBaseRootSet(t *testing.T) {
 
 	ctx := context.Background()
 	input := &tools.GlobInput{
-		Pattern: "*.txt",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "*.txt",
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -106,8 +108,9 @@ func TestGlob_NonexistentDirectory(t *testing.T) {
 	ctx := context.Background()
 	nonexistentPath := filepath.Join(tmpDir, "nonexistent")
 	input := &tools.GlobInput{
-		Pattern: "*.txt",
-		Path:    nonexistentPath,
+		Repository: tools.RepositoryDocs,
+		Pattern:    "*.txt",
+		Path:       nonexistentPath,
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -124,8 +127,9 @@ func TestGlob_PathIsFile(t *testing.T) {
 	ctx := context.Background()
 	filePath := filepath.Join(tmpDir, "file1.txt")
 	input := &tools.GlobInput{
-		Pattern: "*.txt",
-		Path:    filePath,
+		Repository: tools.RepositoryDocs,
+		Pattern:    "*.txt",
+		Path:       filePath,
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -142,8 +146,9 @@ func TestGlob_PathEscapesRoot(t *testing.T) {
 	ctx := context.Background()
 	escapePath := filepath.Join(tmpDir, "../..")
 	input := &tools.GlobInput{
-		Pattern: "*.txt",
-		Path:    escapePath,
+		Repository: tools.RepositoryDocs,
+		Pattern:    "*.txt",
+		Path:       escapePath,
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -159,7 +164,8 @@ func TestGlob_SimplePattern(t *testing.T) {
 
 	ctx := context.Background()
 	input := &tools.GlobInput{
-		Pattern: "*.txt",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "*.txt",
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -185,7 +191,8 @@ func TestGlob_RecursivePattern(t *testing.T) {
 
 	ctx := context.Background()
 	input := &tools.GlobInput{
-		Pattern: "**/*.txt",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "**/*.txt",
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -218,8 +225,9 @@ func TestGlob_SpecificSubdirectory(t *testing.T) {
 	ctx := context.Background()
 	subdirPath := filepath.Join(tmpDir, "subdir")
 	input := &tools.GlobInput{
-		Pattern: "*.go",
-		Path:    subdirPath,
+		Repository: tools.RepositoryDocs,
+		Pattern:    "*.go",
+		Path:       subdirPath,
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -245,7 +253,8 @@ func TestGlob_NoMatches(t *testing.T) {
 
 	ctx := context.Background()
 	input := &tools.GlobInput{
-		Pattern: "*.nonexistent",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "*.nonexistent",
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -262,7 +271,8 @@ func TestGlob_InvalidPattern(t *testing.T) {
 
 	ctx := context.Background()
 	input := &tools.GlobInput{
-		Pattern: "[", // Invalid glob pattern
+		Repository: tools.RepositoryDocs,
+		Pattern:    "[", // Invalid glob pattern
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -291,7 +301,8 @@ func TestGlob_ResultSorting(t *testing.T) {
 
 	ctx := context.Background()
 	input := &tools.GlobInput{
-		Pattern: "*.txt",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "*.txt",
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -324,7 +335,8 @@ func TestGlob_AbsolutePattern(t *testing.T) {
 	ctx := context.Background()
 	absolutePattern := filepath.Join(tmpDir, "*.md")
 	input := &tools.GlobInput{
-		Pattern: absolutePattern,
+		Repository: tools.RepositoryDocs,
+		Pattern:    absolutePattern,
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -350,8 +362,9 @@ func TestGlob_RelativePathInput(t *testing.T) {
 
 	ctx := context.Background()
 	input := &tools.GlobInput{
-		Pattern: "*.go",
-		Path:    "subdir", // Relative path
+		Repository: tools.RepositoryDocs,
+		Pattern:    "*.go",
+		Path:       "subdir", // Relative path
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -377,7 +390,8 @@ func TestGlob_MetadataFields(t *testing.T) {
 
 	ctx := context.Background()
 	input := &tools.GlobInput{
-		Pattern: "*.txt",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "*.txt",
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -400,7 +414,8 @@ func TestGlob_TruncationLogic(t *testing.T) {
 
 	ctx := context.Background()
 	input := &tools.GlobInput{
-		Pattern: "**/*", // Match all files
+		Repository: tools.RepositoryDocs,
+		Pattern:    "**/*", // Match all files
 	}
 
 	result, err := tools.Glob(ctx, input)
@@ -430,7 +445,8 @@ func TestGlob_RespectsScopedIgnores(t *testing.T) {
 	utils.NilError(t, os.MkdirAll(srcDir, 0o755))
 	utils.NilError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main"), 0o644))
 
-	result, err := tools.Glob(ctx, &tools.GlobInput{Pattern: "**/*"})
+	result, err := tools.Glob(ctx, &tools.GlobInput{
+		Repository: tools.RepositoryDocs, Pattern: "**/*"})
 	utils.NilError(t, err)
 
 	if strings.Contains(result.Output, "ignore.md") {

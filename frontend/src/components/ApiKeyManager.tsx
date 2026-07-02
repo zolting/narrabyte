@@ -74,7 +74,7 @@ const ApiKeyManager = forwardRef<ApiKeyManagerHandle, ApiKeyManagerProps>(
 							provider: key.provider,
 							label: key.label ?? "N/A",
 							description: key.description,
-						})
+						}),
 					);
 					setApiKeys(mappedKeys);
 					// Keep current state or close if this is the first load
@@ -260,7 +260,7 @@ const ApiKeyManager = forwardRef<ApiKeyManagerHandle, ApiKeyManagerProps>(
 				</Card>
 			</Collapsible>
 		);
-	}
+	},
 );
 
 ApiKeyManager.displayName = "ApiKeyManager";

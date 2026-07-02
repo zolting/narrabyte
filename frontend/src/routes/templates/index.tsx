@@ -78,7 +78,7 @@ function TemplatesPage() {
 		}
 
 		const match = templates.find(
-			(template) => template.name === pendingSelectionName
+			(template) => template.name === pendingSelectionName,
 		);
 		if (match) {
 			setSelectedId(match.id);
@@ -88,7 +88,7 @@ function TemplatesPage() {
 
 	const selectedTemplate = useMemo(
 		() => templates.find((template) => template.id === selectedId),
-		[selectedId, templates]
+		[selectedId, templates],
 	);
 
 	useEffect(() => {
@@ -106,7 +106,7 @@ function TemplatesPage() {
 	const handleTextareaTab = useCallback(
 		(
 			event: KeyboardEvent<HTMLTextAreaElement>,
-			setter: (updater: (value: string) => string) => void
+			setter: (updater: (value: string) => string) => void,
 		) => {
 			if (event.key !== "Tab") {
 				return;
@@ -125,7 +125,7 @@ function TemplatesPage() {
 				return nextValue;
 			});
 		},
-		[]
+		[],
 	);
 
 	const handleSave = async () => {

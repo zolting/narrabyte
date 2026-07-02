@@ -50,7 +50,7 @@ export function DocumentationBranchSelector({
 
 	const orderedBranches = useMemo(
 		() => sortBranches(branches, { prioritizeMainMaster: true }),
-		[branches]
+		[branches],
 	);
 	const trimmedSearch = search.trim();
 	const hasBranches = orderedBranches.length > 0;
@@ -125,7 +125,7 @@ export function DocumentationBranchSelector({
 											<CheckIcon
 												className={cn(
 													"mr-2 h-4 w-4",
-													value === branch.name ? "opacity-100" : "opacity-0"
+													value === branch.name ? "opacity-100" : "opacity-0",
 												)}
 											/>
 											{branch.name}

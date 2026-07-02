@@ -160,7 +160,7 @@ function SortableProjectItem({
 									window.dispatchEvent(
 										new CustomEvent("ui:new-generation-tab", {
 											detail: { projectId },
-										})
+										}),
 									);
 								}, 75);
 							}
@@ -199,7 +199,7 @@ function AppSidebarContent() {
 		}),
 		useSensor(KeyboardSensor, {
 			coordinateGetter: sortableKeyboardCoordinates,
-		})
+		}),
 	);
 
 	const loadProjects = useCallback(() => {
@@ -242,7 +242,7 @@ function AppSidebarContent() {
 			initFumaDocs: boolean;
 			llmInstructions?: string;
 			docBaseBranch: string;
-		}
+		},
 	) => {
 		const errorMsg = error instanceof Error ? error.message : String(error);
 
@@ -256,7 +256,7 @@ function AppSidebarContent() {
 			: t("projectManager.codebaseDirectory");
 
 		const shouldCreate = window.confirm(
-			`${dir} + ${t("home.unexistantGitRepoCreate")}`
+			`${dir} + ${t("home.unexistantGitRepoCreate")}`,
 		);
 		if (!shouldCreate) {
 			return false;
@@ -270,7 +270,7 @@ function AppSidebarContent() {
 				data.codebaseDirectory,
 				data.initFumaDocs,
 				data.llmInstructions ?? "",
-				data.docBaseBranch
+				data.docBaseBranch,
 			);
 			return true;
 		} catch (initError) {
@@ -307,7 +307,7 @@ function AppSidebarContent() {
 				data.codebaseDirectory,
 				data.initFumaDocs,
 				data.llmInstructions ?? "",
-				data.docBaseBranch
+				data.docBaseBranch,
 			);
 			handleSuccess();
 		} catch (error) {
@@ -377,14 +377,14 @@ function AppSidebarContent() {
 				new models.RepoLinkOrderUpdate({
 					ID: project.ID,
 					Index: index,
-				})
+				}),
 		);
 
 		await UpdateProjectOrder(updates);
 	};
 
 	const filteredProjects = projects.filter((project) =>
-		project.ProjectName.toLowerCase().includes(searchQuery.toLowerCase())
+		project.ProjectName.toLowerCase().includes(searchQuery.toLowerCase()),
 	);
 
 	return (
@@ -531,7 +531,7 @@ function AppSidebarContent() {
 													isActive={
 														location.pathname === `/projects/${projectId}` ||
 														location.pathname.startsWith(
-															`/projects/${projectId}/`
+															`/projects/${projectId}/`,
 														)
 													}
 													key={projectId}

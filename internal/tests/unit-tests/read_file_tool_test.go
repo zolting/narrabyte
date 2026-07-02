@@ -24,7 +24,8 @@ func TestReadFile_EmptyFilePath(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.ReadFileInput{
-		FilePath: "",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -37,7 +38,8 @@ func TestReadFile_ProjectRootNotSet(t *testing.T) {
 	tools.SetListDirectoryBaseRoot("")
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -50,7 +52,8 @@ func TestReadFile_PathEscapesBase(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.ReadFileInput{
-		FilePath: "../../../etc/passwd",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "../../../etc/passwd",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -63,7 +66,8 @@ func TestReadFile_PathEscapesBaseRelative(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.ReadFileInput{
-		FilePath: "../outside.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "../outside.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -76,7 +80,8 @@ func TestReadFile_FileNotFound(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.ReadFileInput{
-		FilePath: "nonexistent.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "nonexistent.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -97,7 +102,8 @@ func TestReadFile_FileNotFoundWithSuggestions(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.txt", // "test" is contained in "mytest" and "testfile"
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt", // "test" is contained in "mytest" and "testfile"
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -115,7 +121,8 @@ func TestReadFile_PathIsDirectory(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "subdir",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "subdir",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -133,7 +140,8 @@ func TestReadFile_ImageFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.jpg",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.jpg",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -152,7 +160,8 @@ func TestReadFile_BinaryFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.zip",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.zip",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -170,7 +179,8 @@ func TestReadFile_BinaryFileByContent(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "binary.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "binary.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -188,7 +198,8 @@ func TestReadFile_Success(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -212,8 +223,9 @@ func TestReadFile_WithOffset(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.txt",
-		Offset:   2, // Start from line 3 (0-based)
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		Offset:     2, // Start from line 3 (0-based)
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -235,8 +247,9 @@ func TestReadFile_WithLimit(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.txt",
-		Limit:    2, // Read only 2 lines
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		Limit:      2, // Read only 2 lines
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -258,9 +271,10 @@ func TestReadFile_WithOffsetAndLimit(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.txt",
-		Offset:   1, // Start from line 2 (0-based)
-		Limit:    3, // Read 3 lines
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		Offset:     1, // Start from line 2 (0-based)
+		Limit:      3, // Read 3 lines
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -282,8 +296,9 @@ func TestReadFile_OffsetBeyondFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.txt",
-		Offset:   10, // Beyond file length
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		Offset:     10, // Beyond file length
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -302,8 +317,9 @@ func TestReadFile_NegativeOffset(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.txt",
-		Offset:   -5, // Negative offset should be treated as 0
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
+		Offset:     -5, // Negative offset should be treated as 0
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -324,7 +340,8 @@ func TestReadFile_LongLineTruncation(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -342,7 +359,8 @@ func TestReadFile_EmptyFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "empty.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "empty.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -359,7 +377,8 @@ func TestReadFile_SingleLineFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "single.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "single.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -376,7 +395,8 @@ func TestReadFile_Metadata(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "test.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "test.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -401,7 +421,8 @@ func TestReadFile_LargeFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "large.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "large.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)
@@ -419,7 +440,8 @@ func TestReadFile_CRLFLineEndings(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.ReadFileInput{
-		FilePath: "crlf.txt",
+		Repository: tools.RepositoryDocs,
+		FilePath:   "crlf.txt",
 	}
 	output, err := tools.ReadFile(context.Background(), input)
 	utils.NilError(t, err)

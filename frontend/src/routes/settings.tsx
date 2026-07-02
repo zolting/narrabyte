@@ -55,7 +55,7 @@ function Settings() {
 
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [editingProvider, setEditingProvider] = useState<string | undefined>(
-		undefined
+		undefined,
 	);
 	const apiKeyManagerRef = useRef<{ refresh: () => void }>(null);
 	const theme = settings?.Theme ?? "system";
@@ -214,7 +214,7 @@ function ModelsConfiguration() {
 		toggleProvider,
 	} = useModelSettingsStore();
 	const defaultModelKey = useAppSettingsStore(
-		(state) => state.settings?.DefaultModelKey ?? ""
+		(state) => state.settings?.DefaultModelKey ?? "",
 	);
 	const setDefaultModel = useAppSettingsStore((state) => state.setDefaultModel);
 	const [confirmState, setConfirmState] = useState<{
@@ -231,7 +231,7 @@ function ModelsConfiguration() {
 
 	const confirmDisableDefault = (
 		model: ModelOption,
-		action: () => Promise<void>
+		action: () => Promise<void>,
 	) => {
 		setConfirmState({
 			modelLabel: model.displayName,
@@ -253,15 +253,15 @@ function ModelsConfiguration() {
 	const handleProviderToggle = (
 		providerId: string,
 		enable: boolean,
-		models: ModelOption[]
+		models: ModelOption[],
 	) => {
 		if (!enable && defaultModelKey) {
 			const defaultModel = models.find(
-				(model) => model.key === defaultModelKey
+				(model) => model.key === defaultModelKey,
 			);
 			if (defaultModel) {
 				confirmDisableDefault(defaultModel, () =>
-					toggleProvider(providerId, enable)
+					toggleProvider(providerId, enable),
 				);
 				return;
 			}
@@ -333,7 +333,7 @@ function ModelsConfiguration() {
 												handleProviderToggle(
 													group.providerId,
 													!allEnabled,
-													group.models
+													group.models,
 												)
 											}
 											size="sm"

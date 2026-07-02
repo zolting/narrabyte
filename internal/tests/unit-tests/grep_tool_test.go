@@ -24,7 +24,8 @@ func TestGrep_EmptyPattern(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.GrepInput{
-		Pattern: "",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -37,7 +38,8 @@ func TestGrep_ProjectRootNotSet(t *testing.T) {
 	tools.SetListDirectoryBaseRoot("")
 
 	input := &tools.GrepInput{
-		Pattern: "test",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "test",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -50,8 +52,9 @@ func TestGrep_PathEscapesBase(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.GrepInput{
-		Pattern: "test",
-		Path:    "../../../etc",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "test",
+		Path:       "../../../etc",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -64,8 +67,9 @@ func TestGrep_PathDoesNotExist(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.GrepInput{
-		Pattern: "test",
-		Path:    "nonexistent",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "test",
+		Path:       "nonexistent",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -83,8 +87,9 @@ func TestGrep_PathIsFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "test",
-		Path:    "test.txt",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "test",
+		Path:       "test.txt",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -97,7 +102,8 @@ func TestGrep_InvalidRegex(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.GrepInput{
-		Pattern: "[invalid",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "[invalid",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -114,7 +120,8 @@ func TestGrep_NoMatches(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "nonexistent",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "nonexistent",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -133,7 +140,8 @@ func TestGrep_SimpleMatch(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "hello",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "hello",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -154,7 +162,8 @@ func TestGrep_MultipleMatchesInFile(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "hello",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "hello",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -178,7 +187,8 @@ func TestGrep_MultipleFiles(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "hello",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "hello",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -198,7 +208,8 @@ func TestGrep_RegexPatterns(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "test\\d+", // Regex pattern
+		Repository: tools.RepositoryDocs,
+		Pattern:    "test\\d+", // Regex pattern
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -221,8 +232,9 @@ func TestGrep_IncludePattern(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "hello",
-		Include: "*.txt",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "hello",
+		Include:    "*.txt",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -245,8 +257,9 @@ func TestGrep_IncludePatternMultiple(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "hello",
-		Include: "*.{txt,go}",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "hello",
+		Include:    "*.{txt,go}",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -267,7 +280,8 @@ func TestGrep_BinaryFileSkipped(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "hello",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "hello",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -291,7 +305,8 @@ func TestGrep_IgnoredDirectories(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "hello",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "hello",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -313,7 +328,8 @@ func TestGrep_ResultLimit(t *testing.T) {
 	}
 
 	input := &tools.GrepInput{
-		Pattern: "match",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "match",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -338,8 +354,9 @@ func TestGrep_SpecificPath(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "hello",
-		Path:    "subdir",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "hello",
+		Path:       "subdir",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -364,7 +381,8 @@ func TestGrep_SortingByMtime(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "hello",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "hello",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -379,7 +397,8 @@ func TestGrep_EmptyDirectory(t *testing.T) {
 	tools.SetListDirectoryBaseRoot(tempDir)
 
 	input := &tools.GrepInput{
-		Pattern: "test",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "test",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -397,7 +416,8 @@ func TestGrep_LongLines(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "target",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "target",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -418,7 +438,8 @@ func TestGrep_ContextCancellation(t *testing.T) {
 	cancel() // Cancel immediately
 
 	input := &tools.GrepInput{
-		Pattern: "content",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "content",
 	}
 	_, err = tools.Grep(ctx, input)
 	utils.Equal(t, err, context.Canceled)
@@ -437,7 +458,8 @@ func TestGrep_RespectsScopedIgnores(t *testing.T) {
 	utils.NilError(t, os.MkdirAll(srcDir, 0o755))
 	utils.NilError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("needle"), 0o644))
 
-	result, err := tools.Grep(context.Background(), &tools.GrepInput{Pattern: "needle"})
+	result, err := tools.Grep(context.Background(), &tools.GrepInput{
+		Repository: tools.RepositoryDocs, Pattern: "needle"})
 	utils.NilError(t, err)
 
 	if strings.Contains(result.Output, "guide.md") {
@@ -464,8 +486,9 @@ func TestGrep_IncludePatternComplex(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "hello",
-		Include: "*.{ts,tsx}",
+		Repository: tools.RepositoryDocs,
+		Pattern:    "hello",
+		Include:    "*.{ts,tsx}",
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -485,7 +508,8 @@ func TestGrep_CaseSensitive(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "Hello", // Case sensitive by default
+		Repository: tools.RepositoryDocs,
+		Pattern:    "Hello", // Case sensitive by default
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)
@@ -503,7 +527,8 @@ func TestGrep_CaseInsensitive(t *testing.T) {
 	utils.NilError(t, err)
 
 	input := &tools.GrepInput{
-		Pattern: "(?i)hello", // Case insensitive regex
+		Repository: tools.RepositoryDocs,
+		Pattern:    "(?i)hello", // Case insensitive regex
 	}
 	result, err := tools.Grep(context.Background(), input)
 	utils.NilError(t, err)

@@ -54,7 +54,7 @@ export const TemplateSelector = ({
 	const listId = useId();
 
 	const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(
-		undefined
+		undefined,
 	);
 	const editTemplate = useTemplateStore((state) => state.editTemplate);
 	const deleteTemplate = useTemplateStore((state) => state.deleteTemplate);
@@ -69,7 +69,7 @@ export const TemplateSelector = ({
 	const [deleteOpen, setDeleteOpen] = useState(false);
 
 	const [currentName, setCurrentName] = useState<string | undefined>(
-		selectedTemplate
+		selectedTemplate,
 	);
 
 	const [editingName, setEditingName] = useState("");
@@ -163,7 +163,7 @@ export const TemplateSelector = ({
 				return nextValue;
 			});
 		},
-		[setEditingContent]
+		[setEditingContent],
 	);
 	const editDisabled = editingName.trim().length === 0;
 	const displayLabel =
@@ -198,7 +198,7 @@ export const TemplateSelector = ({
 						aria-expanded={open}
 						className={cn(
 							"w-full justify-between overflow-hidden hover:text-foreground",
-							triggerClasses
+							triggerClasses,
 						)}
 						id={comboboxId}
 						onClick={clearError}
@@ -216,7 +216,7 @@ export const TemplateSelector = ({
 					align="start"
 					className={cn(
 						"w-[var(--radix-popover-trigger-width)] p-0",
-						contentClasses
+						contentClasses,
 					)}
 				>
 					<Command>
@@ -252,7 +252,7 @@ export const TemplateSelector = ({
 													"h-4 w-4 flex-shrink-0",
 													currentName === template.name
 														? "opacity-100"
-														: "opacity-0"
+														: "opacity-0",
 												)}
 											/>
 											<span className="truncate">{template.name}</span>
@@ -307,7 +307,7 @@ export const TemplateSelector = ({
 						<DialogDescription className="text-muted-foreground">
 							{t(
 								"common.editTemplateHelp",
-								"Update the template name and content. Your changes will apply immediately after saving."
+								"Update the template name and content. Your changes will apply immediately after saving.",
 							)}
 						</DialogDescription>
 					</DialogHeader>
@@ -322,7 +322,7 @@ export const TemplateSelector = ({
 								onChange={(e) => setEditingName(e.target.value)}
 								placeholder={t(
 									"common.templateNamePlaceholder",
-									"e.g., Default Instructions"
+									"e.g., Default Instructions",
 								)}
 								value={editingName}
 							/>
@@ -352,7 +352,7 @@ export const TemplateSelector = ({
 							<p className="text-muted-foreground text-xs">
 								{t(
 									"common.templateContentHelp",
-									"Describe how the assistant should behave. Markdown is supported."
+									"Describe how the assistant should behave. Markdown is supported.",
 								)}
 							</p>
 						</div>
@@ -389,7 +389,7 @@ export const TemplateSelector = ({
 						<DialogDescription>
 							{t(
 								"common.confirmDeleteHelp",
-								"This action cannot be undone. This will permanently remove the template."
+								"This action cannot be undone. This will permanently remove the template.",
 							)}
 						</DialogDescription>
 					</DialogHeader>

@@ -32,7 +32,7 @@ export function DocGenerationProgressLog({
 					}
 					return [...prev, event.id];
 				});
-			}, index * 100)
+			}, index * 100),
 		);
 
 		return () => {
@@ -115,7 +115,7 @@ export function DocGenerationProgressLog({
 													warn: "bg-yellow-500/15 text-yellow-700",
 													info: "bg-blue-500/15 text-blue-700",
 													success: "bg-emerald-500/15 text-emerald-700",
-												}[event.type] || "bg-emerald-500/15 text-emerald-700"
+												}[event.type] || "bg-emerald-500/15 text-emerald-700",
 											)}
 										>
 											{event.type}

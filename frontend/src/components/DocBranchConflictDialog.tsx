@@ -60,7 +60,7 @@ export const DocBranchConflictDialog = ({
 			}
 			return base;
 		},
-		[existingDocsBranch]
+		[existingDocsBranch],
 	);
 
 	const [newName, setNewName] = useState(suggestName(proposedDocsBranch));
@@ -72,10 +72,10 @@ export const DocBranchConflictDialog = ({
 		}
 	}, [open, proposedDocsBranch, suggestName]);
 	const deleteAction = useDocGenerationStore(
-		(s) => s.resolveDocsBranchConflictByDelete
+		(s) => s.resolveDocsBranchConflictByDelete,
 	);
 	const renameAction = useDocGenerationStore(
-		(s) => s.resolveDocsBranchConflictByRename
+		(s) => s.resolveDocsBranchConflictByRename,
 	);
 	const cancelAction = useDocGenerationStore((s) => s.cancel);
 	const clearConflict = useDocGenerationStore((s) => s.clearConflict);
@@ -83,11 +83,11 @@ export const DocBranchConflictDialog = ({
 	// Disable confirm when input is empty or same as the existing docs branch
 	const sameAsExisting = useMemo(
 		() => newName.trim() === existingDocsBranch.trim(),
-		[existingDocsBranch, newName]
+		[existingDocsBranch, newName],
 	);
 	const disableConfirm = useMemo(
 		() => busy || !newName.trim() || sameAsExisting,
-		[busy, newName, sameAsExisting]
+		[busy, newName, sameAsExisting],
 	);
 
 	const handleClose = (next: boolean) => {

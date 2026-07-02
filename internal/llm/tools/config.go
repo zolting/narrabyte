@@ -82,13 +82,19 @@ func lookupSessionContext(sessionID string) *baseContext {
 
 // SetListDirectoryBaseRoot sets the default base directory used by list-style tools.
 func SetListDirectoryBaseRoot(root string) {
-	defaultContext.root = normalizeRoot(root)
+	normalized := normalizeRoot(root)
+	defaultContext.root = normalized
+	defaultContext.docsRoot = normalized
+	defaultContext.codeRoot = normalized
 }
 
 // SetListDirectoryBaseRootForSession sets the base directory for a specific logical session.
 func SetListDirectoryBaseRootForSession(sessionID, root string) {
 	ctx := ensureSessionContext(sessionID)
-	ctx.root = normalizeRoot(root)
+	normalized := normalizeRoot(root)
+	ctx.root = normalized
+	ctx.docsRoot = normalized
+	ctx.codeRoot = normalized
 }
 
 // ListDirectoryBaseRootForSession returns the configured base directory for a session.
@@ -246,7 +252,7 @@ func ResolveRepositoryPath(ctx context.Context, repo Repository, relPath string)
 	}
 
 	if root == "" {
-		return "", fmt.Errorf("repository '%s' is not configured for this session", repo)
+		return "", fmt.Errorf("project root not set")
 	}
 
 	// Safe join with escape check
