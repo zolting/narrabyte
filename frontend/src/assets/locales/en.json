@@ -281,6 +281,8 @@
 		"enableAll": "Enable all",
 		"disableAll": "Disable all",
 		"reasoningEffort": "Reasoning effort: {{value}}",
+		"reasoningEffortLabel": "Reasoning effort",
+		"reasoningEffortDescription": "Higher effort improves harder coding and planning tasks but may take longer.",
 		"reasoningEffortOptions": {
 			"low": "Low",
 			"medium": "Medium",

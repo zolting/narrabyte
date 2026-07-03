@@ -62,6 +62,11 @@ type rawModel struct {
 	Enabled         *bool  `json:"enabled,omitempty"`
 }
 
+type resolvedModelKey struct {
+	baseKey         string
+	reasoningEffort string
+}
+
 func NewModelConfigService(repo repositories.ModelSettingRepository) ModelConfigService {
 	return &modelConfigService{
 		repo:          repo,
@@ -210,19 +215,23 @@ func (s *modelConfigService) SetProviderEnabled(provider string, enabled bool) (
 }
 
 func (s *modelConfigService) GetModel(modelKey string) (*models.LLMModel, error) {
-	modelKey = strings.TrimSpace(modelKey)
-	if modelKey == "" {
+	resolved := resolveModelKey(modelKey)
+	if resolved.baseKey == "" {
 		return nil, fmt.Errorf("model key is required")
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	catalog, ok := s.models[modelKey]
+	catalog, ok := s.models[resolved.baseKey]
 	if !ok {
 		return nil, fmt.Errorf("model %s not found", modelKey)
 	}
 	model := s.toLLMModel(catalog)
+	if resolved.reasoningEffort != "" {
+		model.Key = modelKey
+		model.ReasoningEffort = resolved.reasoningEffort
+	}
 	return &model, nil
 }
 
@@ -244,5 +253,33 @@ func (s *modelConfigService) toLLMModel(mdl *catalogModel) models.LLMModel {
 		ReasoningEffort: mdl.ReasoningEffort,
 		Thinking:        mdl.Thinking,
 		Enabled:         enabled,
+	}
+}
+
+func resolveModelKey(modelKey string) resolvedModelKey {
+	trimmed := strings.TrimSpace(modelKey)
+	if trimmed == "" {
+		return resolvedModelKey{}
+	}
+	parts := strings.Split(trimmed, ":")
+	if len(parts) < 3 {
+		return resolvedModelKey{baseKey: trimmed}
+	}
+	last := strings.ToLower(strings.TrimSpace(parts[len(parts)-1]))
+	if !isReasoningEffort(last) {
+		return resolvedModelKey{baseKey: trimmed}
+	}
+	return resolvedModelKey{
+		baseKey:         strings.Join(parts[:len(parts)-1], ":"),
+		reasoningEffort: last,
+	}
+}
+
+func isReasoningEffort(value string) bool {
+	switch value {
+	case "low", "medium", "high":
+		return true
+	default:
+		return false
 	}
 }

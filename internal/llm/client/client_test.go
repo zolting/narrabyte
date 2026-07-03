@@ -1,10 +1,12 @@
 package client
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 func msg(role schema.RoleType, content string) adk.Message {
@@ -107,5 +109,72 @@ func TestNormalizeConversationHistory_UsesDefaultFallbackWhenEmpty(t *testing.T)
 	}
 	if result[0].Content == "" {
 		t.Fatalf("default fallback content should not be empty")
+	}
+}
+
+func TestOpenAIResponsesReasoning_DefaultsToMedium(t *testing.T) {
+	reasoning := openAIResponsesReasoning("")
+
+	if reasoning == nil {
+		t.Fatalf("expected reasoning config")
+	}
+	if reasoning.Effort != responses.ReasoningEffortMedium {
+		t.Fatalf("unexpected reasoning effort: got %q want %q", reasoning.Effort, responses.ReasoningEffortMedium)
+	}
+}
+
+func TestOpenAIResponsesReasoning_MapsHigh(t *testing.T) {
+	reasoning := openAIResponsesReasoning("high")
+
+	if reasoning == nil {
+		t.Fatalf("expected reasoning config")
+	}
+	if reasoning.Effort != responses.ReasoningEffortHigh {
+		t.Fatalf("unexpected reasoning effort: got %q want %q", reasoning.Effort, responses.ReasoningEffortHigh)
+	}
+}
+
+func TestAgenticTextContent_ExtractsAssistantText(t *testing.T) {
+	msg := &schema.AgenticMessage{
+		Role: schema.AgenticRoleTypeAssistant,
+		ContentBlocks: []*schema.ContentBlock{
+			schema.NewContentBlock(&schema.AssistantGenText{Text: "done"}),
+		},
+	}
+
+	if got := agenticTextContent(msg); got != "done" {
+		t.Fatalf("unexpected content: got %q want done", got)
+	}
+}
+
+func TestAgenticReasoningContent_PreservesLeadingSpaces(t *testing.T) {
+	chunks := []*schema.AgenticMessage{
+		{
+			Role: schema.AgenticRoleTypeAssistant,
+			ContentBlocks: []*schema.ContentBlock{
+				schema.NewContentBlock(&schema.Reasoning{Text: "I"}),
+			},
+		},
+		{
+			Role: schema.AgenticRoleTypeAssistant,
+			ContentBlocks: []*schema.ContentBlock{
+				schema.NewContentBlock(&schema.Reasoning{Text: " think"}),
+			},
+		},
+		{
+			Role: schema.AgenticRoleTypeAssistant,
+			ContentBlocks: []*schema.ContentBlock{
+				schema.NewContentBlock(&schema.Reasoning{Text: " we should check docs."}),
+			},
+		},
+	}
+
+	var reasoning strings.Builder
+	for _, chunk := range chunks {
+		reasoning.WriteString(agenticReasoningContent(chunk))
+	}
+
+	if got := reasoning.String(); got != "I think we should check docs." {
+		t.Fatalf("unexpected reasoning content: got %q", got)
 	}
 }

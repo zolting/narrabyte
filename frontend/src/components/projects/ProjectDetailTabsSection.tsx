@@ -25,7 +25,12 @@ import { useBranchSelection } from "@/hooks/useBranchManager";
 import type { DocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationManager } from "@/hooks/useDocGenerationManager";
 import { useDocGenerationStore } from "@/stores/docGeneration";
-import type { ModelOption } from "@/stores/modelSettings";
+import {
+	defaultReasoningEffort,
+	modelKeyWithReasoningEffort,
+	type ModelOption,
+	type ReasoningEffort,
+} from "@/stores/modelSettings";
 
 type GroupedModelOption = {
 	providerId: string;
@@ -71,6 +76,8 @@ type TabContentRendererProps = {
 		onModeChange: (mode: "diff" | "single") => void,
 		modelKey: string | null,
 		onModelChange: (modelKey: string | null) => void,
+		reasoningEffort: ReasoningEffort,
+		onReasoningEffortChange: (effort: ReasoningEffort) => void,
 		availableModels: ModelOption[],
 		groupedModelOptions: GroupedModelOption[],
 		modelsLoading: boolean,
@@ -131,6 +138,8 @@ function TabContentRenderer({
 	const branchSelection = useBranchSelection();
 	const [mode, setMode] = useState<"diff" | "single">("diff");
 	const [modelKey, setModelKey] = useState<string | null>(defaultModelKey);
+	const [reasoningEffort, setReasoningEffort] =
+		useState<ReasoningEffort>("medium");
 	const [showSetupWithoutSession, setShowSetupWithoutSession] = useState(false);
 
 	// Compute canGenerate based on mode and this tab's branch selection
@@ -218,6 +227,11 @@ function TabContentRenderer({
 	}, [availableModels, defaultModelKey, modelKey]);
 
 	useEffect(() => {
+		const selectedModel = availableModels.find((model) => model.key === modelKey);
+		setReasoningEffort(defaultReasoningEffort(selectedModel));
+	}, [availableModels, modelKey]);
+
+	useEffect(() => {
 		onModelChange(modelKey);
 	}, [modelKey, onModelChange]);
 
@@ -293,6 +307,8 @@ function TabContentRenderer({
 					(nextMode) => setMode(nextMode),
 					modelKey,
 					(nextModel: string | null) => setModelKey(nextModel),
+					reasoningEffort,
+					(nextEffort) => setReasoningEffort(nextEffort),
 					availableModels,
 					groupedModelOptions,
 					modelsLoading,
@@ -325,7 +341,15 @@ function TabContentRenderer({
 					onApprove={() => onApprove(docManager)}
 					onCancel={docManager.cancelDocGeneration}
 					onGenerate={() =>
-						onGenerate(tabId, docManager, branchSelection, mode, modelKey)
+						onGenerate(
+							tabId,
+							docManager,
+							branchSelection,
+							mode,
+							modelKey
+								? modelKeyWithReasoningEffort(modelKey, reasoningEffort)
+								: null,
+						)
 					}
 					onMerge={docManager.mergeDocs}
 					onReset={() => onReset(docManager, branchSelection)}
@@ -351,6 +375,8 @@ export type ProjectDetailTabsSectionProps = {
 		onModeChange: (mode: "diff" | "single") => void,
 		modelKey: string | null,
 		onModelChange: (modelKey: string | null) => void,
+		reasoningEffort: ReasoningEffort,
+		onReasoningEffortChange: (effort: ReasoningEffort) => void,
 		availableModels: ModelOption[],
 		groupedModelOptions: GroupedModelOption[],
 		modelsLoading: boolean,

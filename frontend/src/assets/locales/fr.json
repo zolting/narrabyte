@@ -278,6 +278,8 @@
 		"enableAll": "Tout activer",
 		"disableAll": "Tout désactiver",
 		"reasoningEffort": "Effort de raisonnement : {{value}}",
+		"reasoningEffortLabel": "Effort de raisonnement",
+		"reasoningEffortDescription": "Un effort plus élevé améliore les tâches de code et de planification difficiles, mais peut prendre plus de temps.",
 		"reasoningEffortOptions": {
 			"low": "Faible",
 			"medium": "Moyen",

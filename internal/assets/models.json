@@ -5,66 +5,31 @@
 			"displayName": "OpenAI",
 			"models": [
 				{
-					"key": "openai:gpt-5:high",
-					"displayName": "GPT-5 High",
-					"apiName": "gpt-5",
-					"reasoningEffort": "high",
-					"enabled": false
-				},
-				{
-					"key": "openai:gpt-5:medium",
-					"displayName": "GPT-5 Medium",
-					"apiName": "gpt-5",
-					"reasoningEffort": "medium",
-					"enabled": false
-				},
-				{
-					"key": "openai:gpt-5:low",
-					"displayName": "GPT-5 Low",
-					"apiName": "gpt-5",
-					"reasoningEffort": "low",
-					"enabled": false
-				},
-				{
-					"key": "openai:gpt-5-mini:high",
-					"displayName": "GPT-5 Mini High",
-					"apiName": "gpt-5-mini",
-					"reasoningEffort": "high",
-					"enabled": false
-				},
-				{
-					"key": "openai:gpt-5-mini:medium",
-					"displayName": "GPT-5 Mini Medium",
-					"apiName": "gpt-5-mini",
+					"key": "openai:gpt-5.5",
+					"displayName": "GPT-5.5",
+					"apiName": "gpt-5.5",
 					"reasoningEffort": "medium",
 					"enabled": true
 				},
 				{
-					"key": "openai:gpt-5-mini:low",
-					"displayName": "GPT-5 Mini Low",
-					"apiName": "gpt-5-mini",
-					"reasoningEffort": "low",
-					"enabled": false
-				},
-				{
-					"key": "openai:gpt-5.1:low",
-					"displayName": "GPT-5.1 Low",
-					"apiName": "gpt-5.1",
-					"reasoningEffort": "low",
-					"enabled": true
-				},
-				{
-					"key": "openai:gpt-5.1:medium",
-					"displayName": "GPT-5.1 Medium",
-					"apiName": "gpt-5.1",
+					"key": "openai:gpt-5.4",
+					"displayName": "GPT-5.4",
+					"apiName": "gpt-5.4",
 					"reasoningEffort": "medium",
 					"enabled": true
 				},
 				{
-					"key": "openai:gpt-5.1:high",
-					"displayName": "GPT-5.1 High",
-					"apiName": "gpt-5.1",
-					"reasoningEffort": "high",
+					"key": "openai:gpt-5.4-mini",
+					"displayName": "GPT-5.4 Mini",
+					"apiName": "gpt-5.4-mini",
+					"reasoningEffort": "medium",
+					"enabled": true
+				},
+				{
+					"key": "openai:gpt-5.4-nano",
+					"displayName": "GPT-5.4 Nano",
+					"apiName": "gpt-5.4-nano",
+					"reasoningEffort": "medium",
 					"enabled": true
 				}
 			]
@@ -74,31 +39,24 @@
 			"displayName": "Anthropic",
 			"models": [
 				{
-					"key": "anthropic:claude-sonnet-4-5",
-					"displayName": "Claude Sonnet 4.5",
-					"apiName": "claude-sonnet-4-5",
-					"thinking": false,
+					"key": "anthropic:claude-sonnet-5",
+					"displayName": "Claude Sonnet 5",
+					"apiName": "claude-sonnet-5",
+					"reasoningEffort": "high",
 					"enabled": true
 				},
 				{
-					"key": "anthropic:claude-sonnet-4-5:thinking",
-					"displayName": "Claude Sonnet 4.5 Thinking",
-					"apiName": "claude-sonnet-4-5",
-					"thinking": true,
+					"key": "anthropic:claude-opus-4-8",
+					"displayName": "Claude Opus 4.8",
+					"apiName": "claude-opus-4-8",
+					"reasoningEffort": "high",
 					"enabled": true
 				},
 				{
-					"key": "anthropic:claude-haiku-4-5",
-					"displayName": "Claude Haiku 4.5",
-					"apiName": "claude-haiku-4-5",
-					"thinking": false,
-					"enabled": true
-				},
-				{
-					"key": "anthropic:claude-haiku-4-5:thinking",
-					"displayName": "Claude Haiku 4.5 Thinking",
-					"apiName": "claude-haiku-4-5",
-					"thinking": true,
+					"key": "anthropic:claude-opus-4-7",
+					"displayName": "Claude Opus 4.7",
+					"apiName": "claude-opus-4-7",
+					"reasoningEffort": "high",
 					"enabled": true
 				}
 			]
@@ -108,31 +66,17 @@
 			"displayName": "Google Gemini",
 			"models": [
 				{
-					"key": "gemini:gemini-3-pro-preview:thinking",
-					"displayName": "Gemini 3 Pro Preview",
-					"apiName": "gemini-3-pro-preview",
-					"thinking": true,
+					"key": "gemini:gemini-3.1-pro-preview",
+					"displayName": "Gemini 3.1 Pro Preview",
+					"apiName": "gemini-3.1-pro-preview",
+					"reasoningEffort": "medium",
 					"enabled": true
 				},
 				{
-					"key": "gemini:gemini-2.5-pro:thinking",
-					"displayName": "Gemini 2.5 Pro Thinking",
-					"apiName": "gemini-2.5-pro",
-					"thinking": true,
-					"enabled": true
-				},
-				{
-					"key": "gemini:gemini-flash-latest:thinking",
-					"displayName": "Gemini 2.5 Flash Thinking",
-					"apiName": "gemini-flash-latest",
-					"thinking": true,
-					"enabled": true
-				},
-				{
-					"key": "gemini:gemini-flash-latest",
-					"displayName": "Gemini 2.5 Flash",
-					"apiName": "gemini-flash-latest",
-					"thinking": false,
+					"key": "gemini:gemini-3.5-flash",
+					"displayName": "Gemini 3.5 Flash",
+					"apiName": "gemini-3.5-flash",
+					"reasoningEffort": "medium",
 					"enabled": true
 				}
 			]

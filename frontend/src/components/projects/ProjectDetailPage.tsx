@@ -55,6 +55,9 @@ import {
 } from "@/stores/docGeneration";
 import {
 	type ModelOption,
+	type ReasoningEffort,
+	isReasoningEffort,
+	reasoningEfforts,
 	useModelSettingsStore,
 } from "@/stores/modelSettings";
 
@@ -295,6 +298,7 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			branchSelection.setSourceOpen(false);
 			branchSelection.setTargetOpen(false);
 			manager.setActiveTab("activity");
+			setLastSelectedModelKey(modelKey);
 			if (mode === "diff") {
 				if (!branchSelection.targetBranch) {
 					return;
@@ -384,6 +388,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		onModeChange: (mode: "diff" | "single") => void,
 		modelKey: string | null,
 		onModelChange: (modelKey: string | null) => void,
+		reasoningEffort: ReasoningEffort,
+		onReasoningEffortChange: (effort: ReasoningEffort) => void,
 		availableModels: ModelOption[],
 		groupedModelOptions: Array<{
 			providerId: string;
@@ -396,8 +402,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		const disableControls = tabDocManager.isBusy;
 		return (
 			<>
-				<div className="flex flex-col gap-4 md:flex-row">
-					<div className="space-y-2 md:w-1/2">
+				<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+					<div className="space-y-2">
 						<Label className="font-medium text-sm" htmlFor={modelSelectId}>
 							{t("common.llmModel")}
 						</Label>
@@ -437,7 +443,42 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 							</p>
 						)}
 					</div>
-					<div className="space-y-2 md:w-1/2">
+					<div className="space-y-2">
+						<Label className="font-medium text-sm" htmlFor="reasoningEffort">
+							{t("models.reasoningEffort", {
+								value: t(`models.reasoningEffortOptions.${reasoningEffort}`),
+							})}
+						</Label>
+						<input
+							aria-label={t("models.reasoningEffortLabel")}
+							className="w-full accent-primary"
+							disabled={disableControls || modelsLoading || !modelKey}
+							id="reasoningEffort"
+							max={reasoningEfforts.length - 1}
+							min={0}
+							onChange={(event) => {
+								const indexValue = Number(event.currentTarget.value);
+								const next = reasoningEfforts.at(indexValue) ?? "medium";
+								if (isReasoningEffort(next)) {
+									onReasoningEffortChange(next);
+								}
+							}}
+							step={1}
+							type="range"
+							value={reasoningEfforts.indexOf(reasoningEffort)}
+						/>
+						<div className="flex justify-between text-muted-foreground text-xs">
+							{reasoningEfforts.map((effort) => (
+								<span key={effort}>
+									{t(`models.reasoningEffortOptions.${effort}`)}
+								</span>
+							))}
+						</div>
+						<p className="text-muted-foreground text-xs">
+							{t("models.reasoningEffortDescription")}
+						</p>
+					</div>
+					<div className="space-y-2">
 						<TemplateSelector
 							setTemplateInstructions={setTemplateInstructions}
 						/>
@@ -512,6 +553,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 		onModeChange: (mode: "diff" | "single") => void,
 		modelKey: string | null,
 		onModelChange: (modelKey: string | null) => void,
+		reasoningEffort: ReasoningEffort,
+		onReasoningEffortChange: (effort: ReasoningEffort) => void,
 		availableModels: ModelOption[],
 		groupedModelOptions: Array<{
 			providerId: string;
@@ -563,6 +606,8 @@ export function ProjectDetailPage({ projectId }: { projectId: string }) {
 			onModeChange,
 			modelKey,
 			onModelChange,
+			reasoningEffort,
+			onReasoningEffortChange,
 			availableModels,
 			groupedModelOptions,
 			modelsLoading,
