@@ -1,6 +1,7 @@
 package client
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/cloudwego/eino/adk"
@@ -143,5 +144,37 @@ func TestAgenticTextContent_ExtractsAssistantText(t *testing.T) {
 
 	if got := agenticTextContent(msg); got != "done" {
 		t.Fatalf("unexpected content: got %q want done", got)
+	}
+}
+
+func TestAgenticReasoningContent_PreservesLeadingSpaces(t *testing.T) {
+	chunks := []*schema.AgenticMessage{
+		{
+			Role: schema.AgenticRoleTypeAssistant,
+			ContentBlocks: []*schema.ContentBlock{
+				schema.NewContentBlock(&schema.Reasoning{Text: "I"}),
+			},
+		},
+		{
+			Role: schema.AgenticRoleTypeAssistant,
+			ContentBlocks: []*schema.ContentBlock{
+				schema.NewContentBlock(&schema.Reasoning{Text: " think"}),
+			},
+		},
+		{
+			Role: schema.AgenticRoleTypeAssistant,
+			ContentBlocks: []*schema.ContentBlock{
+				schema.NewContentBlock(&schema.Reasoning{Text: " we should check docs."}),
+			},
+		},
+	}
+
+	var reasoning strings.Builder
+	for _, chunk := range chunks {
+		reasoning.WriteString(agenticReasoningContent(chunk))
+	}
+
+	if got := reasoning.String(); got != "I think we should check docs." {
+		t.Fatalf("unexpected reasoning content: got %q", got)
 	}
 }

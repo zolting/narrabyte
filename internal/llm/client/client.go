@@ -1325,7 +1325,7 @@ func agenticReasoningContent(msg *schema.AgenticMessage) string {
 		if block == nil || block.Reasoning == nil {
 			continue
 		}
-		if text := strings.TrimSpace(block.Reasoning.Text); text != "" {
+		if text := block.Reasoning.Text; strings.TrimSpace(text) != "" {
 			reasoningParts = append(reasoningParts, text)
 		}
 	}
